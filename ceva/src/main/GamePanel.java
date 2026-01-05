@@ -14,6 +14,7 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Comparator;
 import javax.swing.JPanel;
+import java.awt.Rectangle;
 
 import ai.PathFinder;
 import tile.TileManager;
@@ -31,6 +32,8 @@ public class GamePanel extends JPanel implements Runnable{
     public final int screenWidth = tileSize * maxScreenCol; // 1280 pixels
     public final int screenHeight = tileSize * maxScreenRow; // 768 pixels
 
+    public boolean Hitboxes = true;
+
     // SETARIILE LUMI
     public final int maxWorldCol = 100;
     public final int maxWorldRow = 100;
@@ -43,6 +46,8 @@ public class GamePanel extends JPanel implements Runnable{
     Graphics2D g2;
 
     public boolean fullScreenOn = false;
+
+    public boolean HitBoxes = false;
 
     // FPS
 
@@ -204,90 +209,129 @@ public class GamePanel extends JPanel implements Runnable{
         }
     }
     public void drawToTempScreen() {
-
-        //DEBUG
-        long drawStart = 0;
-        if(keyH.showDebugText == true ) {
-            drawStart = System.nanoTime();
-        }
-
-        // TITLE SCREEN
-        if (gameState == titleState) {
-            ui.draw(g2);
-        }
-        // OTHERS
-        else {
-            
-            // TILE
-            tileM.draw(g2);
-
-            // ADD ENTITIES TO THE LIST
-            entityList.add(player);
-
-            for ( int i = 0 ; i < npc.length ; i++ ) {
-                if ( npc[i] != null ) {
-                    entityList.add(npc[i]);
-                }
-            }
-
-            for ( int i = 0 ; i < obj.length ; i++ ) {
-                if ( obj[i] != null ) {
-                    entityList.add(obj[i]);
-                }
-            }
-
-            for ( int i = 0 ; i < monster.length ; i++ ) {
-                if ( monster[i] != null ) {
-                    entityList.add(monster[i]);
-                }
-            }
-
-            // SORT
-            Collections.sort(entityList, new Comparator<Entity>() {
-
-                @Override
-                public int compare(Entity e1, Entity e2) {
-                    
-                    int result = Integer.compare(e1.worldY, e2.worldY);
-                    return result;
-                }
-                
-            });
-
-            // DRAW ENTITIES
-            for ( int i = 0 ; i < entityList.size(); i++ ) {
-                entityList.get(i).draw(g2);
-            }
-            // EMPTY ENTITY LIST
-            entityList.clear();
-
-            // CUTSCENE 
-            csManager.draw(g2);
-
-            // UI
-            ui.draw(g2);
-        }
-
-        // DEBUG
-        if(keyH.showDebugText == true ) {
-            long drawEnd = System.nanoTime();
-            long passed = drawEnd - drawStart;
-
-            g2.setFont(new Font("Arial",Font.PLAIN, 20));
-            g2.setColor(Color.WHITE);
-            int x = 10;
-            int y = 400;
-            int lineHeigh = 20;
-
-            g2.drawString("WorldX" + player.worldX, x, y); y += lineHeigh;
-            g2.drawString("WorldY" + player.worldY, x, y); y += lineHeigh;
-            g2.drawString("Col" + (player.worldX + player.solidArea.x) / tileSize, x, y); y += lineHeigh;
-            g2.drawString("Row" + (player.worldY + player.solidArea.y) / tileSize, x, y); y += lineHeigh;
-
-            g2.drawString("Draw Time : " + passed, x, y);
-        }
-
+    //DEBUG
+    long drawStart = 0;
+    if(keyH.showDebugText == true ) {
+        drawStart = System.nanoTime();
     }
+
+    // TITLE SCREEN
+    if (gameState == titleState) {
+        ui.draw(g2);
+    }
+    // OTHERS
+    else {
+
+        // TILE
+        tileM.draw(g2);
+
+        // ADD ENTITIES TO THE LIST
+        entityList.add(player);
+
+        for ( int i = 0 ; i < npc.length ; i++ ) {
+            if ( npc[i] != null ) {
+                entityList.add(npc[i]);
+            }
+        }
+
+        for ( int i = 0 ; i < obj.length ; i++ ) {
+            if ( obj[i] != null ) {
+                entityList.add(obj[i]);
+            }
+        }
+
+        for ( int i = 0 ; i < monster.length ; i++ ) {
+            if ( monster[i] != null ) {
+                entityList.add(monster[i]);
+            }
+        }
+
+        // SORT
+        Collections.sort(entityList, new Comparator<Entity>() {
+            @Override
+            public int compare(Entity e1, Entity e2) {
+                int result = Integer.compare(e1.worldY, e2.worldY);
+                return result;
+            }
+        });
+
+        // DRAW ENTITIES
+        for ( int i = 0 ; i < entityList.size(); i++ ) {
+            entityList.get(i).draw(g2);
+        }
+        // EMPTY ENTITY LIST
+        entityList.clear();
+
+        // CUTSCENE 
+        csManager.draw(g2);
+
+        // UI
+        ui.draw(g2);
+
+        // DEBUG HITBOX START
+        if ( HitBoxes == true ) {
+    
+            g2.setColor(new Color(255, 0, 0, 128)); // red semi-transparent
+
+            // PLAYER
+            Rectangle r = player.solidArea;
+            int px = player.worldX - player.worldX + player.screenX + r.x;
+            int py = player.worldY - player.worldY + player.screenY + r.y;
+            g2.fillRect(px, py, r.width, r.height);
+
+            // NPC
+            for(Entity n : npc) {
+                if(n != null) {
+                    r = n.solidArea;
+                    int nx = n.worldX - player.worldX + player.screenX + r.x;
+                    int ny = n.worldY - player.worldY + player.screenY + r.y;
+                    g2.fillRect(nx, ny, r.width, r.height);
+                }
+            }
+
+            // OBJECTS
+            for(Entity o : obj) {
+                if(o != null) {
+                    r = o.solidArea;
+                    int ox = o.worldX - player.worldX + player.screenX + r.x;
+                    int oy = o.worldY - player.worldY + player.screenY + r.y;
+                    g2.fillRect(ox, oy, r.width, r.height);
+                }
+            }
+
+            // COLLISION LAYER RECTANGLES
+            if(tileM.collisionRects != null) {
+                g2.setColor(new Color(0, 0, 255, 128)); // blue semi-transparent
+                for(Rectangle cr : tileM.collisionRects) {
+                    int cx = cr.x - player.worldX + player.screenX;
+                    int cy = cr.y - player.worldY + player.screenY;
+                    g2.fillRect(cx, cy, cr.width, cr.height);
+                }
+            }
+        }
+        // DEBUG HITBOX END
+    }
+
+    // DEBUG TEXT
+    if(keyH.showDebugText == true ) {
+        long drawEnd = System.nanoTime();
+        long passed = drawEnd - drawStart;
+
+        g2.setFont(new Font("Arial",Font.PLAIN, 20));
+        g2.setColor(Color.WHITE);
+        int x = 10;
+        int y = 400;
+        int lineHeigh = 20;
+
+        g2.drawString("WorldX" + player.worldX, x, y); y += lineHeigh;
+        g2.drawString("WorldY" + player.worldY, x, y); y += lineHeigh;
+        g2.drawString("Col" + (player.worldX + player.solidArea.x) / tileSize, x, y); y += lineHeigh;
+        g2.drawString("Row" + (player.worldY + player.solidArea.y) / tileSize, x, y); y += lineHeigh;
+
+        g2.drawString("Draw Time : " + passed, x, y);
+    }
+}
+
 
     public void drawToScreen() {
 

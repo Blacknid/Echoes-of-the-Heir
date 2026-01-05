@@ -10,6 +10,7 @@ public class KeyHandler implements KeyListener{
     // DEBUG
     boolean showDebugText = false;
     boolean AbilityUsed = false;
+
     int Counter = 0;
 
     public KeyHandler(GamePanel gp) {
@@ -164,6 +165,16 @@ public class KeyHandler implements KeyListener{
         if (code == KeyEvent.VK_ENTER) {
             enterPressed = true;
         }
+        if ( gp.HitBoxes == false ) {
+            if(code == KeyEvent.VK_H) {
+                gp.HitBoxes = true;
+            }
+        }
+        else if ( gp.HitBoxes == true ) {
+            if(code == KeyEvent.VK_H) {
+                gp.HitBoxes = false;
+            }
+        }
 
         if ( gp.teleportation == true ) {
             if ( AbilityUsed == false ) {
@@ -201,7 +212,7 @@ public class KeyHandler implements KeyListener{
             }
         }
         if ( code == KeyEvent.VK_R ) {
-            gp.tileM.loadMap("/res/maps/harta3.txt");
+            gp.tileM.loadMapFromTMX("/res/maps/harta.tmx");
         }
         }
     }

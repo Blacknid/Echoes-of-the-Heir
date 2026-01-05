@@ -80,14 +80,15 @@ public class PathFinder {
         {
             //SET SOLID NODE
             //CHECK TILES
-            int tileNum = gp.tileM.mapTileNum/*[gp.currentMap]*/[col][row];
+            /* 
+            int tileNum = gp.tileM.mapTileNum[gp.currentMap][col][row];
             if(gp.tileM.tile[tileNum].collision == true)
             {
                 node[col][row].solid = true;
 
-            }
+            } 
             //CHECK INTERACTIVE TILES
-            /*for(int i = 0; i < gp.iTile[1].length; i++)
+            for(int i = 0; i < gp.iTile[1].length; i++)
             {
                 if(gp.iTile[gp.currentMap][i] != null &&
                         gp.iTile[gp.currentMap][i].destructible == true)
