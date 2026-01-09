@@ -8,7 +8,7 @@ public class KeyHandler implements KeyListener{
     GamePanel gp;
     public boolean upPressed, downPressed, leftPressed, rightPressed, enterPressed;
     // DEBUG
-    boolean showDebugText = false;
+    boolean showDebugText = true;
     boolean AbilityUsed = false;
 
     int Counter = 0;
