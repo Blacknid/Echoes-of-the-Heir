@@ -343,9 +343,17 @@ public class Entity {
             int nextX = gp.pFinder.pathList.get(0).col * gp.tileSize + gp.tileSize / 2;
             int nextY = gp.pFinder.pathList.get(0).row * gp.tileSize + gp.tileSize / 2;
 
-            int enCenterX = worldX + solidArea.x + solidArea.width / 2;
-            int enCenterY = worldY + solidArea.y + solidArea.height / 2;
-        
+            int enCenterX = getCenterX();
+            int enCenterY = getCenterY();
+
+            int dx = enCenterX - nextX;
+            int dy = enCenterY - nextY;
+
+            if (Math.abs(dx) > Math.abs(dy)) {
+                direction = (dx > 0) ? "left" : "right";
+            } else {
+                direction = (dy > 0) ? "up" : "down";
+            }  
 
             //Entity's solidArea position
             int enLeftX = worldX + solidArea.x;
@@ -353,43 +361,43 @@ public class Entity {
             int enTopY = worldY + solidArea.y;
             int enBottomY = worldY + solidArea.y + solidArea.height;
 
-// TOP PATH
-int xDistance = enCenterX - nextX;
-int yDistance = enCenterY - nextY;
+            // TOP PATH
+            int xDistance = enCenterX - nextX;
+            int yDistance = enCenterY - nextY;
 
-if (Math.abs(xDistance) > Math.abs(yDistance)) {
-    if (xDistance > 0) {
-        direction = "left";
-    } else {
-        direction = "right";
-    }
-} else {
-    if (yDistance > 0) {
-        direction = "up";
-    } else {
-        direction = "down";
-    }
-}
-
-//OTHER EXCEPTIONS
-if(enTopY > nextY && enLeftX > nextX)
-            {
-                // up or left
-                direction = "up";
-                checkCollision();
-                if(collisionOn == true)
-                {
+            if (Math.abs(xDistance) > Math.abs(yDistance)) {
+                if (xDistance > 0) {
                     direction = "left";
+                } else {
+                    direction = "right";
+                }
+            } else {
+                if (yDistance > 0) {
+                    direction = "up";
+                } else {
+                    direction = "down";
                 }
             }
-            else if(enTopY > nextY && enLeftX < nextX)
-            {
-                // up or right
-                direction = "up";
-                checkCollision();
-                if(collisionOn == true)
-                {
-                    direction = "right";
+
+            //OTHER EXCEPTIONS
+            if(enTopY > nextY && enLeftX > nextX)
+                        {
+                            // up or left
+                            direction = "up";
+                            checkCollision();
+                            if(collisionOn == true)
+                            {
+                                direction = "left";
+                            }
+                        }
+                        else if(enTopY > nextY && enLeftX < nextX)
+                        {
+                            // up or right
+                            direction = "up";
+                            checkCollision();
+                            if(collisionOn == true)
+                            {
+                                direction = "right";
                 }
             }
             else if(enTopY < nextY && enLeftX > nextX)
@@ -420,4 +428,28 @@ if(enTopY > nextY && enLeftX > nextX)
             }
         }
     }
+
+    public int getCenterX() {
+        return worldX + solidArea.x + solidArea.width / 2;
+    }   
+
+    public int getCenterY() {
+        return worldY + solidArea.y + solidArea.height / 2;
+    }   
+
+    public int getTileCol() {
+        return getCenterX() / gp.tileSize;
+    }   
+
+    public int getTileRow() {
+        return getCenterY() / gp.tileSize;
+    }   
+
+    public boolean isPlayerInRange(int range) {
+        int dx = Math.abs(getCenterX() - gp.player.getCenterX());
+        int dy = Math.abs(getCenterY() - gp.player.getCenterY());
+        return dx < range && dy < range;
+    }   
+
 }
+

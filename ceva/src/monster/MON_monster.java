@@ -64,35 +64,53 @@ public class MON_monster extends Entity{
         right6 = setup("/res/monster/Mummy/right/d6", gp.tileSize , gp.tileSize);
     }
 
+    @Override
     public void setAction() {
-
-        actionLockCounter++;
-
-        if ( actionLockCounter == 120 ) {
-
-            Random random = new Random();
-            int i = random.nextInt(100)+1; // pick up a number from 1 <-> 100
-
-            if ( i <= 25 ) {
-                direction = "up";
-            }
-            if ( i > 25 && i <= 50 ) {
-                direction = "down";
-            }
-            if ( i > 50 && i <= 75 ) {
-                direction = "left";
-            }
-            if ( i > 75 && i <= 100 ) {
-                direction = "right";
-            }
-
-            actionLockCounter = 0;
+    
+        int aggroRange = gp.tileSize * 6;
+    
+        if (isPlayerInRange(aggroRange)) {
+        
+            onPath = true;
+        
+            int goalCol = gp.player.getTileCol();
+            int goalRow = gp.player.getTileRow();
+        
+            searchPath(goalCol, goalRow);
+        }
+        else {
+            onPath = false;
+            randomMovement();
         }
     }
+
     public void damageReaction() {
 
         actionLockCounter = 0;
-        direction = gp.player.direction;
+        public void damageReaction() {
+            actionLockCounter = 0;
+            onPath = true;
+        }
+
     }
 
+    private void randomMovement() {
+
+    actionLockCounter++;
+
+    if (actionLockCounter >= 120) {
+
+        int i = new Random().nextInt(100);
+
+        if (i < 25) direction = "up";
+        else if (i < 50) direction = "down";
+        else if (i < 75) direction = "left";
+        else direction = "right";
+
+        actionLockCounter = 0;
+    }
 }
+
+
+}
+
