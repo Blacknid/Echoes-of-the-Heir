@@ -42,7 +42,7 @@ public class NPC_Alucard extends Entity{
 
         if ( onPath == true ) {
 
-            int goalCol = 55;
+            int goalCol = 44;
             int goalRow = 27;
 
             searchPath(goalCol, goalRow);

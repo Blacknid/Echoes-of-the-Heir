@@ -14,6 +14,10 @@ public class Entity {
 
     GamePanel gp;
 
+    int pathUpdateCounter = 0;
+    int pathUpdateInterval = 10; // frames
+
+
     public int worldX, worldY;
     public boolean alive = true;
     public boolean dying = false;
@@ -330,7 +334,6 @@ public class Entity {
     }
     public void searchPath(int goalCol, int goalRow)
     {
-        System.out.println();
         int startCol = (worldX + solidArea.x) / gp.tileSize;
         int startRow = (worldY + solidArea.y) / gp.tileSize;
         gp.pFinder.setNodes(startCol,startRow,goalCol,goalRow,this);
