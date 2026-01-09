@@ -1,12 +1,9 @@
 package main;
 
-import java.awt.RenderingHints.Key;
-
 import entity.NPC_Alucard;
 import monster.MON_monster;
 import object.OBJ_Book;
 import object.OBJ_Boots;
-import object.OBJ_COPAC1;
 import object.OBJ_Chest;
 import object.OBJ_Door;
 import object.OBJ_Gem;
@@ -59,8 +56,6 @@ public class AssetSetter {
         gp.obj[i].worldX = 25 * gp.tileSize;
         gp.obj[i].worldY = 25 * gp.tileSize;
         i++;
-
-        // Endiig Part
 
         gp.obj[i] = new OBJ_Key(gp);
         gp.obj[i].worldX = 20 * gp.tileSize;

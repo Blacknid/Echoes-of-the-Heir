@@ -97,7 +97,6 @@ public class EventHandler{
     }
     public void teleport( int col, int row, int gameState ) {
 
-        //gp.gameState = gameState;
         eventMaster.startDialogue(eventMaster, 0);
         gp.player.attackCanceled = true;
         gp.player.worldX = gp.tileSize * 73;
