@@ -47,7 +47,7 @@ public class Entity {
     int hpBarCounter = 0;
     public String dialogues[][] = new String[100][100];
     public int dialogueIndex = 0;
-    public BufferedImage image, image2,  image3, compas_image;
+    public BufferedImage image, image1, image2,  image3, compas_image;
 
     public boolean collision = false;
     public boolean sleep = false;
@@ -133,30 +133,28 @@ public class Entity {
     }
     public void checkCollision() {
 
-        collisionOn = false;
-        gp.cChecker.checkTile(this);
-        gp.cChecker.checkObject(this, false);
-        gp.cChecker.checkEntity(this, gp.npc);
-        gp.cChecker.checkEntity(this, gp.monster);
-        gp.cChecker.checkPlayer(this);
-        boolean contactPlayer = gp.cChecker.checkPlayer(this);
+    collisionOn = false;
 
-        if ( this.type == 2 && contactPlayer == true ) {
-            if ( gp.player.invincible == false ) {
-                // WE CAN GIVE DAMAGE
-                gp.playSE(8);
+    gp.cChecker.checkTile(this);
+    gp.cChecker.checkObject(this, false);
+    gp.cChecker.checkEntity(this, gp.npc);
+    gp.cChecker.checkEntity(this, gp.monster);
 
-                int damage = attack - gp.player.defense;
-                if ( damage < 0 ) {
-                    damage = 0;
-                }
+    boolean contactPlayer = gp.cChecker.checkPlayer(this);
 
-                gp.player.life -= damage;
+    // MONSTER DAMAGES PLAYER
+    if (type == type_monster && contactPlayer && gp.player.invincible == false) {
 
-                gp.player.invincible = true;
-            }
-        }
+        gp.playSE(8);
+
+        int damage = attack - gp.player.defense;
+        if (damage < 1) damage = 1;
+
+        gp.player.life -= damage;
+        gp.player.invincible = true;
     }
+}
+
     public void update() {
 
         setAction();

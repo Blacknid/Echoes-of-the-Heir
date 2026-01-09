@@ -8,7 +8,7 @@ public class KeyHandler implements KeyListener{
     GamePanel gp;
     public boolean upPressed, downPressed, leftPressed, rightPressed, enterPressed;
     // DEBUG
-    boolean showDebugText = true;
+    public boolean showDebugText = false;
     boolean AbilityUsed = false;
 
     int Counter = 0;
@@ -107,16 +107,19 @@ public class KeyHandler implements KeyListener{
             if (code == KeyEvent.VK_ENTER) {
                 if (gp.ui.commandNum == 0) {
                     System.out.println("Do some figher specific stuff!");
+                    gp.player.setPlayerStats(4, 2, 1, 4);
                     gp.gameState = gp.playState;
                     gp.playMusic(0);
                 }
                 if (gp.ui.commandNum == 1) {
                     System.out.println("Do some ronin specific stuff!");
+                    gp.player.setPlayerStats(2, 1, 3, 5);
                     gp.gameState = gp.playState;
                     gp.playMusic(0);
                 }
                 if ( gp.ui.commandNum == 2) {
                     System.out.println("Do some magician specific stuff!");
+                    gp.player.setPlayerStats(3, 1, 2, 5);
                     gp.gameState = gp.playState;
                     gp.playMusic(0);
                 }
@@ -201,7 +204,7 @@ public class KeyHandler implements KeyListener{
                     Counter = 0;
                 }
             }
-
+        }
         // DEBUG
         if (code == KeyEvent.VK_T) {
             if ( showDebugText == false ) {
@@ -213,7 +216,6 @@ public class KeyHandler implements KeyListener{
         }
         if ( code == KeyEvent.VK_R ) {
             gp.tileM.loadMapFromTMX("/res/maps/harta.tmx");
-        }
         }
     }
 }

@@ -86,11 +86,8 @@ public class MON_monster extends Entity{
 
     public void damageReaction() {
 
-        actionLockCounter = 0;
-        public void damageReaction() {
             actionLockCounter = 0;
             onPath = true;
-        }
 
     }
 

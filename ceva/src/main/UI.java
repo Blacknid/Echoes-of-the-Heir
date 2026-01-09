@@ -17,7 +17,7 @@ public class UI {
     GamePanel gp;
     Graphics2D g2;
     Font arial_40, arial_80B;
-    BufferedImage Heart_3, Heart_2, Heart_1, Key;
+    BufferedImage Full_Hearts, Empty_Hearts, Key;
     public BufferedImage Compas;
     public boolean messageOn = false;
     //public String message = "";
@@ -45,9 +45,9 @@ public class UI {
 
         // CREATE HUB OBJECT
         Entity heart = new OBJ_Heart(gp);
-        Heart_3 = heart.image;
-        Heart_2 = heart.image2;
-        Heart_1 = heart.image3;
+        Full_Hearts = heart.image;
+        Empty_Hearts = heart.image1;
+        
 
         Entity key = new OBJ_Key(gp);
         Key = key.down1;
@@ -147,52 +147,30 @@ public class UI {
 }
     public void drawPlayerLife() {
 
-        int x = (int) (gp.tileSize * (double)7.5);
-        int y = gp.tileSize * 10;
+        int startX = (int)(20 * gp.screenWidth / 1280f);
+        int startY = (int)(20 * gp.screenWidth / 1280f);
 
-        // DRAW MAX LIFE
+        int heartSize = (int)(32 * gp.screenWidth / 1280f);      // base heart size
+        int spacing   = (int)(8  * gp.screenWidth / 1280f);      // space between hearts
 
-            if ( gp.player.life == 3 ) {
-                g2.drawImage(Heart_3, x, y, null);
-            }
-            else if ( gp.player.life == 2 ) {
-                g2.drawImage(Heart_2, x, y, null);
-            }
-            else if ( gp.player.life == 1 ) {
-                g2.drawImage(Heart_1, x, y, null);
-            }
-            else if ( gp.player.life <= 0 ) {
-                gp.gameState = gp.gameOverState;
-                gp.ui.commandNum = -1;
-                gp.stopMusic();
-                gp.playSE(4);
-            }
-        
-        
-        
-        /*int x = gp.tileSize*7;
-        int y = gp.tileSize*11;
-        int i = 0;
 
-        // DRAW MAX HEART
-        while ( i < gp.player.maxLife/2 ) {
-            g2.drawImage(Heart_1, x, y, null);
-            i++;
-          
-        }
-        // RESET
-        i = 0;
+        int x = startX;
+        int y = startY;
 
-        // DRAW CURRENT LIFE
-        while ( i < gp.player.life ) {
-            g2.drawImage(Heart_2, x, y, null);
-            i++;
-            if ( i < gp.player.life ) {
-                g2.drawImage(Heart_3, x, y, null);
-            }
-            i++;
-        }*/
+// DRAW EMPTY HEARTS (MAX LIFE)
+    for (int i = 0; i < gp.player.maxLife; i++) {
+        g2.drawImage(Empty_Hearts, x, y, heartSize, heartSize, null);
+        x += heartSize + spacing;
+    }
 
+    // RESET X
+    x = startX;
+
+    // DRAW FILLED HEARTS (CURRENT LIFE)
+    for (int i = 0; i < gp.player.life; i++) {
+        g2.drawImage(Full_Hearts, x, y, heartSize, heartSize, null);
+        x += heartSize + spacing;
+    }
     }
     public void drawMessage() {
 
@@ -552,7 +530,8 @@ public class UI {
         int textY = frameY + gp.tileSize;
         final int lineHeight = 50;
 
-        // NAMES
+        //  NAME FOR EACH STATS
+
         g2.drawString("Level", textX, textY);
         textY += lineHeight;
         g2.drawString("Life", textX, textY);
@@ -576,9 +555,12 @@ public class UI {
         g2.drawString("Shield", textX, textY);
         textY += lineHeight;
 
-        // VALUES
+        // AFISAREA VALORILOR PENTRU FIECARE STAT
+
         int tailX = ( frameX + frameWidth ) - 30;
-        // RESET TEXTY
+
+        // RESET TEXT Y
+
         textY = frameY + gp.tileSize;
         String value;
 
@@ -649,6 +631,7 @@ public class UI {
         int slotSize = gp.tileSize + 3;
 
         // DRAW PLAYER'S ITEMS
+        
         for ( int i = 0 ; i < gp.player.inventory.size(); i++ ) {
 
             if ( gp.player.inventory.get(i).type == gp.player.type_consumable ) {

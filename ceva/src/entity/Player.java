@@ -1,8 +1,6 @@
 package entity;
 
 import java.awt.AlphaComposite;
-import java.awt.Color;
-import java.awt.Font;
 import java.awt.Graphics2D;
 import java.awt.Rectangle;
 import java.awt.image.BufferedImage;
@@ -15,7 +13,7 @@ import object.OBJ_Compas;
 import object.OBJ_Shield_Wood;
 import object.OBJ_Sword_Normal;
 
-public class Player extends Entity{
+public class Player extends Entity {
 
     KeyHandler keyH;
 
@@ -31,57 +29,48 @@ public class Player extends Entity{
     int counter = 0;
 
     public Player(GamePanel gp, KeyHandler keyH) {
-
         super(gp);
 
         this.keyH = keyH;
-
         screenX = gp.screenWidth / 2 - (gp.tileSize / 2);
         screenY = gp.screenHeight / 2 - (gp.tileSize / 2);
 
         solidArea = new Rectangle();
-        solidArea.x = (int)20;
+        solidArea.x = 20;
         solidArea.y = 25;
         solidAreaDefaultX = solidArea.x;
         solidAreaDefaultY = solidArea.y;
-        solidArea.height = 20;
         solidArea.width = 20;
+        solidArea.height = 20;
 
-        //ATTACK AREA
         attackArea.width = 36;
         attackArea.height = 36;
 
         setDefaultValues();
-        getPlayerImage();
-        getPlayerAttackImage();
+        getPlayerImages();
+        getPlayerAttackImages();
         setItems();
         setDialogue();
     }
-    public void setItems() {
-        
-    }
-    public void restoreLifeAndMana() {
 
-        life = maxLife;
+    public void setItems() { }
 
-    }
+    public void restoreLifeAndMana() { life = maxLife; }
+
     public void setDefaultPositions() {
-
         worldX = (int)(gp.tileSize * 24.5);
         worldY = (int)(gp.tileSize * 15.5);
         direction = "down";
     }
-    public void setDialogue() {
 
-    }
+    public void setDialogue() { }
+
     public void setDefaultValues() {
-
         worldX = (int)(gp.tileSize * 71.5);
         worldY = (int)(gp.tileSize * 21.5);
-        speed = (int) 4.5;
+        speed = 4;
         direction = "down";
 
-        // PLAYER STATUS
         level = 1;
         maxLife = 3;
         life = maxLife;
@@ -90,58 +79,97 @@ public class Player extends Entity{
         exp = 0;
         nextLevelExp = 5;
         coin = 0;
+
         currentWeapon = new OBJ_Sword_Normal(gp);
         currentShield = new OBJ_Shield_Wood(gp);
         attack = getAttack();
         defense = getDefense();
     }
 
-    public int getAttack() {
-        return attack = strenght * currentWeapon.attackValue;
+    public void setPlayerStats(int life, int strenght, int dexterity, int speed) {
+        this.maxLife = life;
+        this.life = this.maxLife;
+        this.strenght = strenght;
+        this.dexterity = dexterity;
+        this.speed = speed;
+        this.attack = getAttack();
+        this.defense = getDefense();
     }
 
-    public int getDefense() {
-        return defense = dexterity * currentShield.defenseValue;
+    public int getAttack() { return attack = strenght * currentWeapon.attackValue; }
+
+    public int getDefense() { return defense = dexterity * currentShield.defenseValue; }
+
+    /**
+     * Adaugam un sistem de incarcare a unui spritesheet cu un numar variabil de cadre pe rand.
+     */
+    private BufferedImage[][] loadSheetVariable(String path, int[] framesPerRow) {
+        int rows = framesPerRow.length;
+        int maxCols = 0;
+        for (int f : framesPerRow) if (f > maxCols) maxCols = f;
+
+        BufferedImage sheet = setup(path, gp.tileSize * maxCols, gp.tileSize * rows);
+        BufferedImage[][] frames = new BufferedImage[rows][];
+
+        for (int y = 0; y < rows; y++) {
+            frames[y] = new BufferedImage[framesPerRow[y]];
+            for (int x = 0; x < framesPerRow[y]; x++) {
+                frames[y][x] = sheet.getSubimage(
+                        x * gp.tileSize,
+                        y * gp.tileSize,
+                        gp.tileSize,
+                        gp.tileSize
+                );
+            }
+        }
+        return frames;
     }
 
-    public void getPlayerImage() {
+    public void getPlayerImages() {
+        // Specify frames per direction (randuri)
+        int[] framesPerRow = {7, 8, 8, 7}; // down, left, right, up
+        BufferedImage[][] frames = loadSheetVariable("/res/player/player-sheet", framesPerRow);
 
-        up1 = setup("/res/player/b.up/b1", gp.tileSize, gp.tileSize);
-        up2 = setup("/res/player/b.up/b2", gp.tileSize, gp.tileSize);
-        up3 = setup("/res/player/b.up/b3", gp.tileSize, gp.tileSize);
-        up4 = setup("/res/player/b.up/b4", gp.tileSize, gp.tileSize);
-        up5 = setup("/res/player/b.up/b5", gp.tileSize, gp.tileSize);
-        up6 = setup("/res/player/b.up/b6", gp.tileSize, gp.tileSize);
-        up7 = setup("/res/player/b.up/b7", gp.tileSize, gp.tileSize);
-        down1 = setup("/res/player/b.front/f1", gp.tileSize, gp.tileSize);
-        down2 = setup("/res/player/b.front/f2", gp.tileSize, gp.tileSize);
-        down3 = setup("/res/player/b.front/f3", gp.tileSize, gp.tileSize);
-        down4 = setup("/res/player/b.front/f4", gp.tileSize, gp.tileSize);
-        down5 = setup("/res/player/b.front/f5", gp.tileSize, gp.tileSize);
-        down6 = setup("/res/player/b.front/f6", gp.tileSize, gp.tileSize);
-        down7 = setup("/res/player/b.front/f7", gp.tileSize, gp.tileSize);
-        left1 = setup("/res/player/b.left/l1", gp.tileSize, gp.tileSize);
-        left2 = setup("/res/player/b.left/l2", gp.tileSize, gp.tileSize);
-        left3 = setup("/res/player/b.left/l3", gp.tileSize, gp.tileSize);
-        left4 = setup("/res/player/b.left/l4", gp.tileSize, gp.tileSize);
-        left5 = setup("/res/player/b.left/l5", gp.tileSize, gp.tileSize);
-        left6 = setup("/res/player/b.left/l6", gp.tileSize, gp.tileSize);
-        left7 = setup("/res/player/b.left/l7", gp.tileSize, gp.tileSize);
-        left8 = setup("/res/player/b.left/l8", gp.tileSize, gp.tileSize);
-        right1 = setup("/res/player/b.right/r1", gp.tileSize, gp.tileSize);
-        right2 = setup("/res/player/b.right/r2", gp.tileSize, gp.tileSize);
-        right3 = setup("/res/player/b.right/r3", gp.tileSize, gp.tileSize);
-        right4 = setup("/res/player/b.right/r4", gp.tileSize, gp.tileSize);
-        right5 = setup("/res/player/b.right/r5", gp.tileSize, gp.tileSize);
-        right6 = setup("/res/player/b.right/r6", gp.tileSize, gp.tileSize);
-        right7 = setup("/res/player/b.right/r7", gp.tileSize, gp.tileSize);
-        right8 = setup("/res/player/b.right/r8", gp.tileSize, gp.tileSize);
-        chest_2 = setup("/res/objects/Chest_opened", gp.tileSize, gp.tileSize);
+        // Assign up frames
+        down1= frames[0][0];
+        down2 = frames[0][1];
+        down3 = frames[0][2];
+        down4 = frames[0][3];
+        down5 = frames[0][4];
+        down6 = frames[0][5];
+        down7 = frames[0][6];
 
+        // Assign down frames
+        left1 = frames[1][0];
+        left2 = frames[1][1];
+        left3 = frames[1][2];
+        left4 = frames[1][3];
+        left5 = frames[1][4];
+        left6 = frames[1][5];
+        left7 = frames[1][6];
+        left8 = frames[1][7];
+
+        // Assign left frames
+        right1 = frames[2][0];
+        right2 = frames[2][1];
+        right3 = frames[2][2];
+        right4 = frames[2][3];
+        right5 = frames[2][4];
+        right6 = frames[2][5];
+        right7 = frames[2][6];
+        right8 = frames[2][7];
+
+        // Assign right frames
+        up1 = frames[3][0];
+        up2 = frames[3][1];
+        up3 = frames[3][2];
+        up4 = frames[3][3];
+        up5 = frames[3][4];
+        up6 = frames[3][5];
+        up7 = frames[3][6];
     }
 
-    public void getPlayerAttackImage() {
-
+    public void getPlayerAttackImages() {
         attackUp1 = setup("/res/player/b.attack/up/u1", gp.tileSize, gp.tileSize * 2);
         attackUp2 = setup("/res/player/b.attack/up/u2", gp.tileSize, gp.tileSize * 2);
         attackUp3 = setup("/res/player/b.attack/up/u3", gp.tileSize, gp.tileSize * 2);
@@ -167,143 +195,91 @@ public class Player extends Entity{
         attackRight5 = setup("/res/player/b.attack/right/r5", gp.tileSize * 2, gp.tileSize);
     }
 
-    public void update() {
+ public void update() {
 
-        if ( attacking == true ) {
-            attacking();
-        }
+    // Handle attacking first
+    if (attacking) {
+        attacking();
+    } else {
 
-        else if (keyH.upPressed == true || keyH.downPressed == true || 
-                keyH.leftPressed == true || keyH.rightPressed == true || keyH.enterPressed == true) {
+        // Determine direction based on keys
+        if (keyH.upPressed) direction = "up";
+        else if (keyH.downPressed) direction = "down";
+        else if (keyH.leftPressed) direction = "left";
+        else if (keyH.rightPressed) direction = "right";
 
-            if(keyH.upPressed == true) {
-                direction = "up";
-            }
-            else if(keyH.downPressed == true) {
-                direction = "down";
-            }
-            else if(keyH.leftPressed == true) {
-                direction = "left";
-            }
-            else if(keyH.rightPressed == true) {
-                direction = "right";
-            }
+        boolean moving = keyH.upPressed || keyH.downPressed || keyH.leftPressed || keyH.rightPressed;
 
-            //CHECK TILE COLLISION
+        if (moving || keyH.enterPressed) {
 
+            // COLLISION CHECKS
             collisionOn = false;
             gp.cChecker.checkTile(this);
-
-
-            //CHECK OBJECT COLLISION
 
             int objIndex = gp.cChecker.checkObject(this, true);
             pickUpObject(objIndex);
 
-            // CHECK NPC COLLISION
             int npcIndex = gp.cChecker.checkEntity(this, gp.npc);
             interactNPC(npcIndex);
 
-            // CHECK MONSTER COLLISION
             int monsterIndex = gp.cChecker.checkEntity(this, gp.monster);
             contactMonster(monsterIndex);
 
-            // CHECK EVENT
-            
-            //IF COLLISION IS FALSE, THE PLAYER CAN MOVE
-            if(collisionOn == false && keyH.enterPressed == false ){
-                
-                switch(direction){
-
+            // Move player if no collision
+            if (!collisionOn && !keyH.enterPressed) {
+                switch(direction) {
                     case "up": worldY -= speed; break;
                     case "down": worldY += speed; break;
                     case "left": worldX -= speed; break;
                     case "right": worldX += speed; break;
                 }
             }
-            if ( keyH.enterPressed == true && attackCanceled == false ) {
+
+            // Start attack if enter pressed
+            if (keyH.enterPressed && !attackCanceled) {
                 attacking = true;
                 spriteCounter = 0;
             }
 
             attackCanceled = false;
+            keyH.enterPressed = false;
 
-            gp.keyH.enterPressed = false;
-
-            spriteCounter++;
-            spriteCounter1++;
-
-            if (spriteCounter1 > 12) {
-                if (spriteNum1 == 1) {
-                    spriteNum1 = 2;
-                }
-                else if (spriteNum1 == 2) {
-                    spriteNum1 = 3;
-                }
-                else if (spriteNum1 == 3){
-                    spriteNum1 = 4;
-                }
-                else if (spriteNum1 == 4){
-                    spriteNum1 = 5;
-                }
-                else if (spriteNum1 == 5){
-                    spriteNum1 = 6;
-                }
-                else if (spriteNum1 == 6){
-                    spriteNum1 = 7;
-                }
-                else if (spriteNum1 == 7){
-                    spriteNum1 = 8;
-                }
-                else if (spriteNum1 == 8) {
-                    spriteNum1 = 1;
-                }
-
-                spriteCounter1 = 0;
-
-            }
-
-            if (spriteCounter > 12) {
-                if (spriteNum == 1) {
-                    spriteNum = 2;
-                }
-                else if (spriteNum == 2) {
-                    spriteNum = 3;
-                }
-                else if (spriteNum == 3){
-                    spriteNum = 4;
-                }
-                else if (spriteNum == 4){
-                    spriteNum = 5;
-                }
-                else if (spriteNum == 5){
-                    spriteNum = 6;
-                }
-                else if (spriteNum == 6){
-                    spriteNum = 7;
-                }
-                else if (spriteNum == 7){
-                    spriteNum = 1;
-                }
-            
-                spriteCounter = 0;
-
-            }
-        }
-        else  {
+            // Update animation sprites
+            updateSprite();
+        } else {
+            // Player idle
             spriteNum = 1;
             spriteNum1 = 1;
         }
+    }
 
-        // THIS NEEDS TO BE OUTSIDCE OF THE KEY IF STATEMENT
-        if ( invincible == true ) {
-            invincibleCounter++;
-            if ( invincibleCounter > 60 ) {
-                invincible = false;
-                invincibleCounter = 0;
-            }
+    // Handle invincibility timer
+    if (invincible) {
+        invincibleCounter++;
+        if (invincibleCounter > 60) {
+            invincible = false;
+            invincibleCounter = 0;
         }
     }
+}
+
+private void updateSprite() {
+    spriteCounter++;
+    spriteCounter1++;
+
+    // Movement animation - speed
+
+    if (spriteCounter1 > 8) {
+        spriteNum1 = (spriteNum1 % 8) + 1; // loops 1-8
+        spriteCounter1 = 0;
+    }
+
+    if (spriteCounter > 7) {
+        spriteNum = (spriteNum % 7) + 1; // loops 1-7
+        spriteCounter = 0;
+    }
+}
+
 
     public void attacking() {
 
@@ -391,8 +367,8 @@ public class Player extends Entity{
             }
             // INVENTORY ITEMS
             else {
+
                 String objectName = gp.obj[i].name;
-            String text;
 
             
                 if ( inventory.size() != maxInventorySize && gp.obj[i].type == gp.player.type_consumable) {
@@ -505,19 +481,15 @@ public class Player extends Entity{
 
     public void contactMonster ( int i ) {
 
-        if ( i != 999 ) {
+        if (i != 999 && !invincible) {
 
-            if ( invincible == false ) {
-                gp.playSE(8);
+            gp.playSE(8);
 
-                int damage = gp.monster[i].attack - defense;
-                if ( damage < 0 ) {
-                    damage = 0;
-                }
+            int damage = gp.monster[i].attack - defense;
+            if (damage < 1) damage = 1;
 
-                gp.player.life -= damage;
-                invincible = true;
-            }
+            life -= damage;
+            invincible = true;
         }
     }
 
@@ -530,8 +502,8 @@ public class Player extends Entity{
 
                 int damage = attack - gp.monster[i].defense;
 
-                if ( damage < 0 ) {
-                    damage = 0;
+                if ( damage < 1 ) {
+                    damage = 1;
                 }
 
                 gp.monster[i].life -= damage;
@@ -559,8 +531,9 @@ public class Player extends Entity{
             maxLife++;
             strenght++;
             dexterity++;
+            life = maxLife;
             attack = getAttack();
-            //defense = getDefense();
+            defense = getDefense();
 
             gp.playSE(11);
             
@@ -572,9 +545,6 @@ public class Player extends Entity{
     }
     
     public void draw(Graphics2D g2) {
-
-       // g2.setColor(Color.white);
-       // g2.fillRect(x, y, gp.tileSize, gp.tileSize);
 
         BufferedImage image = null;
         int tempScreenX = screenX;
@@ -679,11 +649,6 @@ public class Player extends Entity{
         // RESET ALPHA
         g2.setComposite(AlphaComposite.getInstance(AlphaComposite.SRC_OVER, 1f));
 
-        /*g2.setFont(new Font("Arial", Font.PLAIN, 26));
-        g2.setColor(Color.white);
-        g2.drawString("Invincible: " + invincibleCounter, 10, 400);*/
-        //g2.setColor(Color.red);
-        //g2.drawRect(attackArea.x, attackArea.y, attackArea.width, attackArea.height);
     }
     public void selectItem() {
 

@@ -203,9 +203,15 @@ public class GamePanel extends JPanel implements Runnable{
                 }
             }
         }
-        if(gameState == pauseState) {
-            
-        }
+        if (player.life <= 0) {
+        player.life = 0; // safety clamp
+
+        gameState = gameOverState;
+        ui.commandNum = -1;
+
+        stopMusic();
+        playSE(4);
+    }
     }
     public void drawToTempScreen() {
     //DEBUG
