@@ -386,7 +386,7 @@ private void updateSprite() {
                         break;
 
                     }
-                    
+
                 case "Boots" -> {
                     gp.obj[i] = null;
                     gp.ui.addMessage("Speed increased!");
