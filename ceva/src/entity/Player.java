@@ -43,9 +43,6 @@ public class Player extends Entity {
         solidArea.width = 20;
         solidArea.height = 20;
 
-        attackArea.width = 36;
-        attackArea.height = 36;
-
         setDefaultValues();
         getPlayerImages();
         getPlayerAttackImages();
@@ -53,7 +50,12 @@ public class Player extends Entity {
         setDialogue();
     }
 
-    public void setItems() { }
+    public void setItems() {
+
+        inventory.add( currentWeapon );
+        inventory.add( currentShield );
+
+     }
 
     public void restoreLifeAndMana() { life = maxLife; }
 
@@ -96,9 +98,18 @@ public class Player extends Entity {
         this.defense = getDefense();
     }
 
-    public int getAttack() { return attack = strenght * currentWeapon.attackValue; }
+    public int getAttack() { 
+        
+        attackArea = currentWeapon.attackArea;
+        return attack = strenght * currentWeapon.attackValue; 
+    
+    }
 
-    public int getDefense() { return defense = dexterity * currentShield.defenseValue; }
+    public int getDefense() { 
+        
+        return defense = dexterity * currentShield.defenseValue; 
+    
+    }
 
     /**
      * Adaugam un sistem de incarcare a unui spritesheet cu un numar variabil de cadre pe rand.
@@ -349,121 +360,110 @@ private void updateSprite() {
 
         if (i != 999) {
 
-            // PICKUP ONLY ITEMS
-            if ( gp.obj[i].type == type_pickupOnly ) {
+            if ( inventory.size() != maxInventorySize ) {
 
                 String objectName = gp.obj[i].name;
-
-                /*switch (objectName) {
-                    case "Gem" -> {
-                    gp.playSE(2);
-                    gp.gameState = gp.cutsceneState;
-                    gp.csManager.sceneNum = gp.csManager.ending;
-                                  
-                    }
-                }*/
-                gp.obj[i].use(this);
-                gp.obj[i] = null;
-            }
-            // INVENTORY ITEMS
-            else {
-
-                String objectName = gp.obj[i].name;
-
-            
-                if ( inventory.size() != maxInventorySize && gp.obj[i].type == gp.player.type_consumable) {
+                String text;
 
                 inventory.add(gp.obj[i]);
                 gp.playSE(2);
-            switch (objectName) {
-                
-            case "Compas" -> {
-                
-                    gp.teleportation = true;
-                    gp.ui.addMessage("Teleportation unlocked!");
-                    gp.obj[i] = null;
-                    break;
-                }
-            case "Potion" -> {
-                gp.obj[i] = null;
-                gp.ui.addMessage("You've got a potion!");
-                break;
-            }
-            case "Boots" -> {
-                gp.obj[i] = null;
-                gp.ui.addMessage("Speed increased!");
-                gp.player.speed += 1;
-                gp.bootsUnlocked = true;   
-                break;               
-            }
-            }
-            }
-            switch (objectName) {
 
-                case "Door" -> {
-                    if(hasKey > 0){
-                        gp.playSE(1);
+                switch (objectName) {
+                
+                    case "Compas" -> {
+                    
+                        gp.teleportation = true;
+                        gp.ui.addMessage("Teleportation unlocked!");
                         gp.obj[i] = null;
-                        hasKey--;
-                        gp.ui.addMessage("You opened the door!");
+                        break;
 
                     }
-                    else {
-                        int counter = 0;
-                        if ( counter > 180 ) {
-                            gp.ui.addMessage("You need a key!");
-                            counter = 0;
+
+                    case "Potion" -> {
+
+                        gp.obj[i] = null;
+                        text = ("You've got a potion!");
+                        break;
+
+                    }
+
+                case "Boots" -> {
+                    gp.obj[i] = null;
+                    gp.ui.addMessage("Speed increased!");
+                    gp.player.speed += 1;
+                    gp.bootsUnlocked = true;   
+                    break;               
+                }
+            
+                    case "Door" -> {
+                        if(hasKey > 0){
+                            gp.playSE(1);
+                            gp.obj[i] = null;
+                            hasKey--;
+                            gp.ui.addMessage("You opened the door!");
+                        
                         }
                         else {
+                            int counter = 0;
+                            if ( counter > 180 ) {
+                                gp.ui.addMessage("You need a key!");
+                                counter = 0;
+                            }
+                            else {
+                                counter++;
+                            }
+                            
+                        }
+                        break;
+                    }
+                    
+                    case "Chest" -> {
+                        boolean opened = false;
+                        if ( hasKey > 0 ) {
+                            gp.playSE(1);
+                            hasKey--;
+                            opened = true;
+                            //gp.obj[i] = null;
+                            gp.obj[i] = new OBJ_Chest1(gp); gp.obj[i].worldX = (int) (43 * gp.tileSize); gp.obj[i].worldY = (int)(36 * gp.tileSize);
+                            gp.ui.addMessage("You opened the chest!");
+                            if ( opened == true ) {
+                                gp.obj[99] = new OBJ_Compas(gp); gp.obj[99].worldX = (int) (44 * gp.tileSize); gp.obj[99].worldY = (int)(37 * gp.tileSize);  
+                            }
+                        }
+                        else if (counter <= 0 && hasKey == 0 ){
+                            gp.ui.addMessage("You need a key!");
                             counter++;
                         }
-                        
                     }
-                    break;
-                }
-                
-                case "Chest" -> {
-                    boolean opened = false;
-                    if ( hasKey > 0 ) {
-                        gp.playSE(1);
-                        hasKey--;
-                        opened = true;
-                        //gp.obj[i] = null;
-                        gp.obj[i] = new OBJ_Chest1(gp); gp.obj[i].worldX = (int) (43 * gp.tileSize); gp.obj[i].worldY = (int)(36 * gp.tileSize);
-                        gp.ui.addMessage("You opened the chest!");
-                        if ( opened == true ) {
-                            gp.obj[99] = new OBJ_Compas(gp); gp.obj[99].worldX = (int) (44 * gp.tileSize); gp.obj[99].worldY = (int)(37 * gp.tileSize);  
+                    case "Gem" -> {
+                        if ( gp.player.level >= 3 ) {
+                            gp.playSE(2);
+                            gp.obj[i] = null;
+                            gp.gameState = gp.cutsceneState;
+                            gp.csManager.sceneNum = gp.csManager.ending;
                         }
+                        else {
+                            dialogues[1][0] = "You need level 3 to obtain me!";
+                            startDialogue(this, 1);
+                        }
+                                      
                     }
-                    else if (counter <= 0 && hasKey == 0 ){
-                        gp.ui.addMessage("You need a key!");
-                        counter++;
+                    case "Key" -> {
+                        gp.playSE(2);
+                        hasKey++;
+                        gp.obj[i] = null;
+                        gp.ui.addMessage("You got a key!");
                     }
-                }
-                case "Gem" -> {
-                    if ( gp.player.level >= 3 ) {
+                    case "Book" -> {
                         gp.playSE(2);
                         gp.obj[i] = null;
-                        gp.gameState = gp.cutsceneState;
-                        gp.csManager.sceneNum = gp.csManager.ending;
-                    }
-                    else {
-                        dialogues[1][0] = "You need level 3 to obtain me!";
-                        startDialogue(this, 1);
-                    }
-                                  
-                }
-                case "Key" -> {
-                    gp.playSE(2);
-                    hasKey++;
-                    gp.obj[i] = null;
-                    gp.ui.addMessage("You got a key!");
+                        gp.ui.addMessage("You got a new weapon!");
                 }
             }
-            }
-            }
-            
-        }
+        }     
+    }
+}
+
     public void interactNPC ( int i ) {
 
         if ( gp.keyH.enterPressed == true ) {
@@ -658,7 +658,19 @@ private void updateSprite() {
 
             Entity selectedItem = inventory.get(itemIndex);
 
-            if ( selectedItem.type == type_consumable ) {
+            if(selectedItem.type == type_sword || selectedItem.type == type_book ) {
+
+                currentWeapon = selectedItem;
+                attack = getAttack();
+            }
+
+            else if ( selectedItem.type == type_shield ) {
+
+                currentShield = selectedItem;
+                defense = getDefense();
+            }
+
+            else if ( selectedItem.type == type_consumable ) {
 
                 selectedItem.use(this);
                 inventory.remove(itemIndex);
