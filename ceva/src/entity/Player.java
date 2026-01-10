@@ -666,4 +666,3 @@ private void updateSprite() {
         }
     }
 }
- 
