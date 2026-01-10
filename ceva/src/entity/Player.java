@@ -10,6 +10,7 @@ import main.GamePanel;
 import main.KeyHandler;
 import object.OBJ_Chest1;
 import object.OBJ_Compas;
+import object.OBJ_Fireball;
 import object.OBJ_Shield_Wood;
 import object.OBJ_Sword_Normal;
 import object.OBJ_Book;
@@ -17,6 +18,8 @@ import object.OBJ_Book;
 public class Player extends Entity {
 
     KeyHandler keyH;
+
+    public OBJ_Fireball fireball; // the projectile template
 
     public final int screenX;
     public final int screenY;
@@ -85,6 +88,10 @@ public class Player extends Entity {
 
         currentWeapon = new OBJ_Sword_Normal(gp);
         currentShield = new OBJ_Shield_Wood(gp);
+
+        // Set a projectile default (Temporary)
+        fireball = new OBJ_Fireball(gp);
+
         attack = getAttack();
         defense = getDefense();
     }
@@ -252,6 +259,12 @@ public class Player extends Entity {
             invincibleCounter = 0;
         }
     }
+}
+
+public void shootFireball() {
+    OBJ_Fireball newFireball = new OBJ_Fireball(gp);
+    newFireball.set(worldX, worldY, direction, true);
+    gp.projectiles.add(newFireball);
 }
 
 private void updateSprite() {
