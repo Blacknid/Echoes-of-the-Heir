@@ -678,7 +678,8 @@ public class UI {
         if ( itemIndex < gp.player.inventory.size() && gp.player.inventory.get(itemIndex).type == gp.player.type_consumable || 
              itemIndex < gp.player.inventory.size() && gp.player.inventory.get(itemIndex) == gp.player.currentShield ||
              itemIndex < gp.player.inventory.size() && gp.player.inventory.get(itemIndex) == gp.player.currentWeapon ||
-             itemIndex < gp.player.inventory.size() && gp.player.inventory.get(itemIndex).type == gp.player.type_buffs ) {
+             itemIndex < gp.player.inventory.size() && gp.player.inventory.get(itemIndex).type == gp.player.type_buffs || 
+             itemIndex < gp.player.inventory.size() && gp.player.inventory.get(itemIndex).type == gp.player.type_book ) {
 
             drawSubWindow(dFrameX, dFrameY, dFrameWidth, dFrameHeight);
 

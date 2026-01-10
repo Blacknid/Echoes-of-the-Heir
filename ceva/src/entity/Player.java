@@ -12,6 +12,7 @@ import object.OBJ_Chest1;
 import object.OBJ_Compas;
 import object.OBJ_Shield_Wood;
 import object.OBJ_Sword_Normal;
+import object.OBJ_Book;
 
 public class Player extends Entity {
 
@@ -387,16 +388,16 @@ private void updateSprite() {
 
                     }
 
-                case "Boots" -> {
-                    gp.obj[i] = null;
-                    gp.ui.addMessage("Speed increased!");
-                    gp.player.speed += 1;
-                    gp.bootsUnlocked = true;   
-                    break;               
-                }
+                    case "Boots" -> {
+                        gp.obj[i] = null;
+                        gp.ui.addMessage("Speed increased!");
+                        gp.player.speed += 1;
+                        gp.bootsUnlocked = true;   
+                        break;               
+                    }
             
                     case "Door" -> {
-                        if(hasKey > 0){
+                        if( hasKey > 0 ) {
                             gp.playSE(1);
                             gp.obj[i] = null;
                             hasKey--;
@@ -405,7 +406,7 @@ private void updateSprite() {
                         }
                         else {
                             int counter = 0;
-                            if ( counter > 180 ) {
+                            if ( counter > 360 ) {
                                 gp.ui.addMessage("You need a key!");
                                 counter = 0;
                             }
@@ -435,30 +436,34 @@ private void updateSprite() {
                             counter++;
                         }
                     }
+
                     case "Gem" -> {
+
                         if ( gp.player.level >= 3 ) {
                             gp.playSE(2);
                             gp.obj[i] = null;
                             gp.gameState = gp.cutsceneState;
                             gp.csManager.sceneNum = gp.csManager.ending;
                         }
+
                         else {
                             dialogues[1][0] = "You need level 3 to obtain me!";
                             startDialogue(this, 1);
-                        }
-                                      
+                        }             
                     }
+
                     case "Key" -> {
                         gp.playSE(2);
                         hasKey++;
                         gp.obj[i] = null;
                         gp.ui.addMessage("You got a key!");
                     }
-                    case "Book" -> {
+
+                    case "Spell book" -> {
                         gp.playSE(2);
                         gp.obj[i] = null;
                         gp.ui.addMessage("You got a new weapon!");
-                }
+                    }
             }
         }     
     }
