@@ -1,4 +1,7 @@
 package object;
+
+import java.awt.image.BufferedImage;
+
 import entity.Projectile;
 import main.GamePanel;
 
@@ -7,7 +10,9 @@ public class OBJ_Fireball extends Projectile{
     GamePanel gp;
 
     public OBJ_Fireball(GamePanel gp){
+
         super(gp);
+
         this.gp = gp;
 
         name = "Fireball";
@@ -17,12 +22,14 @@ public class OBJ_Fireball extends Projectile{
         attack = 2;
         useCost = 1;
         alive = false;
-        
-        
+        getImage();
         
     }
 
-    
+    public void getImage() {
+    int[] framesPerRow = {6}; // only 1 row
+    BufferedImage[][] tempFrames = loadSheetVariable("/res/projectiles/Fireball", framesPerRow);
+
+    frames = tempFrames[0]; // grab the only row
+} 
 }
-
-

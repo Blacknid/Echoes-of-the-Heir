@@ -2,6 +2,8 @@ package main;
 
 import entity.Entity;
 import entity.Player;
+import entity.Projectile;
+
 import java.awt.Color;
 import java.awt.Dimension;
 import java.awt.Font;
@@ -10,6 +12,7 @@ import java.awt.Graphics2D;
 import java.awt.GraphicsDevice;
 import java.awt.GraphicsEnvironment;
 import java.awt.image.BufferedImage;
+import java.lang.reflect.Array;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Comparator;
@@ -72,6 +75,7 @@ public class GamePanel extends JPanel implements Runnable{
     public Entity obj[] = new Entity[100];
     public Entity npc[] = new Entity[10];
     public Entity monster[] = new Entity[20];
+    public ArrayList<Projectile> projectiles = new ArrayList<>();
     ArrayList<Entity> entityList = new ArrayList<>();
 
     // GAME STATE 
@@ -192,6 +196,7 @@ public class GamePanel extends JPanel implements Runnable{
                     npc[i].update();
                 }
             }
+            // MONSTER
             for ( int i = 0 ; i < monster.length ; i++ ) {
                 if ( monster[i] != null ) {
                     if ( monster[i].alive == true && monster[i].dying == false ) {
@@ -201,6 +206,10 @@ public class GamePanel extends JPanel implements Runnable{
                         monster[i] = null;
                     }
                 }
+            }
+            // PROJECTILES
+            for (Projectile p : projectiles) {
+                if (p.alive) p.update();
             }
         }
         if (player.life <= 0) {
@@ -249,6 +258,10 @@ public class GamePanel extends JPanel implements Runnable{
             if ( monster[i] != null ) {
                 entityList.add(monster[i]);
             }
+        }
+
+        for (Projectile p : projectiles) {
+            if (p.alive) p.draw(g2);
         }
 
         // SORT
