@@ -413,3 +413,4 @@ public class Entity {
         return dx < range && dy < range;
     } 
 }
+

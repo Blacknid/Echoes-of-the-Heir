@@ -69,7 +69,7 @@ public class PathFinder {
 
         openList.add(currentNode);
 
-        // Mark solid nodes using TileManager collisionRects
+        // Mark solid nodes
         for (int col = 0; col < gp.maxWorldCol; col++) {
             for (int row = 0; row < gp.maxWorldRow; row++) {
 
@@ -89,6 +89,7 @@ public class PathFinder {
     // Collision check via TileManager
     // -------------------------------------------------
     private boolean isCollisionTile(int worldX, int worldY) {
+        // Assuming your TileManager has a list called collisionRects
         Rectangle tileRect = new Rectangle(
                 worldX,
                 worldY,
@@ -144,24 +145,19 @@ public class PathFinder {
 
             for (int i = 0; i < openList.size(); i++) {
                 Node n = openList.get(i);
-
-                if (n.fCost < bestFCost ||
-                    (n.fCost == bestFCost && n.gCost < openList.get(bestIndex).gCost)) {
+                if (n.fCost < bestFCost || (n.fCost == bestFCost && n.gCost < openList.get(bestIndex).gCost)) {
                     bestIndex = i;
                     bestFCost = n.fCost;
                 }
             }
-
             currentNode = openList.get(bestIndex);
 
             if (currentNode == goalNode) {
                 goalReached = true;
                 trackPath();
             }
-
             step++;
         }
-
         return goalReached;
     }
 
@@ -177,7 +173,6 @@ public class PathFinder {
     // -------------------------------------------------
     private void trackPath() {
         Node current = goalNode;
-
         while (current != startNode) {
             pathList.add(0, current);
             current = current.parent;
