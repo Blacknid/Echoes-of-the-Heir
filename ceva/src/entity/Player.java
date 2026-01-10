@@ -115,27 +115,6 @@ public class Player extends Entity {
     /**
      * Adaugam un sistem de incarcare a unui spritesheet cu un numar variabil de cadre pe rand.
      */
-    private BufferedImage[][] loadSheetVariable(String path, int[] framesPerRow) {
-        int rows = framesPerRow.length;
-        int maxCols = 0;
-        for (int f : framesPerRow) if (f > maxCols) maxCols = f;
-
-        BufferedImage sheet = setup(path, gp.tileSize * maxCols, gp.tileSize * rows);
-        BufferedImage[][] frames = new BufferedImage[rows][];
-
-        for (int y = 0; y < rows; y++) {
-            frames[y] = new BufferedImage[framesPerRow[y]];
-            for (int x = 0; x < framesPerRow[y]; x++) {
-                frames[y][x] = sheet.getSubimage(
-                        x * gp.tileSize,
-                        y * gp.tileSize,
-                        gp.tileSize,
-                        gp.tileSize
-                );
-            }
-        }
-        return frames;
-    }
 
     public void getPlayerImages() {
         // Specify frames per direction (randuri)
@@ -501,7 +480,7 @@ private void updateSprite() {
     public void damageMonster(int i) {
 
         if(i != 999){
-            if(gp.monster[i].invincible == false){
+            if(gp.monster[i].invincible == false && gp.monster[i].dying == false){
 
                 gp.playSE(9);
 

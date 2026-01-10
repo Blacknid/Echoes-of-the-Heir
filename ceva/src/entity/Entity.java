@@ -88,6 +88,8 @@ public class Entity {
     public int speed;
     public int maxLife;
     public int life;
+    public int maxMana;
+    public int mana;
     public int level;
     public int strenght;
     public int dexterity;
@@ -98,11 +100,14 @@ public class Entity {
     public int coin;
     public Entity currentWeapon;
     public Entity currentShield;
+    public Projectile projectile;
+
 
     // ITEM ATTRIBUTES
     public int attackValue;
     public int defenseValue;
     public String description = "";
+    public int useCost;
 
     public Entity(GamePanel gp) {
         this.gp = gp;
@@ -285,7 +290,6 @@ public class Entity {
         if (dyingCounter > i*6 && dyingCounter <= i*7) { changeAlpha(g2, 0f); }
         if (dyingCounter > i*7 && dyingCounter <= i*8) { changeAlpha(g2, 1f); }
         if (dyingCounter > i*8) {
-            dying = false;
             alive = false;
         }
     }
@@ -412,5 +416,27 @@ public class Entity {
         int dy = Math.abs(getCenterY() - gp.player.getCenterY());
         return dx < range && dy < range;
     } 
+
+    public BufferedImage[][] loadSheetVariable(String path, int[] framesPerRow) {
+        int rows = framesPerRow.length;
+        int maxCols = 0;
+        for (int f : framesPerRow) if (f > maxCols) maxCols = f;
+
+        BufferedImage sheet = setup(path, gp.tileSize * maxCols, gp.tileSize * rows);
+        BufferedImage[][] frames = new BufferedImage[rows][];
+
+        for (int y = 0; y < rows; y++) {
+            frames[y] = new BufferedImage[framesPerRow[y]];
+            for (int x = 0; x < framesPerRow[y]; x++) {
+                frames[y][x] = sheet.getSubimage(
+                        x * gp.tileSize,
+                        y * gp.tileSize,
+                        gp.tileSize,
+                        gp.tileSize
+                );
+            }
+        }
+        return frames;
+    }
 }
 
