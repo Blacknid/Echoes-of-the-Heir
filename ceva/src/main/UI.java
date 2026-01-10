@@ -408,7 +408,7 @@ public class UI {
 
         if ( npc.dialogues[npc.dialogueSet][npc.dialogueIndex] != null ) {
 
-            // currentDialogue = npc.dialogues[npc.dialogueSet][npc.dialogueIndex];
+            currentDialogue = npc.dialogues[npc.dialogueSet][npc.dialogueIndex];
 
             char characters[] = npc.dialogues[npc.dialogueSet][npc.dialogueIndex].toCharArray();
 
@@ -634,8 +634,14 @@ public class UI {
         
         for ( int i = 0 ; i < gp.player.inventory.size(); i++ ) {
 
-            if ( gp.player.inventory.get(i).type == gp.player.type_consumable ) {
-                g2.drawImage ( gp.player.inventory.get(i).down1, slotX, slotY, null );
+            // EQUIPED ITEM HIGHLIGHT
+            if ( gp.player.inventory.get(i) == gp.player.currentShield ||
+                        gp.player.inventory.get(i) == gp.player.currentWeapon ) {
+                g2.setColor(new Color(240, 190, 90));
+                g2.fillRoundRect(slotX, slotY, gp.tileSize, gp.tileSize, 10, 10);
+            }
+            
+            g2.drawImage ( gp.player.inventory.get(i).down1, slotX, slotY, null );
 
             slotX += slotSize;
 
@@ -644,7 +650,7 @@ public class UI {
                 slotY += slotSize;
             }
             }
-        }
+        
 
         // CURSOR
         int cursorX = slotXstart + ( slotSize * slotCol );
@@ -669,7 +675,10 @@ public class UI {
 
         int itemIndex = getItemIndexOnSlot();
 
-        if ( itemIndex < gp.player.inventory.size() && gp.player.inventory.get(itemIndex).type == gp.player.type_consumable) {
+        if ( itemIndex < gp.player.inventory.size() && gp.player.inventory.get(itemIndex).type == gp.player.type_consumable || 
+             itemIndex < gp.player.inventory.size() && gp.player.inventory.get(itemIndex) == gp.player.currentShield ||
+             itemIndex < gp.player.inventory.size() && gp.player.inventory.get(itemIndex) == gp.player.currentWeapon ||
+             itemIndex < gp.player.inventory.size() && gp.player.inventory.get(itemIndex).type == gp.player.type_buffs ) {
 
             drawSubWindow(dFrameX, dFrameY, dFrameWidth, dFrameHeight);
 

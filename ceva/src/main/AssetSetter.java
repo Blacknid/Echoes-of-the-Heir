@@ -76,6 +76,11 @@ public class AssetSetter {
         gp.obj[i].worldX = 70 * gp.tileSize;
         gp.obj[i].worldY = 34 * gp.tileSize;
         i++;
+
+        gp.obj[i] = new OBJ_Book(gp);
+        gp.obj[i].worldX = 74 * gp.tileSize;
+        gp.obj[i].worldY = 24 * gp.tileSize;
+        i++;
         
 
     } 
