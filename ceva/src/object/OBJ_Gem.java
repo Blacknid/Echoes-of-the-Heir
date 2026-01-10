@@ -24,12 +24,11 @@ public class OBJ_Gem extends Entity {
         dialogues[0][0] = "You pick up a beautiful Dark Gem.";
         dialogues[0][1] = "You found the Dark Heart , the legendary treasure!";
     }
-    public boolean use( Entity entity ) {
+    public void use( Entity entity ) {
         
             gp.gameState = gp.cutsceneState;
             gp.csManager.sceneNum = gp.csManager.ending;
             startDialogue(this, 0);
-            return true;
         
     }
 }

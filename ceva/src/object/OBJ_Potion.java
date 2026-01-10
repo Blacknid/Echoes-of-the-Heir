@@ -19,4 +19,14 @@ public class OBJ_Potion extends Entity {
         down1 = setup("/res/objects/Potion", gp.tileSize, gp.tileSize);
         description = "[Potion]\nHeals your life by " + value + ".";
     }
+    public void use ( Entity entity ) {
+
+        //gp.gameState = gp.dialogueState;
+        //gp.ui.currentDialogue = "You drink the potion.\nYour life has been recovered by " + value + ".";
+        entity.life += value;
+        if ( gp.player.life > gp.player.maxLife ) {
+            gp.player.life = gp.player.maxLife;
+        }
+        gp.playSE(2);
+    }
 }
