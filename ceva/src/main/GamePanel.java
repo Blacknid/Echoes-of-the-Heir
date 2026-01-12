@@ -126,8 +126,8 @@ public class GamePanel extends JPanel implements Runnable{
     }
     public void restartGame() {
 
-        player.setDefaultValues();
         player.setDefaultPositions();
+        player.setDefaultValues();
         player.resetCounter();
         player.restoreLifeAndMana();
         aSetter.setNPC();
