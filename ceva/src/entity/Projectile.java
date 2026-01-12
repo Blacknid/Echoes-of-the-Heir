@@ -61,10 +61,10 @@ public void draw(Graphics2D g2) {
     BufferedImage image = frames[spriteNum];
 
     double angle = switch (direction) {
-        case "up" -> -180;
-        case "down" -> 0;
-        case "left" -> 90;
-        case "right" -> -90;
+        case "up" -> -90;
+        case "down" -> 90;
+        case "left" -> 180;
+        case "right" -> 0;
         default -> 0;
     };
 

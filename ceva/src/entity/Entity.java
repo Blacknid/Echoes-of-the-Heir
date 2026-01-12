@@ -438,5 +438,39 @@ public class Entity {
         }
         return frames;
     }
+
+    public BufferedImage[][] loadSpriteMatrix(
+        String path,
+        int spriteWidth,
+        int spriteHeight
+    ) {
+
+        BufferedImage sheet;
+
+        try {
+            sheet = ImageIO.read(getClass().getResourceAsStream(path + ".png"));
+        } catch (IOException e) {
+            throw new RuntimeException("Failed to load spritesheet: " + path, e);
+        }
+
+        int columns = sheet.getWidth() / spriteWidth;
+        int rows = sheet.getHeight() / spriteHeight;
+
+        BufferedImage[][] matrix = new BufferedImage[rows][columns];
+
+        for (int y = 0; y < rows; y++) {
+            for (int x = 0; x < columns; x++) {
+                matrix[y][x] = sheet.getSubimage(
+                        x * spriteWidth,
+                        y * spriteHeight,
+                        spriteWidth,
+                        spriteHeight
+                );
+            }
+        }
+
+        return matrix;
+    }
+
 }
 
