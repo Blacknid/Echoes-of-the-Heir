@@ -52,6 +52,16 @@ public class AssetSetter {
         gp.obj[i].worldY = 25 * gp.tileSize;
         i++;
 
+        gp.obj[i] = new OBJ_Door(gp);
+        gp.obj[i].worldX = 69 * gp.tileSize;
+        gp.obj[i].worldY = 25 * gp.tileSize;
+        i++;
+
+        gp.obj[i] = new OBJ_Door(gp);
+        gp.obj[i].worldX = 69 * gp.tileSize;
+        gp.obj[i].worldY = 28 * gp.tileSize;
+        i++;
+
         gp.obj[i] = new OBJ_Boots(gp);
         gp.obj[i].worldX = 25 * gp.tileSize;
         gp.obj[i].worldY = 25 * gp.tileSize;
@@ -63,8 +73,8 @@ public class AssetSetter {
         i++;
 
         gp.obj[i] = new OBJ_Gem(gp);
-        gp.obj[i].worldX = 30 * gp.tileSize;
-        gp.obj[i].worldY = 47 * gp.tileSize;
+        gp.obj[i].worldX = 69 * gp.tileSize;
+        gp.obj[i].worldY = 18 * gp.tileSize;
         i++;
 
         gp.obj[i] = new OBJ_Book(gp);
