@@ -1,6 +1,7 @@
 package entity;
 
 import java.awt.AlphaComposite;
+import java.awt.Color;
 import java.awt.Graphics2D;
 import java.awt.Rectangle;
 import java.awt.image.BufferedImage;
@@ -358,7 +359,6 @@ private void updateSprite() {
                 String objectName = gp.obj[i].name;
                 String text;
 
-                inventory.add(gp.obj[i]);
                 gp.playSE(2);
 
                 switch (objectName) {
@@ -366,7 +366,8 @@ private void updateSprite() {
                     case "Compas" -> {
                     
                         gp.teleportation = true;
-                        gp.ui.addMessage("Teleportation unlocked!");
+                        inventory.add(gp.obj[i]);
+                        gp.ui.addMessage("Teleportation unlocked!", Color.WHITE);
                         gp.obj[i] = null;
                         break;
 
@@ -374,15 +375,18 @@ private void updateSprite() {
 
                     case "Potion" -> {
 
+                        inventory.add(gp.obj[i]);
                         gp.obj[i] = null;
-                        text = ("You've got a potion!");
+                        gp.ui.addMessage("You've got a potion!", Color.WHITE);
                         break;
 
                     }
 
                     case "Boots" -> {
+
+                        inventory.add(gp.obj[i]);
                         gp.obj[i] = null;
-                        gp.ui.addMessage("Speed increased!");
+                        gp.ui.addMessage("Speed increased!", Color.WHITE);
                         gp.player.speed += 1;
                         gp.bootsUnlocked = true;   
                         break;               
@@ -393,13 +397,13 @@ private void updateSprite() {
                             gp.playSE(1);
                             gp.obj[i] = null;
                             hasKey--;
-                            gp.ui.addMessage("You opened the door!");
+                            gp.ui.addMessage("You opened the door!", Color.WHITE);
                         
                         }
                         else {
                             int counter = 0;
                             if ( counter > 360 ) {
-                                gp.ui.addMessage("You need a key!");
+                                gp.ui.addMessage("You need a key!", Color.RED);
                                 counter = 0;
                             }
                             else {
@@ -418,13 +422,13 @@ private void updateSprite() {
                             opened = true;
                             //gp.obj[i] = null;
                             gp.obj[i] = new OBJ_Chest1(gp); gp.obj[i].worldX = (int) (43 * gp.tileSize); gp.obj[i].worldY = (int)(36 * gp.tileSize);
-                            gp.ui.addMessage("You opened the chest!");
+                            gp.ui.addMessage("You opened the chest!", Color.WHITE);
                             if ( opened == true ) {
                                 gp.obj[99] = new OBJ_Compas(gp); gp.obj[99].worldX = (int) (44 * gp.tileSize); gp.obj[99].worldY = (int)(37 * gp.tileSize);  
                             }
                         }
                         else if (counter <= 0 && hasKey == 0 ){
-                            gp.ui.addMessage("You need a key!");
+                            gp.ui.addMessage("You need a key!", Color.RED);
                             counter++;
                         }
                     }
@@ -433,6 +437,7 @@ private void updateSprite() {
 
                         if ( gp.player.level >= 3 ) {
                             gp.playSE(2);
+                            inventory.add(gp.obj[i]);
                             gp.obj[i] = null;
                             gp.gameState = gp.cutsceneState;
                             gp.csManager.sceneNum = gp.csManager.ending;
@@ -447,14 +452,16 @@ private void updateSprite() {
                     case "Key" -> {
                         gp.playSE(2);
                         hasKey++;
+                        inventory.add(gp.obj[i]);
                         gp.obj[i] = null;
-                        gp.ui.addMessage("You got a key!");
+                        gp.ui.addMessage("You got a key!", Color.WHITE);
                     }
 
                     case "Spell book" -> {
                         gp.playSE(2);
+                        inventory.add(gp.obj[i]);
                         gp.obj[i] = null;
-                        gp.ui.addMessage("You got a new weapon!");
+                        gp.ui.addMessage("You got a new weapon!", Color.WHITE);
                     }
             }
         }     
@@ -504,15 +511,15 @@ private void updateSprite() {
                 }
 
                 gp.monster[i].life -= damage;
-                gp.ui.addMessage(damage + " damage!");
+                gp.ui.addMessage(damage + " damage!", Color.WHITE);
 
                 gp.monster[i].invincible = true;
                 gp.monster[i].damageReaction();
 
                 if(gp.monster[i].life <= 0){
                     gp.monster[i].dying = true;
-                    gp.ui.addMessage("Killed the " + gp.monster[i].name + "!");
-                    gp.ui.addMessage("Exp " + gp.monster[i].exp + "!");
+                    gp.ui.addMessage("Killed the " + gp.monster[i].name + "!", Color.WHITE);
+                    gp.ui.addMessage("Exp " + gp.monster[i].exp + "!", Color.WHITE);
                     exp += gp.monster[i].exp;
                     checkLevelUp();
                 }

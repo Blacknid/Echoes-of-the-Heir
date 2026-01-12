@@ -12,7 +12,7 @@ public class OBJ_Compas extends Entity {
         
         UtilityTool uTool = new UtilityTool();
 
-        type = type_consumable;
+        type = type_buffs;
         name = "Compas";
         down1 = setup("/res/objects/Compas", gp.tileSize , gp.tileSize);
         description = "[Compas]\nAn ancient tool used \nto teleport!";

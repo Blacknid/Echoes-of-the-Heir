@@ -43,8 +43,8 @@ public class AssetSetter {
         i++;
 
         gp.obj[i] = new OBJ_Potion(gp);
-        gp.obj[i].worldX = (int)(21 * gp.tileSize);
-        gp.obj[i].worldY = 21 * gp.tileSize;
+        gp.obj[i].worldX = (int)(69 * gp.tileSize);
+        gp.obj[i].worldY = 22 * gp.tileSize;
         i++;
 
         gp.obj[i] = new OBJ_Door(gp);

@@ -24,6 +24,7 @@ public class UI {
     //int messageCounter = 0;
     ArrayList<String> message = new ArrayList<>();
     ArrayList<Integer> messageCounter = new ArrayList<>();
+    ArrayList<Color> messageColor = new ArrayList<>();
     public boolean gameFinished = false;
     public String currentDialogue = "";
     public int commandNum = 0;
@@ -54,9 +55,10 @@ public class UI {
 
     }
 
-    public void addMessage(String text) {
+    public void addMessage(String text, Color color) {
 
         message.add(text);
+        messageColor.add(color);
         messageCounter.add(0);
     }
     public void draw(Graphics2D g2) {
@@ -171,33 +173,49 @@ public class UI {
         g2.drawImage(Full_Hearts, x, y, heartSize, heartSize, null);
         x += heartSize + spacing;
     }
-    }
+}
+
     public void drawMessage() {
 
-        int messageX = gp.tileSize;
-        int messageY = gp.tileSize * 4;
-        g2.setFont(g2.getFont().deriveFont(Font.BOLD, 32F));
+    int messageX = gp.tileSize;
+    int messageY = gp.tileSize * 4;
+    g2.setFont(g2.getFont().deriveFont(Font.BOLD, 32F));
 
-        for ( int i = 0 ; i < message.size() ; i++ ) {
+    for (int i = 0; i < message.size(); i++) {
 
-            if ( message.get(i) != null ) {
+        if (message.get(i) != null) {
 
-                g2.setColor(Color.black);
-                g2.drawString(message.get(i), messageX + 2, messageY + 2);
-                g2.setColor(Color.white);
-                g2.drawString(message.get(i), messageX, messageY);
+            int counter = messageCounter.get(i) + 1;
+            messageCounter.set(i, counter);
 
-                int counter = messageCounter.get(i) + 1; // messageCounter++
-                messageCounter.set(i, counter); // set the counter to the array
-                messageY += 50;
+            // Calculate fade (alpha from 255 -> 0 over last 60 frames) Animatie de fade out a textului
+            int alpha = 255;
+            if (counter > 120) { // fade starts after 120 frames (2 seconds)
+                alpha = 255 - (int)((counter - 120) * (255.0 / 60));
+                if (alpha < 0) alpha = 0;
+            }
 
-                if ( messageCounter.get(i) > 180 ) {
-                    message.remove(i);
-                    messageCounter.remove(i);
-                }
+            // Umbra textului
+            g2.setColor(new Color(0, 0, 0, alpha));
+            g2.drawString(message.get(i), messageX + 2, messageY + 2);
+
+            // Text in its color with alpha
+            Color baseColor = messageColor.get(i);
+            g2.setColor(new Color(baseColor.getRed(), baseColor.getGreen(), baseColor.getBlue(), alpha));
+            g2.drawString(message.get(i), messageX, messageY);
+
+            messageY += 50;
+
+            // Remove after 180 frames (3 seconds)
+            if (counter > 180) {
+                message.remove(i);
+                messageCounter.remove(i);
+                messageColor.remove(i);
+                i--; // adjust index after removal
             }
         }
     }
+}
     public void drawTitleScreen() {
 
         g2.setColor(new Color(0, 0, 0));
