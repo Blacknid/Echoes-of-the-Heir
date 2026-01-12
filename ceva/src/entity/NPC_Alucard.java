@@ -12,6 +12,8 @@ public class NPC_Alucard extends Entity{
         direction = "down";
         speed = 1;
 
+        dialogueSet = -1;
+
         getImage();
         setDialogue();
     }
@@ -36,6 +38,15 @@ public class NPC_Alucard extends Entity{
         dialogues[0][1] = "I see, so you've come for the treasure?";
         dialogues[0][2] = "You should start by doing some research.";
         dialogues[0][3] = "I can help you find the first key.\nYou should go South.";
+
+        dialogues[1][0] = "The Dark Heart is hidden deep\nwithin the castle.";
+        dialogues[1][1] = "Only those worthy can possess it.";
+        dialogues[1][2] = "Prove your worth by reaching\nLevel 3.";
+        dialogues[1][3] = "Good luck on your journey!";
+
+        dialogues[2][0] = "You have done well to reach Level 3.";
+        dialogues[2][1] = "You are now worthy to possess\nthe Dark Heart.";
+        dialogues[2][2] = "Take it and fulfill your destiny.";
 
     }
     public void setAction() {
@@ -76,7 +87,12 @@ public class NPC_Alucard extends Entity{
     public void speak() {
 
         facePlayer();
-        startDialogue(this, dialogueSet);    
+        if ( gp.player.level < 3 && gp.player.hasKey == 0 )
+            startDialogue(this, 0);
+        else if ( gp.player.level <= 3  && gp.player.hasKey >= 0 )
+            startDialogue(this, 1);
+        else if ( gp.player.level >= 3 && gp.csManager.sceneNum >= gp.csManager.ending )
+            startDialogue(this, 2);
 
         onPath = true;
 

@@ -82,6 +82,7 @@ public class Entity {
     public final int type_pickupOnly = 7;
     public final int type_obstacle = 8;
     public final int type_buffs = 9;
+    public final int type_ending = 10;
 
     // CHARACTER ATTRIBUTES
     public String name;
@@ -114,6 +115,7 @@ public class Entity {
     }
 
     // GETTERS
+
     public int getLeftX() { return worldX + solidArea.x; }
     public int getRightX() { return worldX + solidArea.x + solidArea.width; }
     public int getTopY() { return worldY + solidArea.y; }
@@ -124,16 +126,19 @@ public class Entity {
     public int getCenterY() { return worldY + solidArea.y + solidArea.height / 2; }    
     public int getTileCol() { return getCenterX() / gp.tileSize; }    
     public int getTileRow() { return getCenterY() / gp.tileSize; } 
-
     public void resetCounter() {
         spriteCounter = 0;
         spriteCounter1 = 0;
+        spriteNum = 1;
+        spriteNum1 = 1;
         actionLockCounter = 0;
+        invincibleCounter = 0;
+        shotAvailableCounter = 0;
+        dyingCounter = 0;
+        hpBarCounter = 0;
     }
-
     public void setAction() {}
     public void speak() {}
-    
     public void facePlayer() {
         switch (gp.player.direction) {
             case "up": direction = "down"; break;
@@ -142,16 +147,14 @@ public class Entity {
             case "right": direction = "left"; break;
         }
     }
-    
+    public void interact() {}
     public void damageReaction() {}
-    public void use(Entity entity) {}
-    
+    public boolean use(Entity entity) { return false;}
     public void startDialogue(Entity entity, int setNum) {
         gp.gameState = gp.dialogueState;
         gp.ui.npc = entity;
         dialogueSet = setNum;
     }
-
     public void checkCollision() {
         
         collisionOn = false;
@@ -174,7 +177,6 @@ public class Entity {
             gp.player.invincible = true;
         }
     }
-
     public void update() {
         
         setAction();
@@ -211,7 +213,6 @@ public class Entity {
             shotAvailableCounter++;
         }
     }
-
     public void draw(Graphics2D g2) {
         
         BufferedImage image = null;
@@ -277,7 +278,6 @@ public class Entity {
             changeAlpha(g2, 1F);
         }
     }
-
     public void dyingAnimation(Graphics2D g2) {
         dyingCounter++;
         int i = 5;
@@ -293,11 +293,9 @@ public class Entity {
             alive = false;
         }
     }
-
     public void changeAlpha(Graphics2D g2, float alphaValue) {
         g2.setComposite(AlphaComposite.getInstance(AlphaComposite.SRC_OVER, alphaValue));
     }
-
     public BufferedImage setup(String imagePath, int width, int height) {
         UtilityTool uTool = new UtilityTool();
         BufferedImage image = null;
@@ -309,18 +307,17 @@ public class Entity {
         }
         return image;
     }
-
-    public int getDetected(Entity entity, Entity target[], String targetName) {
+    public int getDetected(Entity user, Entity target[], String targetName) {
         int index = 999;
         
-        int nextWorldX = getLeftX();
-        int nextWorldY = getTopY();
+        int nextWorldX = user.getLeftX();
+        int nextWorldY = user.getTopY();
 
-        switch (direction) {
-            case "up": nextWorldY = getTopY() - 1; break;
-            case "down": nextWorldY = getBottomY() + 1; break;
-            case "left": nextWorldX = getLeftX() - 1; break;
-            case "right": nextWorldX = getRightX() + 1; break;
+        switch (user.direction) {
+            case "up": nextWorldY = user.getTopY() - 1; break;
+            case "down": nextWorldY = user.getBottomY() + 1; break;
+            case "left": nextWorldX = user.getLeftX() - 1; break;
+            case "right": nextWorldX = user.getRightX() + 1; break;
         }
 
         int col = nextWorldX / gp.tileSize;
@@ -338,7 +335,6 @@ public class Entity {
         }
         return index;
     }
-
     public void searchPath(int goalCol, int goalRow) {
         
         int startCol = (worldX + solidArea.x) / gp.tileSize;
@@ -409,14 +405,12 @@ public class Entity {
                 onPath = false;
             }
         }
-    }
-    
+    }   
     public boolean isPlayerInRange(int range) {
         int dx = Math.abs(getCenterX() - gp.player.getCenterX());
         int dy = Math.abs(getCenterY() - gp.player.getCenterY());
         return dx < range && dy < range;
     } 
-
     public BufferedImage[][] loadSheetVariable(String path, int[] framesPerRow) {
         int rows = framesPerRow.length;
         int maxCols = 0;
@@ -438,7 +432,6 @@ public class Entity {
         }
         return frames;
     }
-
     public BufferedImage[][] loadSpriteMatrix(
         String path,
         int spriteWidth,
@@ -471,6 +464,5 @@ public class Entity {
 
         return matrix;
     }
-
 }
 

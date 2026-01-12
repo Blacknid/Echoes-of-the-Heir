@@ -20,20 +20,32 @@ public class OBJ_Potion extends Entity {
         name = "Potion";
         down1 = setup("/res/objects/Potion", gp.tileSize, gp.tileSize);
         description = "[Potion]\nHeals your life by " + value + ".";
+
+        setDialogue();
+
     }
-    public void use ( Entity entity ) {
+
+    public void setDialogue() {
+
+        dialogues[0][0] = "But your life is already full.";
+        dialogues[1][0] = "You drink the potion.\n Your life has been recovered by " + Math.min(value, gp.player.maxLife - gp.player.life) + ".";
+
+    }
+
+
+    public boolean use ( Entity entity ) {
         
         if ( gp.player.life >= gp.player.maxLife ) {
             gp.player.inventory.add(this);
-            gp.ui.addMessage("But your life is already full.", Color.WHITE);
-            return;
+            startDialogue(this, 0);
         }
         else {
-            gp.ui.addMessage("You drink the potion.\n Your life has been recovered by " + Math.min(value, gp.player.maxLife - gp.player.life) + ".", Color.WHITE);
+            startDialogue(this, 1);
             if ( gp.player.life + value >= gp.player.maxLife ) {
                 gp.player.life = gp.player.maxLife;
             }
         }
         gp.playSE(2);
+        return true;
     }
 }

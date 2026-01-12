@@ -9,13 +9,9 @@ import java.util.ArrayList;
 
 import main.GamePanel;
 import main.KeyHandler;
-import object.OBJ_Chest1;
-import object.OBJ_Compas;
 import object.OBJ_Fireball;
 import object.OBJ_Shield_Wood;
 import object.OBJ_Sword_Normal;
-import object.OBJ_Book;
-
 public class Player extends Entity {
 
     KeyHandler keyH;
@@ -70,7 +66,12 @@ public class Player extends Entity {
         direction = "down";
     }
 
-    public void setDialogue() { }
+    public void setDialogue() { 
+
+        dialogues[0][0] = "You are level " + level + " now!\n"
+                + "You feel stronger!";
+
+    }
 
     public void setDefaultValues() {
         worldX = (int)(gp.tileSize * 71.5);
@@ -354,11 +355,24 @@ private void updateSprite() {
 
         if (i != 999) {
 
-            if ( inventory.size() != maxInventorySize ) {
+            if (gp.obj[i].type == type_pickupOnly) {
+
+                gp.obj[i].use(this);
+                gp.obj[i] = null;
+            
+            }
+
+            else if ( gp.obj[i].type == type_obstacle ) {
+
+                if(keyH.enterPressed == true) {
+                    attackCanceled = true;
+                    gp.obj[i].interact();
+                }
+            }
+
+            if ( inventory.size() != maxInventorySize && gp.obj[i].type != type_obstacle && gp.obj[i].type != type_pickupOnly ) {
 
                 String objectName = gp.obj[i].name;
-                String text;
-
                 gp.playSE(2);
 
                 switch (objectName) {
@@ -391,63 +405,6 @@ private void updateSprite() {
                         gp.bootsUnlocked = true;   
                         break;               
                     }
-            
-                    case "Door" -> {
-                        if( hasKey > 0 ) {
-                            gp.playSE(1);
-                            gp.obj[i] = null;
-                            hasKey--;
-                            gp.ui.addMessage("You opened the door!", Color.WHITE);
-                        
-                        }
-                        else {
-                            int counter = 0;
-                            if ( counter > 360 ) {
-                                gp.ui.addMessage("You need a key!", Color.RED);
-                                counter = 0;
-                            }
-                            else {
-                                counter++;
-                            }
-                            
-                        }
-                        break;
-                    }
-                    
-                    case "Chest" -> {
-                        boolean opened = false;
-                        if ( hasKey > 0 ) {
-                            gp.playSE(1);
-                            hasKey--;
-                            opened = true;
-                            //gp.obj[i] = null;
-                            gp.obj[i] = new OBJ_Chest1(gp); gp.obj[i].worldX = (int) (43 * gp.tileSize); gp.obj[i].worldY = (int)(36 * gp.tileSize);
-                            gp.ui.addMessage("You opened the chest!", Color.WHITE);
-                            if ( opened == true ) {
-                                gp.obj[99] = new OBJ_Compas(gp); gp.obj[99].worldX = (int) (44 * gp.tileSize); gp.obj[99].worldY = (int)(37 * gp.tileSize);  
-                            }
-                        }
-                        else if (counter <= 0 && hasKey == 0 ){
-                            gp.ui.addMessage("You need a key!", Color.RED);
-                            counter++;
-                        }
-                    }
-
-                    case "Gem" -> {
-
-                        if ( gp.player.level >= 3 ) {
-                            gp.playSE(2);
-                            inventory.add(gp.obj[i]);
-                            gp.obj[i] = null;
-                            gp.gameState = gp.cutsceneState;
-                            gp.csManager.sceneNum = gp.csManager.ending;
-                        }
-
-                        else {
-                            dialogues[1][0] = "You need level 3 to obtain me!";
-                            startDialogue(this, 1);
-                        }             
-                    }
 
                     case "Key" -> {
                         gp.playSE(2);
@@ -464,7 +421,7 @@ private void updateSprite() {
                         gp.ui.addMessage("You got a new weapon!", Color.WHITE);
                     }
             }
-        }     
+        }
     }
 }
 
@@ -541,8 +498,7 @@ private void updateSprite() {
 
             gp.playSE(11);
             
-            dialogues[0][0] = "You are level " + level + " now!\n"
-                + "You feel stronger!";
+            setDialogue();
             startDialogue(this, 0);
 
         }
@@ -676,8 +632,9 @@ private void updateSprite() {
 
             else if ( selectedItem.type == type_consumable ) {
 
-                selectedItem.use(this);
-                inventory.remove(itemIndex);
+                if (selectedItem.use(this) == true ) {
+                    inventory.remove(itemIndex);
+                }
             }
         }
     }

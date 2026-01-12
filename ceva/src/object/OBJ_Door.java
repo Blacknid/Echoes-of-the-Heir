@@ -1,5 +1,7 @@
 package object;
 
+import java.awt.Color;
+
 import entity.Entity;
 import main.GamePanel;
 
@@ -23,5 +25,19 @@ public class OBJ_Door extends Entity{
         solidArea.height = 48;
         solidAreaDefaultX = solidArea.x;
         solidAreaDefaultY = solidArea.y;
+
+        setDialogue();
+    }
+
+    public void setDialogue() {
+
+        dialogues[0][0] = "You need a key to open this door.";
+
+    }
+
+    public void interact() {
+
+        startDialogue(this, 0);
+    
     }
 }
