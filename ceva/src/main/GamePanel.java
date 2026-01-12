@@ -260,8 +260,10 @@ public class GamePanel extends JPanel implements Runnable{
             }
         }
 
-        for (Projectile p : projectiles) {
-            if (p.alive) p.draw(g2);
+        for (int i = 0; i < projectiles.size(); i++) {
+            if (projectiles.get(i) != null && projectiles.get(i).alive) {
+                entityList.add(projectiles.get(i));
+            }
         }
 
         // SORT
@@ -274,7 +276,7 @@ public class GamePanel extends JPanel implements Runnable{
         });
 
         // DRAW ENTITIES
-        for ( int i = 0 ; i < entityList.size(); i++ ) {
+        for (int i = 0; i < entityList.size(); i++) {
             entityList.get(i).draw(g2);
         }
         // EMPTY ENTITY LIST
