@@ -20,6 +20,7 @@ import javax.swing.JPanel;
 import java.awt.Rectangle;
 
 import ai.PathFinder;
+import data.SaveLoad;
 import tile.TileManager;
 
 public class GamePanel extends JPanel implements Runnable{
@@ -68,6 +69,7 @@ public class GamePanel extends JPanel implements Runnable{
     Config config = new Config(this);
     public CutsceneManager csManager = new CutsceneManager(this);
     public PathFinder pFinder = new PathFinder(this);
+    SaveLoad saveLoad = new SaveLoad(this);
     Thread gameThread;
 
     //ENTITY AND OBJECT
@@ -117,21 +119,19 @@ public class GamePanel extends JPanel implements Runnable{
             setFullScreen();
         }
     }
-    public void retry() {
+
+    public void resetGame(boolean restart) {
 
         player.setDefaultPositions();
         player.restoreLifeAndMana();
         aSetter.setNPC();
         aSetter.setMonster();
-    }
-    public void restartGame() {
 
-        player.setDefaultPositions();
-        player.setDefaultValues();
-        player.resetCounter();
-        player.restoreLifeAndMana();
-        aSetter.setNPC();
-        aSetter.setMonster();
+        if ( restart == true ) {
+            player.setDefaultValues();
+            aSetter.setObject();
+            // aSetter.setInteractibeTile();
+        }
     }
     public void setFullScreen() {
 

@@ -53,7 +53,6 @@ public class UI {
         Key = key.down1;
 
     }
-
     public void addMessage(String text, Color color) {
 
         message.add(text);
@@ -173,7 +172,6 @@ public class UI {
         x += heartSize + spacing;
     }
 }
-
     public void drawMessage() {
 
     int messageX = gp.tileSize;
@@ -398,7 +396,6 @@ public class UI {
             }
         }
     }
-
     public void drawPauseScreen() {
 
         /*g2.setFont(g2.getFont().deriveFont(Font.PLAIN,80F));
@@ -408,7 +405,6 @@ public class UI {
 
         g2.drawString(text, x, y);*/
     }
-
     public void drawDialogueScreen() {
 
         //WINDOW
@@ -631,7 +627,6 @@ public class UI {
         g2.drawImage(gp.player.currentShield.down1, tailX - gp.tileSize, textY - 22, null);
 
     }
-
     public void drawInventory() {
 
         int frameX = gp.tileSize * 12;
@@ -659,6 +654,26 @@ public class UI {
             }
             
             g2.drawImage ( gp.player.inventory.get(i).down1, slotX, slotY, null );
+
+            // STACKABLE ITEM AMMOUNT
+            if ( gp.player.inventory.get(i).amount > 1) {
+
+                g2.setFont ( g2.getFont().deriveFont(32f) );
+                int amountX;
+                int amountY;
+
+                String s = "" + gp.player.inventory.get(i).amount;
+                amountX = getXforAlignToRightText(s, slotX + 70);
+                amountY = slotY + gp.tileSize;
+
+                // SHADOW
+                g2.setColor(new Color(60, 60, 60));
+                g2.drawString(s, amountX, amountY );
+
+                // TEXT
+                g2.setColor(Color.white);
+                g2.drawString(s, amountX - 3, amountY - 3);
+            }
 
             slotX += slotSize;
 
@@ -924,14 +939,12 @@ public class UI {
         g2.drawRoundRect(x + 5, y + 5, width - 10, height - 10, 25, 25);
 
     }
-
     public int getXforCenteredText(String text) {
 
         int length = (int)g2.getFontMetrics().getStringBounds(text, g2).getWidth();
         int x = gp.screenWidth/2 - length/2;
         return x;
     }
-
     public int getXforAlignToRightText(String text, int tailX) {
 
         int length = (int)g2.getFontMetrics().getStringBounds(text, g2).getWidth();

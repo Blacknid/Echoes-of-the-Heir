@@ -96,6 +96,7 @@ public class TileManager {
         tilesets.clear();
         addTileset("/res/tiles/Grass_sheet.png", 1);
         addTileset("/res/tiles/Tileset2.png", 13);
+        addTileset("/res/tiles/Water-sheet.png", 77);
     }
 
     // ---------------- Get tile by GID ----------------
