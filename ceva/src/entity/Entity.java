@@ -101,6 +101,7 @@ public class Entity {
     public int coin;
     public Entity currentWeapon;
     public Entity currentShield;
+    public Projectile projectile;
 
 
     // ITEM ATTRIBUTES
