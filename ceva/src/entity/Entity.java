@@ -69,6 +69,8 @@ public class Entity {
     public boolean sleep = false;
     public boolean drawing = true;
     public boolean onPath = false;
+    public Entity loot;
+    public boolean opened = false;
 
     // TYPE CONSTANTS
     public int type;
@@ -109,6 +111,8 @@ public class Entity {
     public int defenseValue;
     public String description = "";
     public int useCost;
+    public boolean stackable = false;
+    public int amount = 1;
 
     public Entity(GamePanel gp) {
         this.gp = gp;
@@ -139,6 +143,7 @@ public class Entity {
     }
     public void setAction() {}
     public void speak() {}
+    public void setLoot(Entity loot) {}
     public void facePlayer() {
         switch (gp.player.direction) {
             case "up": direction = "down"; break;
@@ -314,10 +319,10 @@ public class Entity {
         int nextWorldY = user.getTopY();
 
         switch (user.direction) {
-            case "up": nextWorldY = user.getTopY() - 1; break;
-            case "down": nextWorldY = user.getBottomY() + 1; break;
-            case "left": nextWorldX = user.getLeftX() - 1; break;
-            case "right": nextWorldX = user.getRightX() + 1; break;
+            case "up": nextWorldY = user.getTopY() - gp.player.speed; break;
+            case "down": nextWorldY = user.getBottomY() + gp.player.speed; break;
+            case "left": nextWorldX = user.getLeftX() - gp.player.speed; break;
+            case "right": nextWorldX = user.getRightX() + gp.player.speed; break;
         }
 
         int col = nextWorldX / gp.tileSize;

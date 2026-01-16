@@ -17,6 +17,7 @@ public class OBJ_Potion extends Entity {
         this.gp = gp;
 
         type = type_consumable;
+        stackable = true;
         name = "Potion";
         down1 = setup("/res/objects/Potion", gp.tileSize, gp.tileSize);
         description = "[Potion]\nHeals your life by " + value + ".";
@@ -32,15 +33,19 @@ public class OBJ_Potion extends Entity {
 
     }
 
-
     public boolean use ( Entity entity ) {
         
         if ( gp.player.life >= gp.player.maxLife ) {
-            gp.player.inventory.add(this);
             startDialogue(this, 0);
         }
         else {
             startDialogue(this, 1);
+            if(amount > 1 ) {
+                    amount--;
+            }
+            else {
+                gp.player.inventory.remove(this);
+                }
             if ( gp.player.life + value >= gp.player.maxLife ) {
                 gp.player.life = gp.player.maxLife;
             }

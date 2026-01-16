@@ -47,6 +47,16 @@ public class AssetSetter {
         gp.obj[i].worldY = 22 * gp.tileSize;
         i++;
 
+        gp.obj[i] = new OBJ_Potion(gp);
+        gp.obj[i].worldX = (int)(71 * gp.tileSize);
+        gp.obj[i].worldY = 22 * gp.tileSize;
+        i++;
+
+        gp.obj[i] = new OBJ_Potion(gp);
+        gp.obj[i].worldX = (int)(73 * gp.tileSize);
+        gp.obj[i].worldY = 22 * gp.tileSize;
+        i++;
+
         gp.obj[i] = new OBJ_Door(gp);
         gp.obj[i].worldX = 24 * gp.tileSize;
         gp.obj[i].worldY = 25 * gp.tileSize;
@@ -72,6 +82,11 @@ public class AssetSetter {
         gp.obj[i].worldY = 10 * gp.tileSize;
         i++;
 
+        gp.obj[i] = new OBJ_Key(gp);
+        gp.obj[i].worldX = 20 * gp.tileSize;
+        gp.obj[i].worldY = 10 * gp.tileSize;
+        i++;
+
         gp.obj[i] = new OBJ_Gem(gp);
         gp.obj[i].worldX = 69 * gp.tileSize;
         gp.obj[i].worldY = 18 * gp.tileSize;
@@ -84,6 +99,11 @@ public class AssetSetter {
 
         gp.obj[i] = new OBJ_Key(gp);
         gp.obj[i].worldX = 70 * gp.tileSize;
+        gp.obj[i].worldY = 34 * gp.tileSize;
+        i++;
+
+        gp.obj[i] = new OBJ_Key(gp);
+        gp.obj[i].worldX = 73 * gp.tileSize;
         gp.obj[i].worldY = 34 * gp.tileSize;
         i++;
 

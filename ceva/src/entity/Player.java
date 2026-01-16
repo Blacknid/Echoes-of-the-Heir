@@ -45,10 +45,6 @@ public class Player extends Entity {
         solidArea.height = 20;
 
         setDefaultValues();
-        getPlayerImages();
-        getPlayerAttackImages();
-        setItems();
-        setDialogue();
     }
 
     public void setItems() {
@@ -96,6 +92,11 @@ public class Player extends Entity {
 
         attack = getAttack();
         defense = getDefense();
+
+        getPlayerImages();
+        getPlayerAttackImages();
+        setItems();
+        setDialogue();
     }
 
     public void setPlayerStats(int life, int strenght, int dexterity, int speed) {
@@ -121,6 +122,30 @@ public class Player extends Entity {
     
     }
 
+    public int getCurrentWeaponSlot() {
+
+        int currentWeaponSlot = 0;
+
+        for ( int i = 0; i < inventory.size(); i++ ) {
+
+            if ( inventory.get(i) == currentWeapon ) {
+                currentWeaponSlot = i;
+            }
+        }
+        return currentWeaponSlot;
+    }
+    public int getCurrentShieldSlot() {
+
+        int currentShieldSlot = 0;
+
+        for ( int i = 0; i < inventory.size(); i++ ) {
+
+            if ( inventory.get(i) == currentShield ) {
+                currentShieldSlot = i;
+            }
+        }
+        return currentShieldSlot;
+    }
     /**
      * Adaugam un sistem de incarcare a unui spritesheet cu un numar variabil de cadre pe rand.
      */
@@ -225,6 +250,9 @@ public class Player extends Entity {
             int monsterIndex = gp.cChecker.checkEntity(this, gp.monster);
             contactMonster(monsterIndex);
 
+            // CHECK EVENT
+            gp.eHandler.checkEvent();
+
             // Move player if no collision
             if (!collisionOn && !keyH.enterPressed) {
                 switch(direction) {
@@ -316,7 +344,7 @@ private void updateSprite() {
             //Check monster collision with the updated worldX, worldY and solidArea
 
             int monsterIndex = gp.cChecker.checkEntity(this, gp.monster);
-            damageMonster(monsterIndex);
+            damageMonster(monsterIndex, attack);
 
             worldX = currentWorldX;
             worldY = currentWorldY;
@@ -355,12 +383,21 @@ private void updateSprite() {
 
         if (i != 999) {
 
+            // PICKUP ONLY OBJECTS
+
             if (gp.obj[i].type == type_pickupOnly) {
 
-                gp.obj[i].use(this);
-                gp.obj[i] = null;
+                attackCanceled = true;
+                if ( gp.obj[i].use(this) == true )
+                {
+                    gp.obj[i] = null;
+                }
+                else
+                    return;
             
             }
+
+            // INTERACTABLE OBJECTS
 
             else if ( gp.obj[i].type == type_obstacle ) {
 
@@ -370,17 +407,19 @@ private void updateSprite() {
                 }
             }
 
-            if ( inventory.size() != maxInventorySize && gp.obj[i].type != type_obstacle && gp.obj[i].type != type_pickupOnly ) {
+            // OBTAINABLE OBJECTS
 
-                String objectName = gp.obj[i].name;
+            else if ( canObtainItem(gp.obj[i]) == true ) {
+
                 gp.playSE(2);
 
+                String objectName = gp.obj[i].name;
+
                 switch (objectName) {
-                
+
                     case "Compas" -> {
-                    
+
                         gp.teleportation = true;
-                        inventory.add(gp.obj[i]);
                         gp.ui.addMessage("Teleportation unlocked!", Color.WHITE);
                         gp.obj[i] = null;
                         break;
@@ -389,7 +428,6 @@ private void updateSprite() {
 
                     case "Potion" -> {
 
-                        inventory.add(gp.obj[i]);
                         gp.obj[i] = null;
                         gp.ui.addMessage("You've got a potion!", Color.WHITE);
                         break;
@@ -398,25 +436,22 @@ private void updateSprite() {
 
                     case "Boots" -> {
 
-                        inventory.add(gp.obj[i]);
                         gp.obj[i] = null;
                         gp.ui.addMessage("Speed increased!", Color.WHITE);
                         gp.player.speed += 1;
-                        gp.bootsUnlocked = true;   
-                        break;               
+                        gp.bootsUnlocked = true;
+                        break;
                     }
 
                     case "Key" -> {
                         gp.playSE(2);
                         hasKey++;
-                        inventory.add(gp.obj[i]);
                         gp.obj[i] = null;
                         gp.ui.addMessage("You got a key!", Color.WHITE);
                     }
 
                     case "Spell book" -> {
                         gp.playSE(2);
-                        inventory.add(gp.obj[i]);
                         gp.obj[i] = null;
                         gp.ui.addMessage("You got a new weapon!", Color.WHITE);
                     }
@@ -424,6 +459,7 @@ private void updateSprite() {
         }
     }
 }
+
 
     public void interactNPC ( int i ) {
 
@@ -609,6 +645,7 @@ private void updateSprite() {
     }
     public void selectItem() {
 
+
         int itemIndex = gp.ui.getItemIndexOnSlot();
 
         if ( itemIndex < inventory.size() ) {
@@ -629,10 +666,57 @@ private void updateSprite() {
 
             else if ( selectedItem.type == type_consumable ) {
 
-                if (selectedItem.use(this) == true ) {
-                    inventory.remove(itemIndex);
+                if (selectedItem.use(this) == true && selectedItem.name != "Potion") {
+                    if(selectedItem.amount > 1 ) {
+                        selectedItem.amount--;
+                    }
+                    else {
+                        inventory.remove(itemIndex);
+                    }
                 }
             }
         }
+    }
+    public int searchItemInInventory ( String itemName ) {
+
+        int itemIndex = 999;
+
+        for ( int i = 0 ; i < inventory.size(); i++ ) {
+
+            if ( inventory.get(i).name.equals(itemName) ) {
+                itemIndex = i;
+                break;
+            }
+        }
+        return itemIndex;
+
+    }
+    public boolean canObtainItem ( Entity item ) {
+
+        boolean canObtain = false;
+
+        // CHECK IF ITEM IS STACKABLE
+        if ( item.stackable == true ) {
+        
+            int index = searchItemInInventory( item.name );
+
+            if ( index != 999 ) {
+                inventory.get(index).amount++;
+                canObtain = true;
+            }
+            else {
+                if ( inventory.size() != maxInventorySize ) {
+                    inventory.add(item);
+                    canObtain = true;
+                }
+            }    
+        }
+        else {
+            if ( inventory.size() != maxInventorySize ) {
+                inventory.add(item);
+                canObtain = true;
+            }
+        }
+        return canObtain;
     }
 }

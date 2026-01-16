@@ -23,10 +23,10 @@ public class EventHandler{
         while ( col < gp.maxWorldCol && row < gp.maxWorldRow ) {
 
         eventRect[col][row] = new EventRect();
-        eventRect[col][row].x = 23;
-        eventRect[col][row].y = 23;
-        eventRect[col][row].width = 2;
-        eventRect[col][row].height = 2;
+        eventRect[col][row].x = 8;
+        eventRect[col][row].y = 8;
+        eventRect[col][row].width = gp.tileSize - 16;
+        eventRect[col][row].height = gp.tileSize - 16;
         eventRect[col][row].eventRectDefaultX = eventRect[col][row].x;
         eventRect[col][row].eventRectDefaultY = eventRect[col][row].y;
 
@@ -40,12 +40,7 @@ public class EventHandler{
     }
     public void setDialogue() {
         
-        eventMaster.dialogues[0][0] = "Teleport!";
-        eventMaster.dialogues[0][1] = "[I should search for another key]";
-        eventMaster.dialogues[1][0] = "WHAT JUST HAPPEND?";
-        eventMaster.dialogues[1][1] = "[Also, i feel like i'm getting closer to something strong]";
-        eventMaster.dialogues[2][0] = "I feel something strange.";
-        eventMaster.dialogues[2][1] = "[I should search around]";
+        eventMaster.dialogues[0][0] = "All your health and mana has been restored.\nYou feel refreshed.  \n( Game saved )";
     }
 
     public void checkEvent() {
@@ -57,18 +52,12 @@ public class EventHandler{
         if ( distance > gp.tileSize ) {
             canTouchEvent = true;
         }
+        if ( canTouchEvent == true ) {
 
-        if ( gp.teleportation == true ) {
-            if ((hit(38, 22, "right") || hit(38, 22, "left")) == true) {teleport( 30 , 60,  gp.dialogueState);
-            }
-            if ((hit(80, 19, "up") || hit(80, 19, "down")) == true) {Island2(87, 59, gp.dialogueState);
-            }
-        }
-        if ( gp.bootsUnlocked == true ) {
-            if ((hit(89, 67, "up") || hit(89, 67, "down") || (hit(89, 67, "right") || (hit(89, 67, "left")) == true))) { Island3(36, 72, gp.dialogueState);
+            // Healing pool
+            if ( hit(54, 22, "any") == true ) {healingPool( gp.dialogueState ); }
 
-            }
-        }
+        }      
     }
     public boolean hit(int col, int row, String reqDirection) {
 
@@ -95,27 +84,23 @@ public class EventHandler{
 
         return hit;
     }
-    public void teleport( int col, int row, int gameState ) {
+    public void healingPool( int gameState ) {
 
+        // Only react if ENTER was pressed THIS FRAME
+        if (!gp.keyH.enterPressed) return;
+
+        // --- EVENT FIRES ---
+        gp.gameState = gameState;
+        gp.player.attackCanceled = true;
+        gp.player.life = gp.player.maxLife;
+        gp.player.mana = gp.player.maxMana;
+        gp.aSetter.setMonster();
+        gp.saveLoad.save();
         eventMaster.startDialogue(eventMaster, 0);
-        gp.player.attackCanceled = true;
-        gp.player.worldX = gp.tileSize * 73;
-        gp.player.worldY = gp.tileSize * 27;
-    }
-    public void Island2( int col, int row, int gameState ) {
 
-        eventMaster.startDialogue(eventMaster, 1);
-        gp.player.attackCanceled = true;
-        gp.player.worldX = gp.tileSize * 87;
-        gp.player.worldY = gp.tileSize * 59;
-        gp.player.direction = "down";
-    }
-    public void Island3 ( int col, int row, int gameState ) {
+        canTouchEvent = false;
+        previousEventX = gp.player.worldX;
+        previousEventY = gp.player.worldY;
 
-        eventMaster.startDialogue(eventMaster, 2);
-        gp.player.attackCanceled = true;
-        gp.player.worldX = gp.tileSize * 36;
-        gp.player.worldY = gp.tileSize * 72;
-        gp.player.direction = "left";
     }
 }

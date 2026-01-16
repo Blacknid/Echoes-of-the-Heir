@@ -13,6 +13,7 @@ public class OBJ_Key extends Entity{
         this.gp = gp;
 
         type = type_consumable;
+        stackable = true;
         name = "Key";
         down1 = setup("/res/objects/Key", gp.tileSize, gp.tileSize);
         description = "[" + name + "]\nA key used to open \nmysterious doors.";
