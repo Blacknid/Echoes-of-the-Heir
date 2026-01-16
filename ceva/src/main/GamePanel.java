@@ -2,7 +2,6 @@ package main;
 
 import entity.Entity;
 import entity.Player;
-import entity.Projectile;
 
 import java.awt.Color;
 import java.awt.Dimension;
@@ -77,7 +76,6 @@ public class GamePanel extends JPanel implements Runnable{
     public Entity obj[] = new Entity[100];
     public Entity npc[] = new Entity[10];
     public Entity monster[] = new Entity[20];
-    public ArrayList<Projectile> projectiles = new ArrayList<>();
     ArrayList<Entity> entityList = new ArrayList<>();
 
     // GAME STATE 
@@ -207,10 +205,6 @@ public class GamePanel extends JPanel implements Runnable{
                     }
                 }
             }
-            // PROJECTILES
-            for (Projectile p : projectiles) {
-                if (p.alive) p.update();
-            }
         }
         if (player.life <= 0) {
         player.life = 0; // safety clamp
@@ -257,12 +251,6 @@ public class GamePanel extends JPanel implements Runnable{
         for ( int i = 0 ; i < monster.length ; i++ ) {
             if ( monster[i] != null ) {
                 entityList.add(monster[i]);
-            }
-        }
-
-        for (int i = 0; i < projectiles.size(); i++) {
-            if (projectiles.get(i) != null && projectiles.get(i).alive) {
-                entityList.add(projectiles.get(i));
             }
         }
 
