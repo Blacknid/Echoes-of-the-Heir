@@ -11,7 +11,7 @@ public class KeyHandler implements KeyListener {
     public boolean upPressed, downPressed, leftPressed, rightPressed;
 
     // Actions
-    public boolean enterPressed, shotKeyPressed;
+    public boolean enterPressed;
 
     // Debug
     public boolean showDebugText = false;
@@ -75,7 +75,6 @@ public class KeyHandler implements KeyListener {
         if (code == KeyEvent.VK_S) downPressed = false;
         if (code == KeyEvent.VK_A) leftPressed = false;
         if (code == KeyEvent.VK_D) rightPressed = false;
-        if (code == KeyEvent.VK_F) shotKeyPressed = false;
     }
 
     // ============================
@@ -156,7 +155,6 @@ public class KeyHandler implements KeyListener {
 
         // Abilities
         handleTeleport(code);
-        handleProjectile(code);
     }
 
     private void handleTeleport(int code) {
@@ -171,15 +169,6 @@ public class KeyHandler implements KeyListener {
             teleportCooldown = TELEPORT_COOLDOWN_MAX;
         }
         if (teleportCooldown > 0) teleportCooldown--;
-    }
-
-    private void handleProjectile(int code) {
-        if (code == KeyEvent.VK_F && projectileCooldown == 0) {
-            gp.player.shootFireball();
-            shotKeyPressed = true;
-            projectileCooldown = PROJECTILE_COOLDOWN_MAX;
-        }
-        if (projectileCooldown > 0) projectileCooldown--;
     }
 
     private void handleCharacterState(int code) {

@@ -9,14 +9,12 @@ import java.util.ArrayList;
 
 import main.GamePanel;
 import main.KeyHandler;
-import object.OBJ_Fireball;
 import object.OBJ_Shield_Wood;
 import object.OBJ_Sword_Normal;
 public class Player extends Entity {
 
     KeyHandler keyH;
 
-    public OBJ_Fireball fireball; // the projectile template
 
     public final int screenX;
     public final int screenY;
@@ -91,8 +89,6 @@ public class Player extends Entity {
         currentWeapon = new OBJ_Sword_Normal(gp);
         currentShield = new OBJ_Shield_Wood(gp);
 
-        // Set a projectile default (Temporary)
-        fireball = new OBJ_Fireball(gp);
 
         attack = getAttack();
         defense = getDefense();
@@ -195,7 +191,7 @@ public class Player extends Entity {
         attackRight5 = setup("/res/player/b.attack/right/r5", gp.tileSize * 2, gp.tileSize);
     }
 
- public void update() {
+    public void update() {
 
     // Handle attacking first
     if (attacking) {
@@ -207,21 +203,18 @@ public class Player extends Entity {
         else if (keyH.downPressed) direction = "down";
         else if (keyH.leftPressed) direction = "left";
         else if (keyH.rightPressed) direction = "right";
-
+    
         boolean moving = keyH.upPressed || keyH.downPressed || keyH.leftPressed || keyH.rightPressed;
-
+    
         if (moving || keyH.enterPressed) {
 
             // COLLISION CHECKS
             collisionOn = false;
             gp.cChecker.checkTile(this);
-
             int objIndex = gp.cChecker.checkObject(this, true);
             pickUpObject(objIndex);
-
             int npcIndex = gp.cChecker.checkEntity(this, gp.npc);
             interactNPC(npcIndex);
-
             int monsterIndex = gp.cChecker.checkEntity(this, gp.monster);
             contactMonster(monsterIndex);
 
@@ -243,33 +236,31 @@ public class Player extends Entity {
 
             attackCanceled = false;
             keyH.enterPressed = false;
-
             // Update animation sprites
             updateSprite();
-        } else {
-            // Player idle
-            spriteNum = 1;
-            spriteNum1 = 1;
+
+            } else {
+                // Player idle
+                spriteNum = 1;
+                spriteNum1 = 1;
+            }
+
+        // Handle invincibility timer
+        if (invincible) {
+            invincibleCounter++;
+            if (invincibleCounter > 60) {
+                invincible = false;
+                invincibleCounter = 0;
+            }
         }
     }
-
-    // Handle invincibility timer
-    if (invincible) {
-        invincibleCounter++;
-        if (invincibleCounter > 60) {
-            invincible = false;
-            invincibleCounter = 0;
-        }
-    }
+        
 }
 
-public void shootFireball() {
-    OBJ_Fireball newFireball = new OBJ_Fireball(gp);
-    newFireball.set(worldX, worldY, direction, true);
-    gp.projectiles.add(newFireball);
-}
 
-private void updateSprite() {
+
+
+    private void updateSprite() {
     spriteCounter++;
     spriteCounter1++;
 
@@ -316,7 +307,7 @@ private void updateSprite() {
             //Check monster collision with the updated worldX, worldY and solidArea
 
             int monsterIndex = gp.cChecker.checkEntity(this, gp.monster);
-            damageMonster(monsterIndex);
+            damageMonster(monsterIndex, 1);
 
             worldX = currentWorldX;
             worldY = currentWorldY;

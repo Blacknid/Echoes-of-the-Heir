@@ -101,7 +101,6 @@ public class Entity {
     public int coin;
     public Entity currentWeapon;
     public Entity currentShield;
-    public Projectile projectile;
 
 
     // ITEM ATTRIBUTES
@@ -465,4 +464,3 @@ public class Entity {
         return matrix;
     }
 }
-
