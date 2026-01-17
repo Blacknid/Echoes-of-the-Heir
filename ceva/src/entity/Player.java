@@ -335,11 +335,7 @@ public class Player extends Entity {
             //Check monster collision with the updated worldX, worldY and solidArea
 
             int monsterIndex = gp.cChecker.checkEntity(this, gp.monster);
-<<<<<<< HEAD
             damageMonster(monsterIndex, attack);
-=======
-            damageMonster(monsterIndex, 1);
->>>>>>> e15ff98c8fa191c96291710e9e135fdb90fd8041
 
             worldX = currentWorldX;
             worldY = currentWorldY;
@@ -687,6 +683,11 @@ public class Player extends Entity {
 
     }
     public boolean canObtainItem ( Entity item ) {
+
+        if (item == null) {
+            System.err.println("canObtainItem() called with null item!");
+            return false;
+        }
 
         boolean canObtain = false;
 
