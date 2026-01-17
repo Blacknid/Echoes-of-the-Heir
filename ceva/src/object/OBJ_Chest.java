@@ -29,7 +29,7 @@ public class OBJ_Chest extends Entity{
     }
 
     public void setLoot(Entity loot) {
-        this.loot = new OBJ_Compas(gp);
+        this.loot = loot;
 
         setDialogue();
     }
@@ -52,7 +52,6 @@ public class OBJ_Chest extends Entity{
             }
             else {
                 startDialogue(this, 1);
-                gp.player.inventory.add(loot);
                 down1 = image1;
                 opened = true;
             }

@@ -5,6 +5,7 @@ import monster.MON_monster;
 import object.OBJ_Book;
 import object.OBJ_Boots;
 import object.OBJ_Chest;
+import object.OBJ_Compas;
 import object.OBJ_Door;
 import object.OBJ_Gem;
 import object.OBJ_Key;
@@ -30,6 +31,7 @@ public class AssetSetter {
         gp.obj[i] = new OBJ_Chest(gp);
         gp.obj[i].worldX = 43 * gp.tileSize;
         gp.obj[i].worldY = 36 * gp.tileSize;
+        gp.obj[i].setLoot(new OBJ_Compas(gp));
         i++;
 
         gp.obj[i] = new OBJ_Chest(gp);

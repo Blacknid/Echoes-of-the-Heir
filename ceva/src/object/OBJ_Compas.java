@@ -2,15 +2,12 @@ package object;
 
 import entity.Entity;
 import main.GamePanel;
-import main.UtilityTool;
 
 public class OBJ_Compas extends Entity {
 
     public OBJ_Compas(GamePanel gp) {
 
         super(gp);
-        
-        UtilityTool uTool = new UtilityTool();
 
         type = type_buffs;
         name = "Compas";
