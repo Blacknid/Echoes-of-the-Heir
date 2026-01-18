@@ -154,7 +154,7 @@ public class Entity {
     }
     public void interact() {}
     public void damageReaction() {}
-    public boolean use(Entity entity) { return false;}
+    public boolean use(Entity entity) { return false; }
     public void startDialogue(Entity entity, int setNum) {
         gp.gameState = gp.dialogueState;
         gp.ui.npc = entity;

@@ -160,7 +160,7 @@ public class KeyHandler implements KeyListener {
 
     private void handleTeleport(int code) {
         if (!gp.teleportation) return;
-        if (code == KeyEvent.VK_SPACE && teleportCooldown == 0) {
+        else if (code == KeyEvent.VK_SPACE && teleportCooldown == 0) {
             switch (gp.player.direction) {
                 case "up" -> gp.player.worldY -= gp.tileSize * 3;
                 case "down" -> gp.player.worldY += gp.tileSize * 3;
