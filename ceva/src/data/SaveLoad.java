@@ -6,8 +6,6 @@ import java.io.FileOutputStream;
 import java.io.ObjectInputStream;
 import java.io.ObjectOutputStream;
 
-import javax.xml.crypto.Data;
-
 import entity.Entity;
 import main.GamePanel;
 import object.OBJ_Book;
@@ -33,7 +31,6 @@ public class SaveLoad {
             case "Spell book": obj = new OBJ_Book(gp); break;
             case "Boots": obj = new OBJ_Boots(gp); break;
             case "Chest": obj = new OBJ_Chest(gp); break;
-            case "Coins": obj = null; break;
             case "Door": obj = new OBJ_Door(gp); break;
             case "Gem": obj = new OBJ_Gem(gp); break;
             case "Key": obj = new OBJ_Key(gp); break;
@@ -67,7 +64,7 @@ public class SaveLoad {
             for ( int i = 0; i < gp.player.inventory.size(); i++ ){
 
                 ds.itemNames.add(gp.player.inventory.get(i).name);
-                //ds.itemAmounts.add(gp.player.inventory.get(i).amount);
+                ds.itemAmounts.add(gp.player.inventory.get(i).amount);
 
             }
 
@@ -76,13 +73,13 @@ public class SaveLoad {
             ds.currentShieldSlot = gp.player.getCurrentShieldSlot();
 
             // OBJECTS ON MAP
-            ds.mapObjectNames = new String[gp.obj[1].length];
-            ds.mapObjectWorldX = new int[gp.obj[1].length];
-            ds.mapObjectWorldY = new int[gp.obj[1].length];
-            ds.mapObjectLootName = new String[gp.obj[1].length];
-            ds.mapObjectOpened = new boolean[gp.obj[1].length];
+            ds.mapObjectNames = new String[gp.obj.length];
+            ds.mapObjectWorldX = new int[gp.obj.length];
+            ds.mapObjectWorldY = new int[gp.obj.length];
+            ds.mapObjectLootName = new String[gp.obj.length];
+            ds.mapObjectOpened = new boolean[gp.obj.length];
 
-            for ( int i = 0; i < gp.obj[1].length; i++ ) {
+            for ( int i = 0; i < gp.obj.length; i++ ) 
 
                 if ( gp.obj[i] == null ) {
                     ds.mapObjectNames[i] = "NA";
@@ -96,15 +93,18 @@ public class SaveLoad {
                     }
                     ds.mapObjectOpened[i] = gp.obj[i].opened;
                 }
+            
 
             // Write the DataStorage object to the file
             oos.writeObject(ds);
-
-        }
+            oos.close();
+            }
+        
         catch (Exception e) {
             System.out.println("Save Exception!");
-        }
-    }
+    } 
+}  
+
     public void load() {
 
         try {
@@ -129,7 +129,7 @@ public class SaveLoad {
             for ( int i = 0; i < ds.itemNames.size(); i++ ){
 
                 gp.player.inventory.add( getObject( ds.itemNames.get(i) ) );
-                //gp.player.inventory.get(i).amount = ds.itemAmounts.get(i);
+                gp.player.inventory.get(i).amount = ds.itemAmounts.get(i);
 
             }
 
@@ -141,7 +141,7 @@ public class SaveLoad {
             gp.player.getPlayerAttackImages();
 
             // OBJECTS ON MAP
-            for ( int i = 0 ; i < gp.obj[1].length; i++ ) {
+            for ( int i = 0 ; i < gp.obj.length; i++ ) {
 
                 if ( ds.mapObjectNames[i].equals("NA") ) {
                     gp.obj[i] = null;
@@ -159,9 +159,13 @@ public class SaveLoad {
                     }
                 }
             }
+            ois.close();
         }
         catch (Exception e) {
             System.out.println("Load Exception!");
         }
     }
-}
+    }
+
+
+

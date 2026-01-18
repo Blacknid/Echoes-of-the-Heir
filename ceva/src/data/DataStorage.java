@@ -1,10 +1,9 @@
 package data;
 
 import java.io.Serializable;
-import java.lang.reflect.Array;
 import java.util.ArrayList;
 
-public class DataStorage implements java.io.Serializable {
+public class DataStorage implements Serializable {
     
     // PLAYER STATS
     int level;
@@ -25,10 +24,10 @@ public class DataStorage implements java.io.Serializable {
     int currentShieldSlot;
 
     // OBJECTS ON MAP
-    String mapObjectNames[];
-    int mapObjectWorldX[];
-    int mapObjectWorldY[];
-    String mapObjectLootName[];
-    boolean mapObjectOpened[];
+    public String mapObjectNames[];
+    public int mapObjectWorldX[];
+    public int mapObjectWorldY[];
+    public String mapObjectLootName[];
+    public boolean mapObjectOpened[];
 
 }

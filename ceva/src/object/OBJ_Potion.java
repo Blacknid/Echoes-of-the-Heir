@@ -1,7 +1,5 @@
 package object;
 
-import java.awt.Color;
-
 import entity.Entity;
 import main.GamePanel;
 
@@ -33,7 +31,7 @@ public class OBJ_Potion extends Entity {
 
     }
 
-    public boolean use ( Entity entity ) {
+    public boolean use ( Entity entity ) { 
         
         if ( gp.player.life >= gp.player.maxLife ) {
             startDialogue(this, 0);
@@ -41,7 +39,7 @@ public class OBJ_Potion extends Entity {
         else {
             startDialogue(this, 1);
             if(amount > 1 ) {
-                    amount--;
+                amount--;
             }
             else {
                 gp.player.inventory.remove(this);
