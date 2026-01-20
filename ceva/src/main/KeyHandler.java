@@ -8,7 +8,7 @@ public class KeyHandler implements KeyListener {
     GamePanel gp;
 
     // Movement
-    public boolean upPressed, downPressed, leftPressed, rightPressed;
+    public boolean upPressed, downPressed, leftPressed, rightPressed, shotKeyPressed;
 
     // Actions
     public boolean enterPressed;
@@ -22,18 +22,11 @@ public class KeyHandler implements KeyListener {
     private final int TELEPORT_COOLDOWN_MAX = 10;
 
     private int projectileCooldown = 0;
-    private final int PROJECTILE_COOLDOWN_MAX = 10;
 
     public KeyHandler(GamePanel gp) {
         this.gp = gp;
     }
 
-    @Override
-    public void keyTyped(KeyEvent e) {
-        // Not used
-    }
-
-    @Override
     public void keyPressed(KeyEvent e) {
         int code = e.getKeyCode();
 
@@ -67,7 +60,6 @@ public class KeyHandler implements KeyListener {
         }
     }
 
-    @Override
     public void keyReleased(KeyEvent e) {
         int code = e.getKeyCode();
 
@@ -75,6 +67,11 @@ public class KeyHandler implements KeyListener {
         if (code == KeyEvent.VK_S) downPressed = false;
         if (code == KeyEvent.VK_A) leftPressed = false;
         if (code == KeyEvent.VK_D) rightPressed = false;
+    }
+
+    @Override
+    public void keyTyped(KeyEvent e) {
+        // Not used, but required by KeyListener interface
     }
 
     // ============================
@@ -144,6 +141,7 @@ public class KeyHandler implements KeyListener {
         if (code == KeyEvent.VK_ESCAPE) gp.gameState = gp.optionsState;
         if (code == KeyEvent.VK_E) gp.gameState = gp.characterState;
         if (code == KeyEvent.VK_ENTER) enterPressed = true;
+        if (code == KeyEvent.VK_F) shotKeyPressed = true;
 
         // Debug toggle
         if (code == KeyEvent.VK_T) showDebugText = !showDebugText;

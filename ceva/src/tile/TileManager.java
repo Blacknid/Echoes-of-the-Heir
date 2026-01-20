@@ -58,6 +58,13 @@ public class TileManager {
     // ---------------- Load tilesets ----------------
     public void addTileset(String path, int firstGID) {
         try {
+            System.out.println("Trying to load: " + path);
+            java.net.URL url = getClass().getResource(path);
+            if (url == null) {
+                System.out.println("CRITICAL: File not found at path: " + path);
+            } else {
+                System.out.println("Success! Found at: " + url.getPath());
+            }
             BufferedImage tilesetImage = ImageIO.read(getClass().getResourceAsStream(path));
             int cols = tilesetImage.getWidth() / originalTileSize;
             int rows = tilesetImage.getHeight() / originalTileSize;

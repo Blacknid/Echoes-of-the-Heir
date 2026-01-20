@@ -9,6 +9,7 @@ import java.util.ArrayList;
 
 import main.GamePanel;
 import main.KeyHandler;
+import object.OBJ_Arrow;
 import object.OBJ_Shield_Wood;
 import object.OBJ_Sword_Normal;
 public class Player extends Entity {
@@ -84,6 +85,7 @@ public class Player extends Entity {
 
         currentWeapon = new OBJ_Sword_Normal(gp);
         currentShield = new OBJ_Shield_Wood(gp);
+        projectile = new OBJ_Arrow(gp);
 
 
         attack = getAttack();
@@ -218,72 +220,85 @@ public class Player extends Entity {
 
     public void update() {
 
-    // Handle attacking first
-    if (attacking) {
-        attacking();
-    } else {
+        // Handle attacking first
+        if (attacking) {
+            attacking();
+        } else {
 
-        // Determine direction based on keys
-        if (keyH.upPressed) direction = "up";
-        else if (keyH.downPressed) direction = "down";
-        else if (keyH.leftPressed) direction = "left";
-        else if (keyH.rightPressed) direction = "right";
-    
-        boolean moving = keyH.upPressed || keyH.downPressed || keyH.leftPressed || keyH.rightPressed;
-    
-        if (moving || keyH.enterPressed) {
+            // Determine direction based on keys
+            if (keyH.upPressed) direction = "up";
+            else if (keyH.downPressed) direction = "down";
+            else if (keyH.leftPressed) direction = "left";
+            else if (keyH.rightPressed) direction = "right";
+        
+            boolean moving = keyH.upPressed || keyH.downPressed || keyH.leftPressed || keyH.rightPressed;
+        
+            if (moving || keyH.enterPressed) {
 
-            // COLLISION CHECKS
-            collisionOn = false;
-            gp.cChecker.checkTile(this);
-            int objIndex = gp.cChecker.checkObject(this, true);
-            pickUpObject(objIndex);
-            int npcIndex = gp.cChecker.checkEntity(this, gp.npc);
-            interactNPC(npcIndex);
-            int monsterIndex = gp.cChecker.checkEntity(this, gp.monster);
-            contactMonster(monsterIndex);
+                // COLLISION CHECKS
+                collisionOn = false;
+                gp.cChecker.checkTile(this);
+                int objIndex = gp.cChecker.checkObject(this, true);
+                pickUpObject(objIndex);
+                int npcIndex = gp.cChecker.checkEntity(this, gp.npc);
+                interactNPC(npcIndex);
+                int monsterIndex = gp.cChecker.checkEntity(this, gp.monster);
+                contactMonster(monsterIndex);
 
-            // CHECK EVENT
-            gp.eHandler.checkEvent();
+                // CHECK EVENT
+                gp.eHandler.checkEvent();
 
-            // Move player if no collision
-            if (!collisionOn && !keyH.enterPressed) {
-                switch(direction) {
-                    case "up": worldY -= speed; break;
-                    case "down": worldY += speed; break;
-                    case "left": worldX -= speed; break;
-                    case "right": worldX += speed; break;
+                // Move player if no collision
+                if (!collisionOn && !keyH.enterPressed) {
+                    switch(direction) {
+                        case "up": worldY -= speed; break;
+                        case "down": worldY += speed; break;
+                        case "left": worldX -= speed; break;
+                        case "right": worldX += speed; break;
+                    }
+                }
+
+                // Start attack if enter pressed
+                if (keyH.enterPressed && !attackCanceled) {
+                    attacking = true;
+                    spriteCounter = 0;
+                }
+
+                attackCanceled = false;
+                keyH.enterPressed = false;
+                // Update animation sprites
+                updateSprite();
+
+                } else {
+                    // Player idle
+                    spriteNum = 1;
+                    spriteNum1 = 1;
+                }
+            
+                if(gp.keyH.shotKeyPressed == true && projectile.alive == false){
+                    
+                    //SET DEFAULT COORDINATES, DIRECTIONS AND USER
+                    projectile.set(worldX, worldY, direction, true, this);
+
+                    //ADD TO ARRAY
+                    gp.projectilesList.add(projectile);
+
+                    //gp.playSE(12);
+                }
+
+            // Handle invincibility timer
+            if (invincible) {
+                invincibleCounter++;
+                if (invincibleCounter > 60) {
+                    invincible = false;
+                    invincibleCounter = 0;
                 }
             }
-
-            // Start attack if enter pressed
-            if (keyH.enterPressed && !attackCanceled) {
-                attacking = true;
-                spriteCounter = 0;
-            }
-
-            attackCanceled = false;
-            keyH.enterPressed = false;
-            // Update animation sprites
-            updateSprite();
-
-            } else {
-                // Player idle
-                spriteNum = 1;
-                spriteNum1 = 1;
-            }
-
-        // Handle invincibility timer
-        if (invincible) {
-            invincibleCounter++;
-            if (invincibleCounter > 60) {
-                invincible = false;
-                invincibleCounter = 0;
-            }
         }
-    }
+
+
         
-}
+    }
 
 
 
