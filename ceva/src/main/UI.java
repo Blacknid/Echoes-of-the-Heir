@@ -707,20 +707,25 @@ public class UI {
 
         int itemIndex = getItemIndexOnSlot();
 
-        if ( itemIndex < gp.player.inventory.size() && gp.player.inventory.get(itemIndex).type == gp.player.type_consumable || 
-             itemIndex < gp.player.inventory.size() && gp.player.inventory.get(itemIndex) == gp.player.currentShield ||
-             itemIndex < gp.player.inventory.size() && gp.player.inventory.get(itemIndex) == gp.player.currentWeapon ||
-             itemIndex < gp.player.inventory.size() && gp.player.inventory.get(itemIndex).type == gp.player.type_buffs || 
-             itemIndex < gp.player.inventory.size() && gp.player.inventory.get(itemIndex).type == gp.player.type_book ) {
+        if (itemIndex < gp.player.inventory.size()) {
 
-            drawSubWindow(dFrameX, dFrameY, dFrameWidth, dFrameHeight);
-
-            for ( String line: gp.player.inventory.get(itemIndex).description.split("\n")) {
-
-                g2.drawString(line, textX, textY);
-                textY += 32;
+        Entity item = gp.player.inventory.get(itemIndex);
+            if (item != null &&
+                (item.type == gp.player.type_consumable ||
+                item == gp.player.currentShield ||
+                item == gp.player.currentWeapon ||
+                item.type == gp.player.type_buffs ||
+                item.type == gp.player.type_book)) {
+                
+                drawSubWindow(dFrameX, dFrameY, dFrameWidth, dFrameHeight);
+                
+                for (String line : item.description.split("\n")) {
+                    g2.drawString(line, textX, textY);
+                    textY += 32;
+                }
             }
         }
+
     }
     public int getItemIndexOnSlot() {
         int itemIndex = slotCol + ( slotRow * 5 );

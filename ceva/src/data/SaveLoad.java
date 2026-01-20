@@ -11,6 +11,7 @@ import main.GamePanel;
 import object.OBJ_Book;
 import object.OBJ_Boots;
 import object.OBJ_Chest;
+import object.OBJ_Compas;
 import object.OBJ_Door;
 import object.OBJ_Gem;
 import object.OBJ_Key;
@@ -34,6 +35,7 @@ public class SaveLoad {
             case "Door": obj = new OBJ_Door(gp); break;
             case "Gem": obj = new OBJ_Gem(gp); break;
             case "Key": obj = new OBJ_Key(gp); break;
+            case "Compas": obj = new OBJ_Compas(gp); break;
             case "Potion": obj = new OBJ_Potion(gp); break;
             case "Wood_Shield": obj = new object.OBJ_Shield_Wood(gp); break;
             case "Normal Sword": obj = new object.OBJ_Sword_Normal(gp); break;
@@ -79,21 +81,21 @@ public class SaveLoad {
             ds.mapObjectLootName = new String[gp.obj.length];
             ds.mapObjectOpened = new boolean[gp.obj.length];
 
-            for ( int i = 0; i < gp.obj.length; i++ ) 
+            for ( int i = 0; i < gp.obj.length; i++ ) {
 
                 if ( gp.obj[i] == null ) {
                     ds.mapObjectNames[i] = "NA";
+                    continue;
                 }
-                else {
                     ds.mapObjectNames[i] = gp.obj[i].name;
                     ds.mapObjectWorldX[i] = gp.obj[i].worldX;
                     ds.mapObjectWorldY[i] = gp.obj[i].worldY;
+                    ds.mapObjectOpened[i] = gp.obj[i].opened;
+
                     if ( gp.obj[i].loot != null ) {
                         ds.mapObjectLootName[i] = gp.obj[i].loot.name;
                     }
-                    ds.mapObjectOpened[i] = gp.obj[i].opened;
                 }
-            
 
             // Write the DataStorage object to the file
             oos.writeObject(ds);
@@ -126,11 +128,19 @@ public class SaveLoad {
 
             // INVENTORY
             gp.player.inventory.clear();
-            for ( int i = 0; i < ds.itemNames.size(); i++ ){
 
-                gp.player.inventory.add( getObject( ds.itemNames.get(i) ) );
-                gp.player.inventory.get(i).amount = ds.itemAmounts.get(i);
-
+            for (int i = 0; i < ds.itemNames.size(); i++) {
+            
+                String name = ds.itemNames.get(i);
+                Entity item = getObject(name);
+            
+                if (item == null) {
+                    System.out.println("❌ UNKNOWN ITEM IN SAVE FILE: [" + name + "]");
+                    continue; // SKIP IT
+                }
+            
+                item.amount = ds.itemAmounts.get(i);
+                gp.player.inventory.add(item);
             }
 
             // CURRENT WEAPON AND SHIELD SLOTS
@@ -147,15 +157,18 @@ public class SaveLoad {
                     gp.obj[i] = null;
                 }
                 else {
-                    gp.obj[i] = getObject( ds.mapObjectNames[i] );
+                    gp.obj[i] = getObject(ds.mapObjectNames[i]);
                     gp.obj[i].worldX = ds.mapObjectWorldX[i];
                     gp.obj[i].worldY = ds.mapObjectWorldY[i];
-                    if ( ds.mapObjectLootName[i] != null ) {
-                        gp.obj[i].loot = getObject( ds.mapObjectLootName[i] );
-                    }
                     gp.obj[i].opened = ds.mapObjectOpened[i];
-                    if ( gp.obj[i].opened == true ) {
+
+                    if (!gp.obj[i].opened && !ds.mapObjectLootName[i].equals("NA")) {
+                        gp.obj[i].loot = getObject(ds.mapObjectLootName[i]);
+                    }
+
+                    if (gp.obj[i].opened) {
                         gp.obj[i].down1 = gp.obj[i].image1;
+                        gp.obj[i].loot = null; // explicitly empty
                     }
                 }
             }

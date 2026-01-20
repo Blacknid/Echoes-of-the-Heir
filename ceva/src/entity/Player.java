@@ -412,7 +412,6 @@ public class Player extends Entity {
 
                         gp.teleportation = true;
                         gp.ui.addMessage("Teleportation unlocked!", Color.WHITE);
-                        gp.obj[i] = null;
                         break;
 
                     }
