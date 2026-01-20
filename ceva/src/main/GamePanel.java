@@ -70,6 +70,7 @@ public class GamePanel extends JPanel implements Runnable{
     public PathFinder pFinder = new PathFinder(this);
     SaveLoad saveLoad = new SaveLoad(this);
     Thread gameThread;
+    public boolean loadingGame = false;
 
     //ENTITY AND OBJECT
     public Player player = new Player(this,keyH);
@@ -104,19 +105,21 @@ public class GamePanel extends JPanel implements Runnable{
 
     public void setupGame() {
 
-        aSetter.setObject();
-        aSetter.setNPC();
-        aSetter.setMonster();
-        //playMusic(0);
-        gameState = titleState;
-
-        tempScreen = new BufferedImage(screenWidth, screenHeight, BufferedImage.TYPE_INT_ARGB);
-        g2 = (Graphics2D)tempScreen.getGraphics();
-
-        if ( fullScreenOn == true ) {
-            setFullScreen();
-        }
+    if (!loadingGame) {
+        aSetter.setObject(); // NEW GAME ONLY
     }
+
+    aSetter.setNPC();
+    aSetter.setMonster();
+    gameState = titleState;
+
+    tempScreen = new BufferedImage(screenWidth, screenHeight, BufferedImage.TYPE_INT_ARGB);
+    g2 = (Graphics2D) tempScreen.getGraphics();
+
+    if (fullScreenOn) {
+        setFullScreen();
+    }
+}
 
     public void resetGame(boolean restart) {
 
