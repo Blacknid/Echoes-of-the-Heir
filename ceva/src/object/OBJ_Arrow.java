@@ -24,10 +24,13 @@ public class OBJ_Arrow extends Projectile {
     }
 
     public void getImage(){
-        BufferedImage[][] temp_images = loadSpriteMatrix("/objects/arrow_spritesheet", 32, 32);
-        up1 = temp_images[0][0];
-        up2 = temp_images[0][1];
+        BufferedImage[][] temp_images = loadSpriteMatrix("/res/projectiles/Arrow", 32, 32);
+        image1 = temp_images[0][0];
+        image2 = temp_images[0][1];
     }
+
+
+
 
 
 }
