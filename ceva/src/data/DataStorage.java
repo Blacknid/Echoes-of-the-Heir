@@ -4,30 +4,31 @@ import java.io.Serializable;
 import java.util.ArrayList;
 
 public class DataStorage implements Serializable {
-    
+
+    private static final long serialVersionUID = 1L;
+
     // PLAYER STATS
-    int level;
-    int maxLife;
-    int life;
-    int maxMana;
-    int mana;
-    int strenght;
-    int dexterity;
-    int exp;
-    int nextLevelExp;
-    int coin;
-    
-    // Player inventory
-    ArrayList<String> itemNames = new ArrayList<>();
-    ArrayList<Integer> itemAmounts = new ArrayList<>();
-    int currentWeaponSlot;
-    int currentShieldSlot;
+    public int level;
+    public int maxLife;
+    public int life;
+    public int maxMana;
+    public int mana;
+    public int strenght;
+    public int dexterity;
+    public int exp;
+    public int nextLevelExp;
+    public int coin;
+
+    // INVENTORY
+    public ArrayList<String> itemNames = new ArrayList<>();
+    public ArrayList<Integer> itemAmounts = new ArrayList<>();
+    public int currentWeaponSlot;
+    public int currentShieldSlot;
 
     // OBJECTS ON MAP
-    public String mapObjectNames[];
-    public int mapObjectWorldX[];
-    public int mapObjectWorldY[];
-    public String mapObjectLootName[];
-    public boolean mapObjectOpened[];
-
+    public String[] mapObjectNames;
+    public int[] mapObjectWorldX;
+    public int[] mapObjectWorldY;
+    public String[] mapObjectLootName;
+    public boolean[] mapObjectOpened;
 }
