@@ -283,7 +283,7 @@ public class Player extends Entity {
                     //ADD TO ARRAY
                     gp.projectilesList.add(projectile);
 
-                    //gp.playSE(12);
+                    gp.playSE(12);
                 }
 
             // Handle invincibility timer

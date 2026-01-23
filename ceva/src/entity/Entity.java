@@ -56,6 +56,8 @@ public class Entity {
     public int dialogueSet = 0;
     
     // IMAGES
+    // Renamed class level 'image' to 'activeImage' to avoid confusion, 
+    // though usually you draw specific sprites (up1, etc)
     public BufferedImage image, image1, image2, image3, compas_image;
 
     // COLLISION & AREAS
@@ -105,7 +107,6 @@ public class Entity {
     public Entity currentShield;
     public Projectile projectile;
 
-
     // ITEM ATTRIBUTES
     public int attackValue;
     public int defenseValue;
@@ -119,7 +120,6 @@ public class Entity {
     }
 
     // GETTERS
-
     public int getLeftX() { return worldX + solidArea.x; }
     public int getRightX() { return worldX + solidArea.x + solidArea.width; }
     public int getTopY() { return worldY + solidArea.y; }
@@ -130,6 +130,7 @@ public class Entity {
     public int getCenterY() { return worldY + solidArea.y + solidArea.height / 2; }    
     public int getTileCol() { return getCenterX() / gp.tileSize; }    
     public int getTileRow() { return getCenterY() / gp.tileSize; } 
+    
     public void resetCounter() {
         spriteCounter = 0;
         spriteCounter1 = 0;
@@ -182,14 +183,14 @@ public class Entity {
             gp.player.invincible = true;
         }
     }
+    
     public void update() {
         
         setAction();
         checkCollision();
 
         // IF COLLISION IS FALSE, MOVE
-        // MODIFIED: Only use this block if NOT using pathfinding
-        // Pathfinding (searchPath) now handles movement internally to allow diagonals
+        // Only run manual movement if pathfinding is NOT active
         if (collisionOn == false && onPath == false) {
             switch (direction) {
                 case "up": worldY -= speed; break;
@@ -198,6 +199,9 @@ public class Entity {
                 case "right": worldX += speed; break;
             }
         }
+        
+        // IMPORTANT: If we just finished pathfinding, we don't want to keep moving.
+        // The searchPath logic handles movement when onPath is true.
 
         spriteCounter++;
         if (spriteCounter > 12) {
@@ -218,9 +222,12 @@ public class Entity {
             shotAvailableCounter++;
         }
     }
+    
     public void draw(Graphics2D g2) {
         
-        BufferedImage image = null;
+        // Use a local variable to determine which sprite to draw
+        BufferedImage currentSprite = null;
+        
         int screenX = worldX - gp.player.worldX + gp.player.screenX;
         int screenY = worldY - gp.player.worldY + gp.player.screenY;
 
@@ -231,24 +238,24 @@ public class Entity {
 
             switch (direction) {
                 case "up":
-                    if (spriteNum == 1) image = up1;
-                    if (spriteNum == 2) image = up2;
-                    if (spriteNum == 3) image = up3;
+                    if (spriteNum == 1) currentSprite = up1;
+                    if (spriteNum == 2) currentSprite = up2;
+                    if (spriteNum == 3) currentSprite = up3;
                     break;
                 case "down":
-                    if (spriteNum == 1) image = down1;
-                    if (spriteNum == 2) image = down2;
-                    if (spriteNum == 3) image = down3;
+                    if (spriteNum == 1) currentSprite = down1;
+                    if (spriteNum == 2) currentSprite = down2;
+                    if (spriteNum == 3) currentSprite = down3;
                     break;
                 case "left":
-                    if (spriteNum == 1) image = left1;
-                    if (spriteNum == 2) image = left2;
-                    if (spriteNum == 3) image = left3;
+                    if (spriteNum == 1) currentSprite = left1;
+                    if (spriteNum == 2) currentSprite = left2;
+                    if (spriteNum == 3) currentSprite = left3;
                     break;
                 case "right":
-                    if (spriteNum == 1) image = right1;
-                    if (spriteNum == 2) image = right2;
-                    if (spriteNum == 3) image = right3;
+                    if (spriteNum == 1) currentSprite = right1;
+                    if (spriteNum == 2) currentSprite = right2;
+                    if (spriteNum == 3) currentSprite = right3;
                     break;
             }
 
@@ -279,10 +286,15 @@ public class Entity {
                 dyingAnimation(g2);
             }
                 
-            g2.drawImage(image, screenX, screenY, gp.tileSize, gp.tileSize, null);
+            // Safe guard against null images
+            if (currentSprite != null) {
+                g2.drawImage(currentSprite, screenX, screenY, gp.tileSize, gp.tileSize, null);
+            }
+            
             changeAlpha(g2, 1F);
         }
     }
+    
     public void dyingAnimation(Graphics2D g2) {
         dyingCounter++;
         int i = 5;
@@ -340,6 +352,10 @@ public class Entity {
         }
         return index;
     }
+    
+    // -----------------------------------------------------------------
+    // FIXED SEARCH PATH
+    // -----------------------------------------------------------------
     public void searchPath(int goalCol, int goalRow) {
         
         int startCol = (worldX + solidArea.x) / gp.tileSize;
@@ -347,6 +363,7 @@ public class Entity {
 
         gp.pFinder.setNodes(startCol, startRow, goalCol, goalRow, this);
 
+        // If path found
         if (gp.pFinder.search() == true) {
             
             // Next WorldX and WorldY
@@ -359,35 +376,48 @@ public class Entity {
             int enTopY = worldY + solidArea.y;
             int enBottomY = worldY + solidArea.y + solidArea.height;
 
-            // NOTE: We now handle movement MANUALLY here to allow Diagonal movement.
-            // We temporarily change 'direction' to check collision for each axis.
-            
             // 1. Vertical Movement
-            if (enTopY > nextY) {
+            if (enTopY > nextY && enLeftX >= nextX && enRightX < nextX + gp.tileSize) {
+                worldY -= speed;
+                direction = "up";
+            }
+            else if (enTopY < nextY && enLeftX >= nextX && enRightX < nextX + gp.tileSize) {
+                worldY += speed;
+                direction = "down";
+            }
+            // Use standard logic but check collision carefully
+            else if (enTopY > nextY) {
                 direction = "up";
                 checkCollision();
-                if (collisionOn == false) { worldY -= speed; }
+                if (collisionOn == false) { 
+                    worldY -= speed; 
+                }
             }
             else if (enTopY < nextY) {
                 direction = "down";
                 checkCollision();
-                if (collisionOn == false) { worldY += speed; }
+                if (collisionOn == false) { 
+                    worldY += speed; 
+                }
             }
 
             // 2. Horizontal Movement
             if (enLeftX > nextX) {
                 direction = "left";
                 checkCollision();
-                if (collisionOn == false) { worldX -= speed; }
+                if (collisionOn == false) { 
+                    worldX -= speed; 
+                }
             }
             else if (enLeftX < nextX) {
                 direction = "right";
                 checkCollision();
-                if (collisionOn == false) { worldX += speed; }
+                if (collisionOn == false) { 
+                    worldX += speed; 
+                }
             }
 
             // 3. Reset direction for correct sprite animation
-            // Determine which axis has the larger distance to prioritize the sprite direction
             int nextCenterX = nextX + gp.tileSize / 2;
             int nextCenterY = nextY + gp.tileSize / 2;
             int enCenterX = enLeftX + solidArea.width / 2;
@@ -399,18 +429,25 @@ public class Entity {
             if (dx > dy) {
                 if (enCenterX > nextCenterX) direction = "left";
                 else direction = "right";
-            } else {
+            } else if (dx < dy) {
                 if (enCenterY > nextCenterY) direction = "up";
                 else direction = "down";
             }
 
+            // 4. Check if reached the GOAL
             int nextCol = gp.pFinder.pathList.get(0).col;
             int nextRow = gp.pFinder.pathList.get(0).row;
+            
+            // We only stop onPath if we are physically reaching the final tile
             if (nextCol == goalCol && nextRow == goalRow) {
-                onPath = false;
+                // Check pixel distance to allow entity to walk ONTO the tile
+                if (Math.abs(worldX - nextX) < speed && Math.abs(worldY - nextY) < speed) {
+                     onPath = false;
+                }
             }
         }
     }   
+    
     public boolean isPlayerInRange(int range) {
         int dx = Math.abs(getCenterX() - gp.player.getCenterX());
         int dy = Math.abs(getCenterY() - gp.player.getCenterY());

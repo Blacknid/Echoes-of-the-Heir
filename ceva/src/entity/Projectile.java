@@ -24,7 +24,7 @@ public class Projectile extends Entity {
         
         switch(direction) {
             case "up": worldY -= speed; break;
-            case "down": worldY -= speed; break;
+            case "down": worldY += speed; break;
             case "left": worldX -= speed; break;
             case "right": worldX += speed; break;
         }
@@ -36,7 +36,7 @@ public class Projectile extends Entity {
 
         spriteCounter++;
         if(spriteCounter > 12){
-            if(spriteCounter == 1) {
+            if(spriteNum == 1) {
                 spriteNum = 2;
             }
             else if(spriteNum == 2){
