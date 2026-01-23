@@ -1,55 +1,52 @@
 package data;
 
-import java.io.File;
-import java.io.FileInputStream;
-import java.io.FileOutputStream;
-import java.io.ObjectInputStream;
-import java.io.ObjectOutputStream;
+import java.io.*;
 
 import entity.Entity;
 import main.GamePanel;
-import object.OBJ_Book;
-import object.OBJ_Boots;
-import object.OBJ_Chest;
-import object.OBJ_Compas;
-import object.OBJ_Door;
-import object.OBJ_Gem;
-import object.OBJ_Key;
-import object.OBJ_Potion;
+import object.*;
 
 public class SaveLoad {
 
     GamePanel gp;
 
-    public SaveLoad ( GamePanel gp ) {
+    public SaveLoad(GamePanel gp) {
         this.gp = gp;
     }
-    public Entity getObject(String itemName) {
-        
-        Entity obj = null;
 
-        switch (itemName) {
-            case "Spell book": obj = new OBJ_Book(gp); break;
-            case "Boots": obj = new OBJ_Boots(gp); break;
-            case "Chest": obj = new OBJ_Chest(gp); break;
-            case "Door": obj = new OBJ_Door(gp); break;
-            case "Gem": obj = new OBJ_Gem(gp); break;
-            case "Key": obj = new OBJ_Key(gp); break;
-            case "Compas": obj = new OBJ_Compas(gp); break;
-            case "Potion": obj = new OBJ_Potion(gp); break;
-            case "Wood_Shield": obj = new object.OBJ_Shield_Wood(gp); break;
-            case "Normal Sword": obj = new object.OBJ_Sword_Normal(gp); break;
+    // =========================
+    // OBJECT FACTORY
+    // =========================
+    public Entity getObject(String name) {
+
+        if (name == null || name.equals("NA")) return null;
+
+        switch (name) {
+            case "Spell book": return new OBJ_Book(gp);
+            case "Boots": return new OBJ_Boots(gp);
+            case "Chest": return new OBJ_Chest(gp);
+            case "Door": return new OBJ_Door(gp);
+            case "Gem": return new OBJ_Gem(gp);
+            case "Key": return new OBJ_Key(gp);
+            case "Compas": return new OBJ_Compas(gp);
+            case "Potion": return new OBJ_Potion(gp);
+            case "Wood_Shield": return new OBJ_Shield_Wood(gp);
+            case "Normal Sword": return new OBJ_Sword_Normal(gp);
         }
-        return obj;
+        return null;
     }
+
+    // =========================
+    // SAVE
+    // =========================
     public void save() {
 
-        try {
-            ObjectOutputStream oos = new ObjectOutputStream(new FileOutputStream(new File("save.dat")));
+        try (ObjectOutputStream oos =
+             new ObjectOutputStream(new FileOutputStream("save.dat"))) {
 
             DataStorage ds = new DataStorage();
 
-            // STATS
+            // PLAYER STATS
             ds.level = gp.player.level;
             ds.maxLife = gp.player.maxLife;
             ds.life = gp.player.life;
@@ -62,59 +59,62 @@ public class SaveLoad {
             ds.coin = gp.player.coin;
 
             // INVENTORY
-            
-            for ( int i = 0; i < gp.player.inventory.size(); i++ ){
-
-                ds.itemNames.add(gp.player.inventory.get(i).name);
-                ds.itemAmounts.add(gp.player.inventory.get(i).amount);
-
+            for (Entity e : gp.player.inventory) {
+                ds.itemNames.add(e.name);
+                ds.itemAmounts.add(e.amount);
             }
 
-            // CURRENT WEAPON AND SHIELD SLOTS
             ds.currentWeaponSlot = gp.player.getCurrentWeaponSlot();
             ds.currentShieldSlot = gp.player.getCurrentShieldSlot();
 
             // OBJECTS ON MAP
-            ds.mapObjectNames = new String[gp.obj.length];
-            ds.mapObjectWorldX = new int[gp.obj.length];
-            ds.mapObjectWorldY = new int[gp.obj.length];
-            ds.mapObjectLootName = new String[gp.obj.length];
-            ds.mapObjectOpened = new boolean[gp.obj.length];
+            int size = gp.obj.length;
 
-            for ( int i = 0; i < gp.obj.length; i++ ) {
+            ds.mapObjectNames = new String[size];
+            ds.mapObjectWorldX = new int[size];
+            ds.mapObjectWorldY = new int[size];
+            ds.mapObjectLootName = new String[size];
+            ds.mapObjectOpened = new boolean[size];
 
-                if ( gp.obj[i] == null ) {
+            for (int i = 0; i < size; i++) {
+
+                if (gp.obj[i] == null) {
                     ds.mapObjectNames[i] = "NA";
+                    ds.mapObjectLootName[i] = "NA";
                     continue;
                 }
-                    ds.mapObjectNames[i] = gp.obj[i].name;
-                    ds.mapObjectWorldX[i] = gp.obj[i].worldX;
-                    ds.mapObjectWorldY[i] = gp.obj[i].worldY;
-                    ds.mapObjectOpened[i] = gp.obj[i].opened;
 
-                    if ( gp.obj[i].loot != null ) {
-                        ds.mapObjectLootName[i] = gp.obj[i].loot.name;
-                    }
+                ds.mapObjectNames[i] = gp.obj[i].name;
+                ds.mapObjectWorldX[i] = gp.obj[i].worldX;
+                ds.mapObjectWorldY[i] = gp.obj[i].worldY;
+                ds.mapObjectOpened[i] = gp.obj[i].opened;
+
+                if (gp.obj[i].loot != null) {
+                    ds.mapObjectLootName[i] = gp.obj[i].loot.name;
+                } else {
+                    ds.mapObjectLootName[i] = "NA";
                 }
-
-            // Write the DataStorage object to the file
-            oos.writeObject(ds);
-            oos.close();
             }
-        
-        catch (Exception e) {
-            System.out.println("Save Exception!");
-    } 
-}  
 
+            oos.writeObject(ds);
+
+        } catch (Exception e) {
+            e.printStackTrace();
+            System.out.println("Save Exception!");
+        }
+    }
+
+    // =========================
+    // LOAD
+    // =========================
     public void load() {
 
-        try {
-            ObjectInputStream ois = new ObjectInputStream(new FileInputStream(new File("save.dat")));
+        try (ObjectInputStream ois =
+             new ObjectInputStream(new FileInputStream("save.dat"))) {
 
-            // Read the DataStorage object from the file
             DataStorage ds = (DataStorage) ois.readObject();
 
+            // PLAYER STATS
             gp.player.level = ds.level;
             gp.player.maxLife = ds.maxLife;
             gp.player.life = ds.life;
@@ -130,55 +130,57 @@ public class SaveLoad {
             gp.player.inventory.clear();
 
             for (int i = 0; i < ds.itemNames.size(); i++) {
-            
-                String name = ds.itemNames.get(i);
-                Entity item = getObject(name);
-            
-                if (item == null) {
-                    System.out.println("❌ UNKNOWN ITEM IN SAVE FILE: [" + name + "]");
-                    continue; // SKIP IT
+                Entity item = getObject(ds.itemNames.get(i));
+                if (item != null) {
+                    item.amount = ds.itemAmounts.get(i);
+                    gp.player.inventory.add(item);
                 }
-            
-                item.amount = ds.itemAmounts.get(i);
-                gp.player.inventory.add(item);
             }
 
-            // CURRENT WEAPON AND SHIELD SLOTS
-            gp.player.currentWeapon = gp.player.inventory.get( ds.currentWeaponSlot );
-            gp.player.currentShield = gp.player.inventory.get( ds.currentShieldSlot );
+            // CURRENT EQUIPMENT
+            if (ds.currentWeaponSlot < gp.player.inventory.size()) {
+                gp.player.currentWeapon =
+                        gp.player.inventory.get(ds.currentWeaponSlot);
+            }
+
+            if (ds.currentShieldSlot < gp.player.inventory.size()) {
+                gp.player.currentShield =
+                        gp.player.inventory.get(ds.currentShieldSlot);
+            }
+
             gp.player.getAttack();
             gp.player.getDefense();
             gp.player.getPlayerAttackImages();
 
             // OBJECTS ON MAP
-            for ( int i = 0 ; i < gp.obj.length; i++ ) {
+            for (int i = 0; i < gp.obj.length; i++) {
 
-                if ( ds.mapObjectNames[i].equals("NA") ) {
+                if (ds.mapObjectNames[i].equals("NA")) {
                     gp.obj[i] = null;
+                    continue;
                 }
-                else {
-                    gp.obj[i] = getObject(ds.mapObjectNames[i]);
-                    gp.obj[i].worldX = ds.mapObjectWorldX[i];
-                    gp.obj[i].worldY = ds.mapObjectWorldY[i];
-                    gp.obj[i].opened = ds.mapObjectOpened[i];
 
-                    if (!gp.obj[i].opened && !ds.mapObjectLootName[i].equals("NA")) {
-                        gp.obj[i].loot = getObject(ds.mapObjectLootName[i]);
-                    }
+                gp.obj[i] = getObject(ds.mapObjectNames[i]);
+                if (gp.obj[i] == null) continue;
 
-                    if (gp.obj[i].opened) {
-                        gp.obj[i].down1 = gp.obj[i].image1;
-                        gp.obj[i].loot = null; // explicitly empty
-                    }
+                gp.obj[i].worldX = ds.mapObjectWorldX[i];
+                gp.obj[i].worldY = ds.mapObjectWorldY[i];
+                gp.obj[i].opened = ds.mapObjectOpened[i];
+
+                if (!gp.obj[i].opened && !ds.mapObjectLootName[i].equals("NA")) {
+                    gp.obj[i].loot = getObject(ds.mapObjectLootName[i]);
+                } else {
+                    gp.obj[i].loot = null;
+                }
+
+                if (gp.obj[i].opened) {
+                    gp.obj[i].down1 = gp.obj[i].image1;
                 }
             }
-            ois.close();
-        }
-        catch (Exception e) {
+
+        } catch (Exception e) {
+            e.printStackTrace();
             System.out.println("Load Exception!");
         }
     }
-    }
-
-
-
+}
