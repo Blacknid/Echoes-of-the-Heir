@@ -216,6 +216,7 @@ public class GamePanel extends JPanel implements Runnable{
                     }
                     if ( projectilesList.get(i).alive == false ) {
                         projectilesList.remove(i);
+                        i--;
                     }
                 }
             }

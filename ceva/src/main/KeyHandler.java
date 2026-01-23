@@ -67,6 +67,7 @@ public class KeyHandler implements KeyListener {
         if (code == KeyEvent.VK_S) downPressed = false;
         if (code == KeyEvent.VK_A) leftPressed = false;
         if (code == KeyEvent.VK_D) rightPressed = false;
+        if (code == KeyEvent.VK_F) shotKeyPressed = false;
     }
 
     @Override
