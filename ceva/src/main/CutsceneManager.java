@@ -35,7 +35,7 @@ public class CutsceneManager {
                 + "Avram Dennis-Sebastian / Lupu Mirabela\n"
                 + "\n\n\n\n\n\n"
                 + "Sources from\n"
-                + "Youtuber : RyiSnow\n"
+                + "Youtube helper : RyiSnow\n"
                 + "Sites : Pixabay.com , CraftPix.net";
     }
     public void draw ( Graphics2D g2 ) {
