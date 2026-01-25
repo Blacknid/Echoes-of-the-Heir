@@ -275,15 +275,19 @@ public class Player extends Entity {
                     spriteNum1 = 1;
                 }
             
-                if(gp.keyH.shotKeyPressed == true && projectile.alive == false){
+                if(gp.keyH.shotKeyPressed == true && projectile.alive == false && shotAvailableCounter == 30){
                     
                     //SET DEFAULT COORDINATES, DIRECTIONS AND USER
                     projectile.set(worldX, worldY, direction, true, this);
 
                     //ADD TO ARRAY
                     gp.projectilesList.add(projectile);
+                    shotAvailableCounter = 0;
 
-                    gp.playSE(12);
+                    //gp.playSE(12);
+                }
+                if (shotAvailableCounter < 30) {
+                    shotAvailableCounter++;
                 }
 
             // Handle invincibility timer
