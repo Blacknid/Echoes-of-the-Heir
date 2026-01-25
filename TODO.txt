@@ -1,0 +1,30 @@
+1. create a launcher for updates
+
+import io.sigpipe.jbsdiff.Patch;
+import java.io.File;
+import java.nio.file.Files;
+
+public class GameUpdater {
+    public void applyUpdate(File currentJar, File patchFile) {
+        try {
+            // 1. Create a temporary file for the new version
+            File updatedJar = new File(currentJar.getAbsolutePath() + ".tmp");
+
+            // 2. Read the bytes of the old jar and the patch
+            byte[] oldBytes = Files.readAllBytes(currentJar.toPath());
+            byte[] patchBytes = Files.readAllBytes(patchFile.toPath());
+
+            // 3. Apply the patch
+            Patch.patch(oldBytes, patchBytes, Files.newOutputStream(updatedJar.toPath()));
+
+            // 4. Swap the old JAR for the new one (Requires closing the game first!)
+            System.out.println("Patch applied successfully!");
+            
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
+    }
+}
+for using the update.patch file
+
+2. use the launcher for the update.patch file
