@@ -17,6 +17,6 @@ public class EnvironmentManager {
     }
 
     public void draw(Graphics2D g2) {
-        lightning.draw(g2);
+        //lightning.draw(g2);
     }
 }

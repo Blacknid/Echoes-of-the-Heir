@@ -51,10 +51,10 @@ public class OBJ_Key extends Entity{
                 gp.playSE(3);
             
                 if (gp.player.canObtainItem(chest.loot) == false) {
-                    chest.startDialogue(chest, 0);  // inventory full
+                    chest.startDialogue(chest, 1);  // inventory full
                 }
                 else {
-                    chest.startDialogue(chest, 1);  // obtained item
+                    chest.startDialogue(chest, 2);  // obtained item
                     chest.down1 = chest.image1;
                     chest.opened = true;
                     chest.collision = true;
@@ -63,7 +63,7 @@ public class OBJ_Key extends Entity{
                 return true;
             }
             else {
-                chest.startDialogue(chest, 2); // already empty
+                chest.startDialogue(chest, 3); // already empty
                 return false;
             }
         }

@@ -45,33 +45,29 @@ public class Player extends Entity {
 
         setDefaultValues();
     }
-
     public void setItems() {
 
         inventory.add( currentWeapon );
         inventory.add( currentShield );
 
      }
-
     public void restoreLifeAndMana() { life = maxLife; }
-
     public void setDefaultPositions() {
         worldX = (int)(gp.tileSize * 24.5);
         worldY = (int)(gp.tileSize * 15.5);
         direction = "down";
     }
-
     public void setDialogue() { 
 
         dialogues[0][0] = "You are level " + level + " now!\n"
                 + "You feel stronger!";
 
     }
-
     public void setDefaultValues() {
         worldX = (int)(gp.tileSize * 71.5);
         worldY = (int)(gp.tileSize * 21.5);
-        speed = 4;
+        defaultSpeed = 4;
+        speed = defaultSpeed;
         direction = "down";
 
         level = 1;
@@ -98,7 +94,6 @@ public class Player extends Entity {
         setItems();
         setDialogue();
     }
-
     public void setPlayerStats(int life, int strenght, int dexterity, int speed, int mana ) {
         this.maxLife = life;
         this.life = this.maxLife;
@@ -110,20 +105,17 @@ public class Player extends Entity {
         this.attack = getAttack();
         this.defense = getDefense();
     }
-
     public int getAttack() { 
         
         attackArea = currentWeapon.attackArea;
         return attack = strenght * currentWeapon.attackValue; 
     
     }
-
     public int getDefense() { 
         
         return defense = dexterity * currentShield.defenseValue; 
     
     }
-
     public int getCurrentWeaponSlot() {
 
         int currentWeaponSlot = 0;
@@ -151,7 +143,6 @@ public class Player extends Entity {
     /**
      * Adaugam un sistem de incarcare a unui spritesheet cu un numar variabil de cadre pe rand.
      */
-
     public void getPlayerImages() {
         // Specify frames per direction (randuri)
         int[] framesPerRow = {7, 8, 8, 7}; // down, left, right, up
@@ -195,7 +186,6 @@ public class Player extends Entity {
         up6 = frames[3][5];
         up7 = frames[3][6];
     }
-
     public void getPlayerAttackImages() {
         attackUp1 = setup("/res/player/b.attack/up/u1", gp.tileSize, gp.tileSize * 2);
         attackUp2 = setup("/res/player/b.attack/up/u2", gp.tileSize, gp.tileSize * 2);
@@ -221,7 +211,6 @@ public class Player extends Entity {
         attackRight4 = setup("/res/player/b.attack/right/r4", gp.tileSize * 2, gp.tileSize);
         attackRight5 = setup("/res/player/b.attack/right/r5", gp.tileSize * 2, gp.tileSize);
     }
-
     public void update() {
 
         // Handle attacking first
@@ -312,10 +301,6 @@ public class Player extends Entity {
 
         
     }
-
-
-
-
     private void updateSprite() {
     spriteCounter++;
     spriteCounter1++;
@@ -332,8 +317,6 @@ public class Player extends Entity {
         spriteCounter = 0;
     }
 }
-
-
     public void attacking() {
 
         spriteCounter++;
@@ -397,7 +380,6 @@ public class Player extends Entity {
             attacking = false;
         }
     }
-
     public void pickUpObject(int i) {
 
         if (i != 999) {
@@ -438,13 +420,13 @@ public class Player extends Entity {
 
                 switch (objectName) {
 
-                    case "Compas" -> {
+                    // case "Compas" -> {
 
-                        gp.teleportation = true;
-                        gp.ui.addMessage("Teleportation unlocked!", Color.WHITE);
-                        break;
+                    //     gp.teleportation = true;
+                    //     gp.ui.addMessage("Teleportation unlocked!", Color.WHITE);
+                    //     break;
 
-                    }
+                    // }
 
                     case "Potion" -> {
 
@@ -479,8 +461,6 @@ public class Player extends Entity {
         }
     }
 }
-
-
     public void interactNPC ( int i ) {
 
         if ( gp.keyH.enterPressed == true ) {
@@ -495,7 +475,6 @@ public class Player extends Entity {
         }
     }
 }
-
     public void contactMonster ( int i ) {
 
         if (i != 999 && !invincible) {
@@ -509,13 +488,14 @@ public class Player extends Entity {
             invincible = true;
         }
     }
-
     public void damageMonster(int i, int attack) {
 
     if (i != 999) {
         if (gp.monster[i].invincible == false) {
 
             gp.playSE(5); // Play hit sound
+
+            knockBack(gp.monster[i]);
 
             int damage = attack - gp.monster[i].defense;
             if (damage < 0) {
@@ -555,8 +535,7 @@ public class Player extends Entity {
             startDialogue(this, 0);
 
         }
-    }
-    
+    } 
     public void draw(Graphics2D g2) {
 
         BufferedImage image = null;
@@ -743,5 +722,12 @@ public class Player extends Entity {
             }
         }
         return canObtain;
+    }
+    public void knockBack(Entity entity) {
+
+        entity.direction = direction;
+        entity.speed += 10;
+        entity.knockBack = true;
+
     }
 }

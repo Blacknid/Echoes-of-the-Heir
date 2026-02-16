@@ -50,7 +50,9 @@ public class GamePanel extends JPanel implements Runnable{
 
     public boolean fullScreenOn = false;
 
+    //DEBUG
     public boolean HitBoxes = false;
+    public boolean drawPath = false;
 
     // FPS
 

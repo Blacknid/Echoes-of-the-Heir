@@ -132,34 +132,44 @@ public class KeyHandler implements KeyListener {
 
     private void handlePlayState(int code) {
         // Movement
-        if (code == KeyEvent.VK_W) upPressed = true;
-        if (code == KeyEvent.VK_S) downPressed = true;
-        if (code == KeyEvent.VK_A) leftPressed = true;
-        if (code == KeyEvent.VK_D) rightPressed = true;
+        if (code == KeyEvent.VK_W) {upPressed = true;}
+        if (code == KeyEvent.VK_S) {downPressed = true;}
+        if (code == KeyEvent.VK_A) {leftPressed = true;}
+        if (code == KeyEvent.VK_D) {rightPressed = true;}
 
         // Game state changes
-        if (code == KeyEvent.VK_P) gp.gameState = gp.pauseState;
-        if (code == KeyEvent.VK_ESCAPE) gp.gameState = gp.optionsState;
-        if (code == KeyEvent.VK_E) gp.gameState = gp.characterState;
-        if (code == KeyEvent.VK_ENTER) enterPressed = true;
-        if (code == KeyEvent.VK_F) shotKeyPressed = true;
+        if (code == KeyEvent.VK_P) { gp.gameState = gp.pauseState; }
+        if (code == KeyEvent.VK_ESCAPE) { gp.gameState = gp.optionsState; }
+        if (code == KeyEvent.VK_E) { gp.gameState = gp.characterState; }
+        if (code == KeyEvent.VK_ENTER) { enterPressed = true; }
+        if (code == KeyEvent.VK_F) { shotKeyPressed = true; }
 
         // Debug toggle
-        if (code == KeyEvent.VK_T) showDebugText = !showDebugText;
+        if (code == KeyEvent.VK_T) { showDebugText = !showDebugText; }
 
         // Hitboxes toggle
-        if (code == KeyEvent.VK_H) gp.HitBoxes = !gp.HitBoxes;
+        if (code == KeyEvent.VK_H) { gp.HitBoxes = !gp.HitBoxes; }
 
         // Reload map
-        if (code == KeyEvent.VK_R) gp.tileM.loadMapFromTMX("/res/maps/harta.tmx");
+        if (code == KeyEvent.VK_R) { gp.tileM.loadMapFromTMX("/res/maps/harta.tmx"); }
+
+        // Path toggle
+        if (code == KeyEvent.VK_Y) { PathFinderDubug(); } 
 
         // Abilities
-        handleTeleport(code);
+        if ( code == KeyEvent.VK_SPACE && gp.teleportation == true ) { handleTeleport(); }
     }
 
-    private void handleTeleport(int code) {
-        if (!gp.teleportation) return;
-        else if (code == KeyEvent.VK_SPACE && teleportCooldown == 0) {
+    public void PathFinderDubug() {
+        if (gp.drawPath == false) {
+            gp.drawPath = true;
+        } else {
+            gp.drawPath = false;
+        }
+    }
+
+    private void handleTeleport() {
+        if ( teleportCooldown == 0) {
             switch (gp.player.direction) {
                 case "up" -> gp.player.worldY -= gp.tileSize * 3;
                 case "down" -> gp.player.worldY += gp.tileSize * 3;

@@ -71,6 +71,7 @@ public class Entity {
     public boolean sleep = false;
     public boolean drawing = true;
     public boolean onPath = false;
+    public boolean knockBack = false;
     public Entity loot;
     public boolean opened = false;
 
@@ -90,6 +91,7 @@ public class Entity {
 
     // CHARACTER ATTRIBUTES
     public String name;
+    public int defaultSpeed = 1;
     public int speed;
     public int maxLife;
     public int life;
