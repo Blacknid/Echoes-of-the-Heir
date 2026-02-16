@@ -2,6 +2,7 @@ package main;
 
 import entity.Entity;
 import entity.Player;
+import environment.EnvironmentManager;
 
 import java.awt.Color;
 import java.awt.Dimension;
@@ -67,6 +68,7 @@ public class GamePanel extends JPanel implements Runnable{
     Config config = new Config(this);
     public CutsceneManager csManager = new CutsceneManager(this);
     public PathFinder pFinder = new PathFinder(this);
+    EnvironmentManager eManager = new EnvironmentManager(this);
     SaveLoad saveLoad = new SaveLoad(this);
     Thread gameThread;
     public boolean loadingGame = false;
@@ -107,6 +109,7 @@ public class GamePanel extends JPanel implements Runnable{
 
     if (!loadingGame) {
         aSetter.setObject(); // NEW GAME ONLY
+        eManager.setup();
     }
 
     aSetter.setNPC();
@@ -291,6 +294,9 @@ public class GamePanel extends JPanel implements Runnable{
 
         // CUTSCENE 
         csManager.draw(g2);
+
+        //ENVIRONMENT
+        eManager.draw(g2);
 
         // UI
         ui.draw(g2);
