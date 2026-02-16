@@ -4,6 +4,7 @@ import java.awt.image.BufferedImage;
 
 import entity.Projectile;
 import main.GamePanel;
+import java.awt.Graphics2D;
 
 public class OBJ_Arrow extends Projectile {
 
@@ -23,16 +24,18 @@ public class OBJ_Arrow extends Projectile {
         getImage();
     }
 
+
+
     public void getImage(){
         BufferedImage[][] temp_images = loadSpriteMatrix("/res/projectiles/Arrow", 32, 32);
-        up1 = temp_images[0][0];
-        up2 = temp_images[0][1];
+        up1 = rotateImage(temp_images[1][3], -180);
+        up2 = rotateImage(temp_images[1][3], -180);
         down1 = temp_images[1][3];
         down2 = temp_images[1][3];
-        left1 = temp_images[0][1];
-        left2 = temp_images[0][2];
-        right1 = temp_images[0][1];
-        right2 = temp_images[0][2];
+        left1 = rotateImage(temp_images[0][0], -180);
+        left2 = rotateImage(temp_images[0][0], -180);
+        right1 = temp_images[0][0];
+        right2 = temp_images[0][0];
     }
 
 

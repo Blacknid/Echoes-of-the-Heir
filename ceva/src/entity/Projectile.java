@@ -1,6 +1,8 @@
 package entity;
 
 import main.GamePanel;
+import java.awt.image.BufferedImage;
+import java.awt.Graphics2D;
 
 public class Projectile extends Entity {
 
@@ -55,5 +57,21 @@ public class Projectile extends Entity {
             }
             spriteCounter = 0;
         }
+    }
+
+    public static BufferedImage rotateImage(BufferedImage img, double degrees) {
+        int w = img.getWidth();
+        int h = img.getHeight();
+        
+        // Create a new image of the same size
+        BufferedImage rotated = new BufferedImage(w, h, img.getType());
+        Graphics2D g2d = rotated.createGraphics();
+        
+        // Apply rotation around the center
+        g2d.rotate(Math.toRadians(degrees), w / 2, h / 2);
+        g2d.drawImage(img, 0, 0, null);
+        g2d.dispose();
+    
+        return rotated;
     }
 }
