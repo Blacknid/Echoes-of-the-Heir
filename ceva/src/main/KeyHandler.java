@@ -94,9 +94,9 @@ public class KeyHandler implements KeyListener {
                 gp.playSE(3);
             }
             if (code == KeyEvent.VK_ENTER) {
-                if (gp.ui.commandNum == 0) gp.ui.titleScreenState = 1;
-                if (gp.ui.commandNum == 1) gp.saveLoad.load(); gp.gameState = gp.playState; gp.playMusic(0);
-                if (gp.ui.commandNum == 2) System.exit(0);
+                if (gp.ui.commandNum == 0) { gp.ui.titleScreenState = 1; }
+                if (gp.ui.commandNum == 1) { gp.saveLoad.load(); startGame(); }
+                if (gp.ui.commandNum == 2) { System.exit(0); }
             }
         } else if (gp.ui.titleScreenState == 1) {
             int maxCommand = 3;
@@ -110,9 +110,9 @@ public class KeyHandler implements KeyListener {
             }
             if (code == KeyEvent.VK_ENTER) {
                 switch (gp.ui.commandNum) {
-                    case 0 -> { gp.player.setPlayerStats(4, 2, 1, 4); startGame(); }
-                    case 1 -> { gp.player.setPlayerStats(2, 1, 3, 5); startGame(); }
-                    case 2 -> { gp.player.setPlayerStats(3, 1, 2, 5); startGame(); }
+                    case 0 -> { gp.player.setPlayerStats(4, 2, 1, 4, 3); startGame(); } 
+                    case 1 -> { gp.player.setPlayerStats(2, 1, 3, 5, 2); startGame(); }
+                    case 2 -> { gp.player.setPlayerStats(3, 1, 2, 5, 5); startGame(); }
                     case 3 -> { gp.ui.titleScreenState = 0; gp.ui.commandNum = 0; gp.playSE(3); }
                 }
             }

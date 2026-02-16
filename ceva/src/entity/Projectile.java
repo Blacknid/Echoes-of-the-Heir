@@ -58,7 +58,12 @@ public class Projectile extends Entity {
             spriteCounter = 0;
         }
     }
+    public boolean haveResource(Entity user) {
 
+        boolean haveResource = false;
+        return haveResource;
+
+    }
     public static BufferedImage rotateImage(BufferedImage img, double degrees) {
         int w = img.getWidth();
         int h = img.getHeight();
@@ -74,4 +79,5 @@ public class Projectile extends Entity {
     
         return rotated;
     }
+    public void subtractResource(Entity user) {}
 }

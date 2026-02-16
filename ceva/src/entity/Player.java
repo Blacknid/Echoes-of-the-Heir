@@ -82,6 +82,8 @@ public class Player extends Entity {
         exp = 0;
         nextLevelExp = 5;
         coin = 0;
+        maxMana = 5;
+        mana = maxMana;
 
         currentWeapon = new OBJ_Sword_Normal(gp);
         currentShield = new OBJ_Shield_Wood(gp);
@@ -97,12 +99,14 @@ public class Player extends Entity {
         setDialogue();
     }
 
-    public void setPlayerStats(int life, int strenght, int dexterity, int speed) {
+    public void setPlayerStats(int life, int strenght, int dexterity, int speed, int mana ) {
         this.maxLife = life;
         this.life = this.maxLife;
         this.strenght = strenght;
         this.dexterity = dexterity;
         this.speed = speed;
+        this.maxMana = mana;
+        this.mana = this.maxMana;
         this.attack = getAttack();
         this.defense = getDefense();
     }
@@ -221,7 +225,7 @@ public class Player extends Entity {
     public void update() {
 
         // Handle attacking first
-        if (attacking) {
+        if (attacking && !attackCanceled) {
             attacking();
         } else {
 
@@ -275,10 +279,15 @@ public class Player extends Entity {
                     spriteNum1 = 1;
                 }
             
-                if(gp.keyH.shotKeyPressed == true && projectile.alive == false && shotAvailableCounter == 30){
+                if(gp.keyH.shotKeyPressed == true && projectile.alive == false 
+                    && shotAvailableCounter == 30 && projectile.haveResource(this) == true) {
                     
                     //SET DEFAULT COORDINATES, DIRECTIONS AND USER
                     projectile.set(worldX, worldY, direction, true, this);
+
+                    // SUBSTRACT RESOURCES
+
+                    projectile.subtractResource(this);
 
                     //ADD TO ARRAY
                     gp.projectilesList.add(projectile);
@@ -412,7 +421,9 @@ public class Player extends Entity {
             else if ( gp.obj[i].type == type_obstacle ) {
 
                 if(keyH.enterPressed == true) {
+
                     attackCanceled = true;
+
                     gp.obj[i].interact();
                 }
             }

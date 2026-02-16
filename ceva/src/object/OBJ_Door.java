@@ -29,7 +29,7 @@ public class OBJ_Door extends Entity{
 
     public void setDialogue() {
 
-        dialogues[0][0] = "You need a key to open this door.";
+        dialogues[0][0] = "You need a key to open this door. [ EQUIP ]";
 
     }
 

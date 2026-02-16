@@ -66,7 +66,7 @@ public class Entity {
     public int solidAreaDefaultX, solidAreaDefaultY;
     public boolean collisionOn = false;
     public boolean invincible = false;
-    boolean attacking = false;
+    public boolean attacking = false;
     public boolean collision = false;
     public boolean sleep = false;
     public boolean drawing = true;

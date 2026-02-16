@@ -6,6 +6,8 @@ import main.GamePanel;
 public class OBJ_Chest extends Entity{
 
     GamePanel gp;
+    public boolean opened = false;
+    public Entity loot;
 
     public OBJ_Chest(GamePanel gp) {
 
@@ -28,37 +30,26 @@ public class OBJ_Chest extends Entity{
 
     }
 
-    public void setLoot(Entity loot) {
-        this.loot = loot;
-
-        setDialogue();
-    }
-
     public void setDialogue() {
-
-        dialogues[0][0] = "You open the chest and find a " + loot.name + " ...But your inventory is full.";
-        dialogues[1][0] = "\nYou obtain the " + loot.name + "!";
-        dialogues[2][0] = "The chest is empty.";
+    
+        dialogues[0][0] = "You need a key to open this chest. [ EQUIP ]";
+        dialogues[1][0] = "You open the chest and find a " + loot.name + " ...But your inventory is full.";
+        dialogues[2][0] = "\nYou obtain the " + loot.name + "!";
+        dialogues[3][0] = "The chest is empty.";
+    
     }
 
+    public void setLoot(Entity loot) {
 
-    public void interact() {
+        this.loot = loot;
+        setDialogue();
 
-        if ( opened == false ) {
-            gp.playSE(1);
-
-            if ( gp.player.canObtainItem(loot) == false ) {
-                startDialogue(this, 0);
-            }
-            else {
-                startDialogue(this, 1);
-                down1 = image1;
-                opened = true;
-            }
-        }
-        else {
-            startDialogue(this, 2);
-            opened = true;
-        }
     }
+
+        public void interact() {
+            
+        startDialogue(this, 0);
+    
+    }
+
 }

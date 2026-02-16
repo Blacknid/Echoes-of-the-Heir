@@ -2,9 +2,9 @@ package object;
 
 import java.awt.image.BufferedImage;
 
+import entity.Entity;
 import entity.Projectile;
 import main.GamePanel;
-import java.awt.Graphics2D;
 
 public class OBJ_Arrow extends Projectile {
 
@@ -37,7 +37,24 @@ public class OBJ_Arrow extends Projectile {
         right1 = temp_images[0][0];
         right2 = temp_images[0][0];
     }
+    public boolean haveResource(Entity user) {
 
+        
+        boolean haveResource = false;
+
+        if ( user.mana >= useCost ) {
+
+            haveResource = true;
+
+        }
+        return haveResource;
+
+    }
+    public void subtractResource(Entity user) {
+
+        user.mana -= useCost;
+
+    }
 
 
 

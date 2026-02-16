@@ -10,13 +10,14 @@ import java.util.ArrayList;
 
 import object.OBJ_Heart;
 import object.OBJ_Key;
+import object.OBJ_ManaCrystal;
 
 public class UI {
 
     GamePanel gp;
     Graphics2D g2;
     Font arial_40, arial_80B;
-    BufferedImage Full_Hearts, Empty_Hearts, Key;
+    BufferedImage Hearts_Full, Hearts_Empty, Key, Crystal_Full, Crystal_Empty;
     public BufferedImage Compas;
     public boolean messageOn = false;
     //public String message = "";
@@ -45,8 +46,12 @@ public class UI {
 
         // CREATE HUB OBJECT
         Entity heart = new OBJ_Heart(gp);
-        Full_Hearts = heart.image;
-        Empty_Hearts = heart.image1;
+        Hearts_Full = heart.image;
+        Hearts_Empty = heart.image1;
+
+        Entity crystal = new OBJ_ManaCrystal(gp);
+        Crystal_Full = crystal.image2;
+        Crystal_Empty = crystal.image1;
         
 
         Entity key = new OBJ_Key(gp);
@@ -157,9 +162,9 @@ public class UI {
         int x = startX;
         int y = startY;
 
-// DRAW EMPTY HEARTS (MAX LIFE)
+    // DRAW EMPTY HEARTS (MAX LIFE)
     for (int i = 0; i < gp.player.maxLife; i++) {
-        g2.drawImage(Empty_Hearts, x, y, heartSize, heartSize, null);
+        g2.drawImage(Hearts_Empty, x, y, heartSize, heartSize, null);
         x += heartSize + spacing;
     }
 
@@ -168,7 +173,30 @@ public class UI {
 
     // DRAW FILLED HEARTS (CURRENT LIFE)
     for (int i = 0; i < gp.player.life; i++) {
-        g2.drawImage(Full_Hearts, x, y, heartSize, heartSize, null);
+        g2.drawImage(Hearts_Full, x, y, heartSize, heartSize, null);
+        x += heartSize + spacing;
+    }
+
+    // DRAW EMPTY CRYSTALS (MAX MANA)
+    y += heartSize + spacing;
+    x = startX;
+
+    // =========================
+    // DRAW EMPTY CRYSTALS (MAX MANA)
+    // =========================
+    for (int i = 0; i < gp.player.maxMana; i++) {
+        g2.drawImage(Crystal_Empty, x, y, heartSize, heartSize, null);
+        x += heartSize + spacing;
+    }
+
+    // RESET X
+    x = startX;
+
+    // =========================
+    // DRAW FILLED CRYSTALS (CURRENT MANA)
+    // =========================
+    for (int i = 0; i < gp.player.mana; i++) {
+        g2.drawImage(Crystal_Full, x, y, heartSize, heartSize, null);
         x += heartSize + spacing;
     }
 }
@@ -530,9 +558,9 @@ public class UI {
 
         // CREATE A FRAME
         final int frameX = gp.tileSize * 2;
-        final int frameY = gp.tileSize;
+        final int frameY = gp.tileSize / 2;
         final int frameWidth = gp.tileSize * 5;
-        final int frameHeight = gp.tileSize * 10;
+        final int frameHeight = gp.tileSize * 11;
         drawSubWindow(frameX, frameY, frameWidth, frameHeight);
 
         // TEXT
@@ -549,7 +577,9 @@ public class UI {
         textY += lineHeight;
         g2.drawString("Life", textX, textY);
         textY += lineHeight;
-        g2.drawString("Strenght", textX, textY);
+        g2.drawString("Mana", textX, textY);
+        textY += lineHeight;
+        g2.drawString("Strength", textX, textY);
         textY += lineHeight;
         g2.drawString("Dexterity", textX, textY);
         textY += lineHeight;
@@ -564,7 +594,7 @@ public class UI {
         g2.drawString("Coin", textX, textY);
         textY += lineHeight + 20;
         g2.drawString("Weapon", textX, textY);
-        textY += lineHeight + 15;
+        textY += lineHeight + 20;
         g2.drawString("Shield", textX, textY);
         textY += lineHeight;
 
@@ -583,6 +613,11 @@ public class UI {
         textY += lineHeight;
 
         value = String.valueOf(gp.player.life + "/" + gp.player.maxLife);
+        textX = getXforAlignToRightText(value, tailX);
+        g2.drawString(value, textX, textY);
+        textY += lineHeight;
+
+        value = String.valueOf(gp.player.mana + "/" + gp.player.maxMana);
         textX = getXforAlignToRightText(value, tailX);
         g2.drawString(value, textX, textY);
         textY += lineHeight;
