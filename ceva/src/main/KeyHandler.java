@@ -17,7 +17,6 @@ public class KeyHandler implements KeyListener {
     public boolean showDebugText = false;
 
     // Abilities
-    private boolean teleportUsed = false;
     private int teleportCooldown = 0;
     private final int TELEPORT_COOLDOWN_MAX = 10;
 

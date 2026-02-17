@@ -58,6 +58,9 @@ public class OBJ_Key extends Entity{
                     chest.down1 = chest.image1;
                     chest.opened = true;
                     chest.collision = true;
+                    if (chest.loot.name == "Compas") {
+                        gp.teleportation = true;
+                    }
                 }
             
                 return true;

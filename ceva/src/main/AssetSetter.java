@@ -32,7 +32,6 @@ public class AssetSetter {
         gp.obj[i].worldX = 43 * gp.tileSize;
         gp.obj[i].worldY = 36 * gp.tileSize;
         gp.obj[i].setLoot(new OBJ_Compas(gp));
-        gp.teleportation = true;
         i++;
 
         gp.obj[i] = new OBJ_Chest(gp);
