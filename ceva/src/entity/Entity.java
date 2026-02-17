@@ -108,6 +108,8 @@ public class Entity {
     public Entity currentWeapon;
     public Entity currentShield;
     public Projectile projectile;
+    public boolean lightSource = false;
+    public int lightRadius = 0;
 
     // ITEM ATTRIBUTES
     public int attackValue;

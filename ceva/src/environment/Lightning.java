@@ -32,52 +32,51 @@ public class Lightning {
     }
 
     public void draw(Graphics2D g2) {
+        int lightRadius = 7; // Player's default light radius
+        float maxDarkness = 0.95f;
         
-        // Settings for your light
-        int lightRadius = 7; // How many tiles far the light reaches
-        float maxDarkness = 0.95f; // The darkest the screen gets (0.0 to 1.0)
-
-        // Optimization: Only loop through tiles currently visible on screen
-        // We add a simplified buffer (-10 and +10) to ensure edges are drawn smoothly
+        // 1. Get visible area
         int leftCol = (gp.player.worldX / gp.tileSize) - 20;
         int rightCol = (gp.player.worldX / gp.tileSize) + 20;
         int topRow = (gp.player.worldY / gp.tileSize) - 20;
         int bottomRow = (gp.player.worldY / gp.tileSize) + 20;
-
+        
         for (int col = leftCol; col <= rightCol; col++) {
             for (int row = topRow; row <= bottomRow; row++) {
-                
-                // Calculate the Screen X and Y for this specific tile
+            
                 int screenX = col * gp.tileSize - gp.player.worldX + gp.player.screenX;
                 int screenY = row * gp.tileSize - gp.player.worldY + gp.player.screenY;
-
-                // 1. Calculate distance from player (in tiles)
-                // We divide by tileSize to work with grid coordinates, not pixels
+            
+                // 2. Start with Player's light
                 double distX = Math.abs(col - (gp.player.worldX / gp.tileSize));
                 double distY = Math.abs(row - (gp.player.worldY / gp.tileSize));
-                
-                // Euclidean distance (Circle shape)
                 double distance = Math.sqrt(distX * distX + distY * distY);
                 
-                // ALTERNATIVE: Manhattan distance (Diamond shape)
-                // double distance = distX + distY; 
-
-                // 2. Calculate Opacity based on distance
-                // If distance is 0 (on player), darkness is 0. 
-                // If distance is lightRadius, darkness is max.
                 float darknessAlpha = (float) (distance / lightRadius);
-
-                // 3. Clamp the values
-                if (darknessAlpha > maxDarkness) {
-                    darknessAlpha = maxDarkness;
-                } else if (darknessAlpha < 0) {
-                    darknessAlpha = 0f;
+            
+                // 3. CHECK OTHER LIGHT SOURCES (Torches, NPCs, etc.)
+                // We loop through objects or NPCs to see if they are closer to this tile
+                for (int i = 0; i < gp.obj.length; i++) {
+                    if (gp.obj[i] != null && gp.obj[i].lightSource) {
+                        
+                        double oDistX = Math.abs(col - (gp.obj[i].worldX / gp.tileSize));
+                        double oDistY = Math.abs(row - (gp.obj[i].worldY / gp.tileSize));
+                        double oDistance = Math.sqrt(oDistX * oDistX + oDistY * oDistY);
+                        
+                        float torchAlpha = (float) (oDistance / gp.obj[i].lightRadius);
+                        
+                        // We take the SMALLEST alpha (because 0 is bright, 1 is dark)
+                        if (torchAlpha < darknessAlpha) {
+                            darknessAlpha = torchAlpha;
+                        }
+                    }
                 }
-
-                // 4. Draw the dark tile
-                // We convert alpha (0.0 - 1.0) to an index (0 - 99) for our array
+            
+                // 4. Final Clamping and Drawing
+                if (darknessAlpha > maxDarkness) darknessAlpha = maxDarkness;
+                if (darknessAlpha < 0) darknessAlpha = 0f;
+            
                 int alphaIndex = (int)(darknessAlpha * 99);
-                
                 g2.setColor(darknessLevels[alphaIndex]);
                 g2.fillRect(screenX, screenY, gp.tileSize, gp.tileSize);
             }
