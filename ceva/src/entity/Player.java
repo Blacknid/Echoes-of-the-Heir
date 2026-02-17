@@ -237,6 +237,7 @@ public class Player extends Entity {
                 interactNPC(npcIndex);
                 int monsterIndex = gp.cChecker.checkEntity(this, gp.monster);
                 contactMonster(monsterIndex);
+                int iTileIndex = gp.cChecker.checkEntity(this, gp.iTile);
 
                 // CHECK EVENT
                 gp.eHandler.checkEvent();
@@ -347,6 +348,9 @@ public class Player extends Entity {
 
             int monsterIndex = gp.cChecker.checkEntity(this, gp.monster);
             damageMonster(monsterIndex, attack);
+
+            int iTileIndex = gp.cChecker.checkEntity(this, gp.iTile);
+            damageInteractiveTile(iTileIndex);
 
             worldX = currentWorldX;
             worldY = currentWorldY;
@@ -730,4 +734,17 @@ public class Player extends Entity {
         entity.knockBack = true;
 
     }
+    public void damageInteractiveTile(int i) {
+
+    if (i != 999 && gp.iTile[i].destructible == true 
+        && gp.iTile[i].isCorrectItem(this) == true 
+        && gp.iTile[i].invincible == false ) {
+
+        Entity tile = gp.iTile[i];   // ✅ Save reference first
+
+        gp.iTile[i] = null;          // Remove tile
+
+        generateParticle(tile, tile); // ✅ Use saved reference
+    }
+}
 }

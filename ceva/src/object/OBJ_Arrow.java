@@ -1,5 +1,6 @@
 package object;
 
+import java.awt.Color;
 import java.awt.image.BufferedImage;
 
 import entity.Entity;
@@ -55,7 +56,22 @@ public class OBJ_Arrow extends Projectile {
         user.mana -= useCost;
 
     }
-
+    public Color getParticleColor() {
+        Color color = new Color(40, 50, 0);
+        return color;
+    }
+    public int getParticleSize() {
+        int size = 10; // pixels
+        return size;
+    }
+    public int getParticleSpeed() {
+        int speed = 1;
+        return speed;
+    }
+    public int getParticleMaxLife() {
+        int maxLife = 20;
+        return maxLife;
+    }
 
 
 

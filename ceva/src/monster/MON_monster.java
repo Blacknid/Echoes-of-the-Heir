@@ -8,12 +8,14 @@ public class MON_monster extends Entity {
 
     GamePanel gp;
 
-    public MON_monster(GamePanel gp) {
+    public MON_monster(GamePanel gp, int col, int row) {
         super(gp);
         this.gp = gp;
         
         type = 2; // Monster
         name = "Mummy";
+        this.worldX = col * gp.tileSize;
+        this.worldY = row * gp.tileSize;
         defaultSpeed = 1;
         speed = defaultSpeed;
         maxLife = 3;
