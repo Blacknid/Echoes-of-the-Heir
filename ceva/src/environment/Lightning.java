@@ -31,51 +31,52 @@ public class Lightning {
         }
     }
 
-    public void draw(Graphics2D g2) {
-        int lightRadius = 7; // Player's default light radius
-        float maxDarkness = 0.95f;
-        
-        // 1. Get visible area
+    // Pass the alpha from EnvironmentManager into this method
+    public void draw(Graphics2D g2, float currentMaxDarkness) {
+
+        // We only need the lightRadius for the player and torches
+        int playerLightRadius = 7; 
+
+        // Loop through visible tiles
         int leftCol = (gp.player.worldX / gp.tileSize) - 20;
         int rightCol = (gp.player.worldX / gp.tileSize) + 20;
         int topRow = (gp.player.worldY / gp.tileSize) - 20;
         int bottomRow = (gp.player.worldY / gp.tileSize) + 20;
-        
+
         for (int col = leftCol; col <= rightCol; col++) {
             for (int row = topRow; row <= bottomRow; row++) {
-            
+
                 int screenX = col * gp.tileSize - gp.player.worldX + gp.player.screenX;
                 int screenY = row * gp.tileSize - gp.player.worldY + gp.player.screenY;
-            
-                // 2. Start with Player's light
+
+                // Calculate distance to player
                 double distX = Math.abs(col - (gp.player.worldX / gp.tileSize));
                 double distY = Math.abs(row - (gp.player.worldY / gp.tileSize));
                 double distance = Math.sqrt(distX * distX + distY * distY);
-                
-                float darknessAlpha = (float) (distance / lightRadius);
-            
-                // 3. CHECK OTHER LIGHT SOURCES (Torches, NPCs, etc.)
-                // We loop through objects or NPCs to see if they are closer to this tile
+
+                // Base darkness for this tile
+                float darknessAlpha = (float) (distance / playerLightRadius);
+
+                // Check Torches
                 for (int i = 0; i < gp.obj.length; i++) {
                     if (gp.obj[i] != null && gp.obj[i].lightSource) {
-                        
                         double oDistX = Math.abs(col - (gp.obj[i].worldX / gp.tileSize));
                         double oDistY = Math.abs(row - (gp.obj[i].worldY / gp.tileSize));
-                        double oDistance = Math.sqrt(oDistX * oDistX + oDistY * oDistY);
-                        
-                        float torchAlpha = (float) (oDistance / gp.obj[i].lightRadius);
-                        
-                        // We take the SMALLEST alpha (because 0 is bright, 1 is dark)
-                        if (torchAlpha < darknessAlpha) {
-                            darknessAlpha = torchAlpha;
-                        }
+                        double oDist = Math.sqrt(oDistX * oDistX + oDistY * oDistY);
+
+                        float torchAlpha = (float) (oDist / gp.obj[i].lightRadius);
+                        if (torchAlpha < darknessAlpha) darknessAlpha = torchAlpha;
                     }
                 }
-            
-                // 4. Final Clamping and Drawing
-                if (darknessAlpha > maxDarkness) darknessAlpha = maxDarkness;
+
+                // CRITICAL CHANGE: 
+                // Instead of clamping to a static 0.95f, we clamp to the current Day/Night alpha
+                if (darknessAlpha > currentMaxDarkness) {
+                    darknessAlpha = currentMaxDarkness;
+                }
+
                 if (darknessAlpha < 0) darknessAlpha = 0f;
-            
+
                 int alphaIndex = (int)(darknessAlpha * 99);
                 g2.setColor(darknessLevels[alphaIndex]);
                 g2.fillRect(screenX, screenY, gp.tileSize, gp.tileSize);

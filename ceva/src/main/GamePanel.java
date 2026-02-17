@@ -245,16 +245,17 @@ public class GamePanel extends JPanel implements Runnable{
                     iTile[i].update();
                 }
             }
+            eManager.update();
         }
-        if (player.life <= 0) {
-        player.life = 0; // safety clamp
+            if (player.life <= 0) {
+            player.life = 0; // safety clamp
 
-        gameState = gameOverState;
-        ui.commandNum = -1;
+            gameState = gameOverState;
+            ui.commandNum = -1;
 
-        stopMusic();
-        playSE(4);
-    }
+            stopMusic();
+            playSE(4);
+        }
     }
     public void drawToTempScreen() {
     //DEBUG
