@@ -13,10 +13,13 @@ public class EnvironmentManager {
     }
 
     public void setup(){
-        lightning = new Lightning(gp, 500);
+        // UPDATE 1: Pass 'gp' to the constructor!
+        // The Lightning class needs 'gp' to know where the player is.
+        lightning = new Lightning(gp); 
     }
 
     public void draw(Graphics2D g2) {
-        //lightning.draw(g2);
+        // UPDATE 2: Uncomment this line to actually draw the darkness.
+        lightning.draw(g2);
     }
 }
