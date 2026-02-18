@@ -59,6 +59,7 @@ public class GamePanel extends JPanel implements Runnable{
     // FPS
 
     int FPS = 60;
+    public int currentFPS = 0;
 
     // SYSTEM
     public TileManager tileM = new TileManager(this);
@@ -72,7 +73,7 @@ public class GamePanel extends JPanel implements Runnable{
     Config config = new Config(this);
     public CutsceneManager csManager = new CutsceneManager(this);
     public PathFinder pFinder = new PathFinder(this);
-    EnvironmentManager eManager = new EnvironmentManager(this);
+    public EnvironmentManager eManager = new EnvironmentManager(this);
     SaveLoad saveLoad = new SaveLoad(this);
     Thread gameThread;
     public boolean loadingGame = false;
@@ -86,6 +87,14 @@ public class GamePanel extends JPanel implements Runnable{
     public ArrayList<Entity> projectilesList = new ArrayList<>();
     public ArrayList<Entity> particleList = new ArrayList<>();
     ArrayList<Entity> entityList = new ArrayList<>(); 
+
+    // OPTIMIZATION: Define Comparator once to avoid garbage collection lag
+    Comparator<Entity> renderSorter = new Comparator<Entity>() {
+        @Override
+        public int compare(Entity e1, Entity e2) {
+            return Integer.compare(e1.worldY, e2.worldY);
+        }
+    };
 
     // GAME STATE 
     public int gameState;
@@ -188,6 +197,7 @@ public class GamePanel extends JPanel implements Runnable{
             }
 
             if(timer >= 1000000000) {
+                currentFPS = drawCount;
                 drawCount = 0;
                 timer = 0;
             }
@@ -274,13 +284,6 @@ public class GamePanel extends JPanel implements Runnable{
         // TILE
         tileM.draw(g2);
 
-        // INTERACTIVE TILE 
-        for ( int i = 0 ; i < iTile.length ; i++ ) {
-            if ( iTile[i] != null ) {
-                iTile[i].draw(g2);
-            }
-        }
-
         // ADD ENTITIES TO THE LIST
         entityList.add(player);
 
@@ -314,16 +317,16 @@ public class GamePanel extends JPanel implements Runnable{
             }
         }
 
+        for ( int i = 0 ; i < iTile.length ; i++ ) {
+            if ( iTile[i] != null ) {
+                entityList.add(iTile[i]);
+            }
+        }
+
 
 
         // SORT
-        Collections.sort(entityList, new Comparator<Entity>() {
-            @Override
-            public int compare(Entity e1, Entity e2) {
-                int result = Integer.compare(e1.worldY, e2.worldY);
-                return result;
-            }
-        });
+        Collections.sort(entityList, renderSorter);
 
         // DRAW ENTITIES
         for (int i = 0; i < entityList.size(); i++) {
@@ -396,6 +399,7 @@ public class GamePanel extends JPanel implements Runnable{
         int y = 400;
         int lineHeigh = 20;
 
+        g2.drawString("FPS: " + currentFPS, x, y); y += lineHeigh;
         g2.drawString("WorldX" + player.worldX, x, y); y += lineHeigh;
         g2.drawString("WorldY" + player.worldY, x, y); y += lineHeigh;
         g2.drawString("Col" + (player.worldX + player.solidArea.x) / tileSize, x, y); y += lineHeigh;

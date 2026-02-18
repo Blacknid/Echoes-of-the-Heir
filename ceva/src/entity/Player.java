@@ -456,6 +456,12 @@ public class Player extends Entity {
                         gp.ui.addMessage("You got a key!", Color.WHITE);
                     }
 
+                    case "Tent" -> {
+                        gp.playSE(2);
+                        gp.obj[i] = null;
+                        gp.ui.addMessage("You got a tent!", Color.WHITE);
+                    }
+
                     case "Spell book" -> {
                         gp.playSE(2);
                         gp.obj[i] = null;
