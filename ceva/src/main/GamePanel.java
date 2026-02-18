@@ -355,6 +355,33 @@ public class GamePanel extends JPanel implements Runnable{
             int py = player.worldY - player.worldY + player.screenY + r.y;
             g2.fillRect(px, py, r.width, r.height);
 
+            // PLAYER ATTACK HITBOX
+            if (player.attacking) {
+                g2.setColor(new Color(0, 0, 255, 128)); // Blue semi-transparent
+
+                // This logic mirrors the Player.attacking() method to show the exact hitbox used for collision.
+                Rectangle attackWorldRect = new Rectangle();
+                attackWorldRect.width = player.attackArea.width;
+                attackWorldRect.height = player.attackArea.height;
+
+                int tempWorldX = player.worldX;
+                int tempWorldY = player.worldY;
+
+                // The attacking() method temporarily moves the player's origin to position the hitbox.
+                switch(player.direction) {
+                    case "up":    tempWorldY -= player.attackArea.height + 5; break;
+                    case "down":  tempWorldY += player.attackArea.height + 5; break;
+                    case "left":  tempWorldX -= player.attackArea.width + 5; break;
+                    case "right": tempWorldX += player.attackArea.width + 5; break;
+                }
+
+                attackWorldRect.x = tempWorldX + player.solidArea.x;
+                attackWorldRect.y = tempWorldY + player.solidArea.y;
+
+                // Convert world coordinates to screen coordinates for drawing
+                g2.fillRect(attackWorldRect.x - player.worldX + player.screenX, attackWorldRect.y - player.worldY + player.screenY, attackWorldRect.width, attackWorldRect.height);
+            }
+
             // NPC
             for(Entity n : npc) {
                 if(n != null) {
