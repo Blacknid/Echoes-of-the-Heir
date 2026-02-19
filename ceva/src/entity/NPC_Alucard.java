@@ -56,12 +56,7 @@ public class NPC_Alucard extends Entity{
             int goalCol = 44;
             int goalRow = 36;
 
-            // OPTIMIZATION: Only search path every 20 frames to reduce lag
-            actionLockCounter++;
-            if (actionLockCounter > 20) {
-                searchPath(goalCol, goalRow);
-                actionLockCounter = 0;
-            }
+            searchPath(goalCol, goalRow);
         }
         else {
 

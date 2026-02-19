@@ -438,7 +438,7 @@ public class GamePanel extends JPanel implements Runnable{
     public void drawToScreen() {
 
         Graphics g = getGraphics();
-        g.drawImage(tempScreen, 0, 0, screenWidth2, screenHeight2, null);
+        g.drawImage(tempScreen, 0, 0, getWidth(), getHeight(), null);
         g.dispose(); 
     }
 

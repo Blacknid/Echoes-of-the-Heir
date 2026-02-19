@@ -500,32 +500,32 @@ public class Player extends Entity {
     }
     public void damageMonster(int i, int attack) {
 
-    if (i != 999) {
-        if (gp.monster[i].invincible == false) {
-
-            gp.playSE(5); // Play hit sound
-
-            knockBack(gp.monster[i]);
-
-            int damage = attack - gp.monster[i].defense;
-            if (damage < 0) {
-                damage = 0;
-            }
-
-            gp.monster[i].life -= damage;
-            gp.ui.addMessage(damage + " damage!", Color.WHITE);
-            gp.monster[i].invincible = true;
-            gp.monster[i].damageReaction();
-
-            if (gp.monster[i].life <= 0) {
-                gp.monster[i].dying = true;
-                gp.ui.addMessage("Killed the " + gp.monster[i].name + "!", Color.WHITE);
-                exp += gp.monster[i].exp;
-                checkLevelUp();
+        if (i != 999) {
+            if (gp.monster[i].invincible == false) {
+            
+                gp.playSE(5); // Play hit sound
+            
+                knockBack(gp.monster[i]);
+            
+                int damage = attack - gp.monster[i].defense;
+                if (damage < 0) {
+                    damage = 0;
+                }
+            
+                gp.monster[i].life -= damage;
+                gp.ui.addMessage(damage + " damage!", Color.WHITE);
+                gp.monster[i].invincible = true;
+                gp.monster[i].damageReaction();
+            
+                if (gp.monster[i].life <= 0) {
+                    gp.monster[i].dying = true;
+                    gp.ui.addMessage("Killed the " + gp.monster[i].name + "!", Color.WHITE);
+                    exp += gp.monster[i].exp;
+                    checkLevelUp();
+                }
             }
         }
     }
-}
     public void checkLevelUp() {
 
         if ( exp >= nextLevelExp ) {
