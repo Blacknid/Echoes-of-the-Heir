@@ -1,12 +1,14 @@
 package main;
 
 import entity.Entity;
+import java.awt.AlphaComposite;
 import java.awt.BasicStroke;
 import java.awt.Color;
 import java.awt.Font;
 import java.awt.Graphics2D;
 import java.awt.image.BufferedImage;
 import java.util.ArrayList;
+import javax.imageio.ImageIO;
 
 import object.OBJ_Heart;
 import object.OBJ_Key;
@@ -19,6 +21,7 @@ public class UI {
     Font arial_40, arial_80B;
     BufferedImage Hearts_Full, Hearts_Empty, Key, Crystal_Full, Crystal_Empty;
     public BufferedImage Compas;
+    public BufferedImage titleBackground;
     public boolean messageOn = false;
     //public String message = "";
     //int messageCounter = 0;
@@ -56,6 +59,21 @@ public class UI {
 
         Entity key = new OBJ_Key(gp);
         Key = key.down1;
+
+        // LOAD TITLE BACKGROUND
+        try {
+            titleBackground = ImageIO.read(getClass().getResourceAsStream("/res/background.png"));
+            if (titleBackground != null) {
+                UtilityTool uTool = new UtilityTool();
+                titleBackground = uTool.scaleImage(titleBackground, gp.screenWidth, gp.screenHeight);
+                System.out.println("Title background loaded successfully!");
+            } else {
+                System.out.println("Title background file found but could not be loaded");
+            }
+        } catch(Exception e) {
+            System.out.println("Title background not found at /res/background.png, using default black background");
+            e.printStackTrace();
+        }
 
     }
     public void addMessage(String text, Color color) {
@@ -243,12 +261,20 @@ public class UI {
 }
     public void drawTitleScreen() {
 
-        g2.setColor(new Color(0, 0, 0));
-        g2.fillRect(0, 0, gp.screenWidth, gp.screenHeight);
-        if(titleScreenState == 0) {
-            // COLOR BACKGROUND TITLE SCREEN
-            g2.setColor(new Color(0, 0 , 0));
+        // DRAW BACKGROUND IMAGE
+        if (titleBackground != null) {
+            // Set opacity to 70% to reduce brightness
+            g2.setComposite(AlphaComposite.getInstance(AlphaComposite.SRC_OVER, 0.7f));
+            g2.drawImage(titleBackground, 0, 0, null);
+            // Reset to full opacity for text
+            g2.setComposite(AlphaComposite.getInstance(AlphaComposite.SRC_OVER, 1.0f));
+        } else {
+            // Fallback to black background
+            g2.setColor(new Color(0, 0, 0));
             g2.fillRect(0, 0, gp.screenWidth, gp.screenHeight);
+        }
+
+        if(titleScreenState == 0) {
             
             //TITLE NAME
             g2.setFont(g2.getFont().deriveFont(Font.BOLD,96F));
@@ -257,10 +283,10 @@ public class UI {
             int y = gp.tileSize*3;
 
             //SHADOW
-            g2.setColor(Color.gray);
+            g2.setColor(new Color(50, 50, 50)); // Darker shadow
             g2.drawString(text, x+5, y+5);
-            // MAIN COLOR
-            g2.setColor(Color.white);
+            // MAIN COLOR - GOLDEN FANTASY THEME
+            g2.setColor(new Color(255, 215, 0)); // Gold
             g2.drawString(text, x, y);
 
             // MICHIDUTA IMAGE
@@ -274,34 +300,40 @@ public class UI {
             text = "NEW GAME";
             x = getXforCenteredText(text);
             y += gp.tileSize*3.5;
+            g2.setColor(new Color(255, 223, 128)); // Soft gold
             g2.drawString(text, x, y);
             if(commandNum == 0) {
+                g2.setColor(new Color(255, 215, 0)); // Bright gold selector
                 g2.drawString(">", x-gp.tileSize, y);
             }
 
             text = "LOAD GAME";
             x = getXforCenteredText(text);
             y += gp.tileSize;
+            g2.setColor(new Color(255, 223, 128)); // Soft gold
             g2.drawString(text, x, y);
             if(commandNum == 1) {
+                g2.setColor(new Color(255, 215, 0)); // Bright gold selector
                 g2.drawString(">", x-gp.tileSize, y);
             }
 
             text = "QUIT";
             x = getXforCenteredText(text);
             y += gp.tileSize;
+            g2.setColor(new Color(255, 223, 128)); // Soft gold
             g2.drawString(text, x, y);
             if(commandNum == 2) {
+                g2.setColor(new Color(255, 215, 0)); // Bright gold selector
                 g2.drawString(">", x-gp.tileSize, y);
             }
 
             // INFO MENU
-
             g2.setFont(g2.getFont().deriveFont(Font.BOLD,28F));
 
             text = "PRESS i FOR INFO";
             x = gp.tileSize / 2;
             y += gp.tileSize;
+            g2.setColor(new Color(192, 192, 192)); // Silver
             g2.drawString(text, x, y);
         }
         else if ( titleScreenState == 1) {

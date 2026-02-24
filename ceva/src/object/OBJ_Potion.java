@@ -26,7 +26,7 @@ public class OBJ_Potion extends Entity {
 
     public void setDialogue() {
 
-        dialogues[0][0] = "But your life is already full.";
+        dialogues[0][0] = "Your life is already full.";
         dialogues[1][0] = "You drink the potion.\n Your life has been recovered by " + Math.min(value, gp.player.maxLife - gp.player.life) + ".";
 
     }
@@ -38,14 +38,12 @@ public class OBJ_Potion extends Entity {
         }
         else {
             startDialogue(this, 1);
+            gp.player.life = Math.min(gp.player.maxLife, gp.player.life + value);
             if(amount > 1 ) {
                 amount--;
             }
             else {
                 gp.player.inventory.remove(this);
-                }
-            if ( gp.player.life + value >= gp.player.maxLife ) {
-                gp.player.life = gp.player.maxLife;
             }
         }
         gp.playSE(2);

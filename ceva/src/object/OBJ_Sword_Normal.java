@@ -10,7 +10,7 @@ public class OBJ_Sword_Normal extends Entity{
         
         type = type_sword;
         name = "Normal Sword";
-        down1 = setup("/res/objects/sword_normal", gp.tileSize, gp.tileSize);
+        down1 = setup("/res/objects/sword_normal", gp.tileSize, gp.tileSize );
         attackValue = 1;
         description = "[" + name + "]\nA basic sword \nfor beginners.";
         attackArea.width = 36;

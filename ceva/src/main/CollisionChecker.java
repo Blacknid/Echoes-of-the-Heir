@@ -38,6 +38,25 @@ public class CollisionChecker {
         }
     }
 
+    // CollisionChecker.java
+    public void checkTileNext(Entity entity, int nextX, int nextY) {
+        entity.collisionOn = false;
+    
+        // Get entity bounds at the next position
+        Rectangle future = new Rectangle(nextX + entity.solidArea.x,
+                                         nextY + entity.solidArea.y,
+                                         entity.solidArea.width,
+                                         entity.solidArea.height);
+        
+        // Check collision against every collision rectangle in the tile manager
+        for (Rectangle r : gp.tileM.collisionRects) {
+            if (future.intersects(r)) {
+                entity.collisionOn = true;
+                break;
+            }
+        }
+    }
+
     // ---------------- Object collision ----------------
     public int checkObject(Entity entity, boolean player) {
         int index = 999;

@@ -11,7 +11,7 @@ public class KeyHandler implements KeyListener {
     public boolean upPressed, downPressed, leftPressed, rightPressed, shotKeyPressed;
 
     // Actions
-    public boolean enterPressed;
+    public boolean enterPressed, dashPressed;
 
     // Debug
     public boolean showDebugText = false;
@@ -67,6 +67,8 @@ public class KeyHandler implements KeyListener {
         if (code == KeyEvent.VK_A) leftPressed = false;
         if (code == KeyEvent.VK_D) rightPressed = false;
         if (code == KeyEvent.VK_F) shotKeyPressed = false;
+        if (code == KeyEvent.VK_SPACE) dashPressed = false;
+        if (code == KeyEvent.VK_SHIFT) dashPressed = false;
     }
 
     @Override
@@ -142,6 +144,9 @@ public class KeyHandler implements KeyListener {
         if (code == KeyEvent.VK_E) { gp.gameState = gp.characterState; }
         if (code == KeyEvent.VK_ENTER) { enterPressed = true; }
         if (code == KeyEvent.VK_F) { shotKeyPressed = true; }
+
+        // Dash
+        if (code == KeyEvent.VK_SHIFT) { dashPressed = true; }
 
         // Debug toggle
         if (code == KeyEvent.VK_T) { showDebugText = !showDebugText; }
@@ -222,10 +227,12 @@ public class KeyHandler implements KeyListener {
     }
 
     private void handleGameOverState(int code) {
-        if (code == KeyEvent.VK_W) { gp.ui.commandNum = (gp.ui.commandNum - 1 + 2) % 2; gp.playSE(3); }
-        if (code == KeyEvent.VK_S) { gp.ui.commandNum = (gp.ui.commandNum + 1) % 2; gp.playSE(3); }
+        if (code == KeyEvent.VK_W || code == KeyEvent.VK_S) {
+            gp.ui.commandNum = gp.ui.commandNum == 0 ? 1 : 0;
+            gp.playSE(3);
+        }
         if (code == KeyEvent.VK_ENTER) {
-            if (gp.ui.commandNum == 0) { gp.resetGame(false); gp.gameState = gp.playState; gp.playMusic(0); }
+            if (gp.ui.commandNum == 0) { gp.resetGame(false); gp.gameState = gp.playState; gp.playMusic(0); gp.player.setDefaultPositions(); }
             else if (gp.ui.commandNum == 1) { gp.ui.titleScreenState = 0; gp.stopMusic(); gp.resetGame(true); gp.gameState = gp.titleState; }
         }
     }

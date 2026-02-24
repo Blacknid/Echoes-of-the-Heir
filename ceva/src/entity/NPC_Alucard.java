@@ -1,5 +1,6 @@
 package entity;
 
+import java.awt.image.BufferedImage;
 import java.util.Random;
 
 import main.GamePanel;
@@ -31,6 +32,7 @@ public class NPC_Alucard extends Entity{
         left1 = setup("/res/NPC/b.left/l1", gp.tileSize, gp.tileSize);
         left2 = setup("/res/NPC/b.left/l2", gp.tileSize, gp.tileSize);
         left3 = setup("/res/NPC/b.left/l3", gp.tileSize, gp.tileSize);
+        
     }
     public void setDialogue() {
 

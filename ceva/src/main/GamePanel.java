@@ -110,6 +110,7 @@ public class GamePanel extends JPanel implements Runnable{
     //ABILITY
     public boolean teleportation = false;
     public boolean bootsUnlocked = false;
+    public boolean deathSoundPlayed = false;
 
     public GamePanel() {
 
@@ -146,6 +147,7 @@ public class GamePanel extends JPanel implements Runnable{
         player.restoreLifeAndMana();
         aSetter.setNPC();
         aSetter.setMonster();
+        deathSoundPlayed = false;
 
         if ( restart == true ) {
             player.setDefaultValues();
@@ -261,10 +263,13 @@ public class GamePanel extends JPanel implements Runnable{
             player.life = 0; // safety clamp
 
             gameState = gameOverState;
-            ui.commandNum = -1;
+            ui.commandNum = 0;
 
             stopMusic();
-            playSE(4);
+            if (!deathSoundPlayed) {
+                playSE(4);
+                deathSoundPlayed = true;
+            }
         }
     }
     public void drawToTempScreen() {
