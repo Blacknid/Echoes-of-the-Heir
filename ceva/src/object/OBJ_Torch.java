@@ -24,16 +24,16 @@ public class OBJ_Torch extends Entity {
         down2 = spritesheet[0][0]; // Second frame
         down3 = spritesheet[0][0]; // Third frame
         
-        // 3. DESCRIPTION
-        description = "[" + name + "]\nA flickering torch\nthat illuminates the\ndarkness.";
+        // 3. DESCRIPTION (short, flavourful)
+        description = "Flickering torch.\nLights nearby darkness.";
 
         // 4. COLLISION
         // If you want the player to be able to walk OVER the torch, set collision = false
         collision = true; 
-        solidArea.x = 8;
-        solidArea.y = 16;
-        solidArea.width = 32;
-        solidArea.height = 32;
+        solidArea.x = 16;  // Centered: 16px left + 32px width + 16px right = 64
+        solidArea.y = 16;  // Torch pole starts mid-sprite
+        solidArea.width = 32;  // Narrow torch pole
+        solidArea.height = 40; // Torch height
         solidAreaDefaultX = solidArea.x;
         solidAreaDefaultY = solidArea.y;
     }

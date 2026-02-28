@@ -71,7 +71,17 @@ public class Entity {
     public boolean sleep = false;
     public boolean drawing = true;
     public boolean onPath = false;
-    public boolean knockBack = false;
+    public boolean knockBack = false;          // true while being pushed by an attack
+    public int knockBackCounter = 0;           // leftover frames for old system (deprecated)
+    public int knockBackDuration = 15;         // leftover frames for old system (deprecated)
+    public int knockBackPower = 0;             // magnitude of the push (for debug display)
+    // new vector-based knockback
+    public int knockBackVectorX = 0;
+    public int knockBackVectorY = 0;
+    public double knockBackRemaining = 0;      // distance left to travel
+    public boolean fleeing = false;            // AI state: running away from player
+    public int fleeCounter = 0;
+    public int fleeDuration = 60;
     public Entity loot;
     public boolean opened = false;
 
@@ -221,10 +231,31 @@ public class Entity {
 
     } 
     public void update() {
-        
+        // handling knockback first ensures the push isn't blocked by normal collision checks
+        if (knockBack) {
+            // move by vector regardless of collision state
+            worldX += knockBackVectorX;
+            worldY += knockBackVectorY;
+
+            double travelled = Math.hypot(knockBackVectorX, knockBackVectorY);
+            knockBackRemaining -= travelled;
+            if (knockBackRemaining <= 0) {
+                knockBack = false;
+                knockBackVectorX = 0;
+                knockBackVectorY = 0;
+                knockBackRemaining = 0;
+                knockBackPower = 0;
+                // stop any active chase so monster isn't immediately drawn back
+                onPath = false;
+            }
+            return;
+        }
+
         setAction();
         checkCollision();
 
+        // ------------------------------------------------------------------
+        // NORMAL MOVEMENT
         // IF COLLISION IS FALSE, MOVE
         // Only run manual movement if pathfinding is NOT active
         if (collisionOn == false && onPath == false) {

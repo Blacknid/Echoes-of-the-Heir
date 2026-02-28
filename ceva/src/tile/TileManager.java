@@ -192,29 +192,56 @@ public class TileManager {
         }
     }
 
-    // ---------------- Draw tiles ----------------
+    // OPTIMIZATION: Cache viewport bounds to avoid repeated calculations
+    // Variables for viewport culling
+    private int cachedViewportMinX = -1;
+    private int cachedViewportMaxX = -1;
+    private int cachedViewportMinY = -1;
+    private int cachedViewportMaxY = -1;
+    private int cachedPlayerWorldX = -1;
+    private int cachedPlayerWorldY = -1;
+
+    // OPTIMIZATION: Improved viewport culling logic
     public void draw(Graphics2D g2) {
+        int playerWorldX = gp.player.worldX;
+        int playerWorldY = gp.player.worldY;
+        
+        // Update viewport bounds only if player moved significantly
+        if (playerWorldX != cachedPlayerWorldX || playerWorldY != cachedPlayerWorldY) {
+            cachedPlayerWorldX = playerWorldX;
+            cachedPlayerWorldY = playerWorldY;
+            cachedViewportMinX = playerWorldX - gp.player.screenX;
+            cachedViewportMaxX = playerWorldX + (gp.screenWidth - gp.player.screenX);
+            cachedViewportMinY = playerWorldY - gp.player.screenY;
+            cachedViewportMaxY = playerWorldY + (gp.screenHeight - gp.player.screenY);
+        }
+        
         for (int layerIndex = 0; layerIndex < mapLayers.size(); layerIndex++) {
             int[][] map = mapLayers.get(layerIndex);
 
             for (int worldRow = 0; worldRow < gp.maxWorldRow; worldRow++) {
                 for (int worldCol = 0; worldCol < gp.maxWorldCol; worldCol++) {
                     int gid = map[worldCol][worldRow];
+                    if (gid == 0) continue; // Skip empty tiles
+                    
                     Tile tile = getTileByGID(gid);
                     if (tile == null) continue;
 
                     int worldX = worldCol * tileSize;
                     int worldY = worldRow * tileSize;
-                    int screenX = worldX - gp.player.worldX + gp.player.screenX;
-                    int screenY = worldY - gp.player.worldY + gp.player.screenY;
-
-                    if (worldX + tileSize > gp.player.worldX - gp.player.screenX &&
-                        worldX - tileSize < gp.player.worldX + gp.player.screenX &&
-                        worldY + tileSize > gp.player.worldY - gp.player.screenY &&
-                        worldY - tileSize < gp.player.worldY + gp.player.screenY) {
-
-                        g2.drawImage(tile.image, screenX, screenY, null);
+                    
+                    // Early culling: check if tile is in viewport
+                    if (worldX + tileSize < cachedViewportMinX ||
+                        worldX > cachedViewportMaxX ||
+                        worldY + tileSize < cachedViewportMinY ||
+                        worldY > cachedViewportMaxY) {
+                        continue;
                     }
+
+                    int screenX = worldX - playerWorldX + gp.player.screenX;
+                    int screenY = worldY - playerWorldY + gp.player.screenY;
+                    
+                    g2.drawImage(tile.image, screenX, screenY, null);
                 }
             }
         }
@@ -223,10 +250,10 @@ public class TileManager {
             for ( int i = 0 ; i < gp.pFinder.pathList.size() ; i++ ) {
                 int worldX = gp.pFinder.pathList.get(i).col * tileSize;
                 int worldY = gp.pFinder.pathList.get(i).row * tileSize;
-                int screenX = worldX - gp.player.worldX + gp.player.screenX;
-                int screenY = worldY - gp.player.worldY + gp.player.screenY;
+                int pathScreenX = worldX - playerWorldX + gp.player.screenX;
+                int pathScreenY = worldY - playerWorldY + gp.player.screenY;
 
-                g2.fillRect(screenX, screenY, tileSize, tileSize);
+                g2.fillRect(pathScreenX, pathScreenY, tileSize, tileSize);
             }
         }
     }

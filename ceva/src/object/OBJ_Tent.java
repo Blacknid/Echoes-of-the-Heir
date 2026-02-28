@@ -16,8 +16,16 @@ public class OBJ_Tent extends Entity {
         type = type_consumable;
         name = "Tent";
         down1 = setup("/res/objects/tent", gp.tileSize, gp.tileSize);
-        description = "[Tent]\nYou can sleep until\nmorning to restore\nhealth and mana.";
+        description = "Use to sleep.\nRestores HP & MP.";
         stackable = true;
+        
+        // HITBOX: Larger tent hitbox (40x40) centered
+        solidArea.x = 12;  // 12px left + 40px width + 12px right = 64
+        solidArea.y = 12;  // Centered
+        solidArea.width = 40;
+        solidArea.height = 40;
+        solidAreaDefaultX = solidArea.x;
+        solidAreaDefaultY = solidArea.y;
     }
 
     public boolean use(Entity entity) {

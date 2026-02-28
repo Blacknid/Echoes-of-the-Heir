@@ -217,6 +217,29 @@ public class UI {
         g2.drawImage(Crystal_Full, x, y, heartSize, heartSize, null);
         x += heartSize + spacing;
     }
+
+    // SMALL HUD inventory indicator (current count only)
+    String invCount = String.valueOf(gp.player.inventory.size());
+    int rectW = (int)(110 * gp.screenWidth / 1280f);
+    int rectH = heartSize;
+    int rx = gp.screenWidth - 20 - rectW;
+    int ry = startY;
+    // background pill
+    g2.setColor(new Color(0, 0, 0, 150));
+    g2.fillRoundRect(rx, ry, rectW, rectH, 12, 12);
+    // border
+    g2.setColor(new Color(255, 255, 255, 200));
+    g2.setStroke(new BasicStroke(2));
+    g2.drawRoundRect(rx, ry, rectW, rectH, 12, 12);
+    // label and number
+    g2.setFont(g2.getFont().deriveFont(14F));
+    g2.setColor(new Color(200, 200, 200));
+    g2.drawString("Inv", rx + 8, ry + rectH/2 + 6);
+    g2.setFont(g2.getFont().deriveFont(16F));
+    int numTail = rx + rectW - 10;
+    int numX = getXforAlignToRightText(invCount, numTail);
+    g2.setColor(Color.white);
+    g2.drawString(invCount, numX, ry + rectH/2 + 6);
 }
     public void drawMessage() {
 
@@ -702,68 +725,129 @@ public class UI {
         int frameHeight = gp.tileSize * 5;
         drawSubWindow(frameX, frameY, frameWidth, frameHeight);
 
-        // SLOT
+        // Title and size (size shown only in inventory screen)
+        g2.setColor(Color.white);
+            // simple animation counter for subtle UI motions
+            counter++;
+            float pulse = (float)((Math.sin(counter * 0.06) + 1.0) * 0.5); // 0..1
+
+            // Title (moved above frame) with shadow and pulsing gold tint
+            String invTitle = "Inventory";
+            int invTitleY = frameY - gp.tileSize/2;
+            g2.setFont(g2.getFont().deriveFont(28F));
+            // shadow
+            g2.setColor(new Color(0,0,0,160));
+            int tlen = (int)g2.getFontMetrics().getStringBounds(invTitle, g2).getWidth();
+            g2.drawString(invTitle, frameX + (frameWidth/2) - tlen/2 + 3, invTitleY + 3);
+            // pulsing gold
+            int r = (int)(218 + 37 * pulse);
+            int gcol = (int)(165 + 20 * pulse);
+            int b = (int)(32 + 8 * pulse);
+            g2.setColor(new Color(Math.min(255,r), Math.min(255,gcol), Math.min(255,b)));
+            g2.drawString(invTitle, frameX + (frameWidth/2) - tlen/2, invTitleY);
+
+            // Occupied size moved under the title (left side)
+            String invText = "Occupied: " + gp.player.inventory.size() + " / " + gp.player.maxInventorySize;
+            g2.setFont(g2.getFont().deriveFont(16F));
+            g2.setColor(new Color(200,200,200,220));
+            g2.drawString(invText, frameX + 18, invTitleY + 26);
+
+            // header strip inside the window for visual grouping
+            Color headerBg = new Color(30,30,30,120);
+            g2.setColor(headerBg);
+            g2.fillRoundRect(frameX + 8, frameY + 10, frameWidth - 16, gp.tileSize - 6, 12, 12);
         final int slotXstart = frameX + 30;
         final int slotYstart = frameY + 30;
-        int slotX = slotXstart;
-        int slotY = slotYstart;
         int slotSize = gp.tileSize + 3;
+        int maxCol = 5;
+        int maxRow = 4;
+
+        // DRAW EMPTY SLOTS
+        g2.setColor(new Color(50, 50, 50, 150));
+        for (int row = 0; row < maxRow; row++) {
+            for (int col = 0; col < maxCol; col++) {
+                int x = slotXstart + col * slotSize;
+                int y = slotYstart + row * slotSize;
+                g2.fillRoundRect(x, y, gp.tileSize, gp.tileSize, 10, 10);
+            }
+        }
 
         // DRAW PLAYER'S ITEMS
-        
-        for ( int i = 0 ; i < gp.player.inventory.size(); i++ ) {
+        for (int i = 0; i < gp.player.inventory.size(); i++) {
+            int row = i / maxCol;
+            int col = i % maxCol;
+            int slotX = slotXstart + col * slotSize;
+            int slotY = slotYstart + row * slotSize;
 
-            // EQUIPED ITEM HIGHLIGHT
-            if ( gp.player.inventory.get(i) == gp.player.currentShield ||
-                        gp.player.inventory.get(i) == gp.player.currentWeapon ) {
+            // EQUIPPED ITEM HIGHLIGHT
+            if (gp.player.inventory.get(i) == gp.player.currentShield ||
+                    gp.player.inventory.get(i) == gp.player.currentWeapon) {
                 g2.setColor(new Color(240, 190, 90));
                 g2.fillRoundRect(slotX, slotY, gp.tileSize, gp.tileSize, 10, 10);
             }
-            
-            g2.drawImage ( gp.player.inventory.get(i).down1, slotX, slotY, null );
 
-            // STACKABLE ITEM AMMOUNT
-            if ( gp.player.inventory.get(i).amount > 1) {
+            g2.drawImage(gp.player.inventory.get(i).down1, slotX, slotY, null);
 
-                g2.setFont ( g2.getFont().deriveFont(32f) );
-                int amountX;
-                int amountY;
-
+            // STACKABLE ITEM AMOUNT
+            if (gp.player.inventory.get(i).amount > 1) {
+                g2.setFont(g2.getFont().deriveFont(32f));
                 String s = "" + gp.player.inventory.get(i).amount;
-                amountX = getXforAlignToRightText(s, slotX + 70);
-                amountY = slotY + gp.tileSize;
+                int amountX = getXforAlignToRightText(s, slotX + 70);
+                int amountY = slotY + gp.tileSize;
 
                 // SHADOW
                 g2.setColor(new Color(60, 60, 60));
-                g2.drawString(s, amountX, amountY );
-
+                g2.drawString(s, amountX, amountY);
                 // TEXT
                 g2.setColor(Color.white);
                 g2.drawString(s, amountX - 3, amountY - 3);
             }
-
-            slotX += slotSize;
-
-            if ( i == 4 || i == 9 || i == 14 ) {
-                slotX = slotXstart;
-                slotY += slotSize;
-            }
-            }
-        
+        }
 
         // CURSOR
-        int cursorX = slotXstart + ( slotSize * slotCol );
-        int cursorY = slotYstart + ( slotSize * slotRow );
+        int cursorX = slotXstart + (slotSize * slotCol);
+        int cursorY = slotYstart + (slotSize * slotRow);
         int cursorWidth = gp.tileSize;
         int cursorHeight = gp.tileSize;
-        // DRAW CURSOR
+        // translucent fill for selected slot
+        g2.setColor(new Color(255, 255, 255, 40));
+        g2.fillRoundRect(cursorX, cursorY, cursorWidth, cursorHeight, 10, 10);
+        // pulsing border for selected slot
+        float strokeWidth = 2f + 2f * (float)((Math.sin(counter * 0.12) + 1.0) * 0.5f);
         g2.setColor(Color.white);
-        g2.setStroke ( new BasicStroke(3) );
+        g2.setStroke(new BasicStroke(strokeWidth));
         g2.drawRoundRect(cursorX, cursorY, cursorWidth, cursorHeight, 10, 10);
 
-        // DESCRIPTION FRAME
+        // HINT STRIP (between inventory frame and description window)
+        int itemIndex = getItemIndexOnSlot();
+        String actionHint = "";
+        if (itemIndex < gp.player.inventory.size()) {
+            Entity itemForHint = gp.player.inventory.get(itemIndex);
+            if (itemForHint != null) {
+                if (itemForHint.type == gp.player.type_consumable) actionHint = "Use (ENTER)";
+                else if (itemForHint.type == gp.player.type_sword || itemForHint.type == gp.player.type_shield || itemForHint.type == gp.player.type_book) actionHint = "Equip (ENTER)";
+            }
+        }
+
+        int hintAreaY = frameY + frameHeight; // directly below inventory frame
+        int hintAreaH = gp.tileSize - 8;
+        // background strip for hints
+        g2.setColor(new Color(20,20,20,140));
+        g2.fillRoundRect(frameX + 8, hintAreaY + 6, frameWidth - 16, hintAreaH, 12, 12);
+        // hints text
+        g2.setFont(g2.getFont().deriveFont(18F));
+        g2.setColor(new Color(200,200,200));
+        int hintTextY = hintAreaY + 6 + hintAreaH/2 + 6;
+        g2.drawString("Drop (BACKSPACE)", frameX + 20, hintTextY);
+        if (!actionHint.isEmpty()) {
+            int tailX = frameX + frameWidth - 20;
+            int ax = getXforAlignToRightText(actionHint, tailX);
+            g2.drawString(actionHint, ax, hintTextY);
+        }
+
+        // DESCRIPTION FRAME (kept clear for description text)
         int dFrameX = frameX;
-        int dFrameY = frameY + frameHeight;
+        int dFrameY = frameY + frameHeight + hintAreaH + 12; // shift down to make room for hint strip
         int dFrameWidth = frameWidth;
         int dFrameHeight = gp.tileSize * 3;
 
@@ -772,27 +856,26 @@ public class UI {
         int textY = dFrameY + gp.tileSize;
         g2.setFont(g2.getFont().deriveFont(28F));
 
-        int itemIndex = getItemIndexOnSlot();
-
         if (itemIndex < gp.player.inventory.size()) {
-
-        Entity item = gp.player.inventory.get(itemIndex);
-            if (item != null &&
-                (item.type == gp.player.type_consumable ||
-                item == gp.player.currentShield ||
-                item == gp.player.currentWeapon ||
-                item.type == gp.player.type_buffs ||
-                item.type == gp.player.type_book)) {
-                
+            Entity item = gp.player.inventory.get(itemIndex);
+            if (item != null && (item.type == gp.player.type_consumable || item == gp.player.currentShield || item == gp.player.currentWeapon || item.type == gp.player.type_buffs || item.type == gp.player.type_book)) {
                 drawSubWindow(dFrameX, dFrameY, dFrameWidth, dFrameHeight);
-                
+                // draw item icon and name at top of description
+                int iconX = dFrameX + 20;
+                int iconY = dFrameY + 20;
+                g2.drawImage(item.down1, iconX, iconY, gp.tileSize, gp.tileSize, null);
+                g2.setFont(g2.getFont().deriveFont(32F));
+                g2.setColor(Color.white);
+                g2.drawString(item.name, iconX + gp.tileSize + 10, iconY + gp.tileSize / 2 + 10);
+
+                textY = iconY + gp.tileSize + 20;
+                g2.setFont(g2.getFont().deriveFont(28F));
                 for (String line : item.description.split("\n")) {
                     g2.drawString(line, textX, textY);
                     textY += 32;
                 }
             }
         }
-
     }
     public int getItemIndexOnSlot() {
         int itemIndex = slotCol + ( slotRow * 5 );

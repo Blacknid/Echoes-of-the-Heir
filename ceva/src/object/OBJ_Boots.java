@@ -11,6 +11,14 @@ public class OBJ_Boots extends Entity{
         type = type_buffs;
         name = "Boots";
         down1 = setup("/res/objects/Boots", gp.tileSize, gp.tileSize);
-        description = "[Boots]\nIt helps you move faster, \nalso looks expensive.\n +1 SPEED";
+        description = "Light boots.\n+1 Speed.";
+        
+        // HITBOX: Medium boots hitbox (32x32) centered
+        solidArea.x = 16;  // 16px left + 32px width + 16px right = 64
+        solidArea.y = 16;  // Centered
+        solidArea.width = 32;
+        solidArea.height = 32;
+        solidAreaDefaultX = solidArea.x;
+        solidAreaDefaultY = solidArea.y;
     }
 }

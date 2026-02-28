@@ -16,7 +16,15 @@ public class OBJ_Key extends Entity{
         stackable = true;
         name = "Key";
         down1 = setup("/res/objects/Key", gp.tileSize, gp.tileSize);
-        description = "[" + name + "]\nA key used to open \nmysterious doors and chests.";
+        description = "A small key.\nOpens locked doors & chests.";
+        
+        // HITBOX: Small key hitbox (24x24) centered
+        solidArea.x = 20;  // 20px left + 24px width + 20px right = 64
+        solidArea.y = 22;  // Centered vertically
+        solidArea.width = 24;
+        solidArea.height = 24;
+        solidAreaDefaultX = solidArea.x;
+        solidAreaDefaultY = solidArea.y;
 
         setDialogue();
 

@@ -27,7 +27,12 @@ public class Projectile extends Entity {
         if(user == gp.player) {
             int monsterIndex = gp.cChecker.checkEntity(this, gp.monster);
             if(monsterIndex != 999){
+                // projectiles also impart knockback based on their speed
                 gp.player.damageMonster(monsterIndex, this.attack);
+                if (monsterIndex != 999) {
+                    int kb = Math.max(1, this.speed / 3);
+                    gp.player.knockBack(gp.monster[monsterIndex], kb, worldX, worldY);
+                }
                 generateParticle(user.projectile, gp.monster[monsterIndex]);
                 alive = false;
             }

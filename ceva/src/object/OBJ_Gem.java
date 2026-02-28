@@ -16,7 +16,15 @@ public class OBJ_Gem extends Entity {
         type = type_pickupOnly;
         name = objName;
         down1 = setup("/res/objects/Gem", gp.tileSize, gp.tileSize);
-        description = "The Dark Heart of an \nancient castle \n[TO BE CONTINUED].";
+        description = "Dark Heart of an\nancient castle.";
+        
+        // HITBOX: Medium gem hitbox (32x32) centered
+        solidArea.x = 16;  // 16px left + 32px width + 16px right = 64
+        solidArea.y = 16;  // Centered
+        solidArea.width = 32;
+        solidArea.height = 32;
+        solidAreaDefaultX = solidArea.x;
+        solidAreaDefaultY = solidArea.y;
 
         setDialogues();
     }

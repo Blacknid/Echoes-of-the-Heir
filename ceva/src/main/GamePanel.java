@@ -86,8 +86,11 @@ public class GamePanel extends JPanel implements Runnable{
     public interactiveTile iTile[] = new interactiveTile[10]; // size depends on how many interactive tiles you have
     public ArrayList<Entity> projectilesList = new ArrayList<>();
     public ArrayList<Entity> particleList = new ArrayList<>();
-    ArrayList<Entity> entityList = new ArrayList<>(); 
-
+    
+    // OPTIMIZATION: Pre-allocate entityList with estimated capacity to reduce resizing
+    ArrayList<Entity> entityList = new ArrayList<>(150);
+    int entityListIndex = 0; // Track insertion point for efficient reuse
+    
     // OPTIMIZATION: Define Comparator once to avoid garbage collection lag
     Comparator<Entity> renderSorter = new Comparator<Entity>() {
         @Override
@@ -132,6 +135,9 @@ public class GamePanel extends JPanel implements Runnable{
     aSetter.setNPC();
     aSetter.setMonster();
     gameState = titleState;
+
+    // OPTIMIZATION: Initialize collision cache
+    cChecker.updateCollisionRectsCache();
 
     tempScreen = new BufferedImage(screenWidth, screenHeight, BufferedImage.TYPE_INT_ARGB);
     g2 = (Graphics2D) tempScreen.getGraphics();
@@ -230,25 +236,25 @@ public class GamePanel extends JPanel implements Runnable{
                     }
                 }
             }
-            for ( int i = 0 ; i < projectilesList.size() ; i++ ) {
-                if ( projectilesList.get(i) != null ) {
-                    if ( projectilesList.get(i).alive == true ) {
-                        projectilesList.get(i).update();
-                    }
-                    if ( projectilesList.get(i).alive == false ) {
+            // OPTIMIZATION: Use backwards iteration to safely remove while iterating
+            for ( int i = projectilesList.size() - 1 ; i >= 0 ; i-- ) {
+                Entity proj = projectilesList.get(i);
+                if (proj != null) {
+                    if (proj.alive == true) {
+                        proj.update();
+                    } else {
                         projectilesList.remove(i);
-                        
                     }
                 }
             }
-            for ( int i = 0 ; i < particleList.size() ; i++ ) {
-                if ( particleList.get(i) != null ) {
-                    if ( particleList.get(i).alive == true ) {
-                        particleList.get(i).update();
-                    }
-                    if ( particleList.get(i).alive == false ) {
+            // OPTIMIZATION: Use backwards iteration to safely remove while iterating
+            for ( int i = particleList.size() - 1 ; i >= 0 ; i-- ) {
+                Entity particle = particleList.get(i);
+                if (particle != null) {
+                    if (particle.alive == true) {
+                        particle.update();
+                    } else {
                         particleList.remove(i);
-                        
                     }
                 }
             }
@@ -289,56 +295,99 @@ public class GamePanel extends JPanel implements Runnable{
         // TILE
         tileM.draw(g2);
 
-        // ADD ENTITIES TO THE LIST
-        entityList.add(player);
+        // OPTIMIZATION: Reuse entityList by tracking index instead of add/clear
+        entityListIndex = 0;
+        
+        // ADD ENTITIES TO THE LIST (using indexed insertion)
+        if (entityListIndex < entityList.size()) {
+            entityList.set(entityListIndex, player);
+        } else {
+            entityList.add(player);
+        }
+        entityListIndex++;
 
         for ( int i = 0 ; i < npc.length ; i++ ) {
             if ( npc[i] != null ) {
-                entityList.add(npc[i]);
+                if (entityListIndex < entityList.size()) {
+                    entityList.set(entityListIndex, npc[i]);
+                } else {
+                    entityList.add(npc[i]);
+                }
+                entityListIndex++;
             }
         }
 
         for ( int i = 0 ; i < obj.length ; i++ ) {
             if ( obj[i] != null ) {
-                entityList.add(obj[i]);
+                if (entityListIndex < entityList.size()) {
+                    entityList.set(entityListIndex, obj[i]);
+                } else {
+                    entityList.add(obj[i]);
+                }
+                entityListIndex++;
             }
         }
 
         for ( int i = 0 ; i < monster.length ; i++ ) {
             if ( monster[i] != null ) {
-                entityList.add(monster[i]);
+                if (entityListIndex < entityList.size()) {
+                    entityList.set(entityListIndex, monster[i]);
+                } else {
+                    entityList.add(monster[i]);
+                }
+                entityListIndex++;
             }
         }
 
-        for ( int i = 0 ; i < projectilesList.size() ; i++ ) {
-            if ( projectilesList.get(i) != null ) {
-                entityList.add(projectilesList.get(i));
+        int projSize = projectilesList.size();
+        for ( int i = 0 ; i < projSize ; i++ ) {
+            Entity proj = projectilesList.get(i);
+            if (proj != null) {
+                if (entityListIndex < entityList.size()) {
+                    entityList.set(entityListIndex, proj);
+                } else {
+                    entityList.add(proj);
+                }
+                entityListIndex++;
             }
         }
 
-        for ( int i = 0 ; i < particleList.size() ; i++ ) {
-            if ( particleList.get(i) != null ) {
-                entityList.add(particleList.get(i));
+        int partSize = particleList.size();
+        for ( int i = 0 ; i < partSize ; i++ ) {
+            Entity particle = particleList.get(i);
+            if (particle != null) {
+                if (entityListIndex < entityList.size()) {
+                    entityList.set(entityListIndex, particle);
+                } else {
+                    entityList.add(particle);
+                }
+                entityListIndex++;
             }
         }
 
         for ( int i = 0 ; i < iTile.length ; i++ ) {
             if ( iTile[i] != null ) {
-                entityList.add(iTile[i]);
+                if (entityListIndex < entityList.size()) {
+                    entityList.set(entityListIndex, iTile[i]);
+                } else {
+                    entityList.add(iTile[i]);
+                }
+                entityListIndex++;
             }
         }
 
+        // SORT (only sort the active portion of the list)
+        Collections.sort(entityList.subList(0, entityListIndex), renderSorter);
 
-
-        // SORT
-        Collections.sort(entityList, renderSorter);
-
-        // DRAW ENTITIES
-        for (int i = 0; i < entityList.size(); i++) {
+        // DRAW ENTITIES (only draw active entities)
+        for (int i = 0; i < entityListIndex; i++) {
             entityList.get(i).draw(g2);
         }
-        // EMPTY ENTITY LIST
-        entityList.clear();
+        
+        // Clear only the used portion of the list for next frame
+        for (int i = 0; i < entityListIndex; i++) {
+            entityList.set(i, null);
+        }
 
         // CUTSCENE 
         csManager.draw(g2);
@@ -359,32 +408,63 @@ public class GamePanel extends JPanel implements Runnable{
             int px = player.worldX - player.worldX + player.screenX + r.x;
             int py = player.worldY - player.worldY + player.screenY + r.y;
             g2.fillRect(px, py, r.width, r.height);
+            if (player.knockBack) {
+                g2.setColor(new Color(255, 0, 255, 128));
+                g2.fillRect(px, py, r.width, r.height);
+                g2.setColor(new Color(255, 0, 0, 128));
+                g2.setColor(Color.WHITE);
+                g2.setFont(new Font("Arial", Font.PLAIN, 12));
+                g2.drawString(String.valueOf(player.knockBackPower), px, py - 4);
+                // draw vector arrow
+                int cx = px + r.width/2;
+                int cy = py + r.height/2;
+                int vx = player.knockBackVectorX * 2;
+                int vy = player.knockBackVectorY * 2;
+                g2.drawLine(cx, cy, cx + vx, cy + vy);
+                g2.fillOval(cx + vx - 2, cy + vy - 2, 4, 4);
+                g2.setColor(new Color(255, 0, 0, 128));
+            }
 
             // PLAYER ATTACK HITBOX
             if (player.attacking) {
-                g2.setColor(new Color(0, 0, 255, 128)); // Blue semi-transparent
-
-                // This logic mirrors the Player.attacking() method to show the exact hitbox used for collision.
-                Rectangle attackWorldRect = new Rectangle();
-                attackWorldRect.width = player.attackArea.width;
-                attackWorldRect.height = player.attackArea.height;
-
-                int tempWorldX = player.worldX;
-                int tempWorldY = player.worldY;
-
-                // The attacking() method temporarily moves the player's origin to position the hitbox.
+                g2.setColor(new Color(255, 100, 0, 128)); // Orange semi-transparent for attack
+                
+                // Recreate attack hitbox for visualization (same logic as performAttackHitbox)
+                Rectangle attackRect = new Rectangle();
+                int ts = tileSize;
+                int attackWorldX = player.worldX;
+                int attackWorldY = player.worldY;
+                
                 switch(player.direction) {
-                    case "up":    tempWorldY -= player.attackArea.height + 5; break;
-                    case "down":  tempWorldY += player.attackArea.height + 5; break;
-                    case "left":  tempWorldX -= player.attackArea.width + 5; break;
-                    case "right": tempWorldX += player.attackArea.width + 5; break;
+                    case "up":
+                        attackRect.width = ts - 16;
+                        attackRect.height = ts + 16;
+                        attackWorldX += 8;
+                        attackWorldY -= ts + 16;
+                        break;
+                    case "down":
+                        attackRect.width = ts - 16;
+                        attackRect.height = ts + 16;
+                        attackWorldX += 8;
+                        attackWorldY += ts;
+                        break;
+                    case "left":
+                        attackRect.width = ts + 16;
+                        attackRect.height = ts - 16;
+                        attackWorldX -= ts + 16;
+                        attackWorldY += 8;
+                        break;
+                    case "right":
+                        attackRect.width = ts + 16;
+                        attackRect.height = ts - 16;
+                        attackWorldX += ts;
+                        attackWorldY += 8;
+                        break;
                 }
-
-                attackWorldRect.x = tempWorldX + player.solidArea.x;
-                attackWorldRect.y = tempWorldY + player.solidArea.y;
-
-                // Convert world coordinates to screen coordinates for drawing
-                g2.fillRect(attackWorldRect.x - player.worldX + player.screenX, attackWorldRect.y - player.worldY + player.screenY, attackWorldRect.width, attackWorldRect.height);
+                // Convert to screen coordinates and draw
+                int screenX = attackWorldX - player.worldX + player.screenX;
+                int screenY = attackWorldY - player.worldY + player.screenY;
+                g2.fillRect(screenX, screenY, attackRect.width, attackRect.height);
             }
 
             // NPC
@@ -397,6 +477,35 @@ public class GamePanel extends JPanel implements Runnable{
                 }
             }
 
+            // MONSTERS
+            g2.setColor(new Color(255, 255, 0, 128)); // Yellow for monsters
+            for(Entity m : monster) {
+                if(m != null) {
+                    r = m.solidArea;
+                    int mx = m.worldX - player.worldX + player.screenX + r.x;
+                    int my = m.worldY - player.worldY + player.screenY + r.y;
+                    g2.fillRect(mx, my, r.width, r.height);
+                    // visualise knockback state with magenta overlay
+                    if (m.knockBack) {
+                        g2.setColor(new Color(255, 0, 255, 128));
+                        g2.fillRect(mx, my, r.width, r.height);
+                        g2.setColor(new Color(255, 255, 0, 128));
+                        // show knockback power as debug text
+                        g2.setColor(Color.WHITE);
+                        g2.setFont(new Font("Arial", Font.PLAIN, 12));
+                        g2.drawString(String.valueOf(m.knockBackPower), mx, my - 4);
+                        // draw arrow for vector direction
+                        int cx = mx + r.width/2;
+                        int cy = my + r.height/2;
+                        int vx = m.knockBackVectorX * 2; // scale for visibility
+                        int vy = m.knockBackVectorY * 2;
+                        g2.drawLine(cx, cy, cx + vx, cy + vy);
+                        g2.fillOval(cx + vx - 2, cy + vy - 2, 4, 4);
+                        g2.setColor(new Color(255, 255, 0, 128));
+                    }
+                }
+            }
+
             // OBJECTS
             for(Entity o : obj) {
                 if(o != null) {
@@ -404,6 +513,17 @@ public class GamePanel extends JPanel implements Runnable{
                     int ox = o.worldX - player.worldX + player.screenX + r.x;
                     int oy = o.worldY - player.worldY + player.screenY + r.y;
                     g2.fillRect(ox, oy, r.width, r.height);
+                }
+            }
+
+            // INTERACTIVE TILES
+            g2.setColor(new Color(0, 255, 255, 128)); // Cyan for interactive tiles
+            for(int i = 0; i < iTile.length; i++) {
+                if(iTile[i] != null) {
+                    r = iTile[i].solidArea;
+                    int ix = iTile[i].worldX - player.worldX + player.screenX + r.x;
+                    int iy = iTile[i].worldY - player.worldY + player.screenY + r.y;
+                    g2.fillRect(ix, iy, r.width, r.height);
                 }
             }
 

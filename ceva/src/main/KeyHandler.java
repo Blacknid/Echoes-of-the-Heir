@@ -145,8 +145,11 @@ public class KeyHandler implements KeyListener {
         if (code == KeyEvent.VK_ENTER) { enterPressed = true; }
         if (code == KeyEvent.VK_F) { shotKeyPressed = true; }
 
+        // DEBUGS   
+
         // Dash
-        if (code == KeyEvent.VK_SHIFT) { dashPressed = true; }
+        if ( (code == KeyEvent.VK_SHIFT ) && ( leftPressed == true || rightPressed == true 
+                        || upPressed == true || downPressed == true ) ) { dashPressed = true; }
 
         // Debug toggle
         if (code == KeyEvent.VK_T) { showDebugText = !showDebugText; }
@@ -159,6 +162,8 @@ public class KeyHandler implements KeyListener {
 
         // Path toggle
         if (code == KeyEvent.VK_Y) { PathFinderDubug(); } 
+
+
 
         // Abilities
         if ( code == KeyEvent.VK_SPACE && gp.teleportation == true ) { handleTeleport(); }
@@ -194,6 +199,11 @@ public class KeyHandler implements KeyListener {
         if (code == KeyEvent.VK_D && gp.ui.slotCol < 4) { gp.ui.slotCol++; gp.playSE(7); }
 
         if (code == KeyEvent.VK_ENTER) gp.player.selectItem();
+
+        // Drop item with BACKSPACE, but only if it's not currently equipped
+
+        if (code == KeyEvent.VK_BACK_SPACE && ( gp.ui.getItemIndexOnSlot() != gp.player.getCurrentWeaponSlot() && 
+        gp.ui.getItemIndexOnSlot() != gp.player.getCurrentShieldSlot() )) { gp.player.dropItem(); }
     }
 
     private void handleOptionsState(int code) {

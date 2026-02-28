@@ -28,3 +28,47 @@ public class GameUpdater {
 for using the update.patch file
 
 2. use the launcher for the update.patch file
+
+🎯 Gameplay & combat
+
+Balance weapons/knockback/attack speed – you’ve got parameters everywhere (knockBackPower, attackDuration, attackSpeed, monster attack values). Run a few sessions, gather feedback, and tune them.
+Combo / weapon types – right now every melee weapon behaves the same except for power. Add thrust/arc/hit‑stun variations, or secondary effects (bleed, slow).
+Player abilities – you’ve got a dash; maybe add dodge‑roll, block/parry, charge attacks, spells with cooldowns.
+Monster variety – implement different AI behaviours (ranged, charging, guards, patrolling), not just chase‑and‑flee.
+Hit‑stop & feedback – small pauses, screen shake or particles when you land a blow improve feel.
+Health/XP scaling & loot – balance progression and reward loops. More item types, rarity tiers, or weapon upgrades.
+
+🧠 AI & world logic
+
+Smarter pathfinding – avoid obstacles, use “hide behind cover”, group tactics.
+Environmental interaction – monsters trigger traps, move objects, use doors.
+Event system – scripted encounters, wandering NPCs, day/night cycle.
+Save/load & persistence – currently you have SaveLoad stub; flesh it out to store inventory, world state, quest flags.
+
+🛠 Code & architecture
+
+Modularize entity behaviours – rather than one giant Entity class, consider component‑based design (movement, combat, AI, inventory).
+Decouple rendering – the drawing logic is all in entities; you could move some into a renderer to support effects or resolution changes.
+Improve collision system – introduce swept‑AABB for fast-moving projectiles, or spatial partitioning (quad‑tree) if world/monster count grows.
+Remove remaining warnings – unused imports/vars (e.g. enBottomY, EnvironmentManager import) to keep code clean.
+
+🎨 Presentation & UX
+
+Animation polish – add more frames, transitional poses, attack anticipation.
+UI/UX – inventory screen, status bars, tooltips, sound/music volume controls, settings menu.
+Visual effects – particles, lighting (you already have light radius field), screen filters for damage/healing.
+Tile/level design tools – export from Tiled, add editor support, dynamic tiles (lava, water).
+Audio – more sound effects, environmental ambience, music track management.
+
+🧪 Testing & tooling
+
+Automated tests – unit tests for math/AI, maybe simple integration tests.
+Debug console – commands to spawn monsters, give items, change variables.
+Performance profiling – FPS counter already; consider logging or graphing frame times, memory.
+
+📦 Content & scope
+
+Quests & story – add NPC dialogues, objectives, branching paths.
+Equipment & crafting – more items, upgrades, recipes.
+Multiplayer/coop – if ambitious, networked play.
+Platform support – current code is desktop‑Swing; you could port to LibGDX, Android, etc.

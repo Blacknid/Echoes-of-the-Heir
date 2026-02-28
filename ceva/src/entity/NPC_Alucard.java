@@ -14,6 +14,14 @@ public class NPC_Alucard extends Entity{
         speed = 1;
 
         dialogueSet = -1;
+        
+        // HITBOX: Same as player for consistent collision
+        solidArea.x = 20;  // 20px left + 24px width + 20px right = 64
+        solidArea.y = 22;  // Slight top offset for upper body
+        solidArea.width = 24;  // Covers body width
+        solidArea.height = 22; // Covers torso height
+        solidAreaDefaultX = solidArea.x;
+        solidAreaDefaultY = solidArea.y;
 
         getImage();
         setDialogue();

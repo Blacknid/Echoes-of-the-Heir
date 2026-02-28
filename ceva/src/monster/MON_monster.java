@@ -24,11 +24,10 @@ public class MON_monster extends Entity {
         defense = 0;
         exp = 2;
 
-        // Hitbox setup
-        solidArea.x = 3;
-        solidArea.y = 18;
-        solidArea.width = 42;
-        solidArea.height = 30;
+        solidArea.x = 12;  // Balanced left/right padding (12 pixels each side = 40 width)
+        solidArea.y = 8;   // Top padding for head clearance
+        solidArea.width = 40;  // 12 + 40 + 12 = 64 (full sprite width)
+        solidArea.height = 48; // Covers body from neck to feet (64 - 8 - 8 = 48)
         solidAreaDefaultX = solidArea.x;
         solidAreaDefaultY = solidArea.y;
         
@@ -56,15 +55,39 @@ public class MON_monster extends Entity {
 
     @Override
     public void setAction() {
+        // 1. If we're currently fleeing, run directly away from the player
+        if (fleeing) {
+            fleeCounter++;
+            // calculate direction opposite of player centre
+            int dx = worldX - gp.player.worldX;
+            int dy = worldY - gp.player.worldY;
+            if (Math.abs(dx) > Math.abs(dy)) {
+                direction = (dx > 0) ? "right" : "left";
+            } else {
+                direction = (dy > 0) ? "down" : "up";
+            }
+            if (fleeCounter > fleeDuration) {
+                fleeing = false;
+                fleeCounter = 0;
+                speed = defaultSpeed;
+            }
+            return;
+        }
         
         if (onPath == true) {
-            // Check if stuck on path
-            int goalCol = gp.player.getTileCol();
-            int goalRow = gp.player.getTileRow();
-            searchPath(goalCol, goalRow);
+            // If player manages to run farther than a bigger radius, give up
+            int loseInterestRange = gp.tileSize * 8;
+            if (!isPlayerInRange(loseInterestRange)) {
+                onPath = false;
+            } else {
+                // continue chasing using pathfinding
+                int goalCol = gp.player.getTileCol();
+                int goalRow = gp.player.getTileRow();
+                searchPath(goalCol, goalRow);
+            }
         }
         else {
-             // Aggro check
+             // Aggro check: start chasing when player enters range
              int aggroRange = gp.tileSize * 6;
              if (isPlayerInRange(aggroRange)) {
                  onPath = true;
@@ -76,7 +99,16 @@ public class MON_monster extends Entity {
 
     public void damageReaction() {
         actionLockCounter = 0;
+        // always start chasing when hit
         onPath = true;
+        // if health is low, trigger a brief flee state instead
+        if (life <= maxLife / 2) {
+            fleeing = true;
+            onPath = false;
+            fleeCounter = 0;
+            // give them a brief speed boost while escaping
+            speed = defaultSpeed + 1;
+        }
     }
 
     private void randomMovement() {

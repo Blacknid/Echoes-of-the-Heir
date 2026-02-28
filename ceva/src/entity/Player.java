@@ -31,12 +31,12 @@ package entity; import java.awt.AlphaComposite; import java.awt.Color; import ja
         screenX = gp.screenWidth / 2 - (gp.tileSize / 2);
         screenY = gp.screenHeight / 2 - (gp.tileSize / 2);
         solidArea = new Rectangle();
-        solidArea.x = 20;
-        solidArea.y = 25;
+        solidArea.x = 20;  // 20px padding left = 20px right, centered
+        solidArea.y = 22;  // Slight top offset for upper body
         solidAreaDefaultX = solidArea.x;
         solidAreaDefaultY = solidArea.y;
-        solidArea.width = 20;
-        solidArea.height = 20;
+        solidArea.width = 24;  // 20 + 24 + 20 = 64 (full width)
+        solidArea.height = 22; // Covers main body mass
         setDefaultValues();
     }
 
@@ -337,27 +337,37 @@ package entity; import java.awt.AlphaComposite; import java.awt.Color; import ja
         attackHitbox.worldX = worldX;
         attackHitbox.worldY = worldY;
         attackHitbox.solidArea = new Rectangle(solidArea);
+        
         int ts = gp.tileSize;
+        // IMPROVED: Attack hitbox is now bigger and more forgiving, matches sprite dimensions
         switch(direction) {
             case "up":
-                attackHitbox.solidArea.width = ts;
-                attackHitbox.solidArea.height = ts;
-                attackHitbox.worldY -= ts;
+                // Vertical attack sprite is tileSize × tileSize*2, extends upward
+                attackHitbox.solidArea.width = ts - 16;  // 48 width (centered)
+                attackHitbox.solidArea.height = ts + 16; // 80 height (larger reach)
+                attackHitbox.worldX += 8;   // Center horizontally
+                attackHitbox.worldY -= ts + 16; // Extend upward
                 break;
             case "down":
-                attackHitbox.solidArea.width = ts;
-                attackHitbox.solidArea.height = ts;
-                attackHitbox.worldY += ts;
+                // Vertical attack sprite is tileSize × tileSize*2, extends downward
+                attackHitbox.solidArea.width = ts - 16;  // 48 width (centered)
+                attackHitbox.solidArea.height = ts + 16; // 80 height (larger reach)
+                attackHitbox.worldX += 8;   // Center horizontally
+                attackHitbox.worldY += ts;  // Extend downward from player
                 break;
             case "left":
-                attackHitbox.solidArea.width = ts;
-                attackHitbox.solidArea.height = ts;
-                attackHitbox.worldX -= ts;
+                // Horizontal attack sprite is tileSize*2 × tileSize, extends leftward
+                attackHitbox.solidArea.width = ts + 16;  // 80 width (larger reach)
+                attackHitbox.solidArea.height = ts - 16; // 48 height (centered)
+                attackHitbox.worldX -= ts + 16; // Extend leftward
+                attackHitbox.worldY += 8;   // Center vertically
                 break;
             case "right":
-                attackHitbox.solidArea.width = ts;
-                attackHitbox.solidArea.height = ts;
-                attackHitbox.worldX += ts;
+                // Horizontal attack sprite is tileSize*2 × tileSize, extends rightward
+                attackHitbox.solidArea.width = ts + 16;  // 80 width (larger reach)
+                attackHitbox.solidArea.height = ts - 16; // 48 height (centered)
+                attackHitbox.worldX += ts;  // Extend rightward from player
+                attackHitbox.worldY += 8;   // Center vertically
                 break;
         }
         // Check for tile using the attack hitbox instead of player
@@ -373,7 +383,10 @@ package entity; import java.awt.AlphaComposite; import java.awt.Color; import ja
         if (i != 999) {
             if (gp.monster[i].invincible == false) {
                 gp.playSE(5); // Play hit sound
-                knockBack(gp.monster[i]);
+                // determine knockback strength based on equipped weapon (smaller)
+                int kb = (currentWeapon != null) ? currentWeapon.knockBackPower / 2 : 1;
+                if (kb < 1) kb = 1;
+                knockBack(gp.monster[i], kb, worldX, worldY);
                 int damage = attack - gp.monster[i].defense;
                 if (damage < 0) {
                     damage = 0;
@@ -393,14 +406,40 @@ package entity; import java.awt.AlphaComposite; import java.awt.Color; import ja
         }
     }
 
-    public void knockBack(Entity entity) {
-        entity.direction = direction;
-        entity.speed += 10;
+    /**
+     * Apply a simplified knockback to a target entity.
+     * The victim is pushed in the direction the player is currently facing,
+     * at a speed equal to `power` pixels per frame, and travels a short
+     * distance proportional to power.
+     *
+     * @param entity victim
+     * @param power  strength (larger means farther/longer)
+     * @param srcX   ignored (kept for compatibility)
+     * @param srcY   ignored (kept for compatibility)
+     */
+    public void knockBack(Entity entity, int power, int srcX, int srcY) {
+        // determine vector from player's facing
+        int vx = 0, vy = 0;
+        switch(direction) {
+            case "up":    vy = -power; break;
+            case "down":  vy = power;  break;
+            case "left":  vx = -power; break;
+            case "right": vx = power;  break;
+        }
+        // assign vector and travel distance (quarter tile per power unit)
+        entity.knockBackVectorX = vx;
+        entity.knockBackVectorY = vy;
+        entity.knockBackRemaining = power * (gp.tileSize / 4);
+        entity.knockBackPower = power; // debug value
         entity.knockBack = true;
     }
 
     public void contactMonster(int i) {
         if (i != 999 && !invincible) {
+            // ignore dying/dead monsters entirely
+            if (gp.monster[i].dying || !gp.monster[i].alive) {
+                return;
+            }
             gp.playSE(8);
             int damage = gp.monster[i].attack - defense;
             generateParticle(this, gp.monster[i]);
@@ -409,6 +448,18 @@ package entity; import java.awt.AlphaComposite; import java.awt.Color; import ja
             }
             life -= damage;
             invincible = true;
+            // compute knockback direction away from the monster
+            int dx = worldX - gp.monster[i].worldX;
+            int dy = worldY - gp.monster[i].worldY;
+            if (Math.abs(dx) > Math.abs(dy)) {
+                direction = (dx > 0) ? "right" : "left";
+            } else {
+                direction = (dy > 0) ? "down" : "up";
+            }
+            // monster hit power is roughly its attack value (smaller)
+            int kb = (gp.monster[i].attack + 1) / 2;
+            if (kb < 1) kb = 1;
+            knockBack(this, kb, gp.monster[i].worldX, gp.monster[i].worldY);
         }
     }
 
@@ -498,16 +549,23 @@ package entity; import java.awt.AlphaComposite; import java.awt.Color; import ja
         int itemIndex = gp.ui.getItemIndexOnSlot();
         if (itemIndex < inventory.size()) {
             Entity selectedItem = inventory.get(itemIndex);
-            if(selectedItem.type == type_sword || selectedItem.type == type_book) {
+
+            if (selectedItem.type == type_sword || selectedItem.type == type_book) {
                 currentWeapon = selectedItem;
                 attack = getAttack();
+                gp.ui.addMessage("Equipped " + selectedItem.name + "!", Color.WHITE);
+                gp.playSE(9); // equip sound
             } else if (selectedItem.type == type_shield) {
                 currentShield = selectedItem;
                 defense = getDefense();
+                gp.ui.addMessage("Equipped " + selectedItem.name + "!", Color.WHITE);
+                gp.playSE(9);
             } else if (selectedItem.type == type_consumable) {
                 attackCanceled = true;
                 if (selectedItem.use(this) == true && selectedItem.name != "Potion") {
-                    if(selectedItem.amount > 1) {
+                    gp.ui.addMessage("Used " + selectedItem.name + ".", Color.WHITE);
+                    gp.playSE(11); // generic use sound
+                    if (selectedItem.amount > 1) {
                         selectedItem.amount--;
                     } else {
                         inventory.remove(itemIndex);
@@ -573,6 +631,17 @@ package entity; import java.awt.AlphaComposite; import java.awt.Color; import ja
             }
         }
         return currentShieldSlot;
+    }
+
+    // drop the currently selected item from inventory (does not spawn in world)
+    public void dropItem() {
+        int itemIndex = gp.ui.getItemIndexOnSlot();
+        if (itemIndex < inventory.size()) {
+            Entity item = inventory.get(itemIndex);
+            inventory.remove(itemIndex);
+            gp.ui.addMessage("Dropped " + item.name + ".", Color.WHITE);
+            gp.playSE(12); // use a drop sound or simple click
+        }
     }
 
     // Rendering methods

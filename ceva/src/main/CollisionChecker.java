@@ -6,151 +6,179 @@ import entity.Entity;
 public class CollisionChecker {
 
     GamePanel gp;
+    
+    // OPTIMIZATION: Reuse Rectangle objects to avoid allocation overhead
+    private Rectangle tempRect = new Rectangle();
+    private int collisionRectsSize = 0; // Cache the size
 
     public CollisionChecker(GamePanel gp) {
         this.gp = gp;
     }
 
-    // ---------------- Collision with object layer ----------------
+    // OPTIMIZATION: Use cached size to avoid calling size() repeatedly
+    public void updateCollisionRectsCache() {
+        collisionRectsSize = gp.tileM.collisionRects.size();
+    }
+
+    // OPTIMIZATION: Reuse Rectangle to avoid allocation
     public void checkTile(Entity entity) {
 
-        Rectangle future = new Rectangle(
-            entity.worldX + entity.solidArea.x,
-            entity.worldY + entity.solidArea.y,
-            entity.solidArea.width,
-            entity.solidArea.height
-        );
+        tempRect.x = entity.worldX + entity.solidArea.x;
+        tempRect.y = entity.worldY + entity.solidArea.y;
+        tempRect.width = entity.solidArea.width;
+        tempRect.height = entity.solidArea.height;
 
         // Predict movement
         switch(entity.direction) {
-            case "up" -> future.y -= entity.speed;
-            case "down" -> future.y += entity.speed;
-            case "left" -> future.x -= entity.speed;
-            case "right" -> future.x += entity.speed;
+            case "up" -> tempRect.y -= entity.speed;
+            case "down" -> tempRect.y += entity.speed;
+            case "left" -> tempRect.x -= entity.speed;
+            case "right" -> tempRect.x += entity.speed;
         }
 
-        // Check against all collision rectangles
-        for (Rectangle r : gp.tileM.collisionRects) {
-            if (future.intersects(r)) {
+        // Check against collision rectangles (use cached size)
+        if (collisionRectsSize == 0) {
+            collisionRectsSize = gp.tileM.collisionRects.size();
+        }
+        
+        entity.collisionOn = false;
+        for (int i = 0; i < collisionRectsSize; i++) {
+            if (tempRect.intersects(gp.tileM.collisionRects.get(i))) {
                 entity.collisionOn = true;
                 break;
             }
         }
     }
 
-    // CollisionChecker.java
+    // OPTIMIZATION: Reuse Rectangle to avoid allocation
     public void checkTileNext(Entity entity, int nextX, int nextY) {
         entity.collisionOn = false;
     
         // Get entity bounds at the next position
-        Rectangle future = new Rectangle(nextX + entity.solidArea.x,
-                                         nextY + entity.solidArea.y,
-                                         entity.solidArea.width,
-                                         entity.solidArea.height);
+        tempRect.x = nextX + entity.solidArea.x;
+        tempRect.y = nextY + entity.solidArea.y;
+        tempRect.width = entity.solidArea.width;
+        tempRect.height = entity.solidArea.height;
         
-        // Check collision against every collision rectangle in the tile manager
-        for (Rectangle r : gp.tileM.collisionRects) {
-            if (future.intersects(r)) {
+        // Check collision against collision rectangles (use cached size)
+        if (collisionRectsSize == 0) {
+            collisionRectsSize = gp.tileM.collisionRects.size();
+        }
+        
+        for (int i = 0; i < collisionRectsSize; i++) {
+            if (tempRect.intersects(gp.tileM.collisionRects.get(i))) {
                 entity.collisionOn = true;
                 break;
             }
         }
     }
 
-    // ---------------- Object collision ----------------
+    // OPTIMIZATION: Reduce redundant coordinate modifications
     public int checkObject(Entity entity, boolean player) {
         int index = 999;
 
         for (int i = 0; i < gp.obj.length; i++) {
             if (gp.obj[i] != null) {
-                entity.solidArea.x = entity.worldX + entity.solidArea.x;
-                entity.solidArea.y = entity.worldY + entity.solidArea.y;
+                // Setup entity bounds
+                int entityX = entity.worldX + entity.solidArea.x;
+                int entityY = entity.worldY + entity.solidArea.y;
+                
+                // Setup object bounds
+                int objX = gp.obj[i].worldX + gp.obj[i].solidArea.x;
+                int objY = gp.obj[i].worldY + gp.obj[i].solidArea.y;
 
-                gp.obj[i].solidArea.x = gp.obj[i].worldX + gp.obj[i].solidArea.x;
-                gp.obj[i].solidArea.y = gp.obj[i].worldY + gp.obj[i].solidArea.y;
-
+                // Apply predicted movement
                 switch(entity.direction) {
-                    case "up" -> entity.solidArea.y -= entity.speed;
-                    case "down" -> entity.solidArea.y += entity.speed;
-                    case "left" -> entity.solidArea.x -= entity.speed;
-                    case "right" -> entity.solidArea.x += entity.speed;
+                    case "up" -> entityY -= entity.speed;
+                    case "down" -> entityY += entity.speed;
+                    case "left" -> entityX -= entity.speed;
+                    case "right" -> entityX += entity.speed;
                 }
 
-                if (entity.solidArea.intersects(gp.obj[i].solidArea)) {
+                // Check intersection
+                if (entityX < objX + gp.obj[i].solidArea.width &&
+                    entityX + entity.solidArea.width > objX &&
+                    entityY < objY + gp.obj[i].solidArea.height &&
+                    entityY + entity.solidArea.height > objY) {
                     if (gp.obj[i].collision) entity.collisionOn = true;
                     if (player) index = i;
                 }
-
-                entity.solidArea.x = entity.solidAreaDefaultX;
-                entity.solidArea.y = entity.solidAreaDefaultY;
-                gp.obj[i].solidArea.x = gp.obj[i].solidAreaDefaultX;
-                gp.obj[i].solidArea.y = gp.obj[i].solidAreaDefaultY;
             }
         }
 
         return index;
     }
 
-    // ---------------- Entity collision ----------------
+    // OPTIMIZATION: Reduce redundant coordinate modifications
     public int checkEntity(Entity entity, Entity[] target) {
         int index = 999;
 
         for (int i = 0; i < target.length; i++) {
             if (target[i] != null && target[i] != entity) {
-                entity.solidArea.x = entity.worldX + entity.solidArea.x;
-                entity.solidArea.y = entity.worldY + entity.solidArea.y;
-
-                target[i].solidArea.x = target[i].worldX + target[i].solidArea.x;
-                target[i].solidArea.y = target[i].worldY + target[i].solidArea.y;
-
-                switch(entity.direction) {
-                    case "up" -> entity.solidArea.y -= entity.speed;
-                    case "down" -> entity.solidArea.y += entity.speed;
-                    case "left" -> entity.solidArea.x -= entity.speed;
-                    case "right" -> entity.solidArea.x += entity.speed;
+                // skip dead/dying monsters so player can walk through
+                if (target[i].type == target[i].type_monster &&
+                    (target[i].dying || !target[i].alive)) {
+                    continue;
                 }
 
-                if (entity.solidArea.intersects(target[i].solidArea)) {
+                // Setup entity bounds
+                int entityX = entity.worldX + entity.solidArea.x;
+                int entityY = entity.worldY + entity.solidArea.y;
+                
+                // Setup target bounds
+                int targetX = target[i].worldX + target[i].solidArea.x;
+                int targetY = target[i].worldY + target[i].solidArea.y;
+
+                // Apply predicted movement
+                switch(entity.direction) {
+                    case "up" -> entityY -= entity.speed;
+                    case "down" -> entityY += entity.speed;
+                    case "left" -> entityX -= entity.speed;
+                    case "right" -> entityX += entity.speed;
+                }
+
+                // Check intersection
+                if (entityX < targetX + target[i].solidArea.width &&
+                    entityX + entity.solidArea.width > targetX &&
+                    entityY < targetY + target[i].solidArea.height &&
+                    entityY + entity.solidArea.height > targetY) {
                     entity.collisionOn = true;
                     index = i;
                 }
-
-                entity.solidArea.x = entity.solidAreaDefaultX;
-                entity.solidArea.y = entity.solidAreaDefaultY;
-                target[i].solidArea.x = target[i].solidAreaDefaultX;
-                target[i].solidArea.y = target[i].solidAreaDefaultY;
             }
         }
 
         return index;
     }
 
-    // ---------------- Player collision ----------------
+    // OPTIMIZATION: Reduce redundant coordinate modifications
     public boolean checkPlayer(Entity entity) {
         boolean contactPlayer = false;
 
-        entity.solidArea.x = entity.worldX + entity.solidArea.x;
-        entity.solidArea.y = entity.worldY + entity.solidArea.y;
+        // Setup entity bounds
+        int entityX = entity.worldX + entity.solidArea.x;
+        int entityY = entity.worldY + entity.solidArea.y;
+        
+        // Setup player bounds
+        int playerX = gp.player.worldX + gp.player.solidArea.x;
+        int playerY = gp.player.worldY + gp.player.solidArea.y;
 
-        gp.player.solidArea.x = gp.player.worldX + gp.player.solidArea.x;
-        gp.player.solidArea.y = gp.player.worldY + gp.player.solidArea.y;
-
+        // Apply predicted movement
         switch(entity.direction) {
-            case "up" -> entity.solidArea.y -= entity.speed;
-            case "down" -> entity.solidArea.y += entity.speed;
-            case "left" -> entity.solidArea.x -= entity.speed;
-            case "right" -> entity.solidArea.x += entity.speed;
+            case "up" -> entityY -= entity.speed;
+            case "down" -> entityY += entity.speed;
+            case "left" -> entityX -= entity.speed;
+            case "right" -> entityX += entity.speed;
         }
 
-        if (entity.solidArea.intersects(gp.player.solidArea)) {
+        // Check intersection
+        if (entityX < playerX + gp.player.solidArea.width &&
+            entityX + entity.solidArea.width > playerX &&
+            entityY < playerY + gp.player.solidArea.height &&
+            entityY + entity.solidArea.height > playerY) {
             entity.collisionOn = true;
             contactPlayer = true;
         }
-
-        entity.solidArea.x = entity.solidAreaDefaultX;
-        entity.solidArea.y = entity.solidAreaDefaultY;
-        gp.player.solidArea.x = gp.player.solidAreaDefaultX;
-        gp.player.solidArea.y = gp.player.solidAreaDefaultY;
 
         return contactPlayer;
     }

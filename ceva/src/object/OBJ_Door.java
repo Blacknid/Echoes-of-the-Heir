@@ -17,10 +17,10 @@ public class OBJ_Door extends Entity{
         down1 = setup("/res/objects/Door", gp.tileSize, gp.tileSize);
         collision = true;
 
-        solidArea.x = 0;
-        solidArea.y = 16;
-        solidArea.width = 64;
-        solidArea.height = 48;
+        solidArea.x = 8;   // Centered: 8px left + 48px width + 8px right = 64
+        solidArea.y = 12;  // Top offset for door frame
+        solidArea.width = 48;  // Door frame width
+        solidArea.height = 52; // Door frame height
         solidAreaDefaultX = solidArea.x;
         solidAreaDefaultY = solidArea.y;
 

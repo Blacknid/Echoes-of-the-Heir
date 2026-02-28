@@ -15,6 +15,14 @@ public class interactiveTile extends Entity {
         this.gp = gp;
         this.worldX = gp.tileSize * col;
         this.worldY = gp.tileSize * row;
+        
+        // DEFAULT HITBOX: Full tile hitbox (48x48) centered on 64x64 tile
+        solidArea.x = 8;   // 8px left + 48px width + 8px right = 64
+        solidArea.y = 8;   // 8px top + 48px height + 8px bottom = 64
+        solidArea.width = 48;
+        solidArea.height = 48;
+        solidAreaDefaultX = solidArea.x;
+        solidAreaDefaultY = solidArea.y;
     }
 
     // By default, no weapon destroys it

@@ -22,6 +22,15 @@ public class OBJ_Arrow extends Projectile {
         attack = 2;
         useCost = 1;
         alive = false;
+        
+        // HITBOX: Small arrow hitbox (16x16) for 32x32 sprite, centered
+        solidArea.x = 8;   // 8px left + 16px width + 8px right = 32
+        solidArea.y = 8;   // Centered
+        solidArea.width = 16;
+        solidArea.height = 16;
+        solidAreaDefaultX = solidArea.x;
+        solidAreaDefaultY = solidArea.y;
+        
         getImage();
     }
 

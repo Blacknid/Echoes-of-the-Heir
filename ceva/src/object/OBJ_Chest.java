@@ -21,10 +21,10 @@ public class OBJ_Chest extends Entity{
         down1 = image;
         collision = true;
 
-        solidArea.x = 4;   
-        solidArea.y = 16;
-        solidArea.width = 56;
-        solidArea.height = 48;
+        solidArea.x = 8;   // Centered: 8px left + 48px width + 8px right = 64
+        solidArea.y = 12;  // Top offset for chest lid area
+        solidArea.width = 48;  // Chest width
+        solidArea.height = 52; // Chest body height
         solidAreaDefaultX = solidArea.x;
         solidAreaDefaultY = solidArea.y;
 
