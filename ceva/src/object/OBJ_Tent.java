@@ -32,6 +32,10 @@ public class OBJ_Tent extends Entity {
         
         // 1. Play Sound
         gp.playSE(2); 
+
+        gp.obj[0] = new OBJ_Tent(gp);
+        gp.obj[0].worldX = (gp.player.worldX + gp.player.solidArea.x) / gp.tileSize + 2 * gp.tileSize;
+        gp.obj[0].worldY = (gp.player.worldY + gp.player.solidArea.y) / gp.tileSize + 2 * gp.tileSize;
         
         // 2. Restore Player Stats
         gp.player.life = gp.player.maxLife;
@@ -46,7 +50,6 @@ public class OBJ_Tent extends Entity {
 
         // 4. Feedback
         gp.ui.addMessage("You slept until morning.", Color.WHITE);
-        
-        return true; // Return true to consume the item
+        return true;
     }
 }

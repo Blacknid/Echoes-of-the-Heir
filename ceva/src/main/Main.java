@@ -32,8 +32,12 @@ public class Main {
 
     }
     public void setIcon() {
-
-        ImageIcon icon = new ImageIcon(getClass().getClassLoader().getResource("res/icon.png"));
-        window.setIconImage(icon.getImage());
+        java.net.URL iconUrl = Main.class.getResource("/res/icon.png");
+        if (iconUrl != null) {
+            ImageIcon icon = new ImageIcon(iconUrl);
+            window.setIconImage(icon.getImage());
+        } else {
+            System.out.println("Warning: icon not found at /res/icon.png");
+        }
     }
 }

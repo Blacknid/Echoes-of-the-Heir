@@ -237,75 +237,99 @@ public class GamePanel extends JPanel implements Runnable{
 
     public void update() {
 
-        if(gameState == playState) {
-            // PLAYER
-            player.update();
-            // NPC
-            for ( int i = 0 ; i < npc.length; i++ ) {
-                if ( npc[i] != null ) {
-                    // OPTIMIZATION: Only update NPCs that are in or near viewport
-                    if (isEntityInViewport(npc[i], tileSize * 2)) {
-                        npc[i].update();
-                    }
-                }
-            }
-            // MONSTER
-            for ( int i = 0 ; i < monster.length ; i++ ) {
-                if ( monster[i] != null ) {
-                    if ( monster[i].alive == true && monster[i].dying == false ) {
-                        // OPTIMIZATION: Only update monsters that are in or near viewport
-                        if (isEntityInViewport(monster[i], tileSize * 2)) {
-                            monster[i].update();
-                        }
-                    }
-                    if ( monster[i].alive == false ) {
-                        monster[i] = null;
-                    }
-                }
-            }
-            // OPTIMIZATION: Use backwards iteration to safely remove while iterating
-            for ( int i = projectilesList.size() - 1 ; i >= 0 ; i-- ) {
-                Entity proj = projectilesList.get(i);
-                if (proj != null) {
-                    if (proj.alive == true) {
-                        proj.update();
-                    } else {
-                        projectilesList.remove(i);
-                        // OPTIMIZATION: Return projectile to pool for reuse
-                        projectilePool.release((Projectile) proj);
-                    }
-                }
-            }
-            // OPTIMIZATION: Use backwards iteration to safely remove while iterating
-            for ( int i = particleList.size() - 1 ; i >= 0 ; i-- ) {
-                Entity particle = particleList.get(i);
-                if (particle != null) {
-                    if (particle.alive == true) {
-                        particle.update();
-                    } else {
-                        particleList.remove(i);
-                        // OPTIMIZATION: Return particle to pool for reuse
-                        particlePool.release((Particle) particle);
-                    }
-                }
-            }
-            for ( int i = 0 ; i < iTile.length ; i++ ) {
-                if ( iTile[i] != null ) {
-                    iTile[i].update();
-                }
-            }
-            eManager.update();
+        switch (gameState) {
+            case playState:
+                updatePlayState();
+                break;
+            case titleState:
+            case pauseState:
+            case dialogueState:
+            case characterState:
+            case optionsState:
+            case gameOverState:
+            case cutsceneState:
+            default:
+                break;
         }
-            if (player.life <= 0) {
-            player.life = 0; // safety clamp
 
-            gameState = gameOverState;
-            ui.commandNum = 0;
+        updatePlayerLifeState();
+    }
 
-            stopMusic();
-            if (!deathSoundPlayed) {
+    private void updatePlayState() {
+        // PLAYER
+        player.update();
+
+        // NPC
+        for (int i = 0; i < npc.length; i++) {
+            if (npc[i] != null) {
+                // OPTIMIZATION: Only update NPCs that are in or near viewport
+                if (isEntityInViewport(npc[i], tileSize * 2)) {
+                    npc[i].update();
+                }
+            }
+        }
+
+        // MONSTER
+        for (int i = 0; i < monster.length; i++) {
+            if (monster[i] != null) {
+                if (monster[i].alive == true && monster[i].dying == false) {
+                    // OPTIMIZATION: Only update monsters that are in or near viewport
+                    if (isEntityInViewport(monster[i], tileSize * 2)) {
+                        monster[i].update();
+                    }
+                }
+                if (monster[i].alive == false) {
+                    monster[i] = null;
+                }
+            }
+        }
+
+        // OPTIMIZATION: Use backwards iteration to safely remove while iterating
+        for (int i = projectilesList.size() - 1; i >= 0; i--) {
+            Entity proj = projectilesList.get(i);
+            if (proj != null) {
+                if (proj.alive == true) {
+                    proj.update();
+                } else {
+                    projectilesList.remove(i);
+                    // OPTIMIZATION: Return projectile to pool for reuse
+                    projectilePool.release((Projectile) proj);
+                }
+            }
+        }
+
+        // OPTIMIZATION: Use backwards iteration to safely remove while iterating
+        for (int i = particleList.size() - 1; i >= 0; i--) {
+            Entity particle = particleList.get(i);
+            if (particle != null) {
+                if (particle.alive == true) {
+                    particle.update();
+                } else {
+                    particleList.remove(i);
+                    // OPTIMIZATION: Return particle to pool for reuse
+                    particlePool.release((Particle) particle);
+                }
+            }
+        }
+
+        for (int i = 0; i < iTile.length; i++) {
+            if (iTile[i] != null) {
+                iTile[i].update();
+            }
+        }
+
+        eManager.update();
+    }
+
+    private void updatePlayerLifeState() {
+        if (player.life <= 0) {
+            // Only trigger game over transition ONCE
+            if (gameState != gameOverState) {
+                gameState = gameOverState;
+                player.life = 0; // safety clamp
+                ui.commandNum = 0; // Reset menu selection
+                stopMusic();
                 playSE(4);
-                deathSoundPlayed = true;
             }
         }
     }
@@ -336,96 +360,51 @@ public class GamePanel extends JPanel implements Runnable{
         drawStart = System.nanoTime();
     }
 
-    // TITLE SCREEN
-    if (gameState == titleState) {
-        ui.draw(g2);
+    drawCurrentState();
+
+    // DEBUG TEXT
+    if(keyH.showDebugText == true ) {
+        long drawEnd = System.nanoTime();
+        long passed = drawEnd - drawStart;
+
+        g2.setFont(new Font("Arial",Font.PLAIN, 20));
+        g2.setColor(Color.WHITE);
+        int x = 10;
+        int y = 400;
+        int lineHeigh = 20;
+
+        g2.drawString("FPS: " + currentFPS, x, y); y += lineHeigh;
+        g2.drawString("WorldX" + player.worldX, x, y); y += lineHeigh;
+        g2.drawString("WorldY" + player.worldY, x, y); y += lineHeigh;
+        g2.drawString("Col" + (player.worldX + player.solidArea.x) / tileSize, x, y); y += lineHeigh;
+        g2.drawString("Row" + (player.worldY + player.solidArea.y) / tileSize, x, y); y += lineHeigh;
     }
-    // OTHERS
-    else {
+}
+
+    private void drawCurrentState() {
+        switch (gameState) {
+            case titleState:
+                ui.draw(g2);
+                break;
+            case playState:
+            case pauseState:
+            case dialogueState:
+            case characterState:
+            case optionsState:
+            case gameOverState:
+            case cutsceneState:
+            default:
+                drawWorldState();
+                break;
+        }
+    }
+
+    private void drawWorldState() {
 
         // TILE
         tileM.draw(g2);
 
-        // OPTIMIZATION: Reuse entityList by tracking index instead of add/clear
-        entityListIndex = 0;
-        
-        // ADD ENTITIES TO THE LIST (using indexed insertion)
-        if (entityListIndex < entityList.size()) {
-            entityList.set(entityListIndex, player);
-        } else {
-            entityList.add(player);
-        }
-        entityListIndex++;
-
-        for ( int i = 0 ; i < npc.length ; i++ ) {
-            if ( npc[i] != null ) {
-                if (entityListIndex < entityList.size()) {
-                    entityList.set(entityListIndex, npc[i]);
-                } else {
-                    entityList.add(npc[i]);
-                }
-                entityListIndex++;
-            }
-        }
-
-        for ( int i = 0 ; i < obj.length ; i++ ) {
-            if ( obj[i] != null ) {
-                if (entityListIndex < entityList.size()) {
-                    entityList.set(entityListIndex, obj[i]);
-                } else {
-                    entityList.add(obj[i]);
-                }
-                entityListIndex++;
-            }
-        }
-
-        for ( int i = 0 ; i < monster.length ; i++ ) {
-            if ( monster[i] != null ) {
-                if (entityListIndex < entityList.size()) {
-                    entityList.set(entityListIndex, monster[i]);
-                } else {
-                    entityList.add(monster[i]);
-                }
-                entityListIndex++;
-            }
-        }
-
-        int projSize = projectilesList.size();
-        for ( int i = 0 ; i < projSize ; i++ ) {
-            Entity proj = projectilesList.get(i);
-            if (proj != null) {
-                if (entityListIndex < entityList.size()) {
-                    entityList.set(entityListIndex, proj);
-                } else {
-                    entityList.add(proj);
-                }
-                entityListIndex++;
-            }
-        }
-
-        int partSize = particleList.size();
-        for ( int i = 0 ; i < partSize ; i++ ) {
-            Entity particle = particleList.get(i);
-            if (particle != null) {
-                if (entityListIndex < entityList.size()) {
-                    entityList.set(entityListIndex, particle);
-                } else {
-                    entityList.add(particle);
-                }
-                entityListIndex++;
-            }
-        }
-
-        for ( int i = 0 ; i < iTile.length ; i++ ) {
-            if ( iTile[i] != null ) {
-                if (entityListIndex < entityList.size()) {
-                    entityList.set(entityListIndex, iTile[i]);
-                } else {
-                    entityList.add(iTile[i]);
-                }
-                entityListIndex++;
-            }
-        }
+        collectRenderableEntities();
 
         // SORT (only sort the active portion of the list)
         Collections.sort(entityList.subList(0, entityListIndex), renderSorter);
@@ -434,23 +413,19 @@ public class GamePanel extends JPanel implements Runnable{
         for (int i = 0; i < entityListIndex; i++) {
             entityList.get(i).draw(g2);
         }
-        
-        // Clear only the used portion of the list for next frame
-        for (int i = 0; i < entityListIndex; i++) {
-            entityList.set(i, null);
-        }
 
-        // CUTSCENE 
+        clearRenderableEntities();
+
+        // CUTSCENE
         csManager.draw(g2);
 
-        //ENVIRONMENT
+        // ENVIRONMENT
         eManager.draw(g2);
 
         // UI
         ui.draw(g2);
 
-        // DEBUG HITBOX START
-        if ( HitBoxes == true ) {
+        if (HitBoxes == true) {
     
             g2.setColor(new Color(255, 0, 0, 128)); // red semi-transparent
 
@@ -588,27 +563,70 @@ public class GamePanel extends JPanel implements Runnable{
                 }
             }
         }
-        // DEBUG HITBOX END
     }
 
-    // DEBUG TEXT
-    if(keyH.showDebugText == true ) {
-        long drawEnd = System.nanoTime();
-        long passed = drawEnd - drawStart;
+    private void collectRenderableEntities() {
+        // OPTIMIZATION: Reuse entityList by tracking index instead of add/clear
+        entityListIndex = 0;
 
-        g2.setFont(new Font("Arial",Font.PLAIN, 20));
-        g2.setColor(Color.WHITE);
-        int x = 10;
-        int y = 400;
-        int lineHeigh = 20;
+        addToRenderList(player);
 
-        g2.drawString("FPS: " + currentFPS, x, y); y += lineHeigh;
-        g2.drawString("WorldX" + player.worldX, x, y); y += lineHeigh;
-        g2.drawString("WorldY" + player.worldY, x, y); y += lineHeigh;
-        g2.drawString("Col" + (player.worldX + player.solidArea.x) / tileSize, x, y); y += lineHeigh;
-        g2.drawString("Row" + (player.worldY + player.solidArea.y) / tileSize, x, y); y += lineHeigh;
+        for (int i = 0; i < npc.length; i++) {
+            if (npc[i] != null) {
+                addToRenderList(npc[i]);
+            }
+        }
+
+        for (int i = 0; i < obj.length; i++) {
+            if (obj[i] != null) {
+                addToRenderList(obj[i]);
+            }
+        }
+
+        for (int i = 0; i < monster.length; i++) {
+            if (monster[i] != null) {
+                addToRenderList(monster[i]);
+            }
+        }
+
+        int projSize = projectilesList.size();
+        for (int i = 0; i < projSize; i++) {
+            Entity proj = projectilesList.get(i);
+            if (proj != null) {
+                addToRenderList(proj);
+            }
+        }
+
+        int partSize = particleList.size();
+        for (int i = 0; i < partSize; i++) {
+            Entity particle = particleList.get(i);
+            if (particle != null) {
+                addToRenderList(particle);
+            }
+        }
+
+        for (int i = 0; i < iTile.length; i++) {
+            if (iTile[i] != null) {
+                addToRenderList(iTile[i]);
+            }
+        }
     }
-}
+
+    private void addToRenderList(Entity entity) {
+        if (entityListIndex < entityList.size()) {
+            entityList.set(entityListIndex, entity);
+        } else {
+            entityList.add(entity);
+        }
+        entityListIndex++;
+    }
+
+    private void clearRenderableEntities() {
+        // Clear only the used portion of the list for next frame
+        for (int i = 0; i < entityListIndex; i++) {
+            entityList.set(i, null);
+        }
+    }
 
 
     public void drawToScreen() {
