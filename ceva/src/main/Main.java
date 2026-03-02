@@ -14,7 +14,7 @@ public class Main {
         window.setTitle("Type Shit !");
         new Main().setIcon();
 
-        GamePanel gamePanel = new GamePanel(); 
+        GamePanel gamePanel = new GamePanel();
         window.add(gamePanel);
 
         gamePanel.config.loadConfig();
