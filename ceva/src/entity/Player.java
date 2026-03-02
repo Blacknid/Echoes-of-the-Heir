@@ -442,7 +442,8 @@ package entity; import java.awt.AlphaComposite; import java.awt.Color; import ja
             }
             gp.playSE(8);
             int damage = gp.monster[i].attack - defense;
-            generateParticle(this, gp.monster[i]);
+            // Only player bleeds when taking damage (removed generateParticle for monster)
+            bleed(); // Generate blood particles on player
             if (damage < 1) {
                 damage = 1;
             }
@@ -461,6 +462,26 @@ package entity; import java.awt.AlphaComposite; import java.awt.Color; import ja
             if (kb < 1) kb = 1;
             knockBack(this, kb, gp.monster[i].worldX, gp.monster[i].worldY);
         }
+    }
+
+    /**
+     * Generate extra blood particles when player takes damage
+     */
+    public void bleed() {
+        // Generate 3 additional blood particles around the player
+        Color bloodColor = new Color(200, 20, 20);
+        
+        Particle p1 = gp.particlePool.get();
+        p1.setWithPosition(this, this, bloodColor, 8, 2, 25, -1, -2);
+        gp.particleList.add(p1);
+        
+        Particle p2 = gp.particlePool.get();
+        p2.setWithPosition(this, this, bloodColor, 8, 2, 25, 1, -2);
+        gp.particleList.add(p2);
+        
+        Particle p3 = gp.particlePool.get();
+        p3.setWithPosition(this, this, bloodColor, 6, 1, 20, 0, -1);
+        gp.particleList.add(p3);
     }
 
     // Interaction methods
@@ -772,32 +793,31 @@ package entity; import java.awt.AlphaComposite; import java.awt.Color; import ja
         if (dashParticle) {
             return new Color(150, 150, 150); // gray dust for dash
         }
-        Color color = new Color(255, 50, 0);
-        return color;
+        // Blood red for damage
+        return new Color(200, 20, 20);
     }
 
     public int getParticleSize() {
         if (dashParticle) {
             return 6; // smaller for dash
         }
-        int size = 10; // pixels
-        return size;
+        // Larger particles for more visible bleeding
+        return 12; // pixels
     }
 
     public int getParticleSpeed() {
         if (dashParticle) {
             return 2; // faster for dash
         }
-        int speed = 1;
-        return speed;
+        return 1;
     }
 
     public int getParticleMaxLife() {
         if (dashParticle) {
             return 15; // shorter life for dash
         }
-        int maxLife = 20;
-        return maxLife;
+        // Longer lasting blood particles
+        return 30;
     }
 
     public Color getParticleColor1() {

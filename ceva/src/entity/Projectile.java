@@ -1,10 +1,11 @@
 package entity;
 
 import main.GamePanel;
+import main.ObjectPool.Poolable;
 import java.awt.image.BufferedImage;
 import java.awt.Graphics2D;
 
-public class Projectile extends Entity {
+public class Projectile extends Entity implements Poolable {
 
     Entity user;
 
@@ -90,4 +91,17 @@ public class Projectile extends Entity {
         return rotated;
     }
     public void subtractResource(Entity user) {}
+
+    @Override
+    public void reset() {
+        // Reset projectile to safe state for reuse
+        alive = false;
+        user = null;
+        life = 0;
+        worldX = 0;
+        worldY = 0;
+        direction = "down";
+        spriteNum = 1;
+        spriteCounter = 0;
+    }
 }

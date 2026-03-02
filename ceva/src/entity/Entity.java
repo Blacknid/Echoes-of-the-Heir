@@ -220,13 +220,22 @@ public class Entity {
         int speed = generator.getParticleSpeed();
         int maxLife = generator.getParticleMaxLife();
 
-        Particle p1 = new Particle(gp, generator, color, size, speed, maxLife, -1, -1);
-        Particle p2 = new Particle(gp, generator, color, size, speed, maxLife, 0, -1);
-        Particle p3 = new Particle(gp, generator, color, size, speed, maxLife, 1, -1);
-        Particle p4 = new Particle(gp, generator, color, size, speed, maxLife, 0, 1);
+        // OPTIMIZATION: Use particle pool instead of creating new objects
+        // Position particles at the TARGET location (where hit occurred), not the generator
+        Particle p1 = gp.particlePool.get();
+        p1.setWithPosition(generator, target, color, size, speed, maxLife, -1, -1);
         gp.particleList.add(p1);
+        
+        Particle p2 = gp.particlePool.get();
+        p2.setWithPosition(generator, target, color, size, speed, maxLife, 0, -1);
         gp.particleList.add(p2);
+        
+        Particle p3 = gp.particlePool.get();
+        p3.setWithPosition(generator, target, color, size, speed, maxLife, 1, -1);
         gp.particleList.add(p3);
+        
+        Particle p4 = gp.particlePool.get();
+        p4.setWithPosition(generator, target, color, size, speed, maxLife, 0, 1);
         gp.particleList.add(p4);
 
     } 

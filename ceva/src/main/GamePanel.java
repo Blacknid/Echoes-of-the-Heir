@@ -2,6 +2,8 @@ package main;
 
 import entity.Entity;
 import entity.Player;
+import entity.Projectile;
+import entity.Particle;
 import environment.EnvironmentManager;
 
 import java.awt.Color;
@@ -87,6 +89,10 @@ public class GamePanel extends JPanel implements Runnable{
     public ArrayList<Entity> projectilesList = new ArrayList<>();
     public ArrayList<Entity> particleList = new ArrayList<>();
     
+    // OPTIMIZATION: Object pools for reusable projectiles and particles
+    public ObjectPool<Projectile> projectilePool;
+    public ObjectPool<Particle> particlePool;
+    
     // OPTIMIZATION: Pre-allocate entityList with estimated capacity to reduce resizing
     ArrayList<Entity> entityList = new ArrayList<>(150);
     int entityListIndex = 0; // Track insertion point for efficient reuse
@@ -138,6 +144,21 @@ public class GamePanel extends JPanel implements Runnable{
 
     // OPTIMIZATION: Initialize collision cache
     cChecker.updateCollisionRectsCache();
+
+    // OPTIMIZATION: Initialize object pools for projectiles and particles
+    // Pool config: initial size = 20, expand by 10 when empty
+    projectilePool = new ObjectPool<>(
+        () -> new Projectile(this),
+        20,  // initial pool size
+        10   // expand size
+    );
+    
+    // Pool config: initial size = 40 (particles created 4 at a time), expand by 20
+    particlePool = new ObjectPool<>(
+        () -> new Particle(this, null, null, 0, 0, 0, 0, 0),
+        40,  // initial pool size
+        20   // expand size
+    );
 
     tempScreen = new BufferedImage(screenWidth, screenHeight, BufferedImage.TYPE_INT_ARGB);
     g2 = (Graphics2D) tempScreen.getGraphics();
@@ -222,14 +243,20 @@ public class GamePanel extends JPanel implements Runnable{
             // NPC
             for ( int i = 0 ; i < npc.length; i++ ) {
                 if ( npc[i] != null ) {
-                    npc[i].update();
+                    // OPTIMIZATION: Only update NPCs that are in or near viewport
+                    if (isEntityInViewport(npc[i], tileSize * 2)) {
+                        npc[i].update();
+                    }
                 }
             }
             // MONSTER
             for ( int i = 0 ; i < monster.length ; i++ ) {
                 if ( monster[i] != null ) {
                     if ( monster[i].alive == true && monster[i].dying == false ) {
-                        monster[i].update();
+                        // OPTIMIZATION: Only update monsters that are in or near viewport
+                        if (isEntityInViewport(monster[i], tileSize * 2)) {
+                            monster[i].update();
+                        }
                     }
                     if ( monster[i].alive == false ) {
                         monster[i] = null;
@@ -244,6 +271,8 @@ public class GamePanel extends JPanel implements Runnable{
                         proj.update();
                     } else {
                         projectilesList.remove(i);
+                        // OPTIMIZATION: Return projectile to pool for reuse
+                        projectilePool.release((Projectile) proj);
                     }
                 }
             }
@@ -255,6 +284,8 @@ public class GamePanel extends JPanel implements Runnable{
                         particle.update();
                     } else {
                         particleList.remove(i);
+                        // OPTIMIZATION: Return particle to pool for reuse
+                        particlePool.release((Particle) particle);
                     }
                 }
             }
@@ -278,6 +309,26 @@ public class GamePanel extends JPanel implements Runnable{
             }
         }
     }
+
+    /**
+     * OPTIMIZATION: Check if an entity is within viewport range (with margin buffer).
+     * Only entities on or near the screen need their update() called.
+     * @param entity The entity to check
+     * @param margin Extra distance beyond screen boundaries to include (for smooth transitions)
+     * @return true if the entity should be updated
+     */
+    public boolean isEntityInViewport(Entity entity, int margin) {
+        int minX = player.worldX - player.screenX - margin;
+        int maxX = player.worldX - player.screenX + screenWidth + margin;
+        int minY = player.worldY - player.screenY - margin;
+        int maxY = player.worldY - player.screenY + screenHeight + margin;
+        
+        return entity.worldX + tileSize > minX &&
+               entity.worldX < maxX &&
+               entity.worldY + tileSize > minY &&
+               entity.worldY < maxY;
+    }
+
     public void drawToTempScreen() {
     //DEBUG
     long drawStart = 0;
