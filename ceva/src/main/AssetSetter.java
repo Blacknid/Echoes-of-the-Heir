@@ -27,12 +27,19 @@ public class AssetSetter {
         
         gp.iTile[i] = new IT_Coins(gp, 69, 30);
         i++;
+        // Example: stepping on tile (69,30) will transition to 'test' spawn (1,1)
+        gp.eHandler.registerMapTransition(69, 30, "test", 1, 1);
          
     }
 
     public void setObject() {
 
         int i = 0;
+
+        // Example: register additional maps (users can add their own files under /res/maps)
+        gp.registerMap("harta", "/res/maps/harta.tmx");
+        // Test map used for transition checks
+        gp.registerMap("test", "/res/maps/test.tmx");
 
         gp.obj[i] = new OBJ_Chest(gp);
         gp.obj[i].worldX = 43 * gp.tileSize;
@@ -53,6 +60,8 @@ public class AssetSetter {
         gp.obj[i] = new OBJ_Door(gp);
         gp.obj[i].worldX = (int)(8.08 * gp.tileSize);
         gp.obj[i].worldY = 21 * gp.tileSize;
+        // this door is a portal that leads to the registered map id 'test' and requires a key
+        ((OBJ_Door)gp.obj[i]).setPortal("test", true);
         i++;
         
         gp.obj[i] = new OBJ_Potion(gp);
@@ -87,6 +96,8 @@ public class AssetSetter {
         gp.obj[i] = new OBJ_Door(gp);
         gp.obj[i].worldX = 24 * gp.tileSize;
         gp.obj[i].worldY = 25 * gp.tileSize;
+        // unlocked door example: no key required
+        ((OBJ_Door)gp.obj[i]).setDestination("room2", 2, 2, false);
         i++;
         
         gp.obj[i] = new OBJ_Door(gp);

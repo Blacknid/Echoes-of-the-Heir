@@ -1,4 +1,5 @@
 package main;
+import java.util.Timer;
 
 import entity.Entity;
 import entity.Player;
@@ -24,6 +25,8 @@ import ai.PathFinder;
 import data.SaveLoad;
 import tile.TileManager;
 import tiles_interactive.interactiveTile;
+import java.util.HashMap;
+import java.util.Map;
 
 public class GamePanel extends JPanel implements Runnable{
 
@@ -77,6 +80,8 @@ public class GamePanel extends JPanel implements Runnable{
     public PathFinder pFinder = new PathFinder(this);
     public EnvironmentManager eManager = new EnvironmentManager(this);
     SaveLoad saveLoad = new SaveLoad(this);
+    // Map registry: id -> tmx path
+    public Map<String, String> mapRegistry = new HashMap<>();
     Thread gameThread;
     public boolean loadingGame = false;
 
@@ -115,11 +120,17 @@ public class GamePanel extends JPanel implements Runnable{
     public final int optionsState = 5;
     public final int gameOverState = 6;
     public final int cutsceneState = 7;
+    public final int transitionState = 8;
 
     //ABILITY
     public boolean teleportation = false;
     public boolean bootsUnlocked = false;
     public boolean deathSoundPlayed = false;
+
+    // TRANSITION
+    public String nextMapId;
+    public int nextCol;
+    public int nextRow;
 
     public GamePanel() {
 
@@ -133,6 +144,8 @@ public class GamePanel extends JPanel implements Runnable{
     public void setupGame() {
 
     if (!loadingGame) {
+        // register default map id for convenience
+        registerMap("harta", "/res/maps/harta.tmx");
         aSetter.setObject(); // NEW GAME ONLY
         eManager.setup();
         aSetter.setInteractiveTile();
@@ -166,7 +179,53 @@ public class GamePanel extends JPanel implements Runnable{
     if (fullScreenOn) {
         setFullScreen();
     }
-}
+    }
+
+    public void registerMap(String id, String tmxPath) {
+        mapRegistry.put(id, tmxPath);
+    }
+
+    public void changeMap() {
+        changeMap(nextMapId, nextCol, nextRow);
+    }
+
+    public void changeMap(String mapIdOrPath, int spawnCol, int spawnRow) {
+        String path = mapRegistry.getOrDefault(mapIdOrPath, mapIdOrPath);
+        // load new map layers and collision layer
+        tileM.mapLayers.clear();
+        tileM.loadMapFromTMX(path);
+        tileM.loadCollisionLayer(path);
+
+        // Update collision cache used by CollisionChecker
+        cChecker.updateCollisionRectsCache();
+
+        // Reset any cached viewport calculations in TileManager (if present)
+        // (TileManager caches nothing critical here but clear any derived caches if added later)
+
+        // Clear existing entities
+        for (int i = 0; i < obj.length; i++) obj[i] = null;
+        for (int i = 0; i < npc.length; i++) npc[i] = null;
+        for (int i = 0; i < monster.length; i++) monster[i] = null;
+        for (int i = 0; i < iTile.length; i++) iTile[i] = null;
+        projectilesList.clear();
+        particleList.clear();
+
+        // Recreate map-specific content
+        aSetter.setObject();
+        aSetter.setInteractiveTile();
+        aSetter.setNPC();
+        aSetter.setMonster();
+
+        // Place player at spawn position (centered on tile)
+        player.worldX = spawnCol * tileSize;
+        player.worldY = spawnRow * tileSize;
+
+        // Reset event handler to pick up new events
+        eHandler.reset();
+
+        // Ensure game is back in play state
+        gameState = playState;
+    }
 
     public void resetGame(boolean restart) {
 

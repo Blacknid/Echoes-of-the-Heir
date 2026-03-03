@@ -1,6 +1,7 @@
 package main;
 
 import java.awt.AlphaComposite;
+import java.util.Timer;
 import java.awt.Color;
 import java.awt.Graphics2D;
 
@@ -159,6 +160,7 @@ public class CutsceneManager {
 
         boolean counterReached = false;
 
+        
         counter++;
         if ( counter > target ) {
             counterReached = true;

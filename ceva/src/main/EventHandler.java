@@ -1,6 +1,8 @@
 package main;
 
 import entity.Entity;
+import java.util.HashMap;
+import java.util.Map;
 
 public class EventHandler{
 
@@ -10,6 +12,8 @@ public class EventHandler{
 
     int previousEventX, previousEventY;
     boolean canTouchEvent = true;
+    // map transitions keyed by "col,row"
+    Map<String, MapTransition> mapTransitions = new HashMap<>();
 
     public EventHandler(GamePanel gp) {
         this.gp = gp;
@@ -38,6 +42,28 @@ public class EventHandler{
         }
         setDialogue();
     }
+    public void reset() {
+        // rebuild event rects (same logic as constructor)
+        eventRect = new EventRect[gp.maxWorldCol][gp.maxWorldRow];
+        int col = 0;
+        int row = 0;
+        while ( col < gp.maxWorldCol && row < gp.maxWorldRow ) {
+
+            eventRect[col][row] = new EventRect();
+            eventRect[col][row].x = 8;
+            eventRect[col][row].y = 8;
+            eventRect[col][row].width = gp.tileSize - 16;
+            eventRect[col][row].height = gp.tileSize - 16;
+            eventRect[col][row].eventRectDefaultX = eventRect[col][row].x;
+            eventRect[col][row].eventRectDefaultY = eventRect[col][row].y;
+
+            col++;
+            if ( col == gp.maxWorldCol ) {
+                col = 0;
+                row++;
+            }
+        }
+    }
     public void setDialogue() {
         
         eventMaster.dialogues[0][0] = "All your health and mana has been restored.\nYou feel refreshed.  \n( Game saved )";
@@ -57,7 +83,34 @@ public class EventHandler{
             // Healing pool
             if ( hit(54, 22, "any") == true ) {healingPool( gp.dialogueState ); }
 
+            // Map transitions: trigger immediate when stepping on tile
+            for (String key : mapTransitions.keySet()) {
+                String[] parts = key.split(",");
+                int col = Integer.parseInt(parts[0]);
+                int row = Integer.parseInt(parts[1]);
+                MapTransition mt = mapTransitions.get(key);
+                if ( hit(col, row, "any") == true ) {
+                    // perform transition
+                    gp.changeMap(mt.mapId, mt.spawnCol, mt.spawnRow);
+                    canTouchEvent = false;
+                    previousEventX = gp.player.worldX;
+                    previousEventY = gp.player.worldY;
+                    break;
+                }
+            }
+
         }      
+    }
+
+    public void registerMapTransition(int col, int row, String mapId, int spawnCol, int spawnRow) {
+        String key = col + "," + row;
+        mapTransitions.put(key, new MapTransition(mapId, spawnCol, spawnRow));
+    }
+
+    static class MapTransition {
+        String mapId;
+        int spawnCol, spawnRow;
+        MapTransition(String id, int sc, int sr){ mapId = id; spawnCol = sc; spawnRow = sr; }
     }
     public boolean hit(int col, int row, String reqDirection) {
 

@@ -38,6 +38,7 @@ public class UI {
     int counter = 0;
     public Entity npc;
     int charIndex = 0;
+    public float transitionAlpha = 0f;
     String combinedText = "";
 
 
@@ -126,6 +127,11 @@ public class UI {
         if(gp.gameState == gp.gameOverState){
             drawGameOverScreen();
         }
+        // TRANSITION STATE
+        if (gp.gameState == gp.transitionState) {
+            drawTransition(g2);
+        }
+
         if ( gp.gameState == gp.cutsceneState ) {
             drawDialogueScreen();
         }
@@ -1091,6 +1097,31 @@ public class UI {
                 commandNum = 4;
             }
         }
+    }
+    public void drawTransition(Graphics2D g2) {
+        // Phase 1: Fade to black
+        if (subState == 0) {
+            transitionAlpha += 0.02f; // Slower fade (50 frames)
+            if (transitionAlpha >= 1.0f) {
+                transitionAlpha = 1.0f;
+                // At peak darkness, trigger the map change
+                gp.changeMap();
+                subState = 1; // Move to fade-out phase
+            }
+        }
+        // Phase 2: Fade from black
+        else if (subState == 1) {
+            transitionAlpha -= 0.02f;
+            if (transitionAlpha <= 0f) {
+                transitionAlpha = 0f;
+                subState = 0; // Reset for next transition
+                gp.gameState = gp.playState; // Return to gameplay
+            }
+        }
+
+        // Draw the black rectangle with the current alpha
+        g2.setColor(new Color(0, 0, 0, transitionAlpha));
+        g2.fillRect(0, 0, gp.screenWidth, gp.screenHeight);
     }
     public void drawSubWindow(int x, int y, int width, int height) {
 
