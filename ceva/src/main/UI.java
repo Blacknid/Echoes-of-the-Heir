@@ -44,7 +44,7 @@ public class UI {
     public UI(GamePanel gp) {
         this.gp = gp;
 
-        arial_40 = new Font("Cambria", Font.PLAIN, 40);
+        arial_40 = new Font("Georgia", Font.PLAIN, 40);
         arial_80B = new Font("Arial", Font.BOLD, 80);
 
         // CREATE HUB OBJECT
@@ -317,37 +317,47 @@ public class UI {
             y += gp.tileSize*2;
             g2.drawImage(gp.player.down1, x, y, gp.tileSize*2, gp.tileSize*2, null);
 
-            // MENU
+            // VINTAGE MENU BUTTONS
             g2.setFont(g2.getFont().deriveFont(Font.BOLD,48F));
+            String[] menuItems = {"NEW GAME", "LOAD GAME", "QUIT"};
+            int buttonWidth = gp.tileSize * 6;
+            int buttonHeight = gp.tileSize;
+            int buttonX = gp.screenWidth/2 - buttonWidth/2;
+            // This offset is to position the round rect relative to the text's y-baseline
+            int buttonRectYoffset = -gp.tileSize + 20; 
 
-            text = "NEW GAME";
-            x = getXforCenteredText(text);
             y += gp.tileSize*3.5;
-            g2.setColor(new Color(255, 223, 128)); // Soft gold
-            g2.drawString(text, x, y);
-            if(commandNum == 0) {
-                g2.setColor(new Color(255, 215, 0)); // Bright gold selector
-                g2.drawString(">", x-gp.tileSize, y);
-            }
 
-            text = "LOAD GAME";
-            x = getXforCenteredText(text);
-            y += gp.tileSize;
-            g2.setColor(new Color(255, 223, 128)); // Soft gold
-            g2.drawString(text, x, y);
-            if(commandNum == 1) {
-                g2.setColor(new Color(255, 215, 0)); // Bright gold selector
-                g2.drawString(">", x-gp.tileSize, y);
-            }
+            for (int i = 0; i < menuItems.length; i++) {
+                text = menuItems[i];
+                x = getXforCenteredText(text);
+                
+                int currentButtonRectY = (int)y + buttonRectYoffset;
 
-            text = "QUIT";
-            x = getXforCenteredText(text);
-            y += gp.tileSize;
-            g2.setColor(new Color(255, 223, 128)); // Soft gold
-            g2.drawString(text, x, y);
-            if(commandNum == 2) {
-                g2.setColor(new Color(255, 215, 0)); // Bright gold selector
-                g2.drawString(">", x-gp.tileSize, y);
+                if (commandNum == i) {
+                    // Selected button style
+                    g2.setColor(new Color(255, 255, 255, 70)); // Brighter semi-transparent white
+                    g2.fillRoundRect(buttonX, currentButtonRectY, buttonWidth, buttonHeight, 25, 25);
+                    
+                    g2.setColor(new Color(255, 215, 0)); // Gold border
+                    g2.setStroke(new BasicStroke(3));
+                    g2.drawRoundRect(buttonX, currentButtonRectY, buttonWidth, buttonHeight, 25, 25);
+                    
+                    g2.setColor(new Color(255, 215, 0)); // Gold text
+                } else {
+                    // Unselected button style
+                    g2.setColor(new Color(0, 0, 0, 70)); // Darker semi-transparent black
+                    g2.fillRoundRect(buttonX, currentButtonRectY, buttonWidth, buttonHeight, 25, 25);
+                    
+                    g2.setColor(new Color(255, 223, 128)); // Soft gold text
+                }
+                
+                g2.setStroke(new BasicStroke(1)); // Reset stroke for other drawings
+                g2.drawString(text, x, (int)y);
+                
+                if (i < menuItems.length - 1) {
+                    y += gp.tileSize; // Move to next button position
+                }
             }
 
             // INFO MENU
@@ -1121,4 +1131,3 @@ public class UI {
 
     }
 }
-

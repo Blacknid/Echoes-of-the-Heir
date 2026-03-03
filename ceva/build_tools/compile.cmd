@@ -3,7 +3,7 @@ setlocal
 
 :: --- CONFIGURATION ---
 set APP_NAME=MichisAdventure
-set VERSION=1.0.0
+set VERSION=2.0
 set MAIN_CLASS=main.Main
 set JAR_NAME=Michi-s-adventure.jar
 

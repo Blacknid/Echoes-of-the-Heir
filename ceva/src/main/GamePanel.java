@@ -237,99 +237,75 @@ public class GamePanel extends JPanel implements Runnable{
 
     public void update() {
 
-        switch (gameState) {
-            case playState:
-                updatePlayState();
-                break;
-            case titleState:
-            case pauseState:
-            case dialogueState:
-            case characterState:
-            case optionsState:
-            case gameOverState:
-            case cutsceneState:
-            default:
-                break;
-        }
-
-        updatePlayerLifeState();
-    }
-
-    private void updatePlayState() {
-        // PLAYER
-        player.update();
-
-        // NPC
-        for (int i = 0; i < npc.length; i++) {
-            if (npc[i] != null) {
-                // OPTIMIZATION: Only update NPCs that are in or near viewport
-                if (isEntityInViewport(npc[i], tileSize * 2)) {
-                    npc[i].update();
-                }
-            }
-        }
-
-        // MONSTER
-        for (int i = 0; i < monster.length; i++) {
-            if (monster[i] != null) {
-                if (monster[i].alive == true && monster[i].dying == false) {
-                    // OPTIMIZATION: Only update monsters that are in or near viewport
-                    if (isEntityInViewport(monster[i], tileSize * 2)) {
-                        monster[i].update();
+        if(gameState == playState) {
+            // PLAYER
+            player.update();
+            // NPC
+            for ( int i = 0 ; i < npc.length; i++ ) {
+                if ( npc[i] != null ) {
+                    // OPTIMIZATION: Only update NPCs that are in or near viewport
+                    if (isEntityInViewport(npc[i], tileSize * 2)) {
+                        npc[i].update();
                     }
                 }
-                if (monster[i].alive == false) {
-                    monster[i] = null;
+            }
+            // MONSTER
+            for ( int i = 0 ; i < monster.length ; i++ ) {
+                if ( monster[i] != null ) {
+                    if ( monster[i].alive == true && monster[i].dying == false ) {
+                        // OPTIMIZATION: Only update monsters that are in or near viewport
+                        if (isEntityInViewport(monster[i], tileSize * 2)) {
+                            monster[i].update();
+                        }
+                    }
+                    if ( monster[i].alive == false ) {
+                        monster[i] = null;
+                    }
                 }
             }
-        }
-
-        // OPTIMIZATION: Use backwards iteration to safely remove while iterating
-        for (int i = projectilesList.size() - 1; i >= 0; i--) {
-            Entity proj = projectilesList.get(i);
-            if (proj != null) {
-                if (proj.alive == true) {
-                    proj.update();
-                } else {
-                    projectilesList.remove(i);
-                    // OPTIMIZATION: Return projectile to pool for reuse
-                    projectilePool.release((Projectile) proj);
+            // OPTIMIZATION: Use backwards iteration to safely remove while iterating
+            for ( int i = projectilesList.size() - 1 ; i >= 0 ; i-- ) {
+                Entity proj = projectilesList.get(i);
+                if (proj != null) {
+                    if (proj.alive == true) {
+                        proj.update();
+                    } else {
+                        projectilesList.remove(i);
+                        // OPTIMIZATION: Return projectile to pool for reuse
+                        projectilePool.release((Projectile) proj);
+                    }
                 }
             }
-        }
-
-        // OPTIMIZATION: Use backwards iteration to safely remove while iterating
-        for (int i = particleList.size() - 1; i >= 0; i--) {
-            Entity particle = particleList.get(i);
-            if (particle != null) {
-                if (particle.alive == true) {
-                    particle.update();
-                } else {
-                    particleList.remove(i);
-                    // OPTIMIZATION: Return particle to pool for reuse
-                    particlePool.release((Particle) particle);
+            // OPTIMIZATION: Use backwards iteration to safely remove while iterating
+            for ( int i = particleList.size() - 1 ; i >= 0 ; i-- ) {
+                Entity particle = particleList.get(i);
+                if (particle != null) {
+                    if (particle.alive == true) {
+                        particle.update();
+                    } else {
+                        particleList.remove(i);
+                        // OPTIMIZATION: Return particle to pool for reuse
+                        particlePool.release((Particle) particle);
+                    }
                 }
             }
-        }
-
-        for (int i = 0; i < iTile.length; i++) {
-            if (iTile[i] != null) {
-                iTile[i].update();
+            for ( int i = 0 ; i < iTile.length ; i++ ) {
+                if ( iTile[i] != null ) {
+                    iTile[i].update();
+                }
             }
+            eManager.update();
         }
+            if (player.life <= 0) {
+            player.life = 0; // safety clamp
 
-        eManager.update();
-    }
+            gameState = gameOverState;
+            ui.commandNum = 0;
 
-    private void updatePlayerLifeState() {
-        if (player.life <= 0) {
-            // Only trigger game over transition ONCE
-            if (gameState != gameOverState) {
-                gameState = gameOverState;
-                player.life = 0; // safety clamp
-                ui.commandNum = 0; // Reset menu selection
-                stopMusic();
+            stopMusic();
+            if (!deathSoundPlayed) {
                 playSE(4);
+                deathSoundPlayed = true;
             }
         }
     }
