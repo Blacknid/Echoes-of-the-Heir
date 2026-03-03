@@ -25,10 +25,14 @@ public class Entity {
     boolean hpBarOn = false;
 
     // SPRITES
-    public BufferedImage up1, up2, up3, up4, up5, up6, up7;
-    public BufferedImage down1, down2, down3, down4, down5, down6, down7;
-    public BufferedImage left1, left2, left3, left4, left5, left6, left7, left8;
-    public BufferedImage right1, right2, right3, right4, right5, right6, right7, right8;
+    public BufferedImage up1, up2, up3, up4, up5, up6, up7,
+        down1, down2, down3, down4, down5, down6, down7,
+        left1, left2, left3, left4, left5, left6, left7, left8,
+        right1, right2, right3, right4, right5, right6, right7, right8;
+    public BufferedImage upidle1, upidle2, upidle3, upidle4, upidle5, upidle6, 
+        downidle1, downidle2, downidle3, downidle4, downidle5, downidle6, 
+        leftidle1, leftidle2, leftidle3, leftidle4, leftidle5, leftidle6, 
+        rightidle1, rightidle2, rightidle3, rightidle4, rightidle5, rightidle6;
     public BufferedImage chest_1, chest_2;
     
     // ATTACK SPRITES
@@ -44,6 +48,9 @@ public class Entity {
     public int spriteCounter1 = 0;
     public int spriteNum = 1;
     public int spriteNum1 = 1;
+    public int walkFrameCount = 3;
+    public int animationFrameInterval = 8;
+    private int walkFrameDirection = 1;
     public int actionLockCounter = 0;
     public int invincibleCounter = 0;
     public int shotAvailableCounter = 0;
@@ -260,6 +267,9 @@ public class Entity {
             return;
         }
 
+        int previousWorldX = worldX;
+        int previousWorldY = worldY;
+
         setAction();
         checkCollision();
 
@@ -279,12 +289,34 @@ public class Entity {
         // IMPORTANT: If we just finished pathfinding, we don't want to keep moving.
         // The searchPath logic handles movement when onPath is true.
 
-        spriteCounter++;
-        if (spriteCounter > 12) {
-            if (spriteNum == 1) { spriteNum = 2; }
-            else if (spriteNum == 2) { spriteNum = 3; }
-            else if (spriteNum == 3) { spriteNum = 1; }
+        boolean movedThisFrame = worldX != previousWorldX || worldY != previousWorldY;
+
+        if (movedThisFrame) {
+            spriteCounter++;
+            if (spriteCounter > animationFrameInterval) {
+                int maxWalkFrames = Math.max(1, Math.min(walkFrameCount, 8));
+
+                if (maxWalkFrames == 1) {
+                    spriteNum = 1;
+                } else {
+                    spriteNum += walkFrameDirection;
+
+                    if (spriteNum >= maxWalkFrames) {
+                        spriteNum = maxWalkFrames;
+                        walkFrameDirection = -1;
+                    }
+                    if (spriteNum <= 1) {
+                        spriteNum = 1;
+                        walkFrameDirection = 1;
+                    }
+                }
+
+                spriteCounter = 0;
+            }
+        } else {
+            spriteNum = 1;
             spriteCounter = 0;
+            walkFrameDirection = 1;
         }
 
         if (invincible == true) {
@@ -313,25 +345,21 @@ public class Entity {
 
             switch (direction) {
                 case "up":
-                    if (spriteNum == 1) currentSprite = up1;
-                    if (spriteNum == 2) currentSprite = up2;
-                    if (spriteNum == 3) currentSprite = up3;
+                    currentSprite = getWalkFrameImage("up", spriteNum);
                     break;
                 case "down":
-                    if (spriteNum == 1) currentSprite = down1;
-                    if (spriteNum == 2) currentSprite = down2;
-                    if (spriteNum == 3) currentSprite = down3;
+                    currentSprite = getWalkFrameImage("down", spriteNum);
                     break;
                 case "left":
-                    if (spriteNum == 1) currentSprite = left1;
-                    if (spriteNum == 2) currentSprite = left2;
-                    if (spriteNum == 3) currentSprite = left3;
+                    currentSprite = getWalkFrameImage("left", spriteNum);
                     break;
                 case "right":
-                    if (spriteNum == 1) currentSprite = right1;
-                    if (spriteNum == 2) currentSprite = right2;
-                    if (spriteNum == 3) currentSprite = right3;
+                    currentSprite = getWalkFrameImage("right", spriteNum);
                     break;
+            }
+
+            if (currentSprite == null) {
+                currentSprite = getWalkFrameImage(direction, 1);
             }
 
             // Monster HP Bar
@@ -368,6 +396,37 @@ public class Entity {
             
             changeAlpha(g2, 1F);
         }
+    }
+
+    private BufferedImage getWalkFrameImage(String facing, int frame) {
+        return switch (facing) {
+            case "up" -> switch (frame) {
+                case 1 -> up1;  case 2 -> up2;case 3 -> up3;  case 4 -> up4;
+                case 5 -> up5;  case 6 -> up6;
+                case 7 -> up7;  default -> null;
+            };
+            case "down" -> switch (frame) {
+                case 1 -> down1;    case 2 -> down2;
+                case 3 -> down3;    case 4 -> down4;
+                case 5 -> down5;    case 6 -> down6;
+                case 7 -> down7;    default -> null;
+            };
+            case "left" -> switch (frame) {
+                case 1 -> left1;    case 2 -> left2;
+                case 3 -> left3;    case 4 -> left4;
+                case 5 -> left5;    case 6 -> left6;
+                case 7 -> left7;    case 8 -> left8;
+                default -> null;
+            };
+            case "right" -> switch (frame) {
+                case 1 -> right1;   case 2 -> right2;
+                case 3 -> right3;   case 4 -> right4;
+                case 5 -> right5;   case 6 -> right6;
+                case 7 -> right7;   case 8 -> right8;
+                default -> null;
+            };
+            default -> null;
+        };
     }
     
     public void dyingAnimation(Graphics2D g2) {
@@ -436,89 +495,123 @@ public class Entity {
         int startCol = (worldX + solidArea.x) / gp.tileSize;
         int startRow = (worldY + solidArea.y) / gp.tileSize;
 
+        // If already on the goal tile, stop pathfinding
+        if (startCol == goalCol && startRow == goalRow) {
+            onPath = false;
+            return;
+        }
+
         gp.pFinder.setNodes(startCol, startRow, goalCol, goalRow, this);
 
         // If path found
         if (gp.pFinder.search() == true) {
-            
+            if (gp.pFinder.pathList.isEmpty()) {
+                onPath = false;
+                return;
+            }
+
             // Next WorldX and WorldY
             int nextX = gp.pFinder.pathList.get(0).col * gp.tileSize;
             int nextY = gp.pFinder.pathList.get(0).row * gp.tileSize;
 
             // Entity's solidArea position
             int enLeftX = worldX + solidArea.x;
-            int enRightX = worldX + solidArea.x + solidArea.width;
             int enTopY = worldY + solidArea.y;
-            int enBottomY = worldY + solidArea.y + solidArea.height;
-
-            // 1. Vertical Movement
-            if (enTopY > nextY && enLeftX >= nextX && enRightX < nextX + gp.tileSize) {
-                worldY -= speed;
-                direction = "up";
-            }
-            else if (enTopY < nextY && enLeftX >= nextX && enRightX < nextX + gp.tileSize) {
-                worldY += speed;
-                direction = "down";
-            }
-            // Use standard logic but check collision carefully
-            else if (enTopY > nextY) {
-                direction = "up";
-                checkCollision();
-                if (collisionOn == false) { 
-                    worldY -= speed; 
-                }
-            }
-            else if (enTopY < nextY) {
-                direction = "down";
-                checkCollision();
-                if (collisionOn == false) { 
-                    worldY += speed; 
-                }
-            }
-
-            // 2. Horizontal Movement
-            if (enLeftX > nextX) {
-                direction = "left";
-                checkCollision();
-                if (collisionOn == false) { 
-                    worldX -= speed; 
-                }
-            }
-            else if (enLeftX < nextX) {
-                direction = "right";
-                checkCollision();
-                if (collisionOn == false) { 
-                    worldX += speed; 
-                }
-            }
-
-            // 3. Reset direction for correct sprite animation
-            int nextCenterX = nextX + gp.tileSize / 2;
-            int nextCenterY = nextY + gp.tileSize / 2;
             int enCenterX = enLeftX + solidArea.width / 2;
             int enCenterY = enTopY + solidArea.height / 2;
-            
+
+            // Calculate distance to next waypoint center
+            int nextCenterX = nextX + gp.tileSize / 2;
+            int nextCenterY = nextY + gp.tileSize / 2;
             int dx = Math.abs(nextCenterX - enCenterX);
             int dy = Math.abs(nextCenterY - enCenterY);
 
-            if (dx > dy) {
-                if (enCenterX > nextCenterX) direction = "left";
-                else direction = "right";
-            } else if (dx < dy) {
-                if (enCenterY > nextCenterY) direction = "up";
-                else direction = "down";
+            // Check if we've reached the current waypoint (within speed threshold)
+            if (dx <= speed + 1 && dy <= speed + 1) {
+                // Snap and move to next waypoint
+                gp.pFinder.pathList.remove(0);
+                if (gp.pFinder.pathList.isEmpty()) {
+                    onPath = false;
+                }
+                return;
             }
 
-            // 4. Check if reached the GOAL
-            int nextCol = gp.pFinder.pathList.get(0).col;
-            int nextRow = gp.pFinder.pathList.get(0).row;
-            
-            // We only stop onPath if we are physically reaching the final tile
-            if (nextCol == goalCol && nextRow == goalRow) {
-                // Check pixel distance to allow entity to walk ONTO the tile
-                if (Math.abs(worldX - nextX) < speed && Math.abs(worldY - nextY) < speed) {
-                     onPath = false;
+            // PREVENT DIAGONAL MOVEMENT: Move in one direction per frame
+            // Prioritize the axis with greater distance
+            boolean moved = false;
+
+            if (dy > dx) {
+                // Try vertical first
+                moved = tryMoveVertical(enTopY, nextY);
+                // If blocked vertically, fallback to horizontal
+                if (!moved) {
+                    moved = tryMoveHorizontal(enLeftX, nextX);
                 }
+            } else {
+                // Try horizontal first
+                moved = tryMoveHorizontal(enLeftX, nextX);
+                // If blocked horizontally, fallback to vertical
+                if (!moved) {
+                    moved = tryMoveVertical(enTopY, nextY);
+                }
+            }
+        } else {
+            // A* failed to find a path — use direct chase as fallback
+            directChase(goalCol, goalRow);
+        }
+    }
+
+    // Try to move vertically toward the target. Returns true if movement occurred.
+    private boolean tryMoveVertical(int enTopY, int nextY) {
+        if (enTopY > nextY) {
+            direction = "up";
+            checkCollision();
+            if (!collisionOn) { worldY -= speed; return true; }
+        } else if (enTopY < nextY) {
+            direction = "down";
+            checkCollision();
+            if (!collisionOn) { worldY += speed; return true; }
+        }
+        return false;
+    }
+
+    // Try to move horizontally toward the target. Returns true if movement occurred.
+    private boolean tryMoveHorizontal(int enLeftX, int nextX) {
+        if (enLeftX > nextX) {
+            direction = "left";
+            checkCollision();
+            if (!collisionOn) { worldX -= speed; return true; }
+        } else if (enLeftX < nextX) {
+            direction = "right";
+            checkCollision();
+            if (!collisionOn) { worldX += speed; return true; }
+        }
+        return false;
+    }
+
+    // Direct chase fallback: move toward the goal tile without A*
+    protected void directChase(int goalCol, int goalRow) {
+        int goalWorldX = goalCol * gp.tileSize;
+        int goalWorldY = goalRow * gp.tileSize;
+        int dx = goalWorldX - worldX;
+        int dy = goalWorldY - worldY;
+
+        boolean moved = false;
+        if (Math.abs(dy) > Math.abs(dx)) {
+            // Try vertical
+            if (dy < 0) { direction = "up"; checkCollision(); if (!collisionOn) { worldY -= speed; moved = true; } }
+            else if (dy > 0) { direction = "down"; checkCollision(); if (!collisionOn) { worldY += speed; moved = true; } }
+            if (!moved) {
+                if (dx < 0) { direction = "left"; checkCollision(); if (!collisionOn) { worldX -= speed; } }
+                else if (dx > 0) { direction = "right"; checkCollision(); if (!collisionOn) { worldX += speed; } }
+            }
+        } else {
+            // Try horizontal
+            if (dx < 0) { direction = "left"; checkCollision(); if (!collisionOn) { worldX -= speed; moved = true; } }
+            else if (dx > 0) { direction = "right"; checkCollision(); if (!collisionOn) { worldX += speed; moved = true; } }
+            if (!moved) {
+                if (dy < 0) { direction = "up"; checkCollision(); if (!collisionOn) { worldY -= speed; } }
+                else if (dy > 0) { direction = "down"; checkCollision(); if (!collisionOn) { worldY += speed; } }
             }
         }
     }   

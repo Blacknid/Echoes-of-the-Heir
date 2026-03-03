@@ -1,5 +1,6 @@
 package monster;
 
+import java.awt.image.BufferedImage;
 import java.util.Random;
 import entity.Entity;
 import main.GamePanel;
@@ -18,6 +19,7 @@ public class MON_monster extends Entity {
         this.worldY = row * gp.tileSize;
         defaultSpeed = 1;
         speed = defaultSpeed;
+        walkFrameCount = 6;
         maxLife = 3;
         life = maxLife;
         attack = 1;
@@ -35,22 +37,25 @@ public class MON_monster extends Entity {
     }
 
     public void getImage() {
-        up1 = setup("/res/monster/Mummy/up/u1", gp.tileSize , gp.tileSize);
-        up2 = setup("/res/monster/Mummy/up/u2", gp.tileSize , gp.tileSize);
-        up3 = setup("/res/monster/Mummy/up/u3", gp.tileSize , gp.tileSize);
-        // up4-6 loaded if you add them to Entity class or use logic to cycle more sprites
+        
+        int[] framesPerRow = {6, 6, 6, 6}; // down, left, right, up
+        BufferedImage[][] frames = loadSheetVariable("/res/monster/Monster_walking-sheet", framesPerRow);
+        // Assign down frames
+        down1 = frames[0][0];   down2 = frames[0][1];   down3 = frames[0][2];
+        down4 = frames[0][3];   down5 = frames[0][4];   down6 = frames[0][5];
 
-        down1 = setup("/res/monster/Mummy/down/j1", gp.tileSize , gp.tileSize);
-        down2 = setup("/res/monster/Mummy/down/j2", gp.tileSize , gp.tileSize);
-        down3 = setup("/res/monster/Mummy/down/j3", gp.tileSize , gp.tileSize);
+        // Assign left frames
+        left1 = frames[1][0];   left2 = frames[1][1];   left3 = frames[1][2];
+        left4 = frames[1][3];   left5 = frames[1][4];   left6 = frames[1][5];
 
-        left1 = setup("/res/monster/Mummy/left/s1", gp.tileSize , gp.tileSize);
-        left2 = setup("/res/monster/Mummy/left/s2", gp.tileSize , gp.tileSize);
-        left3 = setup("/res/monster/Mummy/left/s3", gp.tileSize , gp.tileSize);
+        // Assign right frames
+        right1 = frames[2][0];   right2 = frames[2][1];   right3 = frames[2][2];
+        right4 = frames[2][3];   right5 = frames[2][4];   right6 = frames[2][5];
 
-        right1 = setup("/res/monster/Mummy/right/d1", gp.tileSize , gp.tileSize);
-        right2 = setup("/res/monster/Mummy/right/d2", gp.tileSize , gp.tileSize);
-        right3 = setup("/res/monster/Mummy/right/d3", gp.tileSize , gp.tileSize);
+        // Assign up frames
+        up1 = frames[3][0];  up2 = frames[3][1];  up3 = frames[3][2];
+        up4 = frames[3][3];  up5 = frames[3][4];  up6 = frames[3][5];
+
     }
 
     @Override
@@ -83,7 +88,16 @@ public class MON_monster extends Entity {
                 // continue chasing using pathfinding
                 int goalCol = gp.player.getTileCol();
                 int goalRow = gp.player.getTileRow();
-                searchPath(goalCol, goalRow);
+                
+                // When very close (within 2 tiles), use direct chase for snappy movement
+                int closeDist = gp.tileSize * 2;
+                int absDx = Math.abs(getCenterX() - gp.player.getCenterX());
+                int absDy = Math.abs(getCenterY() - gp.player.getCenterY());
+                if (absDx < closeDist && absDy < closeDist) {
+                    directChase(goalCol, goalRow);
+                } else {
+                    searchPath(goalCol, goalRow);
+                }
             }
         }
         else {

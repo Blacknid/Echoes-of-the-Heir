@@ -24,6 +24,12 @@ package entity; import java.awt.AlphaComposite; import java.awt.Color; import ja
     private int dashCooldown = 0;
     private final int dashCooldownMax = 60; // 1 second at 60fps
     private boolean dashParticle = false;
+    private int idleCounter = 0;
+    private int idleFrameDirection = 1;
+    private final int idleFrameInterval = 10;
+    private final int idleStartDelayFrames = 120;
+    private int idleDelayCounter = 0;
+    private boolean movingThisFrame = false;
 
     public Player(GamePanel gp, KeyHandler keyH) {
         super(gp);
@@ -63,6 +69,7 @@ package entity; import java.awt.AlphaComposite; import java.awt.Color; import ja
         attack = getAttack();
         defense = getDefense();
         getPlayerImages();
+        getPlayerIdleImages();
         getPlayerAttackImages();
         setItems();
         setDialogue();
@@ -107,7 +114,7 @@ package entity; import java.awt.AlphaComposite; import java.awt.Color; import ja
     public void getPlayerImages() {
         // Specify frames per direction (randuri)
         int[] framesPerRow = {7, 8, 8, 7}; // down, left, right, up
-        BufferedImage[][] frames = loadSheetVariable("/res/player/player-sheet", framesPerRow);
+        BufferedImage[][] frames = loadSheetVariable("/res/player/Player_walking-sheet", framesPerRow);
         // Assign down frames
         down1 = frames[0][0];
         down2 = frames[0][1];
@@ -167,6 +174,33 @@ package entity; import java.awt.AlphaComposite; import java.awt.Color; import ja
         attackRight5 = setup("/res/player/b.attack/right/r5", gp.tileSize * 2, gp.tileSize);
     }
 
+    public void getPlayerIdleImages() {
+
+        int[] framesPerRow = {6, 6, 6, 6}; // up, down, left, right
+        BufferedImage[][] frames = loadSheetVariable("/res/player/Player_idle-sheet", framesPerRow);
+
+        // Assign up idle frames
+
+        upidle1 = frames[0][0];  upidle2 = frames[0][1];  upidle3 = frames[0][2];
+        upidle4 = frames[0][3];  upidle5 = frames[0][4];  upidle6 = frames[0][5];
+
+        // Assign down idle frames
+
+        downidle1 = frames[1][0];  downidle2 = frames[1][1];  downidle3 = frames[1][2];
+        downidle4 = frames[1][3];  downidle5 = frames[1][4];  downidle6 = frames[1][5];
+
+        // Assign left idle frames
+
+        leftidle1 = frames[2][0];  leftidle2 = frames[2][1];  leftidle3 = frames[2][2];
+        leftidle4 = frames[2][3];  leftidle5 = frames[2][4];  leftidle6 = frames[2][5];
+
+        // Assign right idle frames
+
+        rightidle1 = frames[3][0];  rightidle2 = frames[3][1];  rightidle3 = frames[3][2];
+        rightidle4 = frames[3][3];  rightidle5 = frames[3][4];  rightidle6 = frames[3][5];
+
+    }
+
     // Update and movement methods
     public void update() {
         // Cancel attack if in dialogue or cutscene
@@ -174,6 +208,8 @@ package entity; import java.awt.AlphaComposite; import java.awt.Color; import ja
             attacking = false;
             spriteCounter = 0;
             spriteNum = 1;
+            idleDelayCounter = 0;
+            movingThisFrame = false;
         }
 
         // Handle dash
@@ -234,14 +270,85 @@ package entity; import java.awt.AlphaComposite; import java.awt.Color; import ja
                 worldY = originalY;
             }
         } else {
-            // Determine direction based on keys
-            if (keyH.upPressed) direction = "up";
-            else if (keyH.downPressed) direction = "down";
-            else if (keyH.leftPressed) direction = "left";
-            else if (keyH.rightPressed) direction = "right";
-            boolean moving = keyH.upPressed || keyH.downPressed || keyH.leftPressed || keyH.rightPressed;
+            // Determine direction based on keys — vertical takes priority for animation
+            boolean movingUp = keyH.upPressed;
+            boolean movingDown = keyH.downPressed;
+            boolean movingLeft = keyH.leftPressed;
+            boolean movingRight = keyH.rightPressed;
+            boolean movingVertical = movingUp || movingDown;
+            boolean movingHorizontal = movingLeft || movingRight;
+            boolean diagonal = movingVertical && movingHorizontal;
+            boolean moving = movingVertical || movingHorizontal;
+            movingThisFrame = moving;
+            
+            // Set facing direction: vertical priority (up/down animation for diagonals)
+            if (movingUp) direction = "up";
+            else if (movingDown) direction = "down";
+            else if (movingLeft) direction = "left";
+            else if (movingRight) direction = "right";
+
             if (moving || keyH.enterPressed) {
-                // COLLISION CHECKS
+                idleCounter = 0;
+                idleFrameDirection = 1;
+                idleDelayCounter = 0;
+
+                // Calculate movement speeds
+                // Diagonal movement: use 1/sqrt(2) ≈ 0.7071 per axis
+                // This ensures total diagonal distance = cardinal distance (standard in Zelda, Diablo, Stardew Valley)
+                int moveSpeedX = speed;
+                int moveSpeedY = speed;
+                if (diagonal) {
+                    // 70.71% per axis — total vector equals cardinal speed, balanced feel
+                    moveSpeedX = Math.max(1, (int)(speed * 0.7071));
+                    moveSpeedY = Math.max(1, (int)(speed * 0.7071));
+                }
+
+                // --- PER-AXIS COLLISION: check and move each axis independently ---
+                int originalX = worldX;
+                int originalY = worldY;
+
+                // Horizontal axis
+                if (movingHorizontal && !keyH.enterPressed) {
+                    // Temporarily set direction for collision checker prediction
+                    String savedDir = direction;
+                    direction = movingLeft ? "left" : "right";
+                    collisionOn = false;
+                    gp.cChecker.checkTile(this);
+                    gp.cChecker.checkObject(this, false);
+                    gp.cChecker.checkEntity(this, gp.npc);
+                    gp.cChecker.checkEntity(this, gp.monster);
+                    gp.cChecker.checkEntity(this, gp.iTile);
+                    if (!collisionOn) {
+                        if (movingLeft) worldX -= moveSpeedX;
+                        if (movingRight) worldX += moveSpeedX;
+                    }
+                    direction = savedDir; // restore for vertical check
+                }
+
+                // Vertical axis
+                if (movingVertical && !keyH.enterPressed) {
+                    String savedDir = direction;
+                    direction = movingUp ? "up" : "down";
+                    collisionOn = false;
+                    gp.cChecker.checkTile(this);
+                    gp.cChecker.checkObject(this, false);
+                    gp.cChecker.checkEntity(this, gp.npc);
+                    gp.cChecker.checkEntity(this, gp.monster);
+                    gp.cChecker.checkEntity(this, gp.iTile);
+                    if (!collisionOn) {
+                        if (movingUp) worldY -= moveSpeedY;
+                        if (movingDown) worldY += moveSpeedY;
+                    }
+                    direction = savedDir;
+                }
+
+                // --- Full collision pass for pickups, NPC interaction, events ---
+                // Reset direction to the animation direction for game logic
+                if (movingUp) direction = "up";
+                else if (movingDown) direction = "down";
+                else if (movingLeft) direction = "left";
+                else if (movingRight) direction = "right";
+
                 collisionOn = false;
                 gp.cChecker.checkTile(this);
                 int objIndex = gp.cChecker.checkObject(this, true);
@@ -251,17 +358,8 @@ package entity; import java.awt.AlphaComposite; import java.awt.Color; import ja
                 int monsterIndex = gp.cChecker.checkEntity(this, gp.monster);
                 contactMonster(monsterIndex);
                 int iTileIndex = gp.cChecker.checkEntity(this, gp.iTile);
-                // CHECK EVENT
                 gp.eHandler.checkEvent();
-                // Move player if no collision
-                if (!collisionOn && !keyH.enterPressed) {
-                    switch(direction) {
-                        case "up": worldY -= speed; break;
-                        case "down": worldY += speed; break;
-                        case "left": worldX -= speed; break;
-                        case "right": worldX += speed; break;
-                    }
-                }
+
                 // Start attack if enter pressed
                 if (keyH.enterPressed && !attackCanceled) {
                     attacking = true;
@@ -272,9 +370,15 @@ package entity; import java.awt.AlphaComposite; import java.awt.Color; import ja
                 // Update animation sprites
                 updateSprite();
             } else {
-                // Player idle
-                spriteNum = 1;
-                spriteNum1 = 1;
+                // Wait 2 seconds before playing idle animation
+                idleDelayCounter++;
+
+                if (idleDelayCounter >= idleStartDelayFrames) {
+                    updateIdleSprite();
+                } else {
+                    spriteNum = 1;
+                    spriteNum1 = 1;
+                }
             }
             if(gp.keyH.shotKeyPressed == true && projectile.alive == false && shotAvailableCounter == 30 && projectile.haveResource(this) == true) {
                 //SET DEFAULT COORDINATES, DIRECTIONS AND USER
@@ -312,6 +416,28 @@ package entity; import java.awt.AlphaComposite; import java.awt.Color; import ja
             spriteNum = (spriteNum % 7) + 1; // loops 1-7
             spriteCounter = 0;
         }
+    }
+
+    private void updateIdleSprite() {
+        idleCounter++;
+        int maxIdleFrame = 6;
+
+        if (idleCounter > idleFrameInterval) {
+            spriteNum += idleFrameDirection;
+
+            if (spriteNum >= maxIdleFrame) {
+                spriteNum = maxIdleFrame;
+                idleFrameDirection = -1;
+            }
+            if (spriteNum <= 1) {
+                spriteNum = 1;
+                idleFrameDirection = 1;
+            }
+
+            idleCounter = 0;
+        }
+
+        spriteNum1 = 1;
     }
 
     public void attacking() {
@@ -673,6 +799,15 @@ package entity; import java.awt.AlphaComposite; import java.awt.Color; import ja
         switch(direction) {
             case "up":
                 if(attacking == false){
+                    if (!movingThisFrame) {
+                        if(spriteNum == 1) {image = upidle1;}
+                        if(spriteNum == 2) {image = upidle2;}
+                        if(spriteNum == 3) {image = upidle3;}
+                        if(spriteNum == 4) {image = upidle4;}
+                        if(spriteNum == 5) {image = upidle5;}
+                        if(spriteNum == 6) {image = upidle6;}
+                        break;
+                    }
                     if(spriteNum == 1) {image = up1;}
                     if(spriteNum == 2) {image = up2;}
                     if(spriteNum == 3) {image = up3;}
@@ -693,6 +828,15 @@ package entity; import java.awt.AlphaComposite; import java.awt.Color; import ja
                 }
             case "down":
                 if(attacking == false){
+                    if (!movingThisFrame) {
+                        if(spriteNum == 1) {image = downidle1;}
+                        if(spriteNum == 2) {image = downidle2;}
+                        if(spriteNum == 3) {image = downidle3;}
+                        if(spriteNum == 4) {image = downidle4;}
+                        if(spriteNum == 5) {image = downidle5;}
+                        if(spriteNum == 6) {image = downidle6;}
+                        break;
+                    }
                     if(spriteNum == 1) {image = down1;}
                     if(spriteNum == 2) {image = down2;}
                     if(spriteNum == 3) {image = down3;}
@@ -713,6 +857,15 @@ package entity; import java.awt.AlphaComposite; import java.awt.Color; import ja
                 }
             case "left":
                 if(attacking == false){
+                    if (!movingThisFrame) {
+                        if(spriteNum == 1) {image = leftidle1;}
+                        if(spriteNum == 2) {image = leftidle2;}
+                        if(spriteNum == 3) {image = leftidle3;}
+                        if(spriteNum == 4) {image = leftidle4;}
+                        if(spriteNum == 5) {image = leftidle5;}
+                        if(spriteNum == 6) {image = leftidle6;}
+                        break;
+                    }
                     if(spriteNum == 1) {image = left1;}
                     if(spriteNum == 2) {image = left2;}
                     if(spriteNum == 3) {image = left3;}
@@ -734,6 +887,15 @@ package entity; import java.awt.AlphaComposite; import java.awt.Color; import ja
                 }
             case "right":
                 if(attacking == false){
+                    if (!movingThisFrame) {
+                        if(spriteNum == 1) {image = rightidle1;}
+                        if(spriteNum == 2) {image = rightidle2;}
+                        if(spriteNum == 3) {image = rightidle3;}
+                        if(spriteNum == 4) {image = rightidle4;}
+                        if(spriteNum == 5) {image = rightidle5;}
+                        if(spriteNum == 6) {image = rightidle6;}
+                        break;
+                    }
                     if(spriteNum == 1) {image = right1;}
                     if(spriteNum == 2) {image = right2;}
                     if(spriteNum == 3) {image = right3;}

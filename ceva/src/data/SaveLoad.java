@@ -58,6 +58,10 @@ public class SaveLoad {
             ds.nextLevelExp = gp.player.nextLevelExp;
             ds.coin = gp.player.coin;
 
+            // LOCATION
+            ds.playerWorldX = gp.player.worldX;
+            ds.playerWorldY = gp.player.worldY;
+
             // INVENTORY
             for (Entity e : gp.player.inventory) {
                 ds.itemNames.add(e.name);
@@ -125,6 +129,10 @@ public class SaveLoad {
             gp.player.exp = ds.exp;
             gp.player.nextLevelExp = ds.nextLevelExp;
             gp.player.coin = ds.coin;
+
+            // LOCATION
+            gp.player.worldX = ds.playerWorldX;
+            gp.player.worldY = ds.playerWorldY;
 
             // INVENTORY
             gp.player.inventory.clear();

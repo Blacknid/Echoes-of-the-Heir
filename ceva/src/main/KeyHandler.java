@@ -66,9 +66,14 @@ public class KeyHandler implements KeyListener {
         if (code == KeyEvent.VK_S) downPressed = false;
         if (code == KeyEvent.VK_A) leftPressed = false;
         if (code == KeyEvent.VK_D) rightPressed = false;
+        if (code == KeyEvent.VK_UP) upPressed = false;
+        if (code == KeyEvent.VK_DOWN) downPressed = false;
+        if (code == KeyEvent.VK_LEFT) leftPressed = false;
+        if (code == KeyEvent.VK_RIGHT) rightPressed = false;
         if (code == KeyEvent.VK_F) shotKeyPressed = false;
         if (code == KeyEvent.VK_SPACE) dashPressed = false;
         if (code == KeyEvent.VK_SHIFT) dashPressed = false;
+        if (code == KeyEvent.VK_ENTER) enterPressed = false;
     }
 
     @Override
@@ -211,7 +216,7 @@ public class KeyHandler implements KeyListener {
         if (code == KeyEvent.VK_ENTER) enterPressed = true;
 
         int maxCommandNum = switch (gp.ui.subState) {
-            case 0 -> 5;
+            case 0 -> 6;
             case 3 -> 1;
             default -> 0;
         };
@@ -237,13 +242,52 @@ public class KeyHandler implements KeyListener {
     }
 
     private void handleGameOverState(int code) {
-        if (code == KeyEvent.VK_W || code == KeyEvent.VK_S) {
-            gp.ui.commandNum = gp.ui.commandNum == 0 ? 1 : 0;
-            gp.playSE(3);
+        // Clear movement flags to prevent interference
+        upPressed = false;
+        downPressed = false;
+        leftPressed = false;
+        rightPressed = false;
+        
+        // Menu navigation: W/S or UP/DOWN arrows to move
+        if (code == KeyEvent.VK_W || code == KeyEvent.VK_UP) {
+            // Move up: 1 -> 0
+            if (gp.ui.commandNum == 1) {
+                gp.ui.commandNum = 0;
+                gp.playSE(3);
+            }
+            else if (gp.ui.commandNum == 0) {
+                gp.ui.commandNum = 1;
+                gp.playSE(3);
+            }
         }
+        if (code == KeyEvent.VK_S || code == KeyEvent.VK_DOWN) {
+            // Move down: 0 -> 1
+            if (gp.ui.commandNum == 0) {
+                gp.ui.commandNum = 1;
+                gp.playSE(3);
+            }
+            else if (gp.ui.commandNum == 1) {
+                gp.ui.commandNum = 0;
+                gp.playSE(3);
+            }
+        }
+        // Execute selected option with ENTER
         if (code == KeyEvent.VK_ENTER) {
-            if (gp.ui.commandNum == 0) { gp.resetGame(false); gp.gameState = gp.playState; gp.playMusic(0); gp.player.setDefaultPositions(); }
-            else if (gp.ui.commandNum == 1) { gp.ui.titleScreenState = 0; gp.stopMusic(); gp.resetGame(true); gp.gameState = gp.titleState; }
+            if (gp.ui.commandNum == 0) {
+                // Retry: reset and continue playing
+                gp.resetGame(false);
+                gp.gameState = gp.playState;
+                gp.playMusic(0);
+                gp.player.setDefaultPositions();
+            }
+            else if (gp.ui.commandNum == 1) {
+                // Quit: go to title screen
+                gp.ui.titleScreenState = 0;
+                gp.ui.commandNum = 0;
+                gp.stopMusic();
+                gp.resetGame(true);
+                gp.gameState = gp.titleState;
+            }
         }
     }
 

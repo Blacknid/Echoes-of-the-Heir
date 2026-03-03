@@ -10,6 +10,7 @@ import object.OBJ_Door;
 import object.OBJ_Gem;
 import object.OBJ_Key;
 import object.OBJ_Potion;
+import object.OBJ_Tent;
 import object.OBJ_Torch;
 import tiles_interactive.IT_Coins;
 
@@ -45,6 +46,11 @@ public class AssetSetter {
         gp.obj[i].worldX = 43 * gp.tileSize;
         gp.obj[i].worldY = 36 * gp.tileSize;
         gp.obj[i].setLoot(new OBJ_Compas(gp));
+        i++;
+
+        gp.obj[i] = new OBJ_Tent(gp);
+        gp.obj[i].worldX = 75 * gp.tileSize;
+        gp.obj[i].worldY = 25 * gp.tileSize;
         i++;
         
         gp.obj[i] = new OBJ_Chest(gp);

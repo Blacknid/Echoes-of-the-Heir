@@ -12,6 +12,7 @@ public class NPC_Alucard extends Entity{
 
         direction = "down";
         speed = 1;
+        walkFrameCount = 6;
 
         dialogueSet = -1;
         
@@ -28,18 +29,24 @@ public class NPC_Alucard extends Entity{
     }
     public void getImage() {
     
-        up1 = setup("/res/NPC/b.up/s1", gp.tileSize, gp.tileSize);
-        up2 = setup("/res/NPC/b.up/s2", gp.tileSize, gp.tileSize);
-        up3 = setup("/res/NPC/b.up/s3", gp.tileSize, gp.tileSize);
-        down1 = setup("/res/NPC/b.front/f1", gp.tileSize, gp.tileSize);
-        down2 = setup("/res/NPC/b.front/f2", gp.tileSize, gp.tileSize);
-        down3 = setup("/res/NPC/b.front/f3", gp.tileSize, gp.tileSize);
-        right1 = setup("/res/NPC/b.right/r1", gp.tileSize, gp.tileSize);
-        right2 = setup("/res/NPC/b.right/r2", gp.tileSize, gp.tileSize);
-        right3 = setup("/res/NPC/b.right/r3", gp.tileSize, gp.tileSize);
-        left1 = setup("/res/NPC/b.left/l1", gp.tileSize, gp.tileSize);
-        left2 = setup("/res/NPC/b.left/l2", gp.tileSize, gp.tileSize);
-        left3 = setup("/res/NPC/b.left/l3", gp.tileSize, gp.tileSize);
+        int[] framesPerRow = {6, 6, 6, 6}; // down, up, left, right
+        BufferedImage[][] frames = loadSheetVariable("/res/npc/Alucard_walking-sheet", framesPerRow);
+        // Assign down frames
+        down1 = frames[0][0];   down2 = frames[0][1];   down3 = frames[0][2];
+        down4 = frames[0][3];   down5 = frames[0][4];   down6 = frames[0][5];
+
+        // Assign up frames
+        up1 = frames[1][0];   up2 = frames[1][1];   up3 = frames[1][2];
+        up4 = frames[1][3];   up5 = frames[1][4];   up6 = frames[1][5];
+
+        // Assign left frames
+        left1 = frames[2][0];   left2 = frames[2][1];   left3 = frames[2][2];
+        left4 = frames[2][3];   left5 = frames[2][4];   left6 = frames[2][5];
+
+        // Assign right frames
+        right1 = frames[3][0];  right2 = frames[3][1];
+        right3 = frames[3][2];  right4 = frames[3][3];
+        right5 = frames[3][4];  right6 = frames[3][5];
         
     }
     public void setDialogue() {

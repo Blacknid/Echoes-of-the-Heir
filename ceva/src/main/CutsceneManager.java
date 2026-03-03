@@ -34,6 +34,12 @@ public class CutsceneManager {
                 + "\n\n\n"
                 + "Designed by\n"
                 + "Avram Dennis-Sebastian / Lupu Mirabela\n"
+                + "\n\n\n"
+                + "Written by\n"
+                + "Lupu Cristian\n"
+                + "\n\n\n"
+                + "Music by\n"
+                + "Lupu Stefan\n"
                 + "\n\n\n\n\n\n"
                 + "Sources from\n"
                 + "Youtube helper : RyiSnow\n"
@@ -43,7 +49,11 @@ public class CutsceneManager {
         this.g2 = g2;
 
         switch (sceneNum) {
+
+            case NA: break;
             case ending: scene_ending(); break;
+
+
         }
     }
     public void scene_ending() {
@@ -136,7 +146,7 @@ public class CutsceneManager {
             y--;    
             drawString(1f, 38f, y, endCredit, 40);
 
-            if ( counterReached(1600) == true ) {
+            if ( counterReached(2500) == true ) {
                 scenePhase++;
             }
         }
