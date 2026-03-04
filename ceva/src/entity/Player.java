@@ -658,7 +658,6 @@ package entity; import java.awt.AlphaComposite; import java.awt.Color; import ja
                     }
                     case "Tent" -> {
                         gp.playSE(2);
-                        gp.obj[i] = null;
                         gp.ui.addMessage("You got a tent!", Color.WHITE);
                     }
                     case "Spell book" -> {

@@ -22,25 +22,55 @@ public class AssetSetter {
         this.gp = gp;
     }
 
+    // ========== INTERACTIVE TILES (dispatched by current map) ==========
     public void setInteractiveTile() {
+        for (int i = 0; i < gp.iTile.length; i++) gp.iTile[i] = null;
 
-        int i = 0;
-        
-        gp.iTile[i] = new IT_Coins(gp, 69, 30);
-        i++;
-        // Example: stepping on tile (69,30) will transition to 'test' spawn (1,1)
-        gp.eHandler.registerMapTransition(69, 30, "test", 1, 1);
-         
+        switch (gp.currentMapId) {
+            case "harta" -> setInteractiveTile_harta();
+            case "test"  -> setInteractiveTile_test();
+        }
     }
 
-    public void setObject() {
-
+    private void setInteractiveTile_harta() {
         int i = 0;
+        gp.iTile[i] = new IT_Coins(gp, 69, 30);
+        i++;
+    }
 
-        // Example: register additional maps (users can add their own files under /res/maps)
-        gp.registerMap("harta", "/res/maps/harta.tmx");
-        // Test map used for transition checks
-        gp.registerMap("test", "/res/maps/test.tmx");
+    private void setInteractiveTile_test() {
+        // No interactive tiles on test map yet
+    }
+
+    // ========== EVENTS / MAP TRANSITIONS (dispatched by current map) ==========
+    public void setEvents() {
+        switch (gp.currentMapId) {
+            case "harta" -> setEvents_harta();
+            case "test"  -> setEvents_test();
+        }
+    }
+
+    private void setEvents_harta() {
+        // Stepping on tile (69,30) transitions to 'test' map at spawn (5,5)
+        gp.eHandler.registerMapTransition(69, 30, "test", 5, 5);
+    }
+
+    private void setEvents_test() {
+        // No step-on triggers on test map - use doors to exit
+    }
+
+    // ========== OBJECTS (dispatched by current map) ==========
+    public void setObject() {
+        for (int i = 0; i < gp.obj.length; i++) gp.obj[i] = null;
+
+        switch (gp.currentMapId) {
+            case "harta" -> setObject_harta();
+            case "test"  -> setObject_test();
+        }
+    }
+
+    private void setObject_harta() {
+        int i = 0;
 
         gp.obj[i] = new OBJ_Chest(gp);
         gp.obj[i].worldX = 43 * gp.tileSize;
@@ -66,8 +96,7 @@ public class AssetSetter {
         gp.obj[i] = new OBJ_Door(gp);
         gp.obj[i].worldX = (int)(8.08 * gp.tileSize);
         gp.obj[i].worldY = 21 * gp.tileSize;
-        // this door is a portal that leads to the registered map id 'test' and requires a key
-        ((OBJ_Door)gp.obj[i]).setPortal("test", true);
+        ((OBJ_Door)gp.obj[i]).setDestination("test", 5, 7, true);
         i++;
         
         gp.obj[i] = new OBJ_Potion(gp);
@@ -85,25 +114,20 @@ public class AssetSetter {
         gp.obj[i].worldY = 22 * gp.tileSize;
         i++;
         
-        // --- TORCH PLACEMENT START ---
-        // Placing a torch near the potions to light up the hallway
         gp.obj[i] = new OBJ_Torch(gp);
         gp.obj[i].worldX = 70 * gp.tileSize;
         gp.obj[i].worldY = 23 * gp.tileSize;
         i++;
         
-        // Placing a torch near the book
         gp.obj[i] = new OBJ_Torch(gp);
         gp.obj[i].worldX = 23 * gp.tileSize;
         gp.obj[i].worldY = 22 * gp.tileSize;
         i++;
-        // --- TORCH PLACEMENT END ---
         
         gp.obj[i] = new OBJ_Door(gp);
         gp.obj[i].worldX = 24 * gp.tileSize;
         gp.obj[i].worldY = 25 * gp.tileSize;
-        // unlocked door example: no key required
-        ((OBJ_Door)gp.obj[i]).setDestination("room2", 2, 2, false);
+        ((OBJ_Door)gp.obj[i]).setDestination("test", 5, 7, true);
         i++;
         
         gp.obj[i] = new OBJ_Door(gp);
@@ -156,42 +180,70 @@ public class AssetSetter {
         gp.obj[i].worldY = 24 * gp.tileSize;
         i++;
     }
-    public void setNPC() {
 
+    private void setObject_test() {
         int i = 0;
-
-        gp.npc[i] = new NPC_Alucard(gp);
-        gp.npc[i].worldX = gp.tileSize*71;
-        gp.npc[i].worldY = gp.tileSize*26;
+        // Door to go back to where we entered from
+        gp.obj[i] = new OBJ_Door(gp);
+        gp.obj[i].worldX = 3 * gp.tileSize;
+        gp.obj[i].worldY = 3 * gp.tileSize;
+        // If we entered through a door, return to that door's position; otherwise use the trigger position
+        int returnCol = (gp.doorEntryCol >= 0) ? gp.doorEntryCol : gp.previousTriggerCol;
+        int returnRow = (gp.doorEntryRow >= 0) ? gp.doorEntryRow : gp.previousTriggerRow;
+        // Spawn 2 tiles below the door to avoid re-triggering it
+        ((OBJ_Door)gp.obj[i]).setDestination(gp.previousMapId, returnCol, returnRow + 2, false);
         i++;
     }
 
-    public void setMonster() {
+    // ========== NPCs (dispatched by current map) ==========
+    public void setNPC() {
+        for (int i = 0; i < gp.npc.length; i++) gp.npc[i] = null;
 
+        switch (gp.currentMapId) {
+            case "harta" -> setNPC_harta();
+            case "test"  -> setNPC_test();
+        }
+    }
+
+    private void setNPC_harta() {
         int i = 0;
+        gp.npc[i] = new NPC_Alucard(gp);
+        gp.npc[i].worldX = gp.tileSize * 71;
+        gp.npc[i].worldY = gp.tileSize * 26;
+        i++;
+    }
 
-        gp.monster[i] = new MON_monster(gp, 70, 65);
-        i++;
-        gp.monster[i] = new MON_monster(gp, 77, 71);
-        i++;
-        gp.monster[i] = new MON_monster(gp, 80, 45);
-        i++;
-        gp.monster[i] = new MON_monster(gp, 61, 57);
-        i++;
-        gp.monster[i] = new MON_monster(gp, 83, 64);
-        i++;
-        gp.monster[i] = new MON_monster(gp, 59, 49);
-        i++;
-        gp.monster[i] = new MON_monster(gp, 68, 76);
-        i++;
-        gp.monster[i] = new MON_monster(gp, 74, 45);
-        i++;
-        gp.monster[i] = new MON_monster(gp, 74, 49);
-        i++;
-        gp.monster[i] = new MON_monster(gp, 61, 57);
-        i++;
-        gp.monster[i] = new MON_monster(gp, 59, 49);
-        i++;
+    private void setNPC_test() {
+        // No NPCs on test map yet
+    }
+
+    // ========== MONSTERS (dispatched by current map) ==========
+    public void setMonster() {
+        for (int i = 0; i < gp.monster.length; i++) gp.monster[i] = null;
+
+        switch (gp.currentMapId) {
+            case "harta" -> setMonster_harta();
+            case "test"  -> setMonster_test();
+        }
+    }
+
+    private void setMonster_harta() {
+        int i = 0;
+        gp.monster[i] = new MON_monster(gp, 70, 65); i++;
+        gp.monster[i] = new MON_monster(gp, 77, 71); i++;
+        gp.monster[i] = new MON_monster(gp, 80, 45); i++;
+        gp.monster[i] = new MON_monster(gp, 61, 57); i++;
+        gp.monster[i] = new MON_monster(gp, 83, 64); i++;
+        gp.monster[i] = new MON_monster(gp, 59, 49); i++;
+        gp.monster[i] = new MON_monster(gp, 68, 76); i++;
+        gp.monster[i] = new MON_monster(gp, 74, 45); i++;
+        gp.monster[i] = new MON_monster(gp, 74, 49); i++;
+        gp.monster[i] = new MON_monster(gp, 61, 57); i++;
+        gp.monster[i] = new MON_monster(gp, 59, 49); i++;
+    }
+
+    private void setMonster_test() {
+        // No monsters on test map yet
     }
 
 }

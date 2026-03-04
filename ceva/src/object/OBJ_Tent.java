@@ -32,17 +32,14 @@ public class OBJ_Tent extends Entity {
         
         // 1. Play Sound
         gp.playSE(2); 
-
-        gp.obj[0] = new OBJ_Tent(gp);
-        gp.obj[0].worldX = (gp.player.worldX + gp.player.solidArea.x) / gp.tileSize + 2 * gp.tileSize;
-        gp.obj[0].worldY = (gp.player.worldY + gp.player.solidArea.y) / gp.tileSize + 2 * gp.tileSize;
         
         // 2. Restore Player Stats
         gp.player.life = gp.player.maxLife;
         gp.player.mana = gp.player.maxMana;
         
         // 3. Reset Environment to Day
-        if (gp.eManager != null) {
+        if (gp.eManager != null && gp.eManager.dayState != gp.eManager.day ) {
+            gp.player.inventory.remove(this);
             gp.eManager.dayState = gp.eManager.day;
             gp.eManager.dayCounter = 0;
             gp.eManager.filterAlpha = 0f;

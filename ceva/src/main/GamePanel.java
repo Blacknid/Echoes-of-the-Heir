@@ -82,6 +82,8 @@ public class GamePanel extends JPanel implements Runnable{
     SaveLoad saveLoad = new SaveLoad(this);
     // Map registry: id -> tmx path
     public Map<String, String> mapRegistry = new HashMap<>();
+    // Track which map is currently active (matches a key in mapRegistry)
+    public String currentMapId = "harta";
     Thread gameThread;
     public boolean loadingGame = false;
 
@@ -92,8 +94,12 @@ public class GamePanel extends JPanel implements Runnable{
     public Entity monster[] = new Entity[20];
     public interactiveTile iTile[] = new interactiveTile[10]; // size depends on how many interactive tiles you have
     public ArrayList<Entity> projectilesList = new ArrayList<>();
-    public ArrayList<Entity> particleList = new ArrayList<>();
-    
+    public ArrayList<Entity> particleList = new ArrayList<>();    
+    // MAP ENTITY STORAGE: Preserve entity states when switching between maps
+    private Map<String, Entity[]> savedObjects = new HashMap<>();
+    private Map<String, Entity[]> savedNPCs = new HashMap<>();
+    private Map<String, Entity[]> savedMonsters = new HashMap<>();
+    private Map<String, interactiveTile[]> savedITiles = new HashMap<>();    
     // OPTIMIZATION: Object pools for reusable projectiles and particles
     public ObjectPool<Projectile> projectilePool;
     public ObjectPool<Particle> particlePool;
@@ -132,6 +138,16 @@ public class GamePanel extends JPanel implements Runnable{
     public int nextCol;
     public int nextRow;
 
+    // ENTRY POINT TRACKING: Remember where we came from when switching maps
+    // When entering a new map, these store the source map and trigger position (the tile we stepped on)
+    public String previousMapId = "harta";
+    public int previousTriggerCol = 24;   // tile column of the entry trigger
+    public int previousTriggerRow = 15;   // tile row of the entry trigger
+
+    // DOOR ENTRY TRACKING: Remember which door was used to enter the map
+    public int doorEntryCol = -1;         // door tile column (-1 = no door entry)
+    public int doorEntryRow = -1;         // door tile row (-1 = no door entry)
+
     public GamePanel() {
 
         this.setPreferredSize(new Dimension(screenWidth, screenHeight));
@@ -143,12 +159,16 @@ public class GamePanel extends JPanel implements Runnable{
 
     public void setupGame() {
 
+    // Register all maps once at startup
+    registerMap("harta", "/res/maps/harta.tmx");
+    registerMap("test", "/res/maps/test.tmx");
+
     if (!loadingGame) {
-        // register default map id for convenience
-        registerMap("harta", "/res/maps/harta.tmx");
+        currentMapId = "harta";
         aSetter.setObject(); // NEW GAME ONLY
         eManager.setup();
         aSetter.setInteractiveTile();
+        aSetter.setEvents();
     }
     
     aSetter.setNPC();
@@ -185,13 +205,54 @@ public class GamePanel extends JPanel implements Runnable{
         mapRegistry.put(id, tmxPath);
     }
 
+    /**
+     * Begin a smooth fade-to-black → map load → fade-from-black transition.
+     * Call this from doors/events instead of changeMap() directly.
+     *
+     * @param mapId    registered map id or TMX path
+     * @param spawnCol tile column where the player appears on the new map
+     * @param spawnRow tile row where the player appears on the new map
+     */
+    public void startTransition(String mapId, int spawnCol, int spawnRow) {
+        nextMapId = mapId;
+        nextCol = spawnCol;
+        nextRow = spawnRow;
+        // Reset transition state so the fade always starts from fully transparent
+        ui.transitionAlpha = 0f;
+        ui.subState = 0;
+        gameState = transitionState;
+    }
+
+    /** Called by UI.drawTransition() at peak darkness — do NOT call directly. */
     public void changeMap() {
         changeMap(nextMapId, nextCol, nextRow);
     }
 
     public void changeMap(String mapIdOrPath, int spawnCol, int spawnRow) {
         String path = mapRegistry.getOrDefault(mapIdOrPath, mapIdOrPath);
-        // load new map layers and collision layer
+
+        // Save the current map. The trigger position (entry point) is stored by EventHandler
+        // before transition is triggered, so it's already in eHandler.lastTriggerCol/Row
+        previousMapId = currentMapId;
+        previousTriggerCol = eHandler.lastTriggerCol;
+        previousTriggerRow = eHandler.lastTriggerRow;
+
+        // Update which map is now active
+        // If mapIdOrPath is a registered id, use it; otherwise derive from path
+        if (mapRegistry.containsKey(mapIdOrPath)) {
+            currentMapId = mapIdOrPath;
+        } else {
+            // Try to find the id from path, fallback to the raw string
+            currentMapId = mapIdOrPath;
+            for (Map.Entry<String, String> entry : mapRegistry.entrySet()) {
+                if (entry.getValue().equals(mapIdOrPath)) {
+                    currentMapId = entry.getKey();
+                    break;
+                }
+            }
+        }
+
+        // Load new map layers and collision layer
         tileM.mapLayers.clear();
         tileM.loadMapFromTMX(path);
         tileM.loadCollisionLayer(path);
@@ -199,10 +260,10 @@ public class GamePanel extends JPanel implements Runnable{
         // Update collision cache used by CollisionChecker
         cChecker.updateCollisionRectsCache();
 
-        // Reset any cached viewport calculations in TileManager (if present)
-        // (TileManager caches nothing critical here but clear any derived caches if added later)
+        // --- Save current map's entities before switching ---
+        saveMapEntities(previousMapId);
 
-        // Clear existing entities
+        // --- Clear ALL existing entities so nothing leaks from the previous map ---
         for (int i = 0; i < obj.length; i++) obj[i] = null;
         for (int i = 0; i < npc.length; i++) npc[i] = null;
         for (int i = 0; i < monster.length; i++) monster[i] = null;
@@ -210,36 +271,104 @@ public class GamePanel extends JPanel implements Runnable{
         projectilesList.clear();
         particleList.clear();
 
-        // Recreate map-specific content
-        aSetter.setObject();
-        aSetter.setInteractiveTile();
-        aSetter.setNPC();
-        aSetter.setMonster();
+        // Reset event handler FULLY (rects + transitions) before registering new ones
+        eHandler.reset();
+
+        // Restore or create entities for the new map
+        if (savedObjects.containsKey(currentMapId)) {
+            // Returning to a previously visited map - restore saved entities
+            restoreMapEntities(currentMapId);
+        } else {
+            // First visit to this map - create fresh entities
+            aSetter.setObject();
+            aSetter.setInteractiveTile();
+            aSetter.setNPC();
+            aSetter.setMonster();
+        }
+        
+        // Always set up events (these can be dynamic based on game state)
+        aSetter.setEvents();
 
         // Place player at spawn position (centered on tile)
         player.worldX = spawnCol * tileSize;
         player.worldY = spawnRow * tileSize;
 
-        // Reset event handler to pick up new events
-        eHandler.reset();
+        // Reset door entry tracking for the next transition
+        doorEntryCol = -1;
+        doorEntryRow = -1;
 
-        // Ensure game is back in play state
-        gameState = playState;
+        // NOTE: do NOT set gameState here — the transition fade-out in
+        // UI.drawTransition() will set playState once the screen fades back in.
+    }
+
+    private void saveMapEntities(String mapId) {
+        // Create copies of the entity arrays to preserve their state
+        Entity[] objCopy = new Entity[obj.length];
+        Entity[] npcCopy = new Entity[npc.length];
+        Entity[] monsterCopy = new Entity[monster.length];
+        interactiveTile[] iTileCopy = new interactiveTile[iTile.length];
+        
+        System.arraycopy(obj, 0, objCopy, 0, obj.length);
+        System.arraycopy(npc, 0, npcCopy, 0, npc.length);
+        System.arraycopy(monster, 0, monsterCopy, 0, monster.length);
+        System.arraycopy(iTile, 0, iTileCopy, 0, iTile.length);
+        
+        savedObjects.put(mapId, objCopy);
+        savedNPCs.put(mapId, npcCopy);
+        savedMonsters.put(mapId, monsterCopy);
+        savedITiles.put(mapId, iTileCopy);
+    }
+
+    private void restoreMapEntities(String mapId) {
+        // Restore the saved entity arrays for this map
+        Entity[] objCopy = savedObjects.get(mapId);
+        Entity[] npcCopy = savedNPCs.get(mapId);
+        Entity[] monsterCopy = savedMonsters.get(mapId);
+        interactiveTile[] iTileCopy = savedITiles.get(mapId);
+        
+        if (objCopy != null) System.arraycopy(objCopy, 0, obj, 0, obj.length);
+        if (npcCopy != null) System.arraycopy(npcCopy, 0, npc, 0, npc.length);
+        if (monsterCopy != null) System.arraycopy(monsterCopy, 0, monster, 0, monster.length);
+        if (iTileCopy != null) System.arraycopy(iTileCopy, 0, iTile, 0, iTile.length);
     }
 
     public void resetGame(boolean restart) {
+
+        deathSoundPlayed = false;
+
+        if ( restart == true ) {
+            // Full restart — reload the main map from scratch
+            currentMapId = "harta";
+            String path = mapRegistry.getOrDefault(currentMapId, "/res/maps/harta.tmx");
+            tileM.mapLayers.clear();
+            tileM.loadMapFromTMX(path);
+            tileM.loadCollisionLayer(path);
+            cChecker.updateCollisionRectsCache();
+
+            // Clear all saved map states
+            savedObjects.clear();
+            savedNPCs.clear();
+            savedMonsters.clear();
+            savedITiles.clear();
+
+            for (int i = 0; i < obj.length; i++) obj[i] = null;
+            for (int i = 0; i < npc.length; i++) npc[i] = null;
+            for (int i = 0; i < monster.length; i++) monster[i] = null;
+            for (int i = 0; i < iTile.length; i++) iTile[i] = null;
+            projectilesList.clear();
+            particleList.clear();
+            eHandler.reset();
+
+            player.setDefaultValues();
+            aSetter.setObject();
+            aSetter.setInteractiveTile();
+            aSetter.setEvents();
+        }
 
         player.setDefaultPositions();
         player.restoreLifeAndMana();
         aSetter.setNPC();
         aSetter.setMonster();
-        deathSoundPlayed = false;
-
-        if ( restart == true ) {
-            player.setDefaultValues();
-            aSetter.setObject();
-            // aSetter.setInteractibeTile();
-        }
     }
     public void setFullScreen() {
 
@@ -409,10 +538,11 @@ public class GamePanel extends JPanel implements Runnable{
         int lineHeigh = 20;
 
         g2.drawString("FPS: " + currentFPS, x, y); y += lineHeigh;
-        g2.drawString("WorldX" + player.worldX, x, y); y += lineHeigh;
-        g2.drawString("WorldY" + player.worldY, x, y); y += lineHeigh;
-        g2.drawString("Col" + (player.worldX + player.solidArea.x) / tileSize, x, y); y += lineHeigh;
-        g2.drawString("Row" + (player.worldY + player.solidArea.y) / tileSize, x, y); y += lineHeigh;
+        g2.drawString("Map: " + currentMapId, x, y); y += lineHeigh;
+        g2.drawString("WorldX: " + player.worldX, x, y); y += lineHeigh;
+        g2.drawString("WorldY: " + player.worldY, x, y); y += lineHeigh;
+        g2.drawString("Col: " + (player.worldX + player.solidArea.x) / tileSize, x, y); y += lineHeigh;
+        g2.drawString("Row: " + (player.worldY + player.solidArea.y) / tileSize, x, y); y += lineHeigh;
     }
 }
 
@@ -420,6 +550,10 @@ public class GamePanel extends JPanel implements Runnable{
         switch (gameState) {
             case titleState:
                 ui.draw(g2);
+                break;
+            case transitionState:
+                // Draw the world underneath, then UI draws the fade overlay on top
+                drawWorldState();
                 break;
             case playState:
             case pauseState:

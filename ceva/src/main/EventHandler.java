@@ -15,6 +15,10 @@ public class EventHandler{
     // map transitions keyed by "col,row"
     Map<String, MapTransition> mapTransitions = new HashMap<>();
 
+    // ENTRY POINT TRACKING: Store the trigger tile position when a transition is activated
+    public int lastTriggerCol = 0;
+    public int lastTriggerRow = 0;
+
     public EventHandler(GamePanel gp) {
         this.gp = gp;
 
@@ -43,7 +47,10 @@ public class EventHandler{
         setDialogue();
     }
     public void reset() {
-        // rebuild event rects (same logic as constructor)
+        // Clear all map transitions from the previous map
+        mapTransitions.clear();
+
+        // Rebuild event rects (same logic as constructor)
         eventRect = new EventRect[gp.maxWorldCol][gp.maxWorldRow];
         int col = 0;
         int row = 0;
@@ -63,6 +70,11 @@ public class EventHandler{
                 row++;
             }
         }
+
+        // Reset touch state so events on the new map can trigger properly
+        canTouchEvent = true;
+        previousEventX = gp.player.worldX;
+        previousEventY = gp.player.worldY;
     }
     public void setDialogue() {
         
@@ -80,18 +92,24 @@ public class EventHandler{
         }
         if ( canTouchEvent == true ) {
 
-            // Healing pool
-            if ( hit(54, 22, "any") == true ) {healingPool( gp.dialogueState ); }
+            // Map-specific events
+            if (gp.currentMapId.equals("harta")) {
+                // Healing pool (only exists on harta map at tile 54,22)
+                if ( hit(54, 22, "any") == true ) { healingPool( gp.dialogueState ); }
+            }
 
-            // Map transitions: trigger immediate when stepping on tile
+            // Map transitions: use smooth fade transition when stepping on trigger tile
             for (String key : mapTransitions.keySet()) {
                 String[] parts = key.split(",");
                 int col = Integer.parseInt(parts[0]);
                 int row = Integer.parseInt(parts[1]);
                 MapTransition mt = mapTransitions.get(key);
                 if ( hit(col, row, "any") == true ) {
-                    // perform transition
-                    gp.changeMap(mt.mapId, mt.spawnCol, mt.spawnRow);
+                    // Save the trigger position (where we entered from) before transitioning
+                    lastTriggerCol = col;
+                    lastTriggerRow = row;
+                    // Use the safe transition entry point
+                    gp.startTransition(mt.mapId, mt.spawnCol, mt.spawnRow);
                     canTouchEvent = false;
                     previousEventX = gp.player.worldX;
                     previousEventY = gp.player.worldY;
@@ -105,6 +123,23 @@ public class EventHandler{
     public void registerMapTransition(int col, int row, String mapId, int spawnCol, int spawnRow) {
         String key = col + "," + row;
         mapTransitions.put(key, new MapTransition(mapId, spawnCol, spawnRow));
+    }
+
+    /**
+     * Register a bidirectional transition: when stepping on (col, row),
+     * go to the destination map and spawn at (destCol, destRow).
+     * The return path is automatically set to go back to the previous map
+     * at the spawn position stored when entering this map.
+     *
+     * Use this instead of registerMapTransition() for entry/exit pairs that
+     * should automatically track where you came from.
+     */
+    public void registerReturnTransition(int col, int row, String destinationMapId, int destCol, int destRow) {
+        // Register the forward transition (harta → test)
+        registerMapTransition(col, row, destinationMapId, destCol, destRow);
+
+        // The return transition will be registered when we're on the destination map.
+        // See AssetSetter.registerReturnPath() for how this works.
     }
 
     static class MapTransition {

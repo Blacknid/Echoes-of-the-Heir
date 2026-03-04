@@ -10,6 +10,8 @@ public class OBJ_Door extends Entity {
     public boolean portal = false; // when true, this door uses `location`
     public String location = null; // either a map id / path (eg "/res/maps/test.tmx" or "test") or "col,row" for local coords
     public boolean requiresKey = false;
+    public int spawnCol = 1;
+    public int spawnRow = 1;
 
     public OBJ_Door(GamePanel gp) {
         super(gp);
@@ -42,16 +44,19 @@ public class OBJ_Door extends Entity {
             }
             if (requiresKey) gp.player.hasKey--;
 
-            if (location.contains(".tmx") || location.startsWith("/res/maps/") || gp.mapRegistry.containsKey(location)) {
-                gp.changeMap(location, 1, 1);
-            } else if (location.matches("\\d+,\\d+")) {
+            if (location.matches("\\d+,\\d+")) {
+                // Local teleport within the same map (no map change needed)
                 String[] parts = location.split(",");
                 int col = Integer.parseInt(parts[0].trim());
                 int row = Integer.parseInt(parts[1].trim());
                 gp.player.worldX = col * gp.tileSize;
                 gp.player.worldY = row * gp.tileSize;
             } else {
-                gp.changeMap(location, 1, 1);
+                // Map change — use smooth fade transition via the safe entry point
+                // Save this door's tile position so the return path can lead back here
+                gp.doorEntryCol = worldX / gp.tileSize;    // convert pixel position to tile
+                gp.doorEntryRow = worldY / gp.tileSize;    // convert pixel position to tile
+                gp.startTransition(location, spawnCol, spawnRow);
             }
         } else {
             startDialogue(this, 0);
@@ -68,6 +73,8 @@ public class OBJ_Door extends Entity {
         this.portal = true;
         this.location = location;
         this.requiresKey = needKey;
+        this.spawnCol = 1;
+        this.spawnRow = 1;
     }
 
     /**
@@ -81,7 +88,8 @@ public class OBJ_Door extends Entity {
             this.location = mapId; // map id
         }
         this.requiresKey = needKey;
-        // Note: spawn coords are not stored on the door; call gp.changeMap directly for custom spawn positions if needed.
+        this.spawnCol = col;
+        this.spawnRow = row;
     }
 
 }
