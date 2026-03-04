@@ -369,7 +369,20 @@ package entity; import java.awt.AlphaComposite; import java.awt.Color; import ja
                 keyH.enterPressed = false;
                 // Update animation sprites
                 updateSprite();
+
+                // TILE PARTICLES: emit footstep particles when player is moving
+                if (gp.tileParticleEmitter != null) {
+                    footstepParticleCounter++;
+                    if (footstepParticleCounter >= gp.tileParticleEmitter.getEmitInterval()) {
+                        footstepParticleCounter = 0;
+                        int col = getCenterX() / gp.tileSize;
+                        int row = (worldY + gp.tileSize - 1) / gp.tileSize;
+                        int tileType = gp.tileM.getTileType(col, row);
+                        gp.tileParticleEmitter.emit(worldX, worldY, tileType, direction);
+                    }
+                }
             } else {
+                footstepParticleCounter = 0;
                 // Wait 2 seconds before playing idle animation
                 idleDelayCounter++;
 
@@ -594,20 +607,24 @@ package entity; import java.awt.AlphaComposite; import java.awt.Color; import ja
      * Generate extra blood particles when player takes damage
      */
     public void bleed() {
-        // Generate 3 additional blood particles around the player
-        Color bloodColor = new Color(200, 20, 20);
+        Color bloodColorA = new Color(220, 35, 45);
+        Color bloodColorB = new Color(150, 20, 30);
         
         Particle p1 = gp.particlePool.get();
-        p1.setWithPosition(this, this, bloodColor, 8, 2, 25, -1, -2);
+        p1.setWithPosition(this, this, bloodColorA, 9, 2, 24, -1, -2, Particle.STYLE_BLOOD);
         gp.particleList.add(p1);
         
         Particle p2 = gp.particlePool.get();
-        p2.setWithPosition(this, this, bloodColor, 8, 2, 25, 1, -2);
+        p2.setWithPosition(this, this, bloodColorA, 9, 2, 24, 1, -2, Particle.STYLE_BLOOD);
         gp.particleList.add(p2);
         
         Particle p3 = gp.particlePool.get();
-        p3.setWithPosition(this, this, bloodColor, 6, 1, 20, 0, -1);
+        p3.setWithPosition(this, this, bloodColorB, 7, 2, 20, 0, -1, Particle.STYLE_BLOOD);
         gp.particleList.add(p3);
+
+        Particle p4 = gp.particlePool.get();
+        p4.setWithPosition(this, this, bloodColorB, 6, 1, 18, -1, -1, Particle.STYLE_BLOOD);
+        gp.particleList.add(p4);
     }
 
     // Interaction methods
@@ -952,33 +969,38 @@ package entity; import java.awt.AlphaComposite; import java.awt.Color; import ja
     // Particle methods
     public Color getParticleColor() {
         if (dashParticle) {
-            return new Color(150, 150, 150); // gray dust for dash
+            return new Color(160, 160, 160); // gray dust for dash
         }
-        // Blood red for damage
-        return new Color(200, 20, 20);
+        return new Color(210, 32, 45);
     }
 
     public int getParticleSize() {
         if (dashParticle) {
             return 6; // smaller for dash
         }
-        // Larger particles for more visible bleeding
-        return 12; // pixels
+        return 10;
     }
 
     public int getParticleSpeed() {
         if (dashParticle) {
             return 2; // faster for dash
         }
-        return 1;
+        return 2;
     }
 
     public int getParticleMaxLife() {
         if (dashParticle) {
             return 15; // shorter life for dash
         }
-        // Longer lasting blood particles
-        return 30;
+        return 24;
+    }
+
+    @Override
+    public int getParticleStyle() {
+        if (dashParticle) {
+            return Particle.STYLE_DUST;
+        }
+        return Particle.STYLE_BLOOD;
     }
 
     public Color getParticleColor1() {

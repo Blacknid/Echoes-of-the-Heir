@@ -6,6 +6,7 @@ import entity.Player;
 import entity.Projectile;
 import entity.Particle;
 import environment.EnvironmentManager;
+import environment.MapShaderManager;
 
 import java.awt.Color;
 import java.awt.Dimension;
@@ -14,6 +15,7 @@ import java.awt.Graphics;
 import java.awt.Graphics2D;
 import java.awt.GraphicsDevice;
 import java.awt.GraphicsEnvironment;
+import java.awt.Toolkit;
 import java.awt.image.BufferedImage;
 import java.util.ArrayList;
 import java.util.Collections;
@@ -79,6 +81,8 @@ public class GamePanel extends JPanel implements Runnable{
     public CutsceneManager csManager = new CutsceneManager(this);
     public PathFinder pFinder = new PathFinder(this);
     public EnvironmentManager eManager = new EnvironmentManager(this);
+    public MapShaderManager mapShader;
+    public environment.TileParticleEmitter tileParticleEmitter;
     SaveLoad saveLoad = new SaveLoad(this);
     // Map registry: id -> tmx path
     public Map<String, String> mapRegistry = new HashMap<>();
@@ -192,6 +196,13 @@ public class GamePanel extends JPanel implements Runnable{
         40,  // initial pool size
         20   // expand size
     );
+
+    // SHADER EFFECTS: Initialize map shader manager (water shimmer, particles, vignette, color grading)
+    mapShader = new MapShaderManager(this);
+    mapShader.setup();
+
+    // TILE PARTICLES: footstep dust/grass/stone particles when entities move
+    tileParticleEmitter = new environment.TileParticleEmitter(this);
 
     tempScreen = new BufferedImage(screenWidth, screenHeight, BufferedImage.TYPE_INT_ARGB);
     g2 = (Graphics2D) tempScreen.getGraphics();
@@ -405,12 +416,17 @@ public class GamePanel extends JPanel implements Runnable{
             timer += (currentTime - lastTime);
             lastTime = currentTime;
 
-            if(delta >= 1) {
+            boolean didUpdate = false;
+            while (delta >= 1) {
                 update();
-                drawToTempScreen(); // draw = Buffered image
-                drawToScreen(); // screen = Buffered image
                 delta--;
                 drawCount++;
+                didUpdate = true;
+            }
+
+            if (didUpdate) {
+                drawToTempScreen(); // draw = Buffered image
+                repaint(); // screen = Swing paint pipeline
             }
 
             if(timer >= 1000000000) {
@@ -419,6 +435,23 @@ public class GamePanel extends JPanel implements Runnable{
                 timer = 0;
             }
 
+            Thread.yield();
+            try {
+                Thread.sleep(1);
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+                break;
+            }
+
+        }
+    }
+
+    @Override
+    protected void paintComponent(Graphics g) {
+        super.paintComponent(g);
+        if (tempScreen != null) {
+            g.drawImage(tempScreen, 0, 0, getWidth(), getHeight(), null);
+            Toolkit.getDefaultToolkit().sync();
         }
     }
 
@@ -483,6 +516,16 @@ public class GamePanel extends JPanel implements Runnable{
                 }
             }
             eManager.update();
+
+            // SHADER EFFECTS: advance animation tick & ambient particles
+            if (mapShader != null) {
+                mapShader.update();
+            }
+
+            // TILE PARTICLES: update footstep particles
+            if (tileParticleEmitter != null) {
+                tileParticleEmitter.update();
+            }
         }
             if (player.life <= 0) {
             player.life = 0; // safety clamp
@@ -543,6 +586,9 @@ public class GamePanel extends JPanel implements Runnable{
         g2.drawString("WorldY: " + player.worldY, x, y); y += lineHeigh;
         g2.drawString("Col: " + (player.worldX + player.solidArea.x) / tileSize, x, y); y += lineHeigh;
         g2.drawString("Row: " + (player.worldY + player.solidArea.y) / tileSize, x, y); y += lineHeigh;
+        if (tileParticleEmitter != null) {
+            g2.drawString("TileParticles: " + tileParticleEmitter.getActiveCount(), x, y); y += lineHeigh;
+        }
     }
 }
 
@@ -578,18 +624,58 @@ public class GamePanel extends JPanel implements Runnable{
         // SORT (only sort the active portion of the list)
         Collections.sort(entityList.subList(0, entityListIndex), renderSorter);
 
-        // DRAW ENTITIES (only draw active entities)
+        // TILE PARTICLES: prepare Y-sorted particle indices for interleaved drawing
+        int tpCount = 0;
+        if (tileParticleEmitter != null) {
+            tpCount = tileParticleEmitter.prepareSortedIndices();
+        }
+        int tpIdx = 0;
+
+        // DRAW ENTITIES + TILE PARTICLES interleaved by Y (depth-correct)
+        // Particles with sortY <= entity.worldY are drawn BEFORE the entity → appear behind it
+        java.awt.Composite savedComp = g2.getComposite();
         for (int i = 0; i < entityListIndex; i++) {
+            int entityY = entityList.get(i).worldY;
+
+            // Draw all particles that sort behind (or at same level as) this entity
+            while (tpIdx < tpCount && tileParticleEmitter.getSortY(tpIdx) <= entityY) {
+                tileParticleEmitter.drawSingle(g2, tpIdx);
+                tpIdx++;
+            }
+
+            // Restore composite in case a particle changed it
+            g2.setComposite(savedComp);
             entityList.get(i).draw(g2);
         }
+        // Draw remaining particles (in front of all entities)
+        while (tpIdx < tpCount) {
+            tileParticleEmitter.drawSingle(g2, tpIdx);
+            tpIdx++;
+        }
+        g2.setComposite(savedComp);
 
         clearRenderableEntities();
 
         // CUTSCENE
         csManager.draw(g2);
 
-        // ENVIRONMENT
+        // SHADER: ambient floating particles (between world and environment overlay)
+        if (mapShader != null) {
+            mapShader.drawAmbientParticles(g2);
+        }
+
+        // SHADER: subtle warm color grading
+        if (mapShader != null) {
+            mapShader.drawColorGrading(g2);
+        }
+
+        // ENVIRONMENT (day/night darkness overlay)
         eManager.draw(g2);
+
+        // SHADER: vignette (darkened edges, cinematic feel)
+        if (mapShader != null) {
+            mapShader.drawVignette(g2);
+        }
 
         // UI
         ui.draw(g2);
@@ -799,10 +885,7 @@ public class GamePanel extends JPanel implements Runnable{
 
 
     public void drawToScreen() {
-
-        Graphics g = getGraphics();
-        g.drawImage(tempScreen, 0, 0, getWidth(), getHeight(), null);
-        g.dispose(); 
+        repaint();
     }
 
     public void playMusic(int i) {

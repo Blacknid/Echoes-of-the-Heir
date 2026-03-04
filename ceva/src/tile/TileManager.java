@@ -106,6 +106,25 @@ public class TileManager {
         addTileset("/res/tiles/Water-sheet.png", 77);
     }
 
+    // ---------------- Get tile type for a world position ----------------
+    /**
+     * Returns the tile type constant for the given tile column/row.
+     * Checks all layers top-down and returns the first non-empty GID's type.
+     * Types: 0 = none, 1 = grass (GID 1-12), 2 = stone (GID 13-76), 3 = water (GID 77+)
+     */
+    public int getTileType(int col, int row) {
+        if (col < 0 || col >= gp.maxWorldCol || row < 0 || row >= gp.maxWorldRow) return 0;
+        // Check layers top-down so the uppermost visible tile wins
+        for (int l = mapLayers.size() - 1; l >= 0; l--) {
+            int gid = mapLayers.get(l)[col][row];
+            if (gid == 0) continue;
+            if (gid >= 77) return 3; // water
+            if (gid >= 13) return 2; // stone / tileset2
+            if (gid >= 1)  return 1; // grass
+        }
+        return 0;
+    }
+
     // ---------------- Get tile by GID ----------------
     public Tile getTileByGID(int gid) {
         if (gid == 0) return null;
@@ -240,8 +259,17 @@ public class TileManager {
 
                     int screenX = worldX - playerWorldX + gp.player.screenX;
                     int screenY = worldY - playerWorldY + gp.player.screenY;
-                    
-                    g2.drawImage(tile.image, screenX, screenY, null);
+
+                    // Water tiles: animated wave + shimmer highlight
+                    if (gid >= 77 && gp.mapShader != null) {
+                        int waveY = gp.mapShader.getWaterWaveOffset(worldCol, worldRow);
+                        g2.drawImage(tile.image, screenX, screenY + waveY, null);
+                        int idx = gp.mapShader.getWaterShimmerIndex(worldCol, worldRow);
+                        g2.setColor(gp.mapShader.waterShimmerColors[idx]);
+                        g2.fillRect(screenX, screenY + waveY, tileSize, tileSize);
+                    } else {
+                        g2.drawImage(tile.image, screenX, screenY, null);
+                    }
                 }
             }
         }

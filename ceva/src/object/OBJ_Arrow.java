@@ -66,20 +66,25 @@ public class OBJ_Arrow extends Projectile {
 
     }
     public Color getParticleColor() {
-        Color color = new Color(40, 50, 0);
+        Color color = new Color(255, 205, 90);
         return color;
     }
     public int getParticleSize() {
-        int size = 10; // pixels
+        int size = 8; // pixels
         return size;
     }
     public int getParticleSpeed() {
-        int speed = 1;
+        int speed = 2;
         return speed;
     }
     public int getParticleMaxLife() {
-        int maxLife = 20;
+        int maxLife = 16;
         return maxLife;
+    }
+
+    @Override
+    public int getParticleStyle() {
+        return entity.Particle.STYLE_HIT;
     }
 
 

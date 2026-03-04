@@ -56,6 +56,9 @@ public class Entity {
     public int shotAvailableCounter = 0;
     int dyingCounter = 0;
     int hpBarCounter = 0;
+
+    // TILE PARTICLES: throttle counter for footstep particle emission
+    public int footstepParticleCounter = 0;
     
     // DIALOGUE
     public String dialogues[][] = new String[100][100];
@@ -220,29 +223,33 @@ public class Entity {
         int maxLife = 0; // frames
         return maxLife;
     }
+    public int getParticleStyle() {
+        return Particle.STYLE_DEFAULT;
+    }
     public void generateParticle ( Entity generator, Entity target ) {
 
         Color color = generator.getParticleColor();
         int size = generator.getParticleSize();
         int speed = generator.getParticleSpeed();
         int maxLife = generator.getParticleMaxLife();
+        int style = generator.getParticleStyle();
 
         // OPTIMIZATION: Use particle pool instead of creating new objects
         // Position particles at the TARGET location (where hit occurred), not the generator
         Particle p1 = gp.particlePool.get();
-        p1.setWithPosition(generator, target, color, size, speed, maxLife, -1, -1);
+        p1.setWithPosition(generator, target, color, size, speed, maxLife, -1, -1, style);
         gp.particleList.add(p1);
         
         Particle p2 = gp.particlePool.get();
-        p2.setWithPosition(generator, target, color, size, speed, maxLife, 0, -1);
+        p2.setWithPosition(generator, target, color, size, speed, maxLife, 0, -1, style);
         gp.particleList.add(p2);
         
         Particle p3 = gp.particlePool.get();
-        p3.setWithPosition(generator, target, color, size, speed, maxLife, 1, -1);
+        p3.setWithPosition(generator, target, color, size, speed, maxLife, 1, -1, style);
         gp.particleList.add(p3);
         
         Particle p4 = gp.particlePool.get();
-        p4.setWithPosition(generator, target, color, size, speed, maxLife, 0, 1);
+        p4.setWithPosition(generator, target, color, size, speed, maxLife, 0, 1, style);
         gp.particleList.add(p4);
 
     } 
@@ -290,6 +297,20 @@ public class Entity {
         // The searchPath logic handles movement when onPath is true.
 
         boolean movedThisFrame = worldX != previousWorldX || worldY != previousWorldY;
+
+        // TILE PARTICLES: emit footstep particles when moving
+        if (movedThisFrame && gp.tileParticleEmitter != null) {
+            footstepParticleCounter++;
+            if (footstepParticleCounter >= gp.tileParticleEmitter.getEmitInterval()) {
+                footstepParticleCounter = 0;
+                int col = getCenterX() / gp.tileSize;
+                int row = (worldY + gp.tileSize - 1) / gp.tileSize; // feet row
+                int tileType = gp.tileM.getTileType(col, row);
+                gp.tileParticleEmitter.emit(worldX, worldY, tileType, direction);
+            }
+        } else {
+            footstepParticleCounter = 0;
+        }
 
         if (movedThisFrame) {
             spriteCounter++;
