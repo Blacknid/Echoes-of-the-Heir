@@ -13,6 +13,7 @@ import object.OBJ_Potion;
 import object.OBJ_Tent;
 import object.OBJ_Torch;
 import tiles_interactive.IT_Coins;
+import object.OBJ_Tower;
 
 public class AssetSetter {
 
@@ -179,6 +180,11 @@ public class AssetSetter {
         gp.obj[i].worldX = 74 * gp.tileSize;
         gp.obj[i].worldY = 24 * gp.tileSize;
         i++;
+
+        /*gp.obj[i] = new OBJ_Tower(gp);
+        gp.obj[i].worldX = 72 * gp.tileSize;
+        gp.obj[i].worldY = 27 * gp.tileSize;
+        i++;*/
     }
 
     private void setObject_test() {
