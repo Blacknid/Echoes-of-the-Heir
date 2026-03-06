@@ -897,236 +897,350 @@ public class UI {
         int itemIndex = slotCol + ( slotRow * 5 );
         return itemIndex;
     }
+    // ── CACHED COLORS / STROKES for options screen (avoid per-frame allocation) ──
+    private static final Color OPT_BG_DARK    = new Color(15, 10, 8, 230);
+    private static final Color OPT_BORDER     = new Color(180, 140, 60);
+    private static final Color OPT_BORDER_IN  = new Color(100, 75, 30, 160);
+    private static final Color OPT_GOLD       = new Color(218, 175, 62);
+    private static final Color OPT_GOLD_DIM   = new Color(160, 130, 50);
+    private static final Color OPT_TEXT       = new Color(220, 210, 190);
+    private static final Color OPT_TEXT_DIM   = new Color(140, 130, 110);
+    private static final Color OPT_SEL_BG     = new Color(180, 140, 60, 35);
+    private static final Color OPT_SEL_BORDER = new Color(218, 175, 62, 100);
+    private static final Color OPT_CHECK_BG   = new Color(30, 25, 18);
+    private static final Color OPT_CHECK_ON   = new Color(200, 160, 50);
+    private static final Color OPT_BAR_BG     = new Color(30, 25, 18);
+    private static final Color OPT_BAR_FILL   = new Color(180, 140, 50);
+    private static final Color OPT_BAR_GLOW   = new Color(220, 190, 80, 120);
+    private static final Color OPT_SEPARATOR  = new Color(100, 75, 30, 80);
+    private static final Color OPT_BACK_TEXT  = new Color(170, 140, 80);
+    private static final BasicStroke OPT_STROKE_BORDER = new BasicStroke(3);
+    private static final BasicStroke OPT_STROKE_THIN   = new BasicStroke(1);
+    private static final BasicStroke OPT_STROKE_SEL    = new BasicStroke(2);
+
     public void options_top( int frameX, int frameY ) {
 
-        int textX;
-        int textY;
+        int fw = gp.tileSize * 8;
+        int fh = gp.tileSize * 10;
+        int pad = 20;                   // inner padding
+        int lineH = 52;                 // row height for menu items
+        int rightCol = frameX + fw - pad - 155; // right column for controls/sliders
 
-        // TITLE   
-        String text = "Options";
-        textX = getXforCenteredText(text);
-        textY = frameY + gp.tileSize;
-        g2.drawString(text, textX, textY);
+        // ── TITLE ──
+        g2.setFont(g2.getFont().deriveFont(Font.BOLD, 36F));
+        String title = "Settings";
+        int titleW = (int) g2.getFontMetrics().getStringBounds(title, g2).getWidth();
+        int titleX = frameX + fw / 2 - titleW / 2;
+        int titleY = frameY + 48;
+        // shadow
+        g2.setColor(new Color(0, 0, 0, 150));
+        g2.drawString(title, titleX + 2, titleY + 2);
+        // gold text
+        g2.setColor(OPT_GOLD);
+        g2.drawString(title, titleX, titleY);
+        // decorative line under title
+        int lineYDeco = titleY + 10;
+        g2.setColor(OPT_SEPARATOR);
+        g2.fillRect(frameX + pad + 20, lineYDeco, fw - pad * 2 - 40, 2);
 
-        // FULL SCREEN ON/OFF
-        textX = frameX + gp.tileSize;
-        textY += gp.tileSize * 2;
-        g2.drawString("FullScreen", textX, textY);
-        if ( commandNum == 0 ) {
-            g2.drawString(">", textX - 25, textY);
-            if ( gp.keyH.enterPressed == true ) {
-                if ( gp.fullScreenOn == false ) {
-                    gp.fullScreenOn = true;
+        // ── MENU ITEMS ──
+        g2.setFont(g2.getFont().deriveFont(Font.PLAIN, 26F));
+        int startY = titleY + 42;       // first item Y baseline
+        int textX = frameX + pad + 15;
+
+        String[] labels = { "Full Screen", "V-Sync", "Music", "Sound FX", "Controls", "End Game", "Save Game", "Back" };
+        int totalItems = labels.length;  // 8 items, indices 0-7
+
+        for (int i = 0; i < totalItems; i++) {
+            int itemY = startY + i * lineH;
+            boolean selected = (commandNum == i);
+            boolean isBack = (i == 7);
+
+            // draw separator before "Back"
+            if (isBack) {
+                int sepY = itemY - lineH / 2 + 4;
+                g2.setColor(OPT_SEPARATOR);
+                g2.fillRect(frameX + pad + 10, sepY, fw - pad * 2 - 20, 1);
+            }
+
+            // selection highlight bar
+            if (selected) {
+                int barX = frameX + pad + 4;
+                int barY = itemY - lineH + 16;
+                int barW = fw - pad * 2 - 8;
+                int barH = lineH - 4;
+                g2.setColor(OPT_SEL_BG);
+                g2.fillRoundRect(barX, barY, barW, barH, 10, 10);
+                g2.setColor(OPT_SEL_BORDER);
+                g2.setStroke(OPT_STROKE_SEL);
+                g2.drawRoundRect(barX, barY, barW, barH, 10, 10);
+            }
+
+            // label
+            if (isBack) {
+                // center "Back" and use dimmer gold
+                g2.setColor(selected ? OPT_GOLD : OPT_BACK_TEXT);
+                int bw = (int) g2.getFontMetrics().getStringBounds(labels[i], g2).getWidth();
+                g2.drawString(labels[i], frameX + fw / 2 - bw / 2, itemY);
+            } else {
+                g2.setColor(selected ? OPT_GOLD : OPT_TEXT);
+                g2.drawString(labels[i], textX, itemY);
+            }
+
+            // ── RIGHT-SIDE CONTROLS ──
+            int ctrlY = itemY - 17; // vertical center for controls
+
+            if (i == 0) { // FullScreen toggle
+                drawMedievalToggle(rightCol + 100, ctrlY, gp.fullScreenOn);
+                if (selected && gp.keyH.enterPressed) {
+                    gp.fullScreenOn = !gp.fullScreenOn;
+                    subState = 1;
                 }
-                else if ( gp.fullScreenOn == true ) {
-                    gp.fullScreenOn = false;
+            }
+            else if (i == 1) { // V-Sync toggle
+                drawMedievalToggle(rightCol + 100, ctrlY, gp.vSyncOn);
+                if (selected && gp.keyH.enterPressed) {
+                    gp.setVSync(!gp.vSyncOn);
+                    gp.keyH.enterPressed = false;
                 }
-                subState = 1;
+            }
+            else if (i == 2) { // Music volume bar
+                drawMedievalSlider(rightCol, ctrlY, gp.music.volumeScale, 5);
+            }
+            else if (i == 3) { // SE volume bar
+                drawMedievalSlider(rightCol, ctrlY, gp.se.volumeScale, 5);
+            }
+            else if (i == 4) { // Controls
+                if (selected) drawArrowHint(rightCol + 120, itemY);
+                if (selected && gp.keyH.enterPressed) { subState = 2; commandNum = 0; }
+            }
+            else if (i == 5) { // End Game
+                if (selected && gp.keyH.enterPressed) { subState = 3; commandNum = 0; }
+            }
+            else if (i == 6) { // Save Game
+                if (selected && gp.keyH.enterPressed) {
+                    gp.saveLoad.save();
+                    addMessage("Game saved.", Color.WHITE);
+                    gp.playSE(3);
+                    gp.keyH.enterPressed = false;
+                }
+            }
+            else if (i == 7) { // Back
+                if (selected && gp.keyH.enterPressed) { gp.gameState = gp.playState; commandNum = 0; }
             }
         }
-
-        // V-SYNC ON/OFF
-        textY += gp.tileSize;
-        g2.drawString("V-Sync", textX, textY);
-        if ( commandNum == 1 ) {
-            g2.drawString(">", textX - 25, textY);
-            if ( gp.keyH.enterPressed == true ) {
-                gp.setVSync(!gp.vSyncOn);
-                gp.keyH.enterPressed = false;
-            }
-        }
-
-        // MUSIC
-        textY += gp.tileSize;
-        g2.drawString("Music", textX, textY);
-        if ( commandNum == 2 ) {
-            g2.drawString(">", textX - 25, textY);
-        }
-
-        // SE
-        textY += gp.tileSize;
-        g2.drawString("SE", textX, textY);
-        if ( commandNum == 3 ) {
-            g2.drawString(">", textX - 25, textY);
-        }
-
-        // CONTROL
-        textY += gp.tileSize;
-        g2.drawString("Control", textX, textY);
-        if ( commandNum == 4 ) {
-            g2.drawString(">", textX - 25, textY);
-            if ( gp.keyH.enterPressed == true ) {
-                subState = 2;
-                commandNum = 0;
-            }
-        }
-
-        // END GAME
-        textY += gp.tileSize;
-        g2.drawString("End Game", textX, textY);
-        if ( commandNum == 5 ) {
-            g2.drawString(">", textX - 25, textY);
-            if ( gp.keyH.enterPressed == true ) {
-                subState = 3;
-                commandNum = 0;
-            }
-        }
-
-        // SAVE GAME
-        textY += gp.tileSize;
-        g2.drawString("Save Game", textX, textY);
-        if ( commandNum == 6 ) {
-            g2.drawString(">", textX - 25, textY);
-            if ( gp.keyH.enterPressed == true ) {
-                gp.saveLoad.save();
-                addMessage("Game saved.", Color.WHITE);
-                gp.playSE(3);
-                gp.keyH.enterPressed = false;
-            }
-        }
-
-        // BACK
-        textY += gp.tileSize * 2;
-        g2.drawString("Back", textX, textY);
-        if ( commandNum == 7 ) {
-            g2.drawString(">", textX - 25, textY);
-            if ( gp.keyH.enterPressed == true ) {
-                gp.gameState = gp.playState;
-                commandNum = 0;
-            }
-        }
-
-        // FULLSCREEN CHECK BOX
-        textX = frameX + gp.tileSize * 5;
-        textY = frameY + gp.tileSize * 2 + 42;
-        g2.setStroke(new BasicStroke(3));
-        g2.drawRect(textX, textY, 24, 24);
-        if ( gp.fullScreenOn == true ) {
-            g2.fillRect(textX, textY, 24, 24);
-        }
-
-        // V-SYNC CHECK BOX
-        textY += gp.tileSize;
-        g2.drawRect(textX, textY, 24, 24);
-        if ( gp.vSyncOn == true ) {
-            g2.fillRect(textX, textY, 24, 24);
-        }
-
-        // MUSIC VOLUME
-        textY += gp.tileSize;
-        g2.drawRect(textX, textY, 150, 24); // 150 impartit la 5 casute = 30
-        int volumeWidth = 30 * gp.music.volumeScale;
-        g2.fillRect(textX, textY, volumeWidth, 24);
-
-        // SE VOLUME
-        textY += gp.tileSize;
-        g2.drawRect(textX, textY, 150, 24);
-        volumeWidth = 30 * gp.se.volumeScale;
-        g2.fillRect(textX, textY, volumeWidth, 24);
 
         gp.config.saveConfig();
     }
+
+    /** Draw a medieval-style on/off toggle (small ornate checkbox). */
+    private void drawMedievalToggle(int x, int y, boolean on) {
+        int size = 22;
+        // outer box
+        g2.setColor(OPT_CHECK_BG);
+        g2.fillRoundRect(x, y, size, size, 5, 5);
+        g2.setColor(OPT_BORDER_IN);
+        g2.setStroke(OPT_STROKE_THIN);
+        g2.drawRoundRect(x, y, size, size, 5, 5);
+        if (on) {
+            // filled golden square
+            g2.setColor(OPT_CHECK_ON);
+            g2.fillRoundRect(x + 3, y + 3, size - 6, size - 6, 3, 3);
+            // bright center pip
+            g2.setColor(OPT_GOLD);
+            g2.fillRect(x + 7, y + 7, size - 14, size - 14);
+        }
+    }
+
+    /** Draw a medieval-style volume slider bar. */
+    private void drawMedievalSlider(int x, int y, int value, int max) {
+        int barW = 150;
+        int barH = 18;
+        int cy = y + 2;
+        // background track
+        g2.setColor(OPT_BAR_BG);
+        g2.fillRoundRect(x, cy, barW, barH, 6, 6);
+        g2.setColor(OPT_BORDER_IN);
+        g2.setStroke(OPT_STROKE_THIN);
+        g2.drawRoundRect(x, cy, barW, barH, 6, 6);
+        // filled portion
+        int fillW = (int) ((barW - 4) * ((float) value / max));
+        if (fillW > 0) {
+            g2.setColor(OPT_BAR_FILL);
+            g2.fillRoundRect(x + 2, cy + 2, fillW, barH - 4, 4, 4);
+            // subtle highlight on top half
+            g2.setColor(OPT_BAR_GLOW);
+            g2.fillRoundRect(x + 2, cy + 2, fillW, (barH - 4) / 2, 4, 4);
+        }
+        // notch marks
+        g2.setColor(OPT_SEPARATOR);
+        for (int i = 1; i < max; i++) {
+            int nx = x + (barW * i / max);
+            g2.drawLine(nx, cy + 2, nx, cy + barH - 2);
+        }
+    }
+
+    /** Small " > " arrow hint for sub-menu items. */
+    private void drawArrowHint(int x, int y) {
+        g2.setColor(OPT_GOLD_DIM);
+        g2.setFont(g2.getFont().deriveFont(20F));
+        g2.drawString("\u25B6", x, y);  // ▶ unicode arrow
+        g2.setFont(g2.getFont().deriveFont(26F));  // restore
+    }
     public void options_fullScreenNotification ( int frameX, int frameY ) {
 
-        int textX = frameX + gp.tileSize;
+        int fw = gp.tileSize * 8;
+        g2.setFont(g2.getFont().deriveFont(Font.BOLD, 30F));
+        g2.setColor(OPT_GOLD);
+        String noteTitle = "Notice";
+        int ntw = (int) g2.getFontMetrics().getStringBounds(noteTitle, g2).getWidth();
+        g2.drawString(noteTitle, frameX + fw / 2 - ntw / 2, frameY + 50);
+
+        g2.setFont(g2.getFont().deriveFont(Font.PLAIN, 24F));
+        g2.setColor(OPT_TEXT);
+        int textX = frameX + 30;
         int textY = frameY + gp.tileSize * 3;
 
-        currentDialogue = "The change will take effect \nafter restarting the game.";
+        currentDialogue = "The change will take effect\nafter restarting the game.";
 
         for ( String line: currentDialogue.split("\n")) {
             g2.drawString(line, textX, textY);
-            textY += 40;
+            textY += 36;
         }
 
-        // BACK
-        textY = frameY + gp.tileSize * 9;
-        g2.drawString("Back", textX, textY);
-        if ( commandNum == 0 ) {
-            g2.drawString(">", textX-25, textY);
-            if ( gp.keyH.enterPressed == true ) {
-                subState = 0;
-            }
+        // BACK button centered
+        g2.setFont(g2.getFont().deriveFont(26F));
+        String back = "Back";
+        int bw = (int) g2.getFontMetrics().getStringBounds(back, g2).getWidth();
+        int backX = frameX + fw / 2 - bw / 2;
+        int backY = frameY + gp.tileSize * 9 - 20;
+        boolean sel = (commandNum == 0);
+        if (sel) {
+            g2.setColor(OPT_SEL_BG);
+            g2.fillRoundRect(backX - 20, backY - 28, bw + 40, 36, 10, 10);
+            g2.setColor(OPT_SEL_BORDER);
+            g2.setStroke(OPT_STROKE_SEL);
+            g2.drawRoundRect(backX - 20, backY - 28, bw + 40, 36, 10, 10);
+        }
+        g2.setColor(sel ? OPT_GOLD : OPT_BACK_TEXT);
+        g2.drawString(back, backX, backY);
+        if ( sel && gp.keyH.enterPressed ) {
+            subState = 0;
         }
     }
     public void options_control ( int frameX, int frameY ) {
-       
-        int textX;
-        int textY;
 
-        // TITLE
-        String text = "Control";
-        textX = getXforCenteredText(text);
-        textY = frameY + gp.tileSize;
-        g2.drawString(text, textX, textY);
+        int fw = gp.tileSize * 8;
+        int pad = 30;
 
-        textX = frameX + gp.tileSize;
-        textY += gp.tileSize;
-        g2.drawString("Move", textX, textY); textY += gp.tileSize;
-        g2.drawString("Confirm", textX, textY); textY += gp.tileSize;
-        //g2.drawString("Shoot/Cast", textX, textY); textY += gp.tileSize;
-        //g2.drawString("Chacarter Screen", textX, textY); textY += gp.tileSize;
-        g2.drawString("Pause", textX, textY); textY += gp.tileSize;
-        g2.drawString("Options", textX, textY); textY += gp.tileSize;
+        // Title
+        g2.setFont(g2.getFont().deriveFont(Font.BOLD, 34F));
+        g2.setColor(OPT_GOLD);
+        String ctrlTitle = "Controls";
+        int ctw = (int) g2.getFontMetrics().getStringBounds(ctrlTitle, g2).getWidth();
+        g2.drawString(ctrlTitle, frameX + fw / 2 - ctw / 2, frameY + 48);
+        // decorative line
+        g2.setColor(OPT_SEPARATOR);
+        g2.fillRect(frameX + pad, frameY + 58, fw - pad * 2, 2);
 
-        textX = frameX + gp.tileSize * 6;
-        textY = frameY + gp.tileSize * 2;
-        g2.drawString("WASD", textX, textY); textY += gp.tileSize;
-        g2.drawString("ENTER", textX, textY); textY += gp.tileSize;
-        //g2.drawString("F", textX, textY); textY += gp.tileSize;
-        //g2.drawString("C", textX, textY); textY += gp.tileSize;
-        g2.drawString("P", textX, textY); textY += gp.tileSize;
-        g2.drawString("ESC", textX, textY); textY += gp.tileSize;
+        // Key bindings table
+        g2.setFont(g2.getFont().deriveFont(Font.PLAIN, 24F));
+        String[] actions = { "Move", "Confirm", "Pause", "Options" };
+        String[] keys    = { "W A S D", "ENTER", "P", "ESC" };
+        int textX = frameX + pad;
+        int keyX  = frameX + fw - pad;
+        int textY = frameY + 100;
+        int rowH  = 50;
 
-        // BACK
-        textX = frameX + gp.tileSize;
-        textY = frameY + gp.tileSize * 9;
-        g2.drawString("Back", textX, textY);
-        if ( commandNum == 0 ) {
-            g2.drawString(">", textX-25, textY);
-            if ( gp.keyH.enterPressed == true ) {
-                subState = 0;
-                commandNum = 3;
+        for (int i = 0; i < actions.length; i++) {
+            int ry = textY + i * rowH;
+            // zebra stripe
+            if (i % 2 == 0) {
+                g2.setColor(new Color(40, 35, 25, 60));
+                g2.fillRoundRect(frameX + 12, ry - 26, fw - 24, rowH - 4, 8, 8);
             }
+            // action label
+            g2.setColor(OPT_TEXT);
+            g2.drawString(actions[i], textX + 5, ry);
+            // key label right-aligned in gold
+            g2.setColor(OPT_GOLD_DIM);
+            int kw = (int) g2.getFontMetrics().getStringBounds(keys[i], g2).getWidth();
+            g2.drawString(keys[i], keyX - kw - 5, ry);
+        }
+
+        // BACK button centered
+        g2.setFont(g2.getFont().deriveFont(26F));
+        String back = "Back";
+        int bw = (int) g2.getFontMetrics().getStringBounds(back, g2).getWidth();
+        int backX = frameX + fw / 2 - bw / 2;
+        int backY = frameY + gp.tileSize * 9 - 20;
+        boolean sel = (commandNum == 0);
+        if (sel) {
+            g2.setColor(OPT_SEL_BG);
+            g2.fillRoundRect(backX - 20, backY - 28, bw + 40, 36, 10, 10);
+            g2.setColor(OPT_SEL_BORDER);
+            g2.setStroke(OPT_STROKE_SEL);
+            g2.drawRoundRect(backX - 20, backY - 28, bw + 40, 36, 10, 10);
+        }
+        g2.setColor(sel ? OPT_GOLD : OPT_BACK_TEXT);
+        g2.drawString(back, backX, backY);
+        if ( sel && gp.keyH.enterPressed ) {
+            subState = 0;
+            commandNum = 4;
         }
     }
     public void options_endGameConfirmation( int frameX, int frameY  ) {
 
-        int textX = frameX + gp.tileSize;
+        int fw = gp.tileSize * 8;
+
+        // Warning title
+        g2.setFont(g2.getFont().deriveFont(Font.BOLD, 30F));
+        g2.setColor(new Color(200, 80, 60));
+        String warn = "Quit Game?";
+        int ww = (int) g2.getFontMetrics().getStringBounds(warn, g2).getWidth();
+        g2.drawString(warn, frameX + fw / 2 - ww / 2, frameY + 50);
+
+        g2.setFont(g2.getFont().deriveFont(Font.PLAIN, 24F));
+        g2.setColor(OPT_TEXT);
+        int textX = frameX + 30;
         int textY = frameY + gp.tileSize * 3;
 
-        currentDialogue = "Quit the game and return \nto the title screen?";
+        currentDialogue = "Quit the game and return\nto the title screen?";
 
         for ( String line: currentDialogue.split("\n")) {
             g2.drawString(line, textX, textY);
-            textY += 40;
+            textY += 36;
         }
 
-        // YES
-        String text = "Yes";
-        textX = getXforCenteredText(text);
-        textY += gp.tileSize * 3;
-        g2.drawString(text, textX, textY);
-        if ( commandNum == 0 ) {
-            g2.drawString(">", textX-25, textY);
-            if ( gp.keyH.enterPressed == true ) {
-                subState = 0;
-                titleScreenState = 0;
-                gp.stopMusic();
-                gp.gameState = gp.titleState;
+        // YES / NO buttons
+        g2.setFont(g2.getFont().deriveFont(26F));
+        String[] opts = { "Yes", "No" };
+        int btnY = frameY + gp.tileSize * 6;
+        for (int i = 0; i < 2; i++) {
+            int bw = (int) g2.getFontMetrics().getStringBounds(opts[i], g2).getWidth();
+            int bx = frameX + fw / 2 - bw / 2;
+            int by = btnY + i * 52;
+            boolean sel = (commandNum == i);
+            if (sel) {
+                g2.setColor(OPT_SEL_BG);
+                g2.fillRoundRect(bx - 30, by - 28, bw + 60, 36, 10, 10);
+                g2.setColor(OPT_SEL_BORDER);
+                g2.setStroke(OPT_STROKE_SEL);
+                g2.drawRoundRect(bx - 30, by - 28, bw + 60, 36, 10, 10);
             }
+            g2.setColor(sel ? OPT_GOLD : OPT_TEXT_DIM);
+            g2.drawString(opts[i], bx, by);
         }
 
-        // NO
-        text = "No";
-        textX = getXforCenteredText(text);
-        textY += gp.tileSize;
-        g2.drawString(text, textX, textY);
-        if ( commandNum == 1 ) {
-            g2.drawString(">", textX-25, textY);
-            if ( gp.keyH.enterPressed == true ) {
-                subState = 0;
-                commandNum = 4;
-            }
+        if ( commandNum == 0 && gp.keyH.enterPressed ) {
+            subState = 0;
+            titleScreenState = 0;
+            gp.stopMusic();
+            gp.gameState = gp.titleState;
+        }
+        if ( commandNum == 1 && gp.keyH.enterPressed ) {
+            subState = 0;
+            commandNum = 5;
         }
     }
     public void drawTransition(Graphics2D g2) {
@@ -1156,15 +1270,19 @@ public class UI {
     }
     public void drawSubWindow(int x, int y, int width, int height) {
 
-        Color c = new Color(0, 0, 0, 200);
-        g2.setColor(c);
-        g2.fillRoundRect(x, y, width, height, 35, 35);
+        // Dark background with leather feel
+        g2.setColor(OPT_BG_DARK);
+        g2.fillRoundRect(x, y, width, height, 20, 20);
 
-        c = new Color(255, 255, 255);
-        g2.setColor(c);
-        g2.setStroke(new BasicStroke(5));
-        g2.drawRoundRect(x + 5, y + 5, width - 10, height - 10, 25, 25);
+        // Outer gold border
+        g2.setColor(OPT_BORDER);
+        g2.setStroke(OPT_STROKE_BORDER);
+        g2.drawRoundRect(x + 3, y + 3, width - 6, height - 6, 16, 16);
 
+        // Inner subtle border for depth
+        g2.setColor(OPT_BORDER_IN);
+        g2.setStroke(OPT_STROKE_THIN);
+        g2.drawRoundRect(x + 7, y + 7, width - 14, height - 14, 12, 12);
     }
     public int getXforCenteredText(String text) {
 

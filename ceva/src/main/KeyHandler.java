@@ -216,7 +216,7 @@ public class KeyHandler implements KeyListener {
         if (code == KeyEvent.VK_ENTER) enterPressed = true;
 
         int maxCommandNum = switch (gp.ui.subState) {
-            case 0 -> 6;
+            case 0 -> 7;
             case 3 -> 1;
             default -> 0;
         };
@@ -230,12 +230,12 @@ public class KeyHandler implements KeyListener {
     private void adjustOptionsVolume(int change) {
         if (gp.ui.subState != 0) return;
 
-        if (gp.ui.commandNum == 1) {
+        if (gp.ui.commandNum == 2) {
             gp.music.volumeScale = Math.max(0, Math.min(5, gp.music.volumeScale + change));
             gp.music.checkVolume();
             gp.playSE(3);
         }
-        if (gp.ui.commandNum == 2) {
+        if (gp.ui.commandNum == 3) {
             gp.se.volumeScale = Math.max(0, Math.min(5, gp.se.volumeScale + change));
             gp.playSE(3);
         }
