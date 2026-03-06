@@ -181,10 +181,10 @@ public class AssetSetter {
         gp.obj[i].worldY = 24 * gp.tileSize;
         i++;
 
-        /*gp.obj[i] = new OBJ_Tower(gp);
+        gp.obj[i] = new OBJ_Tower(gp);
         gp.obj[i].worldX = 72 * gp.tileSize;
         gp.obj[i].worldY = 27 * gp.tileSize;
-        i++;*/
+        i++;
     }
 
     private void setObject_test() {
