@@ -8,6 +8,10 @@ public class Main {
     public static JFrame window;
     public static void main(String[] args) {
 
+        // Enable OpenGL Java2D pipeline for smoother rendering.
+        // V-Sync on/off is controlled from in-game settings.
+        System.setProperty("sun.java2d.opengl", "True");
+
         window = new JFrame();
         window.setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
         window.setResizable(true);

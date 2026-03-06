@@ -58,15 +58,17 @@ public class GamePanel extends JPanel implements Runnable{
     Graphics2D g2;
 
     public boolean fullScreenOn = false;
+    public boolean vSyncOn = true; // V-Sync toggle: sync rendering to monitor refresh rate
 
     //DEBUG
     public boolean HitBoxes = false;
     public boolean drawPath = false;
 
-    // FPS
-
-    int FPS = 60;
+    // TIMING
+    private static final int TARGET_UPS = 60; // Fixed simulation rate (game speed)
+    int FPS = 60;  // Render target FPS (independent from game speed)
     public int currentFPS = 0;
+    int monitorRefreshRate = 60; // Detected at startup
 
     // SYSTEM
     public TileManager tileM = new TileManager(this);
@@ -196,6 +198,10 @@ public class GamePanel extends JPanel implements Runnable{
         40,  // initial pool size
         20   // expand size
     );
+
+    // DETECT MONITOR REFRESH RATE + APPLY USER V-SYNC SETTING
+    detectAndSetRefreshRate();
+    setVSync(vSyncOn);
 
     // SHADER EFFECTS: Initialize map shader manager (water shimmer, particles, vignette, color grading)
     mapShader = new MapShaderManager(this);
@@ -393,6 +399,47 @@ public class GamePanel extends JPanel implements Runnable{
         screenHeight2 = Main.window.getHeight();
 
     }
+    /**
+     * Toggle V-Sync on/off. Affects whether the game syncs to monitor refresh rate or runs uncapped.
+     * Note: Enable recommended for smooth gameplay, disable for maximum FPS in benchmarks.
+     */
+    public void setVSync(boolean enabled) {
+        vSyncOn = enabled;
+        if (enabled) {
+            System.setProperty("sun.java2d.vsync", "True");
+            FPS = monitorRefreshRate;
+            System.out.println("[V-SYNC] Enabled - Game synced to monitor refresh rate");
+        } else {
+            System.setProperty("sun.java2d.vsync", "False");
+            FPS = 240;
+            System.out.println("[V-SYNC] Disabled - Render target set to " + FPS + " FPS");
+        }
+    }
+
+    /**
+     * Detect the primary monitor's refresh rate and adjust game FPS to match.
+     * This eliminates screen tearing by syncing game updates to the monitor's vertical refresh.
+     */
+    private void detectAndSetRefreshRate() {
+        try {
+            GraphicsEnvironment ge = GraphicsEnvironment.getLocalGraphicsEnvironment();
+            GraphicsDevice[] gd = ge.getScreenDevices();
+            if (gd.length > 0) {
+                int refreshRate = gd[0].getDisplayMode().getRefreshRate();
+                // Only use detected rate if it's reasonable (60-300 Hz typical range)
+                if (refreshRate >= 30 && refreshRate <= 300) {
+                    monitorRefreshRate = refreshRate;
+                    System.out.println("[DISPLAY] Monitor detected: " + refreshRate + " Hz");
+                } else {
+                    System.out.println("[V-SYNC] Monitor refresh rate " + refreshRate + " Hz out of range, using default 60 Hz");
+                }
+            }
+        } catch (Exception e) {
+            System.out.println("[V-SYNC] Could not detect monitor refresh rate, using default 60 Hz");
+            e.printStackTrace();
+        }
+    }
+
     public void startGameThread(){
 
         gameThread = new Thread(this);
@@ -401,37 +448,42 @@ public class GamePanel extends JPanel implements Runnable{
 
     public void run() {
 
-        double drawInterval = 1000000000 / FPS;
-        double delta = 0;
+        double updateInterval = 1000000000.0 / TARGET_UPS;
+        double updateDelta = 0;
+        double renderDelta = 0;
         long lastTime = System.nanoTime();
         long currentTime;
         long timer = 0;
-        int drawCount = 0; 
+        int frameCount = 0;
 
         while(gameThread != null) {
 
             currentTime = System.nanoTime();
+            long elapsed = currentTime - lastTime;
 
-            delta += (currentTime - lastTime) / drawInterval;
-            timer += (currentTime - lastTime);
+            updateDelta += elapsed / updateInterval;
+
+            double drawInterval = 1000000000.0 / Math.max(30, FPS);
+            renderDelta += elapsed / drawInterval;
+
+            timer += elapsed;
             lastTime = currentTime;
 
-            boolean didUpdate = false;
-            while (delta >= 1) {
+            while (updateDelta >= 1) {
                 update();
-                delta--;
-                drawCount++;
-                didUpdate = true;
+                updateDelta--;
             }
 
-            if (didUpdate) {
+            if (renderDelta >= 1) {
                 drawToTempScreen(); // draw = Buffered image
                 repaint(); // screen = Swing paint pipeline
+                frameCount++;
+                renderDelta = 0;
             }
 
             if(timer >= 1000000000) {
-                currentFPS = drawCount;
-                drawCount = 0;
+                currentFPS = frameCount;
+                frameCount = 0;
                 timer = 0;
             }
 

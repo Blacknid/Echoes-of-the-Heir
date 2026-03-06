@@ -36,6 +36,15 @@ public class Config {
             bw.write(String.valueOf(gp.se.volumeScale));
             bw.newLine();
 
+            // V-SYNC
+            if ( gp.vSyncOn == true ) {
+                bw.write("On");
+            }
+            if ( gp.vSyncOn == false ) {
+                bw.write("Off");
+            }
+            bw.newLine();
+
             bw.close();
 
         } catch (IOException e) {
@@ -64,6 +73,15 @@ public class Config {
             // SE VOLUME
             s = br.readLine();
             gp.se.volumeScale = Integer.parseInt(s);
+
+            // V-SYNC
+            s = br.readLine();
+            if ( "On".equals(s)) {
+                gp.vSyncOn = true;
+            }
+            if ( "Off".equals(s)) {
+                gp.vSyncOn = false;
+            }
 
             br.close();
 

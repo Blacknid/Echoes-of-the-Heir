@@ -7,6 +7,8 @@ import java.awt.Graphics2D;
 import java.awt.RadialGradientPaint;
 import java.awt.image.BufferedImage;
 import java.util.Random;
+
+import entity.Particle;
 import main.GamePanel;
 
 /**
@@ -153,6 +155,7 @@ public class MapShaderManager {
             g2.setColor(Color.WHITE);
             int sz = (int) pSize[i];
             g2.fillOval((int) pX[i], (int) pY[i], sz, sz);
+            
 
             // Tiny glow halo around larger particles
             if (pSize[i] > 2.5f) {

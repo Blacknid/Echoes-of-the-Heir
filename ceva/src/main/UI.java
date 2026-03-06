@@ -925,24 +925,35 @@ public class UI {
             }
         }
 
+        // V-SYNC ON/OFF
+        textY += gp.tileSize;
+        g2.drawString("V-Sync", textX, textY);
+        if ( commandNum == 1 ) {
+            g2.drawString(">", textX - 25, textY);
+            if ( gp.keyH.enterPressed == true ) {
+                gp.setVSync(!gp.vSyncOn);
+                gp.keyH.enterPressed = false;
+            }
+        }
+
         // MUSIC
         textY += gp.tileSize;
         g2.drawString("Music", textX, textY);
-        if ( commandNum == 1 ) {
+        if ( commandNum == 2 ) {
             g2.drawString(">", textX - 25, textY);
         }
 
         // SE
         textY += gp.tileSize;
         g2.drawString("SE", textX, textY);
-        if ( commandNum == 2 ) {
+        if ( commandNum == 3 ) {
             g2.drawString(">", textX - 25, textY);
         }
 
         // CONTROL
         textY += gp.tileSize;
         g2.drawString("Control", textX, textY);
-        if ( commandNum == 3 ) {
+        if ( commandNum == 4 ) {
             g2.drawString(">", textX - 25, textY);
             if ( gp.keyH.enterPressed == true ) {
                 subState = 2;
@@ -953,7 +964,7 @@ public class UI {
         // END GAME
         textY += gp.tileSize;
         g2.drawString("End Game", textX, textY);
-        if ( commandNum == 4 ) {
+        if ( commandNum == 5 ) {
             g2.drawString(">", textX - 25, textY);
             if ( gp.keyH.enterPressed == true ) {
                 subState = 3;
@@ -964,7 +975,7 @@ public class UI {
         // SAVE GAME
         textY += gp.tileSize;
         g2.drawString("Save Game", textX, textY);
-        if ( commandNum == 5 ) {
+        if ( commandNum == 6 ) {
             g2.drawString(">", textX - 25, textY);
             if ( gp.keyH.enterPressed == true ) {
                 gp.saveLoad.save();
@@ -977,7 +988,7 @@ public class UI {
         // BACK
         textY += gp.tileSize * 2;
         g2.drawString("Back", textX, textY);
-        if ( commandNum == 6 ) {
+        if ( commandNum == 7 ) {
             g2.drawString(">", textX - 25, textY);
             if ( gp.keyH.enterPressed == true ) {
                 gp.gameState = gp.playState;
@@ -991,6 +1002,13 @@ public class UI {
         g2.setStroke(new BasicStroke(3));
         g2.drawRect(textX, textY, 24, 24);
         if ( gp.fullScreenOn == true ) {
+            g2.fillRect(textX, textY, 24, 24);
+        }
+
+        // V-SYNC CHECK BOX
+        textY += gp.tileSize;
+        g2.drawRect(textX, textY, 24, 24);
+        if ( gp.vSyncOn == true ) {
             g2.fillRect(textX, textY, 24, 24);
         }
 
