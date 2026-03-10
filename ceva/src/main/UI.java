@@ -9,7 +9,6 @@ import java.awt.Graphics2D;
 import java.awt.image.BufferedImage;
 import java.util.ArrayList;
 import javax.imageio.ImageIO;
-
 import object.OBJ_Heart;
 import object.OBJ_Key;
 import object.OBJ_ManaCrystal;
@@ -993,8 +992,9 @@ public class UI {
             if (i == 0) { // FullScreen toggle
                 drawMedievalToggle(rightCol + 100, ctrlY, gp.fullScreenOn);
                 if (selected && gp.keyH.enterPressed) {
-                    gp.fullScreenOn = !gp.fullScreenOn;
-                    subState = 1;
+                    gp.applyFullScreenSetting(!gp.fullScreenOn);
+                    gp.playSE(3);
+                    gp.keyH.enterPressed = false;
                 }
             }
             else if (i == 1) { // V-Sync toggle
