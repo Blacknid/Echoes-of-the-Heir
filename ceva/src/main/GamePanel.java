@@ -20,7 +20,9 @@ import java.awt.image.BufferedImage;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Comparator;
+import javax.swing.JFrame;
 import javax.swing.JPanel;
+import javax.swing.SwingUtilities;
 import java.awt.Rectangle;
 
 import ai.PathFinder;
@@ -54,6 +56,7 @@ public class GamePanel extends JPanel implements Runnable{
     // FOR FULLSCREEN
     int screenWidth2 = screenWidth;
     int screenHeight2 = screenHeight;
+    Rectangle windowedBounds;
     BufferedImage tempScreen;
     Graphics2D g2;
 
@@ -389,15 +392,65 @@ public class GamePanel extends JPanel implements Runnable{
     }
     public void setFullScreen() {
 
-        // GET LOCAL SCREEN DEVICE
-        GraphicsEnvironment ge = GraphicsEnvironment.getLocalGraphicsEnvironment();
-        GraphicsDevice gd = ge.getDefaultScreenDevice();
-        gd.setFullScreenWindow(Main.window);
+        applyWindowMode(true);
 
-        // GET FULL SCREEN WIDTH AND HEIGHT
-        screenWidth2 = Main.window.getWidth();
-        screenHeight2 = Main.window.getHeight();
+    }
 
+    public void applyFullScreenSetting(boolean enable) {
+        if (fullScreenOn == enable) {
+            return;
+        }
+
+        fullScreenOn = enable;
+
+        // Ensure Swing window changes happen on EDT to avoid runtime UI issues.
+        SwingUtilities.invokeLater(() -> {
+            applyWindowMode(enable);
+            config.saveConfig();
+        });
+    }
+
+    private void applyWindowMode(boolean enableFullScreen) {
+        JFrame window = Main.window;
+        if (window == null) {
+            return;
+        }
+
+        if (enableFullScreen) {
+            if (!window.isUndecorated()) {
+                windowedBounds = window.getBounds();
+            }
+            if (window.isDisplayable()) {
+                window.dispose();
+            }
+            window.setUndecorated(true);
+            window.setResizable(false);
+            window.setExtendedState(JFrame.NORMAL);
+
+            Rectangle screenBounds = GraphicsEnvironment
+                    .getLocalGraphicsEnvironment()
+                    .getMaximumWindowBounds();
+            window.setBounds(screenBounds);
+            window.setVisible(true);
+        } else {
+            if (window.isDisplayable()) {
+                window.dispose();
+            }
+            window.setUndecorated(false);
+            window.setResizable(true);
+            window.setVisible(true);
+            if (windowedBounds != null) {
+                window.setBounds(windowedBounds);
+            } else {
+                window.pack();
+                window.setLocationRelativeTo(null);
+            }
+        }
+
+        screenWidth2 = window.getWidth();
+        screenHeight2 = window.getHeight();
+        window.toFront();
+        requestFocusInWindow();
     }
     /**
      * Toggle V-Sync on/off. Affects whether the game syncs to monitor refresh rate or runs uncapped.
