@@ -37,6 +37,28 @@ public class Projectile extends Entity implements Poolable {
                 generateParticle(user.projectile, gp.monster[monsterIndex]);
                 alive = false;
             }
+            // Check NPCs as well (Eye is implemented as an NPC). Only apply
+            // projectile damage to NPCs named "Eye" so other NPCs are unaffected.
+            int npcIndex = gp.cChecker.checkEntity(this, gp.npc);
+            if (npcIndex != 999) {
+                if (gp.npc[npcIndex].name != null && gp.npc[npcIndex].name.equals("Eye")) {
+                    if (gp.npc[npcIndex].invincible == false) {
+                        gp.playSE(5);
+                        int kb = Math.max(1, this.speed / 3);
+                        gp.player.knockBack(gp.npc[npcIndex], kb, worldX, worldY);
+                        int damage = this.attack - gp.npc[npcIndex].defense;
+                        if (damage < 0) damage = 0;
+                        gp.npc[npcIndex].life -= damage;
+                        generateParticle(user.projectile, gp.npc[npcIndex]);
+                        gp.npc[npcIndex].invincible = true;
+                        gp.npc[npcIndex].damageReaction();
+                        if (gp.npc[npcIndex].life <= 0) {
+                            gp.npc[npcIndex].dying = true;
+                        }
+                        alive = false;
+                    }
+                }
+            }
         }
         if(user != gp.player){
             boolean contactPlayer = gp.cChecker.checkPlayer(this);

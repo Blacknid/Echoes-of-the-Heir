@@ -7,10 +7,13 @@ import main.GamePanel;
 
 public class OBJ_Tower extends Entity {
 
+    private GamePanel gpRef;
+
     private boolean eyeSpawned = false;
 
     public OBJ_Tower(GamePanel gp) {
         super(gp);
+        this.gpRef = gp;
 
         type = type_obstacle;
         name = "Tower";
@@ -18,11 +21,10 @@ public class OBJ_Tower extends Entity {
         collision = true; // Player cannot walk through it
 
         // Load the two tile parts. Expect two separate images:
-        // - /res/objects/tower_down1 (bottom)
-        // - /res/objects/tower_down2 (top)
-        Image
-        down1 = setup("/res/objects/Compas", gp.tileSize, gp.tileSize); // bottom tile
-        down2 = setup("/res/objects/Compas", gp.tileSize, gp.tileSize); // top tile
+        // - /res/objects/Tower_sus (bottom)
+        // - /res/objects/Tower_jos (top)
+        down1 = setup("/res/objects/Tower_sus", gp.tileSize, gp.tileSize); // bottom tile
+        down2 = setup("/res/objects/Tower_jos", gp.tileSize, gp.tileSize); // top tile
 
         // Solid area covers both tiles (two tiles tall)
         solidArea.x = 8;
@@ -36,32 +38,28 @@ public class OBJ_Tower extends Entity {
     @Override
     public void update() {
         super.update();
-
-        // Spawn the Eye entity on top of the tower once (after world position has been set)
-        if (!eyeSpawned) {
-            spawnEye();
-            eyeSpawned = true;
-        }
     }
 
     private void spawnEye() {
-        Eye eye = new Eye(gp);
-        // Place the eye on top tile of the tower
+        Eye eye = new Eye(gpRef);
+        // Place the eye so it sorts AFTER the tower but is drawn visually above it.
+        // We set worldY slightly below the tower's Y so the renderer draws the eye later,
+        // and override Eye.draw to subtract one tile when drawing.
         eye.worldX = this.worldX;
-        eye.worldY = this.worldY - gp.tileSize;
+        eye.worldY = this.worldY + 1; // small offset so eye sorts after the tower
 
         // Try to register it as an NPC (so it will be updated/drawn)
-        for (int i = 0; i < gp.npc.length; i++) {
-            if (gp.npc[i] == null) {
-                gp.npc[i] = eye;
+        for (int i = 0; i < gpRef.npc.length; i++) {
+            if (gpRef.npc[i] == null) {
+                gpRef.npc[i] = eye;
                 return;
             }
         }
 
         // Fallback: if no NPC slot, try monster array
-        for (int i = 0; i < gp.monster.length; i++) {
-            if (gp.monster[i] == null) {
-                gp.monster[i] = eye;
+        for (int i = 0; i < gpRef.monster.length; i++) {
+            if (gpRef.monster[i] == null) {
+                gpRef.monster[i] = eye;
                 return;
             }
         }
@@ -69,22 +67,28 @@ public class OBJ_Tower extends Entity {
 
     @Override
     public void draw(Graphics2D g2) {
-        int screenX = worldX - gp.player.worldX + gp.player.screenX;
-        int screenY = worldY - gp.player.worldY + gp.player.screenY;
+        int screenX = worldX - this.gpRef.player.worldX + this.gpRef.player.screenX;
+        int screenY = worldY - this.gpRef.player.worldY + this.gpRef.player.screenY;
 
-        if (worldX + gp.tileSize > gp.player.worldX - gp.player.screenX &&
-            worldX - gp.tileSize < gp.player.worldX + gp.player.screenX &&
-            worldY + gp.tileSize > gp.player.worldY - gp.player.screenY &&
-            worldY - gp.tileSize < gp.player.worldY + gp.player.screenY) {
+        if (worldX + this.gpRef.tileSize > this.gpRef.player.worldX - this.gpRef.player.screenX &&
+            worldX - this.gpRef.tileSize < this.gpRef.player.worldX + this.gpRef.player.screenX &&
+            worldY + this.gpRef.tileSize > this.gpRef.player.worldY - this.gpRef.player.screenY &&
+            worldY - this.gpRef.tileSize < this.gpRef.player.worldY + this.gpRef.player.screenY) {
+
+            // Ensure the Eye is spawned once when the tower is first drawn
+            if (!eyeSpawned) {
+                spawnEye();
+                eyeSpawned = true;
+            }
 
             // Draw top tile above the base
             if (down2 != null) {
-                g2.drawImage(down2, screenX, screenY - gp.tileSize, gp.tileSize, gp.tileSize, null);
+                g2.drawImage(down2, screenX, screenY - gpRef.tileSize, gpRef.tileSize, gpRef.tileSize, null);
             }
 
             // Draw bottom tile
             if (down1 != null) {
-                g2.drawImage(down1, screenX, screenY, gp.tileSize, gp.tileSize, null);
+                g2.drawImage(down1, screenX, screenY, gpRef.tileSize, gpRef.tileSize, null);
             }
         }
     }

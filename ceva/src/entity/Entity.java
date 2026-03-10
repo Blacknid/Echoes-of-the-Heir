@@ -12,7 +12,7 @@ import main.UtilityTool;
 
 public class Entity {
 
-    GamePanel gp;
+    protected GamePanel gp;
 
     // PATHFINDING
     int pathUpdateCounter = 0;
