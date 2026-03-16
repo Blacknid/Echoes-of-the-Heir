@@ -1,4 +1,14 @@
-package entity; import java.awt.AlphaComposite; import java.awt.Color; import java.awt.Graphics2D; import java.awt.Rectangle; import java.awt.image.BufferedImage; import java.util.ArrayList; import main.GamePanel; import main.KeyHandler; import object.OBJ_Arrow; import object.OBJ_Shield_Wood; import object.OBJ_Sword_Normal; public class Player extends Entity {
+package entity; import java.awt.AlphaComposite;
+ import java.awt.Color;
+ import java.awt.Graphics2D;
+ import java.awt.Rectangle;
+ import java.awt.image.BufferedImage;
+ import java.util.ArrayList;
+ import main.GamePanel;
+ import main.KeyHandler;
+ import object.OBJ_Arrow;
+ import object.OBJ_Shield_Wood;
+ import object.OBJ_Sword_Normal; public class Player extends Entity {
 
     // Constants
     private final int attackDuration = 20; // Total duration of attack animation in frames
@@ -257,13 +267,13 @@ package entity; import java.awt.AlphaComposite; import java.awt.Color; import ja
             if (objIndex != 999) collisionOn = true;
             // Check for NPC collision
             int npcIndex = gp.cChecker.checkEntity(this, gp.npc);
-            if (npcIndex != 999) collisionOn = true;
+            if (npcIndex != 999 && gp.npc[npcIndex].collision) collisionOn = true;
             // Check for monster collision
             int monsterIndex = gp.cChecker.checkEntity(this, gp.monster);
-            if (monsterIndex != 999) collisionOn = true;
+            if (monsterIndex != 999 && gp.monster[monsterIndex].collision) collisionOn = true;
             // Check for interactive tile collision
             int iTileIndex = gp.cChecker.checkEntity(this, gp.iTile);
-            if (iTileIndex != 999) collisionOn = true;
+            if (iTileIndex != 999 && gp.iTile[iTileIndex].collision) collisionOn = true;
             // If collision, reset position
             if (collisionOn) {
                 worldX = originalX;

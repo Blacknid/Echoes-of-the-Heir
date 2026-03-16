@@ -2,7 +2,6 @@ package entity;
 
 import java.awt.image.BufferedImage;
 import java.util.Random;
-
 import main.GamePanel;
 
 public class NPC_Alucard extends Entity{
@@ -13,6 +12,7 @@ public class NPC_Alucard extends Entity{
         direction = "down";
         speed = 1;
         walkFrameCount = 6;
+        collision = true; // Blocks player movement
 
         dialogueSet = -1;
         

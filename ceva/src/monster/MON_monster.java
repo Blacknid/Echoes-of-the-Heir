@@ -1,8 +1,8 @@
 package monster;
 
+import entity.Entity;
 import java.awt.image.BufferedImage;
 import java.util.Random;
-import entity.Entity;
 import main.GamePanel;
 
 public class MON_monster extends Entity {
@@ -15,6 +15,7 @@ public class MON_monster extends Entity {
         
         type = 2; // Monster
         name = "Mummy";
+        collision = true; // Blocks player movement
         this.worldX = col * gp.tileSize;
         this.worldY = row * gp.tileSize;
         defaultSpeed = 1;

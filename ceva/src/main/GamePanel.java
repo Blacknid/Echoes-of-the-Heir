@@ -721,8 +721,8 @@ public class GamePanel extends JPanel implements Runnable{
 
     private void drawWorldState() {
 
-        // TILE
-        tileM.draw(g2);
+        tileM.prepareVisibleTiles();
+        tileM.drawBackground(g2);
 
         collectRenderableEntities();
 
@@ -735,27 +735,51 @@ public class GamePanel extends JPanel implements Runnable{
             tpCount = tileParticleEmitter.prepareSortedIndices();
         }
         int tpIdx = 0;
+        int depthTileCount = tileM.getDepthTileCount();
+        int depthTileIdx = 0;
 
         // DRAW ENTITIES + TILE PARTICLES interleaved by Y (depth-correct)
-        // Particles with sortY <= entity.worldY are drawn BEFORE the entity → appear behind it
+        // Depth-sorted tiles and particles with sortY <= entity.worldY are drawn BEFORE the entity.
         java.awt.Composite savedComp = g2.getComposite();
         for (int i = 0; i < entityListIndex; i++) {
             int entityY = entityList.get(i).worldY;
 
-            // Draw all particles that sort behind (or at same level as) this entity
-            while (tpIdx < tpCount && tileParticleEmitter.getSortY(tpIdx) <= entityY) {
-                tileParticleEmitter.drawSingle(g2, tpIdx);
-                tpIdx++;
+            while (true) {
+                float nextDepthTileY = depthTileIdx < depthTileCount ? tileM.getDepthTileSortY(depthTileIdx) : Float.MAX_VALUE;
+                float nextParticleY = tpIdx < tpCount ? tileParticleEmitter.getSortY(tpIdx) : Float.MAX_VALUE;
+                float nextY = Math.min(nextDepthTileY, nextParticleY);
+
+                if (nextY > entityY) {
+                    break;
+                }
+
+                if (nextDepthTileY <= nextParticleY) {
+                    g2.setComposite(savedComp);
+                    tileM.drawDepthTile(g2, depthTileIdx);
+                    depthTileIdx++;
+                } else {
+                    tileParticleEmitter.drawSingle(g2, tpIdx);
+                    tpIdx++;
+                }
             }
 
             // Restore composite in case a particle changed it
             g2.setComposite(savedComp);
             entityList.get(i).draw(g2);
         }
-        // Draw remaining particles (in front of all entities)
-        while (tpIdx < tpCount) {
-            tileParticleEmitter.drawSingle(g2, tpIdx);
-            tpIdx++;
+
+        while (depthTileIdx < depthTileCount || tpIdx < tpCount) {
+            float nextDepthTileY = depthTileIdx < depthTileCount ? tileM.getDepthTileSortY(depthTileIdx) : Float.MAX_VALUE;
+            float nextParticleY = tpIdx < tpCount ? tileParticleEmitter.getSortY(tpIdx) : Float.MAX_VALUE;
+
+            if (nextDepthTileY <= nextParticleY) {
+                g2.setComposite(savedComp);
+                tileM.drawDepthTile(g2, depthTileIdx);
+                depthTileIdx++;
+            } else {
+                tileParticleEmitter.drawSingle(g2, tpIdx);
+                tpIdx++;
+            }
         }
         g2.setComposite(savedComp);
 

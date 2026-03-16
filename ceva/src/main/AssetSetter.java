@@ -1,5 +1,6 @@
 package main;
 
+import entity.Entity;
 import entity.NPC_Alucard;
 import monster.MON_monster;
 import object.OBJ_Book;
@@ -12,8 +13,8 @@ import object.OBJ_Key;
 import object.OBJ_Potion;
 import object.OBJ_Tent;
 import object.OBJ_Torch;
-import tiles_interactive.IT_Coins;
 import object.OBJ_Tower;
+import tiles_interactive.IT_Coins;
 
 public class AssetSetter {
 
@@ -181,10 +182,12 @@ public class AssetSetter {
         gp.obj[i].worldY = 24 * gp.tileSize;
         i++;
 
-        gp.obj[i] = new OBJ_Tower(gp);
-        gp.obj[i].worldX = 72 * gp.tileSize;
-        gp.obj[i].worldY = 27 * gp.tileSize;
+        i = placeTowerStructure(i, 72, 27);
         i++;
+
+        i = placeTowerStructure(i, 72, 30);
+
+    
     }
 
     private void setObject_test() {
@@ -246,10 +249,37 @@ public class AssetSetter {
         gp.monster[i] = new MON_monster(gp, 74, 49); i++;
         gp.monster[i] = new MON_monster(gp, 61, 57); i++;
         gp.monster[i] = new MON_monster(gp, 59, 49); i++;
+
+        spawnTowerEyes();
     }
 
     private void setMonster_test() {
         // No monsters on test map yet
     }
 
+    /**
+     * Place a Tower + Eye structure as a single unit.
+     * Tower_jos (bottom) + Tower_sus (top) + Eye on top of Tower_sus.
+    * The Eye is spawned later during monster setup.
+     *
+     * @param objIndex next free index in gp.obj[]
+     * @param col      tile column for the tower base
+     * @param row      tile row for the tower base
+     * @return the next free obj index after placement
+     */
+    private int placeTowerStructure(int objIndex, int col, int row) {
+        OBJ_Tower tower = new OBJ_Tower(gp);
+        tower.worldX = col * gp.tileSize;
+        tower.worldY = row * gp.tileSize;
+        gp.obj[objIndex] = tower;
+        return objIndex + 1;
+    }
+
+    private void spawnTowerEyes() {
+        for (Entity entity : gp.obj) {
+            if (entity instanceof OBJ_Tower tower) {
+                tower.spawnEye();
+            }
+        }
+    }
 }

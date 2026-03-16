@@ -1,7 +1,7 @@
 package main;
 
-import java.awt.Rectangle;
 import entity.Entity;
+import java.awt.Rectangle;
 
 public class CollisionChecker {
 
@@ -142,7 +142,9 @@ public class CollisionChecker {
                     entityX + entity.solidArea.width > targetX &&
                     entityY < targetY + target[i].solidArea.height &&
                     entityY + entity.solidArea.height > targetY) {
-                    entity.collisionOn = true;
+                    if (target[i].collision) {
+                        entity.collisionOn = true;
+                    }
                     index = i;
                 }
             }
