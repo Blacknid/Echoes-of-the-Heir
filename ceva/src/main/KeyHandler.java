@@ -97,6 +97,7 @@ public class KeyHandler implements KeyListener {
             }
             if (code == KeyEvent.VK_I) {
                 gp.ui.titleScreenState = 2;
+                gp.ui.commandNum = 0;
                 gp.playSE(3);
             }
             if (code == KeyEvent.VK_ENTER) {

@@ -37,12 +37,19 @@ public class OBJ_Gem extends Entity {
         dialogues[1][0] = "You feel a strange aura \nemanating from the gem.\n It seems you are not\nworthy to possess it yet.";
     }
     public boolean use( Entity entity ) {
+
+        // Prevent repeated gem pickup logic if player already owns it.
+        if (gp.player.hasGem > 0) {
+            return true;
+        }
         
         if ( gp.player.level >= 3 ) {
+            gp.player.hasGem = 1;
             gp.playSE(2);
             startDialogue(this, 0);
             gp.gameState = gp.cutsceneState;
             gp.csManager.sceneNum = gp.csManager.ending;
+            gp.csManager.scenePhase = 0;
             return true;
         }
         else {

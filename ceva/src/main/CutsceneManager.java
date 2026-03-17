@@ -1,10 +1,8 @@
 package main;
 
 import java.awt.AlphaComposite;
-import java.util.Timer;
 import java.awt.Color;
 import java.awt.Graphics2D;
-
 import object.OBJ_Gem;
 
 public class CutsceneManager {
@@ -61,7 +59,11 @@ public class CutsceneManager {
         if ( scenePhase == 0 ) {
 
             gp.stopMusic();
-            gp.ui.npc = new OBJ_Gem(gp);
+            // Keep the current gem dialogue source if it was already set by pickup.
+            // Fallback only if cutscene was started without an NPC context.
+            if (gp.ui.npc == null) {
+                gp.ui.npc = new OBJ_Gem(gp);
+            }
             scenePhase++;
         }
         if ( scenePhase == 1 ) {
@@ -70,8 +72,8 @@ public class CutsceneManager {
         }
         if ( scenePhase == 2 ) {
 
-            // PLAY THE FANFARE
-            gp.gameState = gp.pauseState;
+            // PLAY THE FANFARE while staying in cutscene mode
+            gp.gameState = gp.cutsceneState;
             gp.playSE(6);
             scenePhase++;
         } 

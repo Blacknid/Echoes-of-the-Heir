@@ -63,7 +63,7 @@ package entity; import java.awt.AlphaComposite;
         defaultSpeed = 4;
         speed = defaultSpeed;
         direction = "down";
-        level = 1;
+        level = 3;
         maxLife = 3;
         life = maxLife;
         strenght = 1;
@@ -411,7 +411,7 @@ package entity; import java.awt.AlphaComposite;
                 //ADD TO ARRAY
                 gp.projectilesList.add(projectile);
                 shotAvailableCounter = 0;
-                //gp.playSE(12);
+                gp.playSE(12);
             }
             if (shotAvailableCounter < 30) {
                 shotAvailableCounter++;

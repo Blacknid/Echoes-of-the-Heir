@@ -102,6 +102,8 @@ public class TileManager {
 
     // Multi-layer map (visual only)
     public ArrayList<int[][]> mapLayers = new ArrayList<>();
+    public ArrayList<Float> layerParallaxX = new ArrayList<>();
+    public ArrayList<Float> layerParallaxY = new ArrayList<>();
 
     // Collision rectangles (from object layer)
     public ArrayList<java.awt.Rectangle> collisionRects = new ArrayList<>();
@@ -254,6 +256,8 @@ public class TileManager {
         try {
             loadTilesets(path);
             mapLayers.clear();
+            layerParallaxX.clear();
+            layerParallaxY.clear();
 
             Document doc = parseXmlResource(path);
             if (doc == null) {
@@ -264,6 +268,8 @@ public class TileManager {
             for (int l = 0; l < layers.getLength(); l++) {
                 Element layer = (Element) layers.item(l);
                 Element data = (Element) layer.getElementsByTagName("data").item(0);
+                float parallaxX = getFloatAttribute(layer, "parallaxx", 1.0f);
+                float parallaxY = getFloatAttribute(layer, "parallaxy", 1.0f);
                 String csv = data.getTextContent().trim().replaceAll("\\s+", "");
                 String[] numbers = csv.split(",");
 
@@ -280,6 +286,8 @@ public class TileManager {
                     }
                 }
                 mapLayers.add(layerMap);
+                layerParallaxX.add(parallaxX);
+                layerParallaxY.add(parallaxY);
             }
             System.out.println("Loaded " + mapLayers.size() + " tile layers");
         } catch (Exception e) {
@@ -342,6 +350,8 @@ public class TileManager {
     public void prepareVisibleTiles() {
         int playerWorldX = gp.player.worldX;
         int playerWorldY = gp.player.worldY;
+        int cameraWorldX = playerWorldX - gp.player.screenX;
+        int cameraWorldY = playerWorldY - gp.player.screenY;
         
         // Update viewport bounds only if player moved significantly
         if (playerWorldX != cachedPlayerWorldX || playerWorldY != cachedPlayerWorldY) {
@@ -358,6 +368,10 @@ public class TileManager {
 
         for (int layerIndex = 0; layerIndex < mapLayers.size(); layerIndex++) {
             int[][] map = mapLayers.get(layerIndex);
+            Float layerXFactor = layerIndex < layerParallaxX.size() ? layerParallaxX.get(layerIndex) : null;
+            Float layerYFactor = layerIndex < layerParallaxY.size() ? layerParallaxY.get(layerIndex) : null;
+            float parallaxX = layerXFactor != null ? layerXFactor : 1.0f;
+            float parallaxY = layerYFactor != null ? layerYFactor : 1.0f;
 
             for (int worldRow = 0; worldRow < gp.maxWorldRow; worldRow++) {
                 for (int worldCol = 0; worldCol < gp.maxWorldCol; worldCol++) {
@@ -382,8 +396,8 @@ public class TileManager {
                         continue;
                     }
 
-                    int screenX = worldX - playerWorldX + gp.player.screenX;
-                    int screenY = drawWorldY - playerWorldY + gp.player.screenY;
+                    int screenX = Math.round(worldX - (cameraWorldX * parallaxX));
+                    int screenY = Math.round(drawWorldY - (cameraWorldY * parallaxY));
 
                     VisibleTileDraw visibleTile = new VisibleTileDraw();
                     visibleTile.image = currentTile.image;
@@ -596,6 +610,19 @@ public class TileManager {
         }
 
         return null;
+    }
+
+    private float getFloatAttribute(Element element, String attributeName, float defaultValue) {
+        String value = element.getAttribute(attributeName);
+        if (value == null || value.isBlank()) {
+            return defaultValue;
+        }
+
+        try {
+            return Float.parseFloat(value.trim());
+        } catch (NumberFormatException e) {
+            return defaultValue;
+        }
     }
 
     private Document parseXmlResource(String path) throws Exception {

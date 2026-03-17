@@ -635,8 +635,10 @@ public class GamePanel extends JPanel implements Runnable{
             if (player.life <= 0) {
             player.life = 0; // safety clamp
 
+            if (gameState != gameOverState) {
+                ui.commandNum = 0;
+            }
             gameState = gameOverState;
-            ui.commandNum = 0;
 
             stopMusic();
             if (!deathSoundPlayed) {
