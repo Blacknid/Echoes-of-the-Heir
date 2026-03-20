@@ -1,4 +1,6 @@
-package entity; import java.awt.AlphaComposite;
+package entity;
+
+import java.awt.AlphaComposite;
  import java.awt.Color;
  import java.awt.Graphics2D;
  import java.awt.Rectangle;
@@ -6,9 +8,12 @@ package entity; import java.awt.AlphaComposite;
  import java.util.ArrayList;
  import main.GamePanel;
  import main.KeyHandler;
+ import main.SkillTree;
  import object.OBJ_Arrow;
  import object.OBJ_Shield_Wood;
- import object.OBJ_Sword_Normal; public class Player extends Entity {
+ import object.OBJ_Sword_Normal;
+
+public class Player extends Entity {
 
     // Constants
     private final int attackDuration = 20; // Total duration of attack animation in frames
@@ -22,18 +27,57 @@ package entity; import java.awt.AlphaComposite;
     public int hasKey = 0;
     public int hasArtefact = 0;
     public int hasGem = 0;
-    int counter = 0;
     // Combat
     public boolean attackCanceled = false;
     public int attackSpeed = 1; // Number of frames between attacks
 
-    // Dash ability
+    // Attack combo system
+    private int comboStep = 0;       // 0, 1, 2 (light, light, heavy)
+    private int comboWindow = 0;     // frames remaining to chain next attack
+    private static final int COMBO_WINDOW_MAX = 20;
+
+    // Level-up stat choice
+    public int levelUpChoice = 0;    // currently highlighted option (0-2)
+    public String[] levelUpOptions;  // 3 stat upgrade labels
+    public int[] levelUpValues;      // stat gain amounts
+    public int skillPoints = 0;
+    public final SkillTree skillTree = new SkillTree();
+
+    // Passive bonuses from skill tree
+    public float meleeDamageMultiplier = 1f;
+    public float damageTakenMultiplier = 1f;
+    public boolean dashUnlocked = false;
+    public int dashCooldownBonus = 0;
+    public int teleportCooldownBonus = 0;
+    public boolean shockwaveUnlocked = false;
+    public boolean voidSnareUnlocked = false;
+    public boolean frostNovaUnlocked = false;
+    public boolean overdriveUnlocked = false;
+
+    // In-world level-up animation state
+    public int levelUpBannerTimer = 0;
+    public String levelUpBannerText = "";
+
+    // Dodge roll (replaces basic dash)
     private boolean dashing = false;
     private int dashCounter = 0;
-    private final int dashDuration = 10; // frames
+    private final int dashDuration = 12; // frames (slightly longer than old dash)
     private int dashCooldown = 0;
-    private final int dashCooldownMax = 60; // 1 second at 60fps
+    private final int dashCooldownMax = 45; // shorter cooldown
     private boolean dashParticle = false;
+    private int dashGrayFadeCounter = 0;
+    private static final int DASH_GRAY_FADE_FRAMES = 30; // ~0.5s at 60 FPS
+    private int shockwaveCooldown = 0;
+    private int voidSnareCooldown = 0;
+    private int frostNovaCooldown = 0;
+    private int overdriveCooldown = 0;
+    private int overdriveTimer = 0;
+
+    private static final int SHOCKWAVE_COOLDOWN_MAX = 150;
+    private static final int VOID_SNARE_COOLDOWN_MAX = 220;
+    private static final int FROST_NOVA_COOLDOWN_MAX = 200;
+    private static final int OVERDRIVE_COOLDOWN_MAX = 420;
+    private static final int OVERDRIVE_DURATION = 180;
     private int idleCounter = 0;
     private int idleFrameDirection = 1;
     private final int idleFrameInterval = 10;
@@ -63,7 +107,7 @@ package entity; import java.awt.AlphaComposite;
         defaultSpeed = 4;
         speed = defaultSpeed;
         direction = "down";
-        level = 3;
+        level = 1;
         maxLife = 3;
         life = maxLife;
         strenght = 1;
@@ -71,8 +115,25 @@ package entity; import java.awt.AlphaComposite;
         exp = 0;
         nextLevelExp = 5;
         coin = 0;
-        maxMana = 5;
+        maxMana = 3;
         mana = maxMana;
+        skillPoints = 12;
+        meleeDamageMultiplier = 1f;
+        damageTakenMultiplier = 1f;
+        dashUnlocked = false;
+        dashCooldownBonus = 0;
+        teleportCooldownBonus = 0;
+        shockwaveUnlocked = false;
+        voidSnareUnlocked = false;
+        frostNovaUnlocked = false;
+        overdriveUnlocked = false;
+        levelUpBannerTimer = 0;
+        levelUpBannerText = "";
+        shockwaveCooldown = 0;
+        voidSnareCooldown = 0;
+        frostNovaCooldown = 0;
+        overdriveCooldown = 0;
+        overdriveTimer = 0;
         currentWeapon = new OBJ_Sword_Normal(gp);
         currentShield = new OBJ_Shield_Wood(gp);
         projectile = new OBJ_Arrow(gp);
@@ -212,7 +273,12 @@ package entity; import java.awt.AlphaComposite;
     }
 
     // Update and movement methods
+    @Override
     public void update() {
+        if (levelUpBannerTimer > 0) {
+            levelUpBannerTimer--;
+        }
+
         // Cancel attack if in dialogue or cutscene
         if (gp.gameState == gp.dialogueState || gp.gameState == gp.cutsceneState) {
             attacking = false;
@@ -222,24 +288,74 @@ package entity; import java.awt.AlphaComposite;
             movingThisFrame = false;
         }
 
-        // Handle dash
-        if (keyH.dashPressed && dashCooldown == 0 && !dashing) {
+        // Handle dodge roll
+        if (dashUnlocked && keyH.dashPressed && dashCooldown == 0 && !dashing && !attacking) {
             dashing = true;
             dashCounter = dashDuration;
-            dashCooldown = dashCooldownMax;
+            dashCooldown = getDashCooldownMax();
+            invincible = true;    // i-frames during roll
+            dashGrayFadeCounter = 0;
+            spawnDashBurst(true);
             dashParticle = true;
-            generateParticle(this, this); // Dash particles
+            generateParticle(this, this);
             dashParticle = false;
         }
         if (dashing) {
-            speed = defaultSpeed * 2;
+            int elapsed = dashDuration - dashCounter;
+            float t = Math.max(0f, Math.min(1f, elapsed / (float)Math.max(1, dashDuration)));
+            float speedMultiplier = 2.2f + (float)Math.sin(t * Math.PI) * 1.2f;
+            speed = Math.max(defaultSpeed + 1, Math.round(defaultSpeed * speedMultiplier));
+            invincible = true;        // maintain i-frames for full roll
+            invincibleCounter = 0;    // prevent i-frame timer from expiring mid-roll
             dashCounter--;
+            // Trail particles every 2 frames with slight directional spread.
+            if (dashCounter % 2 == 0) {
+                spawnDashTrail();
+            }
             if (dashCounter <= 0) {
                 dashing = false;
                 speed = defaultSpeed;
+                spawnDashBurst(false);
+                // i-frames linger briefly after roll ends
+                invincibleCounter = 45;
             }
         }
         if (dashCooldown > 0) dashCooldown--;
+
+        if (invincible) {
+            if (dashing || dashGrayFadeCounter > 0) {
+                if (dashGrayFadeCounter < DASH_GRAY_FADE_FRAMES) {
+                    dashGrayFadeCounter++;
+                }
+            }
+        } else {
+            dashGrayFadeCounter = 0;
+        }
+
+        if (shockwaveCooldown > 0) shockwaveCooldown--;
+        if (voidSnareCooldown > 0) voidSnareCooldown--;
+        if (frostNovaCooldown > 0) frostNovaCooldown--;
+        if (overdriveCooldown > 0) overdriveCooldown--;
+
+        if (overdriveTimer > 0) {
+            overdriveTimer--;
+            if (!dashing) {
+                speed = defaultSpeed + 1;
+            }
+            if (overdriveTimer % 20 == 0) {
+                Particle aura = gp.particlePool.get();
+                aura.setWithPosition(this, this, new Color(255, 160, 90), 4, 2, 14, 0, -1, Particle.STYLE_SPARK);
+                gp.particleList.add(aura);
+            }
+        } else if (!dashing) {
+            speed = defaultSpeed;
+        }
+
+        handleAbilityInputs();
+
+        // Combo window countdown
+        if (comboWindow > 0) comboWindow--;
+        if (comboWindow <= 0 && !attacking) comboStep = 0;
 
         // Handle attacking first
         if (attacking && !attackCanceled) {
@@ -314,9 +430,6 @@ package entity; import java.awt.AlphaComposite;
                 }
 
                 // --- PER-AXIS COLLISION: check and move each axis independently ---
-                int originalX = worldX;
-                int originalY = worldY;
-
                 // Horizontal axis
                 if (movingHorizontal && !keyH.enterPressed) {
                     // Temporarily set direction for collision checker prediction
@@ -367,13 +480,18 @@ package entity; import java.awt.AlphaComposite;
                 interactNPC(npcIndex);
                 int monsterIndex = gp.cChecker.checkEntity(this, gp.monster);
                 contactMonster(monsterIndex);
-                int iTileIndex = gp.cChecker.checkEntity(this, gp.iTile);
+                gp.cChecker.checkEntity(this, gp.iTile);
                 gp.eHandler.checkEvent();
 
-                // Start attack if enter pressed
-                if (keyH.enterPressed && !attackCanceled) {
+                // Start attack if enter pressed (combo chain within window)
+                if (keyH.enterPressed && !attackCanceled && !dashing) {
                     attacking = true;
                     spriteCounter = 0;
+                    if (comboWindow > 0 && comboStep < 2) {
+                        comboStep++;
+                    } else if (comboWindow <= 0) {
+                        comboStep = 0;
+                    }
                 }
                 attackCanceled = false;
                 keyH.enterPressed = false;
@@ -403,7 +521,7 @@ package entity; import java.awt.AlphaComposite;
                     spriteNum1 = 1;
                 }
             }
-            if(gp.keyH.shotKeyPressed == true && projectile.alive == false && shotAvailableCounter == 30 && projectile.haveResource(this) == true) {
+            if(gp.keyH.shotKeyPressed && !projectile.alive && shotAvailableCounter == 30 && projectile.haveResource(this)) {
                 //SET DEFAULT COORDINATES, DIRECTIONS AND USER
                 projectile.set(worldX, worldY, direction, true, this);
                 // SUBSTRACT RESOURCES
@@ -465,7 +583,9 @@ package entity; import java.awt.AlphaComposite;
 
     public void attacking() {
         spriteCounter++;
-        int frameLength = attackDuration / 5; // 5 animation frames
+        // Heavy finisher (combo step 2) is slightly faster
+        int duration = (comboStep == 2) ? attackDuration - 4 : attackDuration;
+        int frameLength = duration / 5;
         int currentFrame = spriteCounter / frameLength + 1;
         if (currentFrame > 5) currentFrame = 5;
         spriteNum = currentFrame;
@@ -473,10 +593,11 @@ package entity; import java.awt.AlphaComposite;
         if (currentFrame == 3 && spriteCounter % frameLength == 0) {
             performAttackHitbox();
         }
-        // End attack
-        if (spriteCounter >= attackDuration) {
+        // End attack → open combo window
+        if (spriteCounter >= duration) {
             spriteCounter = 0;
             attacking = false;
+            comboWindow = COMBO_WINDOW_MAX;
         }
     }
 
@@ -530,29 +651,197 @@ package entity; import java.awt.AlphaComposite;
     // Combat methods
     public void damageMonster(int i, int attack) {
         if (i != 999) {
-            if (gp.monster[i].invincible == false) {
-                gp.playSE(5); // Play hit sound
-                // determine knockback strength based on equipped weapon (smaller)
+            if (!gp.monster[i].invincible) {
+                gp.playSE(5);
+                // Combo damage: step 0 = 1x, step 1 = 1x, step 2 (heavy) = 1.5x
+                boolean isHeavy = (comboStep == 2);
+                int effectiveAttack = isHeavy ? (int)(attack * 1.5f) : attack;
+                effectiveAttack = Math.max(1, (int)(effectiveAttack * getTotalMeleeMultiplier()));
                 int kb = (currentWeapon != null) ? currentWeapon.knockBackPower / 2 : 1;
                 if (kb < 1) kb = 1;
+                if (isHeavy) kb = (int)(kb * 1.5f); // extra knockback on heavy
                 knockBack(gp.monster[i], kb, worldX, worldY);
-                int damage = attack - gp.monster[i].defense;
+                int damage = effectiveAttack - gp.monster[i].defense;
                 if (damage < 0) {
                     damage = 0;
                 }
                 gp.monster[i].life -= damage;
                 generateParticle(this, gp.monster[i]);
-                gp.ui.addMessage(damage + " damage!", Color.WHITE);
+                generateSparks(gp.monster[i]);
+                spawnDamageNumber(gp.monster[i], damage, isHeavy);
+                gp.monster[i].hitFlashCounter = 6;
+                gp.screenShake.shakeLight();
+                if (isHeavy) gp.screenShake.shakeMedium(); // extra shake on heavy finisher
+
                 gp.monster[i].invincible = true;
                 gp.monster[i].damageReaction();
                 if (gp.monster[i].life <= 0) {
-                    gp.monster[i].dying = true;
-                    gp.ui.addMessage("Killed the " + gp.monster[i].name + "!", Color.WHITE);
-                    exp += gp.monster[i].exp;
-                    checkLevelUp();
+                    killMonster(gp.monster[i]);
                 }
             }
         }
+    }
+
+    private void handleAbilityInputs() {
+        if (keyH.shockwavePressed) {
+            if (shockwaveUnlocked && shockwaveCooldown == 0 && mana >= 1 && !attacking && !dashing) {
+                castShockwave();
+            }
+            keyH.shockwavePressed = false;
+        }
+
+        if (keyH.voidSnarePressed) {
+            if (voidSnareUnlocked && voidSnareCooldown == 0 && mana >= 1 && !attacking && !dashing) {
+                castVoidSnare();
+            }
+            keyH.voidSnarePressed = false;
+        }
+
+        if (keyH.frostNovaPressed) {
+            if (frostNovaUnlocked && frostNovaCooldown == 0 && mana >= 2 && !attacking && !dashing) {
+                castFrostNova();
+            }
+            keyH.frostNovaPressed = false;
+        }
+
+        if (keyH.overdrivePressed) {
+            if (overdriveUnlocked && overdriveCooldown == 0 && mana >= 2 && !attacking) {
+                castOverdrive();
+            }
+            keyH.overdrivePressed = false;
+        }
+    }
+
+    private void castShockwave() {
+        mana -= 1;
+        shockwaveCooldown = getShockwaveCooldownMax();
+        gp.playSE(11);
+        gp.screenShake.shakeLight();
+
+        int radius = gp.tileSize * 2;
+        for (int i = 0; i < gp.monster.length; i++) {
+            Entity m = gp.monster[i];
+            if (m == null || !m.alive || m.dying) continue;
+
+            int dx = m.getCenterX() - getCenterX();
+            int dy = m.getCenterY() - getCenterY();
+            if (dx * dx + dy * dy > radius * radius) continue;
+
+            if (!m.invincible) {
+                int damage = Math.max(1, (int)(attack * 0.9f * getTotalMeleeMultiplier()) - m.defense);
+                m.life -= damage;
+                m.invincible = true;
+                m.hitFlashCounter = 6;
+                m.damageReaction();
+                applyRadialKnockback(m, 3);
+                generateParticle(this, m);
+                generateSparks(m);
+                spawnDamageNumber(m, damage, false);
+                if (m.life <= 0) {
+                    killMonster(m);
+                }
+            }
+        }
+
+        for (int i = 0; i < 16; i++) {
+            double angle = (Math.PI * 2.0 * i) / 16.0;
+            int dx = (int)Math.round(Math.cos(angle) * 2);
+            int dy = (int)Math.round(Math.sin(angle) * 2);
+            Particle p = gp.particlePool.get();
+            p.setWithPosition(this, this, new Color(255, 190, 90), 6, 3, 20, dx, dy, Particle.STYLE_SPARK);
+            gp.particleList.add(p);
+        }
+    }
+
+    private void castVoidSnare() {
+        mana -= 1;
+        voidSnareCooldown = getVoidSnareCooldownMax();
+        gp.playSE(3);
+
+        int radius = gp.tileSize * 3;
+        for (int i = 0; i < gp.monster.length; i++) {
+            Entity m = gp.monster[i];
+            if (m == null || !m.alive || m.dying) continue;
+
+            int dx = getCenterX() - m.getCenterX();
+            int dy = getCenterY() - m.getCenterY();
+            int distSq = dx * dx + dy * dy;
+            if (distSq > radius * radius) continue;
+
+            double dist = Math.max(1.0, Math.sqrt(distSq));
+            int pullX = (int)Math.round((dx / dist) * 22.0);
+            int pullY = (int)Math.round((dy / dist) * 22.0);
+            m.worldX += pullX;
+            m.worldY += pullY;
+            m.applyCrowdControl(30);
+
+            Particle p = gp.particlePool.get();
+            p.setWithPosition(this, m, new Color(140, 110, 220), 5, 2, 18, pullX == 0 ? 0 : pullX / Math.abs(pullX), pullY == 0 ? 0 : pullY / Math.abs(pullY), Particle.STYLE_SPARK);
+            gp.particleList.add(p);
+        }
+    }
+
+    private void castFrostNova() {
+        mana -= 2;
+        frostNovaCooldown = getFrostNovaCooldownMax();
+        gp.playSE(3);
+
+        int radius = (int)(gp.tileSize * 2.4);
+        for (int i = 0; i < gp.monster.length; i++) {
+            Entity m = gp.monster[i];
+            if (m == null || !m.alive || m.dying) continue;
+
+            int dx = m.getCenterX() - getCenterX();
+            int dy = m.getCenterY() - getCenterY();
+            if (dx * dx + dy * dy > radius * radius) continue;
+
+            m.applyCrowdControl(95);
+            m.hitFlashCounter = 4;
+
+            if (!m.invincible) {
+                int damage = Math.max(1, (int)(attack * 0.45f) - m.defense / 2);
+                m.life -= damage;
+                m.invincible = true;
+                spawnDamageNumber(m, damage, false);
+                if (m.life <= 0) {
+                    killMonster(m);
+                }
+            }
+
+            Particle p = gp.particlePool.get();
+            p.setWithPosition(this, m, new Color(150, 210, 255), 6, 2, 22, 0, -1, Particle.STYLE_HIT);
+            gp.particleList.add(p);
+        }
+    }
+
+    private void castOverdrive() {
+        mana -= 2;
+        overdriveCooldown = getOverdriveCooldownMax();
+        overdriveTimer = OVERDRIVE_DURATION;
+        gp.playSE(11);
+        gp.ui.addMessage("OVERDRIVE engaged!", new Color(255, 185, 100));
+    }
+
+    private void applyRadialKnockback(Entity target, int power) {
+        int dx = target.getCenterX() - getCenterX();
+        int dy = target.getCenterY() - getCenterY();
+        double dist = Math.max(1.0, Math.sqrt(dx * dx + dy * dy));
+
+        int vx = (int)Math.round((dx / dist) * power);
+        int vy = (int)Math.round((dy / dist) * power);
+        if (vx == 0 && vy == 0) vx = 1;
+
+        target.knockBackVectorX = vx;
+        target.knockBackVectorY = vy;
+        target.knockBackRemaining = power * (gp.tileSize / 3.0);
+        target.knockBackPower = power;
+        target.knockBack = true;
+    }
+
+    private void killMonster(Entity monster) {
+        if (monster == null || monster.dying || !monster.alive) return;
+        monster.beginDeath(monster.exp, 1, 0);
+        gp.screenShake.shakeMedium();
     }
 
     /**
@@ -591,6 +880,7 @@ package entity; import java.awt.AlphaComposite;
             }
             gp.playSE(8);
             int damage = gp.monster[i].attack - defense;
+            damage = (int)(damage * damageTakenMultiplier);
             // Only player bleeds when taking damage (removed generateParticle for monster)
             bleed(); // Generate blood particles on player
             if (damage < 1) {
@@ -598,6 +888,10 @@ package entity; import java.awt.AlphaComposite;
             }
             life -= damage;
             invincible = true;
+
+            // HIT FLASH + SHAKE when player takes damage
+            hitFlashCounter = 6;
+            gp.screenShake.shakeMedium();
             // compute knockback direction away from the monster
             int dx = worldX - gp.monster[i].worldX;
             int dy = worldY - gp.monster[i].worldY;
@@ -637,25 +931,121 @@ package entity; import java.awt.AlphaComposite;
         gp.particleList.add(p4);
     }
 
+    /** Emit directional spark particles at the target hit point. */
+    private void generateSparks(Entity target) {
+        Color sparkColor = new Color(255, 220, 100);
+        // Determine spark direction based on player facing
+        int baseX = 0, baseY = 0;
+        switch (direction) {
+            case "up" -> baseY = -1;
+            case "down" -> baseY = 1;
+            case "left" -> baseX = -1;
+            case "right" -> baseX = 1;
+        }
+        for (int i = 0; i < 6; i++) {
+            Particle spark = gp.particlePool.get();
+            int dx = baseX + (int)((Math.random() - 0.5) * 3);
+            int dy = baseY + (int)((Math.random() - 0.5) * 3);
+            if (dx == 0 && dy == 0) dx = 1;
+            spark.setWithPosition(this, target, sparkColor, 4, 3, 14, dx, dy, Particle.STYLE_SPARK);
+            gp.particleList.add(spark);
+        }
+    }
+
+    /** Spawn teleport particles — called from KeyHandler. */
+    public void spawnTeleportParticles(boolean implode) {
+        Color tpColor = new Color(100, 180, 255);
+        int count = 10;
+        int half = gp.tileSize / 2;
+        for (int i = 0; i < count; i++) {
+            double angle = (2 * Math.PI / count) * i;
+            int dx = (int) Math.round(Math.cos(angle));
+            int dy = (int) Math.round(Math.sin(angle));
+            if (implode) { dx = -dx; dy = -dy; }
+            if (dx == 0 && dy == 0) dx = 1;
+
+            Particle p = gp.particlePool.get();
+            p.setWithPosition(this, this, tpColor, 5 + (int)(Math.random() * 3),
+                implode ? 2 : 3, implode ? 12 : 18, dx, dy, Particle.STYLE_SPARK);
+            // Offset from center
+            p.fx = worldX + half + (float)((Math.random() - 0.5) * 16);
+            p.fy = worldY + half + (float)((Math.random() - 0.5) * 16);
+            p.worldX = (int) p.fx;
+            p.worldY = (int) p.fy;
+            gp.particleList.add(p);
+        }
+    }
+
+    private void spawnDashTrail() {
+        int dirX = 0;
+        int dirY = 0;
+        switch (direction) {
+            case "up" -> dirY = -1;
+            case "down" -> dirY = 1;
+            case "left" -> dirX = -1;
+            case "right" -> dirX = 1;
+        }
+
+        for (int i = 0; i < 2; i++) {
+            Particle trail = gp.particlePool.get();
+            int sideX = (int)((Math.random() - 0.5) * 2.0);
+            int sideY = (int)((Math.random() - 0.5) * 2.0);
+            trail.setWithPosition(this, this, new Color(200, 190, 170), 4 + i, 1, 14,
+                    -dirX + sideX, -dirY + sideY, Particle.STYLE_TRAIL);
+            gp.particleList.add(trail);
+        }
+
+        if (dashCounter % 4 == 0) {
+            Particle spark = gp.particlePool.get();
+            spark.setWithPosition(this, this, new Color(245, 220, 150), 3, 2, 10,
+                    -dirX, -dirY, Particle.STYLE_SPARK);
+            gp.particleList.add(spark);
+        }
+    }
+
+    private void spawnDashBurst(boolean start) {
+        Color burstColor = start ? new Color(220, 210, 185) : new Color(180, 190, 210);
+        int count = start ? 8 : 6;
+        for (int i = 0; i < count; i++) {
+            double angle = (Math.PI * 2.0 * i) / count;
+            int dx = (int)Math.round(Math.cos(angle));
+            int dy = (int)Math.round(Math.sin(angle));
+            Particle p = gp.particlePool.get();
+            p.setWithPosition(this, this, burstColor, start ? 5 : 4, start ? 2 : 1, start ? 16 : 12,
+                    dx, dy, Particle.STYLE_SPARK);
+            gp.particleList.add(p);
+        }
+    }
+
+    /** Spawn a floating damage number above the target. */
+    private void spawnDamageNumber(Entity target, int damage, boolean critical) {
+        DamageNumber dn = gp.damageNumberPool.get();
+        int x = target.worldX + gp.tileSize / 4;
+        int y = target.worldY - 8;
+        Color color = damage > 0 ? new Color(255, 80, 60) : new Color(180, 180, 180);
+        dn.set(x, y, String.valueOf(damage), color, critical);
+        gp.damageNumbers.add(dn);
+    }
+
     // Interaction methods
     public void pickUpObject(int i) {
         if (i != 999) {
             // PICKUP ONLY OBJECTS
             if (gp.obj[i].type == type_pickupOnly) {
                 attackCanceled = true;
-                if (gp.obj[i].use(this) == true) {
+                if (gp.obj[i].use(this)) {
                     gp.obj[i] = null;
                 } else return;
             }
             // INTERACTABLE OBJECTS
             else if (gp.obj[i].type == type_obstacle) {
-                if(keyH.enterPressed == true) {
+                if(keyH.enterPressed) {
                     attackCanceled = true;
                     gp.obj[i].interact();
                 }
             }
             // OBTAINABLE OBJECTS
-            else if (canObtainItem(gp.obj[i]) == true) {
+            else if (canObtainItem(gp.obj[i])) {
                 attackCanceled = true;
                 gp.playSE(2);
                 String objectName = gp.obj[i].name;
@@ -682,6 +1072,9 @@ package entity; import java.awt.AlphaComposite;
                         hasKey++;
                         gp.obj[i] = null;
                         gp.ui.addMessage("You got a key!", Color.WHITE);
+                        if (gp.questManager != null) {
+                            gp.questManager.progress("find_keys", 1);
+                        }
                     }
                     case "Tent" -> {
                         gp.playSE(2);
@@ -698,7 +1091,7 @@ package entity; import java.awt.AlphaComposite;
     }
 
     public void interactNPC(int i) {
-        if (gp.keyH.enterPressed == true) {
+        if (gp.keyH.enterPressed) {
             if (i != 999) {
                 attackCanceled = true;
                 gp.npc[i].speak();
@@ -710,10 +1103,38 @@ package entity; import java.awt.AlphaComposite;
     }
 
     public void damageInteractiveTile(int i) {
-        if (i != 999 && gp.iTile[i].destructible == true && gp.iTile[i].isCorrectItem(this) == true && gp.iTile[i].invincible == false) {
-            Entity tile = gp.iTile[i]; // ✅ Save reference first
-            gp.iTile[i] = null; // Remove tile
-            generateParticle(tile, tile); // ✅ Use saved reference
+        if (i != 999 && gp.iTile[i].destructible && gp.iTile[i].isCorrectItem(this) && !gp.iTile[i].invincible) {
+            Entity tile = gp.iTile[i];
+            gp.iTile[i] = null;
+            generateParticle(tile, tile);
+            gp.screenShake.shakeLight();
+
+            // Random drop from destructible pots
+            if (tile instanceof tiles_interactive.IT_Pot) {
+                double roll = Math.random();
+                if (roll < 0.3) {
+                    // 30% chance: drop a heart at pot location
+                    for (int j = 0; j < gp.obj.length; j++) {
+                        if (gp.obj[j] == null) {
+                            gp.obj[j] = new object.OBJ_Heart(gp);
+                            gp.obj[j].worldX = tile.worldX;
+                            gp.obj[j].worldY = tile.worldY;
+                            break;
+                        }
+                    }
+                } else if (roll < 0.6) {
+                    // 30% chance: drop coins
+                    for (int j = 0; j < gp.obj.length; j++) {
+                        if (gp.obj[j] == null) {
+                            gp.obj[j] = new object.OBJ_Coins(gp);
+                            gp.obj[j].worldX = tile.worldX;
+                            gp.obj[j].worldY = tile.worldY;
+                            break;
+                        }
+                    }
+                }
+                // 40% chance: drop nothing
+            }
         }
     }
 
@@ -735,7 +1156,7 @@ package entity; import java.awt.AlphaComposite;
                 gp.playSE(9);
             } else if (selectedItem.type == type_consumable) {
                 attackCanceled = true;
-                if (selectedItem.use(this) == true && selectedItem.name != "Potion") {
+                if (selectedItem.use(this) && !"Potion".equals(selectedItem.name)) {
                     gp.ui.addMessage("Used " + selectedItem.name + ".", Color.WHITE);
                     gp.playSE(11); // generic use sound
                     if (selectedItem.amount > 1) {
@@ -766,7 +1187,7 @@ package entity; import java.awt.AlphaComposite;
         }
         boolean canObtain = false;
         // CHECK IF ITEM IS STACKABLE
-        if (item.stackable == true) {
+        if (item.stackable) {
             int index = searchItemInInventory(item.name);
             if (index != 999) {
                 inventory.get(index).amount++;
@@ -818,136 +1239,154 @@ package entity; import java.awt.AlphaComposite;
     }
 
     // Rendering methods
+    @Override
     public void draw(Graphics2D g2) {
-        BufferedImage image = null;
+        BufferedImage image;
         int tempScreenX = screenX;
         int tempScreenY = screenY;
-        switch(direction) {
-            case "up":
-                if(attacking == false){
-                    if (!movingThisFrame) {
-                        if(spriteNum == 1) {image = upidle1;}
-                        if(spriteNum == 2) {image = upidle2;}
-                        if(spriteNum == 3) {image = upidle3;}
-                        if(spriteNum == 4) {image = upidle4;}
-                        if(spriteNum == 5) {image = upidle5;}
-                        if(spriteNum == 6) {image = upidle6;}
-                        break;
-                    }
-                    if(spriteNum == 1) {image = up1;}
-                    if(spriteNum == 2) {image = up2;}
-                    if(spriteNum == 3) {image = up3;}
-                    if(spriteNum == 4) {image = up4;}
-                    if(spriteNum == 5) {image = up5;}
-                    if(spriteNum == 6) {image = up6;}
-                    if(spriteNum == 7) {image = up7;}
-                    break;
-                }
-                if(attacking == true){
-                    tempScreenY = tempScreenY - gp.tileSize;
-                    if(spriteNum == 1){image = attackUp1;}
-                    if(spriteNum == 2){image = attackUp2;}
-                    if(spriteNum == 3){image = attackUp3;}
-                    if(spriteNum == 4){image = attackUp4;}
-                    if(spriteNum == 5){image = attackUp5;}
-                    break;
-                }
-            case "down":
-                if(attacking == false){
-                    if (!movingThisFrame) {
-                        if(spriteNum == 1) {image = downidle1;}
-                        if(spriteNum == 2) {image = downidle2;}
-                        if(spriteNum == 3) {image = downidle3;}
-                        if(spriteNum == 4) {image = downidle4;}
-                        if(spriteNum == 5) {image = downidle5;}
-                        if(spriteNum == 6) {image = downidle6;}
-                        break;
-                    }
-                    if(spriteNum == 1) {image = down1;}
-                    if(spriteNum == 2) {image = down2;}
-                    if(spriteNum == 3) {image = down3;}
-                    if(spriteNum == 4) {image = down4;}
-                    if(spriteNum == 5) {image = down5;}
-                    if(spriteNum == 6) {image = down6;}
-                    if(spriteNum == 7) {image = down7;}
-                    break;
-                }
-                if(attacking == true){
-                    tempScreenY = screenY;
-                    if(spriteNum == 1){image = attackDown1;}
-                    if(spriteNum == 2){image = attackDown2;}
-                    if(spriteNum == 3){image = attackDown3;}
-                    if(spriteNum == 4){image = attackDown4;}
-                    if(spriteNum == 5){image = attackDown5;}
-                    break;
-                }
-            case "left":
-                if(attacking == false){
-                    if (!movingThisFrame) {
-                        if(spriteNum == 1) {image = leftidle1;}
-                        if(spriteNum == 2) {image = leftidle2;}
-                        if(spriteNum == 3) {image = leftidle3;}
-                        if(spriteNum == 4) {image = leftidle4;}
-                        if(spriteNum == 5) {image = leftidle5;}
-                        if(spriteNum == 6) {image = leftidle6;}
-                        break;
-                    }
-                    if(spriteNum == 1) {image = left1;}
-                    if(spriteNum == 2) {image = left2;}
-                    if(spriteNum == 3) {image = left3;}
-                    if(spriteNum == 4) {image = left4;}
-                    if(spriteNum == 5) {image = left5;}
-                    if(spriteNum == 6) {image = left6;}
-                    if(spriteNum == 7) {image = left7;}
-                    if(spriteNum == 8) {image = left8;}
-                    break;
-                }
-                if(attacking == true){
-                    tempScreenX = screenX - gp.tileSize;
-                    if(spriteNum == 1){image = attackLeft1;}
-                    if(spriteNum == 2){image = attackLeft2;}
-                    if(spriteNum == 3){image = attackLeft3;}
-                    if(spriteNum == 4){image = attackLeft4;}
-                    if(spriteNum == 5){image = attackLeft5;}
-                    break;
-                }
-            case "right":
-                if(attacking == false){
-                    if (!movingThisFrame) {
-                        if(spriteNum == 1) {image = rightidle1;}
-                        if(spriteNum == 2) {image = rightidle2;}
-                        if(spriteNum == 3) {image = rightidle3;}
-                        if(spriteNum == 4) {image = rightidle4;}
-                        if(spriteNum == 5) {image = rightidle5;}
-                        if(spriteNum == 6) {image = rightidle6;}
-                        break;
-                    }
-                    if(spriteNum == 1) {image = right1;}
-                    if(spriteNum == 2) {image = right2;}
-                    if(spriteNum == 3) {image = right3;}
-                    if(spriteNum == 4) {image = right4;}
-                    if(spriteNum == 5) {image = right5;}
-                    if(spriteNum == 6) {image = right6;}
-                    if(spriteNum == 7) {image = right7;}
-                    if(spriteNum == 8) {image = right8;}
-                    break;
-                }
-                if(attacking == true){
-                    tempScreenX = screenX;
-                    if(spriteNum == 1){image = attackRight1;}
-                    if(spriteNum == 2){image = attackRight2;}
-                    if(spriteNum == 3){image = attackRight3;}
-                    if(spriteNum == 4){image = attackRight4;}
-                    if(spriteNum == 5){image = attackRight5;}
-                    break;
-                }
+        int frame = Math.max(1, spriteNum);
+
+        if (attacking) {
+            image = getAttackFrame(direction, frame);
+            // Offset the draw position for attack sprites
+            switch(direction) {
+                case "up"    -> tempScreenY -= gp.tileSize;
+                case "left"  -> tempScreenX -= gp.tileSize;
+                // down and right: no offset needed
+            }
+        } else if (!movingThisFrame) {
+            image = getIdleFrame(direction, frame);
+        } else {
+            image = getWalkFrameImage(direction, frame);
         }
-        if (invincible == true) {
-            g2.setComposite(AlphaComposite.getInstance(AlphaComposite.SRC_OVER, 0.4f));
+
+        // Fallback to first walk frame if null
+        if (image == null) {
+            image = getWalkFrameImage(direction, 1);
         }
-        g2.drawImage(image, tempScreenX, tempScreenY, null);
-        // RESET ALPHA
+
+        int drawW = gp.tileSize;
+        int drawH = gp.tileSize;
+        int drawX = tempScreenX;
+        int drawY = tempScreenY;
+
+        if (dashing) {
+            float dashPhase = 1f - (dashCounter / (float)Math.max(1, dashDuration));
+            float pulse = (float)Math.sin(dashPhase * Math.PI);
+
+            if ("left".equals(direction) || "right".equals(direction)) {
+                drawW = (int)(gp.tileSize * (1.2f + 0.1f * pulse));
+                drawH = (int)(gp.tileSize * (0.84f - 0.06f * pulse));
+            } else {
+                drawW = (int)(gp.tileSize * (0.9f - 0.05f * pulse));
+                drawH = (int)(gp.tileSize * (1.14f + 0.08f * pulse));
+            }
+
+            drawX = tempScreenX - (drawW - gp.tileSize) / 2;
+            drawY = tempScreenY - (drawH - gp.tileSize) / 2;
+
+            int dirX = 0;
+            int dirY = 0;
+            switch (direction) {
+                case "up" -> dirY = -1;
+                case "down" -> dirY = 1;
+                case "left" -> dirX = -1;
+                case "right" -> dirX = 1;
+            }
+
+            java.awt.Composite saved = g2.getComposite();
+            for (int i = 1; i <= 2; i++) {
+                float alpha = (i == 1) ? 0.24f : 0.14f;
+                g2.setComposite(AlphaComposite.getInstance(AlphaComposite.SRC_OVER, alpha));
+                int trailOffset = 7 * i;
+                g2.drawImage(image, drawX - dirX * trailOffset, drawY - dirY * trailOffset, drawW, drawH, null);
+            }
+            g2.setComposite(saved);
+        }
+
+        if (invincible) {
+            float alpha = 0.4f;
+            if (dashGrayFadeCounter > 0) {
+                float t = Math.min(1f, dashGrayFadeCounter / (float)DASH_GRAY_FADE_FRAMES);
+                alpha = 1f - (0.6f * t); // 1.0 -> 0.4 over ~0.5s
+            }
+            g2.setComposite(AlphaComposite.getInstance(AlphaComposite.SRC_OVER, alpha));
+        }
+        g2.drawImage(image, drawX, drawY, drawW, drawH, null);
         g2.setComposite(AlphaComposite.getInstance(AlphaComposite.SRC_OVER, 1f));
+    }
+
+    private BufferedImage getIdleFrame(String dir, int frame) {
+        return switch(dir) {
+            case "up" -> switch(frame) {
+                case 1 -> upidle1; case 2 -> upidle2; case 3 -> upidle3;
+                case 4 -> upidle4; case 5 -> upidle5; case 6 -> upidle6;
+                default -> upidle1;
+            };
+            case "down" -> switch(frame) {
+                case 1 -> downidle1; case 2 -> downidle2; case 3 -> downidle3;
+                case 4 -> downidle4; case 5 -> downidle5; case 6 -> downidle6;
+                default -> downidle1;
+            };
+            case "left" -> switch(frame) {
+                case 1 -> leftidle1; case 2 -> leftidle2; case 3 -> leftidle3;
+                case 4 -> leftidle4; case 5 -> leftidle5; case 6 -> leftidle6;
+                default -> leftidle1;
+            };
+            case "right" -> switch(frame) {
+                case 1 -> rightidle1; case 2 -> rightidle2; case 3 -> rightidle3;
+                case 4 -> rightidle4; case 5 -> rightidle5; case 6 -> rightidle6;
+                default -> rightidle1;
+            };
+            default -> downidle1;
+        };
+    }
+
+    private BufferedImage getAttackFrame(String dir, int frame) {
+        return switch(dir) {
+            case "up" -> switch(frame) {
+                case 1 -> attackUp1; case 2 -> attackUp2; case 3 -> attackUp3;
+                case 4 -> attackUp4; case 5 -> attackUp5; default -> attackUp1;
+            };
+            case "down" -> switch(frame) {
+                case 1 -> attackDown1; case 2 -> attackDown2; case 3 -> attackDown3;
+                case 4 -> attackDown4; case 5 -> attackDown5; default -> attackDown1;
+            };
+            case "left" -> switch(frame) {
+                case 1 -> attackLeft1; case 2 -> attackLeft2; case 3 -> attackLeft3;
+                case 4 -> attackLeft4; case 5 -> attackLeft5; default -> attackLeft1;
+            };
+            case "right" -> switch(frame) {
+                case 1 -> attackRight1; case 2 -> attackRight2; case 3 -> attackRight3;
+                case 4 -> attackRight4; case 5 -> attackRight5; default -> attackRight1;
+            };
+            default -> attackDown1;
+        };
+    }
+
+    @Override
+    protected BufferedImage getWalkFrameImage(String dir, int frame) {
+        return switch(dir) {
+            case "up" -> switch(frame) {
+                case 1 -> up1; case 2 -> up2; case 3 -> up3; case 4 -> up4;
+                case 5 -> up5; case 6 -> up6; case 7 -> up7; default -> up1;
+            };
+            case "down" -> switch(frame) {
+                case 1 -> down1; case 2 -> down2; case 3 -> down3; case 4 -> down4;
+                case 5 -> down5; case 6 -> down6; case 7 -> down7; default -> down1;
+            };
+            case "left" -> switch(frame) {
+                case 1 -> left1; case 2 -> left2; case 3 -> left3; case 4 -> left4;
+                case 5 -> left5; case 6 -> left6; case 7 -> left7; case 8 -> left8;
+                default -> left1;
+            };
+            case "right" -> switch(frame) {
+                case 1 -> right1; case 2 -> right2; case 3 -> right3; case 4 -> right4;
+                case 5 -> right5; case 6 -> right6; case 7 -> right7; case 8 -> right8;
+                default -> right1;
+            };
+            default -> down1;
+        };
     }
 
     // Utility methods
@@ -961,22 +1400,190 @@ package entity; import java.awt.AlphaComposite;
     }
 
     public void checkLevelUp() {
-        if (exp >= nextLevelExp) {
+        while (exp >= nextLevelExp) {
             level++;
             nextLevelExp = nextLevelExp * 2;
-            maxLife++;
-            strenght++;
-            dexterity++;
-            life = maxLife;
-            attack = getAttack();
-            defense = getDefense();
-            gp.playSE(11);
-            setDialogue();
-            startDialogue(this, 0);
+
+            // Baseline level growth
+            life = Math.min(life + 2, maxLife);
+            skillPoints++;
+
+            // Periodic passive growth at milestone levels
+            if (level % 3 == 0) {
+                maxLife += 1;
+                life = Math.min(maxLife, life + 1);
+            }
+            if (level % 4 == 0) {
+                strenght += 1;
+                attack = getAttack();
+            }
+            if (level % 5 == 0) {
+                dexterity += 1;
+                defense = getDefense();
+            }
+            if (level % 6 == 0) {
+                maxMana += 1;
+                mana = Math.min(maxMana, mana + 1);
+            }
+
+            triggerLevelUpEffects();
         }
     }
 
+    private void triggerLevelUpEffects() {
+        gp.playSE(11);
+        spawnLevelUpBoom();
+        gp.screenShake.shakeMedium();
+
+        levelUpBannerText = getLevelUpFlavorText(level);
+        levelUpBannerTimer = 180;
+        gp.ui.addMessage("Level " + level + "! +1 Skill Point", new Color(255, 220, 110));
+    }
+
+    private String getLevelUpFlavorText(int newLevel) {
+        if (newLevel >= 20) return "LEGEND AWAKENS";
+        if (newLevel >= 15) return "ARCANE BLOOD SURGES";
+        if (newLevel >= 10) return "YOUR POWER SPIKES";
+        if (newLevel >= 5) return "THE HUNT GETS SERIOUS";
+        if (newLevel == 2) return "FIRST BREAKTHROUGH";
+        return "LEVEL UP";
+    }
+
+    private void spawnLevelUpBoom() {
+        // Main radial burst
+        for (int i = 0; i < 20; i++) {
+            double a = (Math.PI * 2.0 * i) / 20.0;
+            int dx = (int)Math.round(Math.cos(a) * 3);
+            int dy = (int)Math.round(Math.sin(a) * 3);
+            Particle p = gp.particlePool.get();
+            p.setWithPosition(this, this, new Color(255, 220, 100), 8, 2, 28, dx, dy, Particle.STYLE_SPARK);
+            gp.particleList.add(p);
+        }
+
+        // Secondary shock ring
+        for (int i = 0; i < 12; i++) {
+            double a = (Math.PI * 2.0 * i) / 12.0;
+            int dx = (int)Math.round(Math.cos(a) * 2);
+            int dy = (int)Math.round(Math.sin(a) * 2);
+            Particle p = gp.particlePool.get();
+            p.setWithPosition(this, this, new Color(160, 200, 255), 6, 2, 20, dx, dy, Particle.STYLE_HIT);
+            gp.particleList.add(p);
+        }
+    }
+
+    public int getDashCooldownMax() {
+        int cd = dashCooldownMax - dashCooldownBonus;
+        return Math.max(18, cd);
+    }
+
+    public int getTeleportCooldownMax() {
+        int cd = main.KeyHandler.TELEPORT_COOLDOWN_MAX - teleportCooldownBonus;
+        return Math.max(25, cd);
+    }
+
+    public int getShockwaveCooldownMax() {
+        return SHOCKWAVE_COOLDOWN_MAX;
+    }
+
+    public int getVoidSnareCooldownMax() {
+        return VOID_SNARE_COOLDOWN_MAX;
+    }
+
+    public int getFrostNovaCooldownMax() {
+        return FROST_NOVA_COOLDOWN_MAX;
+    }
+
+    public int getOverdriveCooldownMax() {
+        return OVERDRIVE_COOLDOWN_MAX;
+    }
+
+    public int getShockwaveCooldown() {
+        return shockwaveCooldown;
+    }
+
+    public int getVoidSnareCooldown() {
+        return voidSnareCooldown;
+    }
+
+    public int getFrostNovaCooldown() {
+        return frostNovaCooldown;
+    }
+
+    public int getOverdriveCooldown() {
+        return overdriveCooldown;
+    }
+
+    public int getOverdriveTimer() {
+        return overdriveTimer;
+    }
+
+    private float getTotalMeleeMultiplier() {
+        float total = meleeDamageMultiplier;
+        if (overdriveTimer > 0) {
+            total *= 1.35f;
+        }
+        return total;
+    }
+
+    public void applySkillNodeEffect(String nodeId) {
+        switch (nodeId) {
+            case "VITALITY_CORE" -> {
+                maxLife += 2;
+                life = maxLife;
+            }
+            case "BLADE_MASTERY" -> meleeDamageMultiplier += 0.15f;
+            case "AETHER_RESERVE" -> {
+                maxMana += 2;
+                mana = maxMana;
+            }
+            case "WINDSTEP" -> {
+                dashUnlocked = true;
+                dashCooldownBonus += 12;
+            }
+            case "PHASE_TUNING" -> teleportCooldownBonus += 25;
+            case "IRON_WILL" -> damageTakenMultiplier *= 0.85f;
+            case "SHOCKWAVE" -> shockwaveUnlocked = true;
+            case "VOID_SNARE" -> voidSnareUnlocked = true;
+            case "FROST_NOVA" -> frostNovaUnlocked = true;
+            case "OVERDRIVE" -> overdriveUnlocked = true;
+            default -> {
+                return;
+            }
+        }
+
+        gp.ui.addMessage("Unlocked skill: " + nodeId.replace('_', ' '), new Color(120, 210, 255));
+        gp.playSE(3);
+    }
+
+    // Stored stat keys for level-up application
+    private String[] levelUpStatKeys;
+
+    /** Apply the selected level-up stat boost. Called from KeyHandler. */
+    public void applyLevelUpChoice() {
+        if (levelUpStatKeys == null) return;
+        String key = levelUpStatKeys[levelUpChoice];
+        int val = levelUpValues[levelUpChoice];
+        switch (key) {
+            case "maxLife" -> { maxLife += val; life = maxLife; }
+            case "strenght" -> { strenght += val; attack = getAttack(); }
+            case "dexterity" -> { dexterity += val; defense = getDefense(); }
+            case "speed" -> { defaultSpeed += val; speed = defaultSpeed; }
+            case "maxMana" -> { maxMana += val; mana = maxMana; }
+        }
+        // Particle burst on stat gain
+        for (int i = 0; i < 8; i++) {
+            Particle p = gp.particlePool.get();
+            int dx = (int)(Math.cos(i * Math.PI / 4) * 2);
+            int dy = (int)(Math.sin(i * Math.PI / 4) * 2);
+            p.setWithPosition(this, this, new Color(255, 220, 80), 6, 2, 20, dx, dy, Particle.STYLE_SPARK);
+            gp.particleList.add(p);
+        }
+        gp.screenShake.shakeLight();
+        gp.gameState = gp.playState;
+    }
+
     // Particle methods
+    @Override
     public Color getParticleColor() {
         if (dashParticle) {
             return new Color(160, 160, 160); // gray dust for dash
@@ -984,6 +1591,7 @@ package entity; import java.awt.AlphaComposite;
         return new Color(210, 32, 45);
     }
 
+    @Override
     public int getParticleSize() {
         if (dashParticle) {
             return 6; // smaller for dash
@@ -991,6 +1599,7 @@ package entity; import java.awt.AlphaComposite;
         return 10;
     }
 
+    @Override
     public int getParticleSpeed() {
         if (dashParticle) {
             return 2; // faster for dash
@@ -998,6 +1607,7 @@ package entity; import java.awt.AlphaComposite;
         return 2;
     }
 
+    @Override
     public int getParticleMaxLife() {
         if (dashParticle) {
             return 15; // shorter life for dash

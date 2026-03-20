@@ -1,32 +1,35 @@
 package ai;
 
-import main.GamePanel;
 import entity.Entity;
-import java.util.ArrayList;
 import java.awt.Rectangle;
+import java.util.ArrayList;
+import java.util.Comparator;
+import java.util.PriorityQueue;
+import main.GamePanel;
 
 public class PathFinder {
 
     GamePanel gp;
     Node[][] nodes;
-    ArrayList<Node> openList = new ArrayList<>();
+    // OPTIMIZATION: PriorityQueue for O(log n) best-node selection instead of O(n) linear scan
+    PriorityQueue<Node> openQueue = new PriorityQueue<>(64, Comparator.comparingInt((Node n) -> n.fCost).thenComparingInt(n -> n.gCost));
     public ArrayList<Node> pathList = new ArrayList<>();
 
     Node startNode, goalNode, currentNode;
     boolean goalReached;
     int step;
 
+    // OPTIMIZATION: Reusable Rectangle to avoid per-node allocation in collision checks
+    private final Rectangle futureHitbox = new Rectangle();
+    private final Rectangle tempHitbox = new Rectangle();
+
     public PathFinder(GamePanel gp) {
         this.gp = gp;
         instantiateNodes();
     }
 
-    // -------------------------------------------------
-    // Init nodes
-    // -------------------------------------------------
     public void instantiateNodes() {
         nodes = new Node[gp.maxWorldCol][gp.maxWorldRow];
-
         for (int col = 0; col < gp.maxWorldCol; col++) {
             for (int row = 0; row < gp.maxWorldRow; row++) {
                 nodes[col][row] = new Node(col, row);
@@ -34,9 +37,6 @@ public class PathFinder {
         }
     }
 
-    // -------------------------------------------------
-    // Reset
-    // -------------------------------------------------
     public void resetNodes() {
         for (int col = 0; col < gp.maxWorldCol; col++) {
             for (int row = 0; row < gp.maxWorldRow; row++) {
@@ -48,15 +48,12 @@ public class PathFinder {
             }
         }
 
-        openList.clear();
+        openQueue.clear();
         pathList.clear();
         goalReached = false;
         step = 0;
     }
 
-    // -------------------------------------------------
-    // Setup path
-    // -------------------------------------------------
     public void setNodes(int startCol, int startRow,
                          int goalCol, int goalRow,
                          Entity entity) {
@@ -74,40 +71,39 @@ public class PathFinder {
         goalNode = nodes[goalCol][goalRow];
         currentNode = startNode;
 
-        openList.add(currentNode);
+        openQueue.add(currentNode);
+        currentNode.open = true;
 
-        // Determine if this entity is chasing the player (monster or NPC going to player tile)
+        // Determine if this entity is chasing the player
         int playerTileCol = gp.player.getTileCol();
         int playerTileRow = gp.player.getTileRow();
         boolean chasingPlayer = (goalCol == playerTileCol && goalRow == playerTileRow);
 
-        // Mark solid nodes using entity hitbox against collision layer
-        for (int col = 0; col < gp.maxWorldCol; col++) {
-            for (int row = 0; row < gp.maxWorldRow; row++) {
+        // OPTIMIZATION: Only check nodes in a bounding box around start→goal (not the entire map)
+        int minCol = Math.max(0, Math.min(startCol, goalCol) - 5);
+        int maxCol = Math.min(gp.maxWorldCol - 1, Math.max(startCol, goalCol) + 5);
+        int minRow = Math.max(0, Math.min(startRow, goalRow) - 5);
+        int maxRow = Math.min(gp.maxWorldRow - 1, Math.max(startRow, goalRow) + 5);
 
+        for (int col = minCol; col <= maxCol; col++) {
+            for (int row = minRow; row <= maxRow; row++) {
                 Node node = nodes[col][row];
                 if (isCollisionForEntityAtNode(col, row, entity, chasingPlayer)) {
                     node.solid = true;
                 }
-
                 calculateCost(node);
             }
         }
 
-        // Ensure start and goal nodes are always traversable
         startNode.solid = false;
         goalNode.solid = false;
     }
 
-    // -------------------------------------------------
-    // Collision check via TileManager using entity hitbox
-    // chasingPlayer: if true, skip marking the player as an obstacle
-    // -------------------------------------------------
     private boolean isCollisionForEntityAtNode(int col, int row, Entity entity, boolean chasingPlayer) {
         int hitboxWidth = entity.solidArea.width > 0 ? entity.solidArea.width : gp.tileSize;
         int hitboxHeight = entity.solidArea.height > 0 ? entity.solidArea.height : gp.tileSize;
 
-        Rectangle futureHitbox = new Rectangle(
+        futureHitbox.setBounds(
                 col * gp.tileSize + entity.solidArea.x,
                 row * gp.tileSize + entity.solidArea.y,
                 hitboxWidth,
@@ -115,37 +111,37 @@ public class PathFinder {
         );
 
         // Check collision layer rectangles
-        for (Rectangle r : gp.tileM.collisionRects) {
-            if (r.intersects(futureHitbox)) {
+        ArrayList<Rectangle> rects = gp.tileM.collisionRects;
+        for (int i = 0, size = rects.size(); i < size; i++) {
+            if (futureHitbox.intersects(rects.get(i))) {
                 return true;
             }
         }
 
         // Check player as obstacle ONLY if not chasing the player
-        // (otherwise the goal tile is always blocked and A* fails)
         if (!chasingPlayer) {
-            Rectangle playerHitbox = new Rectangle(
+            tempHitbox.setBounds(
                     gp.player.worldX + gp.player.solidArea.x,
                     gp.player.worldY + gp.player.solidArea.y,
                     gp.player.solidArea.width,
                     gp.player.solidArea.height
             );
-            if (futureHitbox.intersects(playerHitbox)) {
+            if (futureHitbox.intersects(tempHitbox)) {
                 return true;
             }
         }
 
-        // Check obstacle entities (doors, chests, torches, etc.)
+        // Check obstacle entities
         for (int i = 0; i < gp.obj.length; i++) {
             Entity obj = gp.obj[i];
-            if (obj != null && obj.collision == true && obj.type == obj.type_obstacle) {
-                Rectangle objHitbox = new Rectangle(
+            if (obj != null && obj.collision && obj.type == obj.type_obstacle) {
+                tempHitbox.setBounds(
                         obj.worldX + obj.solidArea.x,
                         obj.worldY + obj.solidArea.y,
                         obj.solidArea.width,
                         obj.solidArea.height
                 );
-                if (futureHitbox.intersects(objHitbox)) {
+                if (futureHitbox.intersects(tempHitbox)) {
                     return true;
                 }
             }
@@ -154,10 +150,8 @@ public class PathFinder {
         return false;
     }
 
-    // -------------------------------------------------
-    // Cost
-    // -------------------------------------------------
     public void calculateCost(Node node) {
+        // Manhattan distance
         int dxStart = Math.abs(node.col - startNode.col);
         int dyStart = Math.abs(node.row - startNode.row);
         node.gCost = dxStart + dyStart;
@@ -169,37 +163,24 @@ public class PathFinder {
         node.fCost = node.gCost + node.hCost;
     }
 
-    // -------------------------------------------------
-    // Search (A*)
-    // -------------------------------------------------
     public boolean search() {
 
         while (!goalReached && step < 500) {
 
             currentNode.checked = true;
-            openList.remove(currentNode);
 
             int col = currentNode.col;
             int row = currentNode.row;
 
-            if (row - 1 >= 0) openNode(nodes[col][row - 1]);     // up
-            if (col - 1 >= 0) openNode(nodes[col - 1][row]);     // left
-            if (row + 1 < gp.maxWorldRow) openNode(nodes[col][row + 1]); // down
-            if (col + 1 < gp.maxWorldCol) openNode(nodes[col + 1][row]); // right
+            if (row - 1 >= 0) openNode(nodes[col][row - 1]);
+            if (col - 1 >= 0) openNode(nodes[col - 1][row]);
+            if (row + 1 < gp.maxWorldRow) openNode(nodes[col][row + 1]);
+            if (col + 1 < gp.maxWorldCol) openNode(nodes[col + 1][row]);
 
-            if (openList.isEmpty()) break;
+            if (openQueue.isEmpty()) break;
 
-            int bestIndex = 0;
-            int bestFCost = Integer.MAX_VALUE;
-
-            for (int i = 0; i < openList.size(); i++) {
-                Node n = openList.get(i);
-                if (n.fCost < bestFCost || (n.fCost == bestFCost && n.gCost < openList.get(bestIndex).gCost)) {
-                    bestIndex = i;
-                    bestFCost = n.fCost;
-                }
-            }
-            currentNode = openList.get(bestIndex);
+            // OPTIMIZATION: O(log n) poll instead of O(n) linear scan
+            currentNode = openQueue.poll();
 
             if (currentNode == goalNode) {
                 goalReached = true;
@@ -210,16 +191,17 @@ public class PathFinder {
         return goalReached;
     }
 
-    // -------------------------------------------------
     private void openNode(Node node) {
         if (!node.open && !node.checked && !node.solid) {
             node.open = true;
             node.parent = currentNode;
-            openList.add(node);
+            // Recalculate proper g-cost through current path
+            node.gCost = currentNode.gCost + 1;
+            node.fCost = node.gCost + node.hCost;
+            openQueue.add(node);
         }
     }
 
-    // -------------------------------------------------
     private void trackPath() {
         Node current = goalNode;
         while (current != startNode) {

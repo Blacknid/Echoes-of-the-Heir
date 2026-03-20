@@ -1,9 +1,9 @@
 package entity;
 
+import java.awt.Graphics2D;
+import java.awt.image.BufferedImage;
 import main.GamePanel;
 import main.ObjectPool.Poolable;
-import java.awt.image.BufferedImage;
-import java.awt.Graphics2D;
 
 public class Projectile extends Entity implements Poolable {
 
@@ -24,6 +24,9 @@ public class Projectile extends Entity implements Poolable {
     }
 
     public void update() {
+        int moveSpeed = speed;
+        // Use current-position collision for projectiles so hitboxes match rendered sprites.
+        speed = 0;
         
         if(user == gp.player) {
             int monsterIndex = gp.cChecker.checkEntity(this, gp.monster);
@@ -42,7 +45,7 @@ public class Projectile extends Entity implements Poolable {
             int npcIndex = gp.cChecker.checkEntity(this, gp.npc);
             if (npcIndex != 999) {
                 if (gp.npc[npcIndex].name != null && gp.npc[npcIndex].name.equals("Eye")) {
-                    if (gp.npc[npcIndex].invincible == false) {
+                    if (!gp.npc[npcIndex].invincible) {
                         gp.playSE(5);
                         int kb = Math.max(1, this.speed / 3);
                         gp.player.knockBack(gp.npc[npcIndex], kb, worldX, worldY);
@@ -62,11 +65,25 @@ public class Projectile extends Entity implements Poolable {
         }
         if(user != gp.player){
             boolean contactPlayer = gp.cChecker.checkPlayer(this);
-            if(contactPlayer == true && gp.player.invincible == false){
+            if(contactPlayer && !gp.player.invincible){
+                int damage = this.attack - gp.player.defense;
+                damage = (int)(damage * gp.player.damageTakenMultiplier);
+                if (damage < 1) {
+                    damage = 1;
+                }
+
+                gp.player.life -= damage;
+                gp.player.invincible = true;
+                gp.player.hitFlashCounter = 6;
+                gp.player.bleed();
+                gp.screenShake.shakeLight();
+                gp.playSE(8);
                 generateParticle(user.projectile, gp.player);
                 alive = false;
             }
         }
+
+        speed = moveSpeed;
 
         switch(direction) {
             case "up": worldY -= speed; break;

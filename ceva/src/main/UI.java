@@ -29,6 +29,7 @@ public class UI {
     ArrayList<String> message = new ArrayList<>();
     ArrayList<Integer> messageCounter = new ArrayList<>();
     ArrayList<Color> messageColor = new ArrayList<>();
+    ArrayList<BufferedImage> messageIcon = new ArrayList<>();
     public boolean gameFinished = false;
     public String currentDialogue = "";
     public int commandNum = 0;
@@ -91,8 +92,7 @@ public class UI {
         try {
             titleBackground = ImageIO.read(getClass().getResourceAsStream("/res/background.png"));
             if (titleBackground != null) {
-                UtilityTool uTool = new UtilityTool();
-                titleBackground = uTool.scaleImage(titleBackground, gp.screenWidth, gp.screenHeight);
+                titleBackground = UtilityTool.scaleImage(titleBackground, gp.screenWidth, gp.screenHeight);
                 System.out.println("Title background loaded successfully!");
             } else {
                 System.out.println("Title background file found but could not be loaded");
@@ -104,10 +104,17 @@ public class UI {
 
     }
     public void addMessage(String text, Color color) {
-
         message.add(text);
         messageColor.add(color);
         messageCounter.add(0);
+        messageIcon.add(null);
+    }
+
+    public void addMessage(String text, Color color, BufferedImage icon) {
+        message.add(text);
+        messageColor.add(color);
+        messageCounter.add(0);
+        messageIcon.add(icon);
     }
     public void draw(Graphics2D g2) {
 
@@ -133,6 +140,7 @@ public class UI {
         if(gp.gameState == gp.playState) {
             drawPlayerLife();
             drawMessage();
+            drawLevelUpBanner();
         }
 
         // PAUSE STATE
@@ -167,11 +175,23 @@ public class UI {
             drawTransition(g2);
         }
 
+        // LEVEL UP STATE
+        if (gp.gameState == gp.levelUpState) {
+            drawPlayerLife();
+            drawLevelUpScreen();
+        }
+
+        // SKILL TREE STATE
+        if (gp.gameState == gp.skillTreeState) {
+            drawPlayerLife();
+            drawSkillTreeScreen();
+        }
+
         if ( gp.gameState == gp.cutsceneState ) {
             drawDialogueScreen();
         }
 
-        if( gameFinished == true ) {
+        if( gameFinished ) {
 
             g2.setFont(arial_40);
             g2.setColor(Color.white);
@@ -258,6 +278,20 @@ public class UI {
         int lvlY = badgeY + badgeSize / 2 + fmLvl.getAscent() / 2 - 1;
         g2.setColor(LVL_BADGE);
         g2.drawString(lvlStr, lvlX, lvlY);
+
+        // Skill points badge
+        int spW = (int)(68 * sf);
+        int spH = (int)(20 * sf);
+        int spX = margin + panelW - spW - (int)(10 * sf);
+        int spY = margin + (int)(10 * sf);
+        g2.setColor(new Color(35, 28, 12, 210));
+        g2.fillRoundRect(spX, spY, spW, spH, 10, 10);
+        g2.setColor(new Color(220, 180, 80, 130));
+        g2.setStroke(new BasicStroke(1.2f));
+        g2.drawRoundRect(spX, spY, spW, spH, 10, 10);
+        g2.setFont(g2.getFont().deriveFont(Font.BOLD, 10f * sf));
+        g2.setColor(new Color(255, 225, 130));
+        g2.drawString("SP " + gp.player.skillPoints, spX + (int)(9 * sf), spY + spH - (int)(6 * sf));
 
         // ── HEARTS ROW ──
         int heartsX = badgeX + badgeSize + (int)(10 * sf);
@@ -358,6 +392,129 @@ public class UI {
         g2.setColor(Color.white);
         int invTxtX = coinRX + invPillW - (int)(8 * sf) - g2.getFontMetrics().stringWidth(invStr);
         g2.drawString(invStr, invTxtX, invPillY + invPillH / 2 + 4);
+
+        // ── TELEPORT COOLDOWN (below left HUD panel, safe from minimap overlap) ──
+        if (gp.teleportation) {
+            int tpX = margin;
+            int tpY = margin + panelH + (int)(6 * sf);
+            int tpW = (int)(140 * sf);
+            int tpH = (int)(22 * sf);
+            g2.setColor(HUD_BG);
+            g2.fillRoundRect(tpX, tpY, tpW, tpH, 10, 10);
+            g2.setColor(HUD_BORDER);
+            g2.setStroke(new BasicStroke(1f));
+            g2.drawRoundRect(tpX, tpY, tpW, tpH, 10, 10);
+
+            float tpPct = 1f - (float) gp.keyH.teleportCooldown / gp.player.getTeleportCooldownMax();
+            int barX = tpX + (int)(6 * sf);
+            int barY = tpY + tpH / 2 - (int)(3 * sf);
+            int barW2 = tpW - (int)(12 * sf);
+            int barH2 = (int)(6 * sf);
+            // Bar background
+            g2.setColor(new Color(20, 30, 50, 200));
+            g2.fillRoundRect(barX, barY, barW2, barH2, barH2, barH2);
+            // Bar fill
+            int fillW2 = (int)(barW2 * tpPct);
+            if (fillW2 > 0) {
+                Color tpFill = tpPct >= 1f ? new Color(80, 180, 255) : new Color(60, 120, 180);
+                g2.setColor(tpFill);
+                g2.fillRoundRect(barX, barY, fillW2, barH2, barH2, barH2);
+                if (tpPct >= 1f) {
+                    g2.setColor(new Color(140, 210, 255, 100));
+                    g2.fillRoundRect(barX, barY, fillW2, barH2 / 2, barH2, barH2);
+                }
+            }
+            // Label
+            g2.setFont(g2.getFont().deriveFont(Font.PLAIN, 9f * sf));
+            g2.setColor(tpPct >= 1f ? new Color(140, 210, 255) : new Color(100, 120, 140));
+            g2.drawString(tpPct >= 1f ? "BLINK  READY" : "BLINK", tpX + (int)(7 * sf), tpY + tpH - (int)(5 * sf));
+        }
+
+        // ── EXTRA ABILITY COOLDOWNS (left-bottom stack, unlocked only) ──
+        int abW = (int)(168 * sf);
+        int abH = (int)(20 * sf);
+        int abGap = (int)(6 * sf);
+        int abX = margin;
+        int abY = gp.screenHeight - margin - abH;
+
+        if (gp.player.overdriveUnlocked) {
+            drawAbilityBar(abX, abY, abW, abH,
+                "Overdrive",
+                true,
+                gp.player.getOverdriveCooldown(),
+                gp.player.getOverdriveCooldownMax(),
+                new Color(255, 150, 90));
+            abY -= abH + abGap;
+        }
+
+        if (gp.player.frostNovaUnlocked) {
+            drawAbilityBar(abX, abY, abW, abH,
+                "Frost Nova",
+                true,
+                gp.player.getFrostNovaCooldown(),
+                gp.player.getFrostNovaCooldownMax(),
+                new Color(145, 210, 255));
+            abY -= abH + abGap;
+        }
+
+        if (gp.player.voidSnareUnlocked) {
+            drawAbilityBar(abX, abY, abW, abH,
+                "Void Snare",
+                true,
+                gp.player.getVoidSnareCooldown(),
+                gp.player.getVoidSnareCooldownMax(),
+                new Color(160, 125, 255));
+            abY -= abH + abGap;
+        }
+
+        if (gp.player.shockwaveUnlocked) {
+            drawAbilityBar(abX, abY, abW, abH,
+                "Shockwave",
+                true,
+                gp.player.getShockwaveCooldown(),
+                gp.player.getShockwaveCooldownMax(),
+                new Color(255, 185, 95));
+        }
+    }
+
+    private void drawAbilityBar(int x, int y, int w, int h, String name, boolean unlocked, int cooldown, int maxCooldown, Color accent) {
+        g2.setColor(HUD_BG);
+        g2.fillRoundRect(x, y, w, h, 10, 10);
+        g2.setColor(HUD_BORDER);
+        g2.setStroke(new BasicStroke(1f));
+        g2.drawRoundRect(x, y, w, h, 10, 10);
+
+        float pct;
+        if (!unlocked) {
+            pct = 0f;
+        } else if (maxCooldown <= 0) {
+            pct = 1f;
+        } else {
+            pct = 1f - (float) cooldown / maxCooldown;
+        }
+        pct = Math.max(0f, Math.min(1f, pct));
+
+        int barX = x + 4;
+        int barY = y + h / 2;
+        int barW = w - 8;
+        int barH = Math.max(4, h / 3);
+        g2.setColor(new Color(30, 28, 26, 190));
+        g2.fillRoundRect(barX, barY, barW, barH, 8, 8);
+        int fillW = (int)(barW * pct);
+        if (fillW > 0) {
+            Color fill = unlocked ? accent : new Color(80, 80, 80);
+            g2.setColor(fill);
+            g2.fillRoundRect(barX, barY, fillW, barH, 8, 8);
+        }
+
+        g2.setFont(g2.getFont().deriveFont(Font.PLAIN, 10f));
+        if (!unlocked) {
+            g2.setColor(new Color(130, 120, 110));
+            g2.drawString(name + " (locked)", x + 6, y + h - 8);
+        } else {
+            g2.setColor(pct >= 1f ? accent.brighter() : new Color(200, 190, 170));
+            g2.drawString(pct >= 1f ? name + " READY" : name, x + 6, y + h - 8);
+        }
     }
 
     /** Draws a smooth stat bar with glow highlight. */
@@ -380,9 +537,8 @@ public class UI {
     }
     public void drawMessage() {
 
-    int messageX = gp.tileSize;
-    int messageY = gp.tileSize * 4;
-    g2.setFont(g2.getFont().deriveFont(Font.BOLD, 26F));
+    g2.setFont(g2.getFont().deriveFont(Font.BOLD, 22F));
+    int totalHeight = 0;
 
     for (int i = 0; i < message.size(); i++) {
 
@@ -391,45 +547,68 @@ public class UI {
             int count = messageCounter.get(i) + 1;
             messageCounter.set(i, count);
 
-            // Calculate fade (alpha from 255 -> 0 over last 60 frames)
+            // Alpha: full 0-140, fade 140-180
             int alpha = 255;
-            if (count > 120) {
-                alpha = 255 - (int)((count - 120) * (255.0 / 60));
+            if (count > 140) {
+                alpha = 255 - (int)((count - 140) * (255.0 / 40));
                 if (alpha < 0) alpha = 0;
             }
 
-            // Slide-in from left (first 15 frames)
+            // Slide from right: ease-out over first 12 frames, ease-in slide out over last 40
             int slideOffset = 0;
-            if (count < 15) {
-                slideOffset = -(int)((15 - count) * 3);
+            if (count < 12) {
+                float t = count / 12f;
+                slideOffset = (int)((1 - t * t) * 200);
+            } else if (count > 140) {
+                float t = (count - 140) / 40f;
+                slideOffset = (int)(t * t * 200);
             }
 
             String txt = message.get(i);
             int txtW = (int) g2.getFontMetrics().getStringBounds(txt, g2).getWidth();
+            BufferedImage icon = messageIcon.get(i);
+            int iconSpace = icon != null ? 28 : 0;
+            int pillW = txtW + iconSpace + 24;
+            int pillH = 34;
 
-            // Message pill background
-            g2.setColor(new Color(10, 8, 6, (int)(alpha * 0.65f)));
-            g2.fillRoundRect(messageX + slideOffset - 10, messageY - 22, txtW + 20, 32, 10, 10);
-            // Left accent bar
+            // Position: right side of screen, below minimap area
+            int px = gp.screenWidth - pillW - 16 + slideOffset;
+            int py = 300 + totalHeight;
+
             Color baseColor = messageColor.get(i);
+
+            // Pill background
+            g2.setColor(new Color(10, 8, 6, (int)(alpha * 0.7f)));
+            g2.fillRoundRect(px, py, pillW, pillH, 12, 12);
+
+            // Right accent bar
             g2.setColor(new Color(baseColor.getRed(), baseColor.getGreen(), baseColor.getBlue(), alpha));
-            g2.fillRoundRect(messageX + slideOffset - 10, messageY - 22, 3, 32, 3, 3);
+            g2.fillRoundRect(px + pillW - 3, py, 3, pillH, 3, 3);
+
+            // Icon
+            if (icon != null) {
+                java.awt.Composite saved = g2.getComposite();
+                g2.setComposite(java.awt.AlphaComposite.getInstance(java.awt.AlphaComposite.SRC_OVER, alpha / 255f));
+                g2.drawImage(icon, px + 8, py + 3, 24, 24, null);
+                g2.setComposite(saved);
+            }
 
             // Text shadow
             g2.setColor(new Color(0, 0, 0, alpha));
-            g2.drawString(txt, messageX + slideOffset + 2, messageY + 2);
+            g2.drawString(txt, px + 10 + iconSpace + 1, py + 23);
 
-            // Text in its color with alpha
+            // Text
             g2.setColor(new Color(baseColor.getRed(), baseColor.getGreen(), baseColor.getBlue(), alpha));
-            g2.drawString(txt, messageX + slideOffset, messageY);
+            g2.drawString(txt, px + 10 + iconSpace, py + 22);
 
-            messageY += 42;
+            totalHeight += pillH + 6;
 
-            // Remove after 180 frames (3 seconds)
+            // Remove after 180 frames
             if (count > 180) {
                 message.remove(i);
                 messageCounter.remove(i);
                 messageColor.remove(i);
+                messageIcon.remove(i);
                 i--;
             }
         }
@@ -451,195 +630,282 @@ public class UI {
         }
 
         if(titleScreenState == 0) {
-            
-            //TITLE NAME
-            g2.setFont(g2.getFont().deriveFont(Font.BOLD,96F));
-            String text = "Michiduta Adventure";
-            int x = getXforCenteredText(text);
-            int y = gp.tileSize*3;
 
-            //SHADOW
-            g2.setColor(new Color(50, 50, 50)); // Darker shadow
-            g2.drawString(text, x+5, y+5);
-            // MAIN COLOR - GOLDEN FANTASY THEME
-            g2.setColor(new Color(255, 215, 0)); // Gold
-            g2.drawString(text, x, y);
+            // ── TITLE ──
+            g2.setFont(g2.getFont().deriveFont(Font.BOLD, 72F));
+            String text = "Michi's Adventure";
+            int tw = (int) g2.getFontMetrics().getStringBounds(text, g2).getWidth();
+            int tx = (gp.screenWidth - tw) / 2;
+            int ty = (int)(gp.screenHeight * 0.18);
+            // Drop shadow
+            g2.setColor(new Color(0, 0, 0, 140));
+            g2.drawString(text, tx + 3, ty + 3);
+            // Gold gradient
+            java.awt.GradientPaint titleGrad = new java.awt.GradientPaint(
+                tx, ty - 40, new Color(255, 230, 120),
+                tx, ty + 10, new Color(200, 150, 40));
+            g2.setPaint(titleGrad);
+            g2.drawString(text, tx, ty);
 
-            // MICHIDUTA IMAGE
-            x = gp.screenWidth/2 - (gp.tileSize*2)/2;
-            y += gp.tileSize*2;
-            g2.drawImage(gp.player.down1, x, y, gp.tileSize*2, gp.tileSize*2, null);
+            // Subtitle
+            g2.setFont(g2.getFont().deriveFont(Font.PLAIN, 18F));
+            g2.setColor(new Color(180, 170, 150, 200));
+            String sub = "A Pixel RPG Adventure";
+            int sw = (int) g2.getFontMetrics().getStringBounds(sub, g2).getWidth();
+            g2.drawString(sub, (gp.screenWidth - sw) / 2, ty + 30);
 
-            // VINTAGE MENU BUTTONS
-            g2.setFont(g2.getFont().deriveFont(Font.BOLD,48F));
+            // ── CHARACTER SPRITE ──
+            int spriteSize = gp.tileSize * 2;
+            int sx = gp.screenWidth / 2 - spriteSize / 2;
+            int sy = ty + 50;
+            // Subtle glow behind sprite
+            g2.setColor(new Color(255, 200, 60, 30));
+            g2.fillOval(sx - 10, sy - 5, spriteSize + 20, spriteSize + 10);
+            g2.drawImage(gp.player.down1, sx, sy, spriteSize, spriteSize, null);
+
+            // ── MENU BUTTONS ──
             String[] menuItems = {"NEW GAME", "LOAD GAME", "QUIT"};
-            int buttonWidth = gp.tileSize * 6;
-            int buttonHeight = gp.tileSize;
-            int buttonX = gp.screenWidth/2 - buttonWidth/2;
-            // This offset is to position the round rect relative to the text's y-baseline
-            int buttonRectYoffset = -gp.tileSize + 20; 
+            int btnW = (int)(gp.screenWidth * 0.25);
+            int btnH = 50;
+            int btnX = (gp.screenWidth - btnW) / 2;
+            int startY = sy + spriteSize + 50;
 
-            y += gp.tileSize*3.5;
+            g2.setFont(g2.getFont().deriveFont(Font.BOLD, 28F));
 
             for (int i = 0; i < menuItems.length; i++) {
-                text = menuItems[i];
-                x = getXforCenteredText(text);
-                
-                int currentButtonRectY = (int)y + buttonRectYoffset;
+                int by = startY + i * (btnH + 12);
+                boolean sel = (commandNum == i);
 
-                if (commandNum == i) {
-                    // Selected button style
-                    g2.setColor(new Color(255, 255, 255, 70)); // Brighter semi-transparent white
-                    g2.fillRoundRect(buttonX, currentButtonRectY, buttonWidth, buttonHeight, 25, 25);
-                    
-                    g2.setColor(new Color(255, 215, 0)); // Gold border
-                    g2.setStroke(new BasicStroke(3));
-                    g2.drawRoundRect(buttonX, currentButtonRectY, buttonWidth, buttonHeight, 25, 25);
-                    
-                    g2.setColor(new Color(255, 215, 0)); // Gold text
+                if (sel) {
+                    // Glow
+                    g2.setColor(new Color(255, 200, 60, 20));
+                    g2.fillRoundRect(btnX - 6, by - 6, btnW + 12, btnH + 12, 20, 20);
+                    // Filled background
+                    java.awt.GradientPaint btnGrad = new java.awt.GradientPaint(
+                        btnX, by, new Color(60, 45, 20, 200),
+                        btnX, by + btnH, new Color(40, 30, 12, 220));
+                    g2.setPaint(btnGrad);
+                    g2.fillRoundRect(btnX, by, btnW, btnH, 14, 14);
+                    // Gold border
+                    g2.setColor(new Color(220, 180, 60));
+                    g2.setStroke(new BasicStroke(2f));
+                    g2.drawRoundRect(btnX, by, btnW, btnH, 14, 14);
+                    // Left accent
+                    g2.setColor(new Color(255, 210, 70));
+                    g2.fillRoundRect(btnX, by + 8, 3, btnH - 16, 2, 2);
                 } else {
-                    // Unselected button style
-                    g2.setColor(new Color(0, 0, 0, 70)); // Darker semi-transparent black
-                    g2.fillRoundRect(buttonX, currentButtonRectY, buttonWidth, buttonHeight, 25, 25);
-                    
-                    g2.setColor(new Color(255, 223, 128)); // Soft gold text
+                    g2.setColor(new Color(15, 12, 8, 160));
+                    g2.fillRoundRect(btnX, by, btnW, btnH, 14, 14);
+                    g2.setColor(new Color(80, 70, 50, 80));
+                    g2.setStroke(new BasicStroke(1f));
+                    g2.drawRoundRect(btnX, by, btnW, btnH, 14, 14);
                 }
-                
-                g2.setStroke(new BasicStroke(1)); // Reset stroke for other drawings
-                g2.drawString(text, x, (int)y);
-                
-                if (i < menuItems.length - 1) {
-                    y += gp.tileSize; // Move to next button position
-                }
+
+                // Text
+                text = menuItems[i];
+                int ttw = (int) g2.getFontMetrics().getStringBounds(text, g2).getWidth();
+                int ttx = btnX + (btnW - ttw) / 2;
+                g2.setColor(sel ? new Color(255, 230, 150) : new Color(160, 150, 130));
+                g2.drawString(text, ttx, by + btnH / 2 + 10);
             }
 
-            // INFO MENU
-            g2.setFont(g2.getFont().deriveFont(Font.BOLD,28F));
+            // ── INFO HINT (bottom left) ──
+            g2.setFont(g2.getFont().deriveFont(Font.PLAIN, 16F));
+            g2.setColor(new Color(140, 130, 110, 180));
+            g2.drawString("[I] Info & Update Log", 20, gp.screenHeight - 20);
 
-            text = "PRESS i FOR INFO";
-            x = gp.tileSize / 2;
-            y += gp.tileSize;
-            g2.setColor(new Color(192, 192, 192)); // Silver
-            g2.drawString(text, x, y);
+            // ── VERSION (bottom right) ──
+            String ver = "v0.2 Alpha";
+            int vw = (int) g2.getFontMetrics().getStringBounds(ver, g2).getWidth();
+            g2.drawString(ver, gp.screenWidth - vw - 20, gp.screenHeight - 20);
         }
         else if ( titleScreenState == 1) {
 
-            // CLASS SELECTION SCREEN
-            g2.setColor(Color.white);
-            g2.setFont(g2.getFont().deriveFont(42f));
+            // ── CLASS SELECTION SCREEN ──
+            int panelW = 500, panelH = 420;
+            int px = (gp.screenWidth - panelW) / 2;
+            int py = (gp.screenHeight - panelH) / 2;
 
-            String text = "Select your class!";
-            int x = getXforCenteredText(text);
-            int y = gp.tileSize*3;
-            g2.drawString(text, x, y);
+            // Dark panel
+            g2.setColor(new Color(15, 12, 20, 230));
+            g2.fillRoundRect(px, py, panelW, panelH, 16, 16);
+            g2.setColor(new Color(180, 150, 80, 100));
+            g2.setStroke(new BasicStroke(2f));
+            g2.drawRoundRect(px + 2, py + 2, panelW - 4, panelH - 4, 14, 14);
 
-            text = "Fighter";
-            x = getXforCenteredText(text);
-            y += gp.tileSize*3;
-            g2.drawString(text, x, y);
-            if (commandNum == 0) {
-                g2.drawString(">", x-gp.tileSize, y);
+            // Title
+            g2.setFont(g2.getFont().deriveFont(Font.BOLD, 34F));
+            g2.setColor(new Color(255, 220, 100));
+            String text = "Choose Your Class";
+            int tw = (int) g2.getFontMetrics().getStringBounds(text, g2).getWidth();
+            g2.drawString(text, px + (panelW - tw) / 2, py + 48);
+
+            // Divider
+            g2.setColor(new Color(120, 100, 60, 80));
+            g2.drawLine(px + 30, py + 62, px + panelW - 30, py + 62);
+
+            // Class options
+            String[] classes = {"Fighter", "Ronin", "Magician"};
+            String[] descs = {"High HP, Strong defense", "Fast attacks, High crit", "Powerful magic, High mana"};
+            String[] icons = {"\u2694", "\u2620", "\u2733"}; // swords, skull, asterisk
+            Color[] classColors = {
+                new Color(220, 80, 60),
+                new Color(80, 180, 220),
+                new Color(160, 80, 220)
+            };
+
+            int optY = py + 85;
+            int optW = panelW - 60;
+            int optH = 60;
+            int optX = px + 30;
+
+            for (int i = 0; i < 3; i++) {
+                int oy = optY + i * (optH + 14);
+                boolean sel = (commandNum == i);
+
+                if (sel) {
+                    g2.setColor(new Color(classColors[i].getRed(), classColors[i].getGreen(), classColors[i].getBlue(), 25));
+                    g2.fillRoundRect(optX - 4, oy - 4, optW + 8, optH + 8, 14, 14);
+                    g2.setColor(new Color(classColors[i].getRed(), classColors[i].getGreen(), classColors[i].getBlue(), 60));
+                    g2.fillRoundRect(optX, oy, optW, optH, 12, 12);
+                    g2.setColor(classColors[i]);
+                    g2.setStroke(new BasicStroke(2f));
+                    g2.drawRoundRect(optX, oy, optW, optH, 12, 12);
+                    // Left accent
+                    g2.fillRoundRect(optX, oy + 8, 3, optH - 16, 2, 2);
+                } else {
+                    g2.setColor(new Color(30, 25, 40, 140));
+                    g2.fillRoundRect(optX, oy, optW, optH, 12, 12);
+                    g2.setColor(new Color(60, 55, 70, 60));
+                    g2.setStroke(new BasicStroke(1f));
+                    g2.drawRoundRect(optX, oy, optW, optH, 12, 12);
+                }
+
+                // Icon
+                g2.setFont(g2.getFont().deriveFont(Font.PLAIN, 22F));
+                g2.setColor(sel ? classColors[i] : new Color(120, 110, 100));
+                g2.drawString(icons[i], optX + 18, oy + 28);
+
+                // Class name
+                g2.setFont(g2.getFont().deriveFont(sel ? Font.BOLD : Font.PLAIN, 24F));
+                g2.setColor(sel ? Color.WHITE : new Color(170, 160, 145));
+                g2.drawString(classes[i], optX + 50, oy + 28);
+
+                // Description
+                g2.setFont(g2.getFont().deriveFont(Font.PLAIN, 14F));
+                g2.setColor(sel ? new Color(200, 190, 170) : new Color(120, 115, 105));
+                g2.drawString(descs[i], optX + 50, oy + 48);
             }
 
-            text = "Ronin";
-            x = getXforCenteredText(text);
-            y += gp.tileSize;
-            g2.drawString(text, x, y);
-            if (commandNum == 1) {
-                g2.drawString(">", x-gp.tileSize, y);
-            }
+            // Back option
+            int backY = optY + 3 * (optH + 14) + 10;
+            boolean backSel = (commandNum == 3);
+            g2.setFont(g2.getFont().deriveFont(Font.BOLD, 20F));
+            text = "\u2190 Back";
+            tw = (int) g2.getFontMetrics().getStringBounds(text, g2).getWidth();
+            g2.setColor(backSel ? new Color(255, 220, 100) : new Color(120, 115, 105));
+            g2.drawString(text, px + (panelW - tw) / 2, backY);
 
-            text = "Magician";
-            x = getXforCenteredText(text);
-            y += gp.tileSize;
-            g2.drawString(text, x, y);
-            if (commandNum == 2) {
-                g2.drawString(">", x-gp.tileSize, y);
-            }
-
-            text = "Back";
-            x = getXforCenteredText(text);
-            y += gp.tileSize*2;
-            g2.drawString(text, x, y);
-            if (commandNum == 3) {
-                g2.drawString(">", x-gp.tileSize, y);
-            }
+            // Hint
+            g2.setFont(g2.getFont().deriveFont(Font.PLAIN, 13F));
+            g2.setColor(new Color(100, 95, 85));
+            String hint = "[W/S] Navigate    [Enter] Select";
+            int hw = (int) g2.getFontMetrics().getStringBounds(hint, g2).getWidth();
+            g2.drawString(hint, px + (panelW - hw) / 2, py + panelH - 15);
         }
-        /*else if ( titleScreenState == 2 ) {
-
-            // UPDATE LOG SCREEN 
-            g2.setColor(Color.white);
-            g2.setFont(g2.getFont().deriveFont(42f));
-
-            String text = "Update log 0.1 [ALPHA]";
-            int x = getXforCenteredText(text);
-            int y = gp.tileSize*3;
-            g2.drawString(text, x, y);
-
-
-            g2.setFont(g2.getFont().deriveFont(28f));
-            text = "- New Map";
-            x = getXforCenteredText(text) - 3 * gp.tileSize;
-            y = gp.tileSize * 5;
-            g2.drawString(text, x, y);
-
-            text = "- New Tiles";
-            x = getXforCenteredText(text) - (int)(2.95 * gp.tileSize);
-            y += 1.5 * gp.tileSize;
-            g2.drawString(text, x, y);
-
-            text = "- New Ability ( TELEPORT )";
-            x = getXforCenteredText(text) - (int)(1.4 * gp.tileSize);
-            y += 1.5 * gp.tileSize;
-            g2.drawString(text, x, y);
-
-            text = "Back";
-            x = getXforCenteredText(text);
-            y += gp.tileSize*2;
-            g2.drawString(text, x, y);
-            if (commandNum == 0) {
-                g2.drawString(">", x-gp.tileSize / 2, y);
-            }
-        }*/
         else if ( titleScreenState == 2 ) {
-            // UPDATE LOG SCREEN #2
-            g2.setColor(Color.white);
-            g2.setFont(g2.getFont().deriveFont(42f));
 
-            String text = "Update log 0.2 [ALPHA]";
-            int x = getXforCenteredText(text);
-            int y = gp.tileSize*3;
-            g2.drawString(text, x, y);
+            // ── UPDATE LOG / INFO SCREEN ──
+            int panelW = 560, panelH = 480;
+            int px = (gp.screenWidth - panelW) / 2;
+            int py = (gp.screenHeight - panelH) / 2;
 
+            // Dark panel
+            g2.setColor(new Color(15, 12, 22, 235));
+            g2.fillRoundRect(px, py, panelW, panelH, 16, 16);
+            g2.setColor(new Color(100, 140, 180, 80));
+            g2.setStroke(new BasicStroke(2f));
+            g2.drawRoundRect(px + 2, py + 2, panelW - 4, panelH - 4, 14, 14);
 
-            g2.setFont(g2.getFont().deriveFont(28f));
-            text = "- New Map";
-            x = getXforCenteredText(text) - 3 * gp.tileSize;
-            y = gp.tileSize * 5;
-            g2.drawString(text, x, y);
+            // Title
+            g2.setFont(g2.getFont().deriveFont(Font.BOLD, 30F));
+            g2.setColor(new Color(120, 180, 255));
+            String text = "Update Log  \u2022  v0.2 Alpha";
+            int tw = (int) g2.getFontMetrics().getStringBounds(text, g2).getWidth();
+            g2.drawString(text, px + (panelW - tw) / 2, py + 42);
 
-            text = "- New Mobes";
-            x = getXforCenteredText(text) - (int)(2.95 * gp.tileSize);
-            y += 1.5 * gp.tileSize;
-            g2.drawString(text, x, y);
+            // Divider
+            java.awt.GradientPaint divGrad = new java.awt.GradientPaint(
+                px + 40, py + 55, new Color(100, 140, 180, 0),
+                px + panelW / 2, py + 55, new Color(100, 140, 180, 120));
+            g2.setPaint(divGrad);
+            g2.drawLine(px + 40, py + 55, px + panelW / 2, py + 55);
+            divGrad = new java.awt.GradientPaint(
+                px + panelW / 2, py + 55, new Color(100, 140, 180, 120),
+                px + panelW - 40, py + 55, new Color(100, 140, 180, 0));
+            g2.setPaint(divGrad);
+            g2.drawLine(px + panelW / 2, py + 55, px + panelW - 40, py + 55);
 
-            text = "- New Attack Mechanics";
-            x = getXforCenteredText(text) - (int)(1.95 * gp.tileSize);
-            y += 1.5 * gp.tileSize;
-            g2.drawString(text, x, y);
+            // Update entries
+            String[][] entries = {
+                {"\u2726", "New map system with TMX loading"},
+                {"\u2694", "Combat: Dodge roll, 3-hit combos"},
+                {"\u2620", "New enemy: Skeleton Archer"},
+                {"\u2605", "Level-up stat selection screen"},
+                {"\u2302", "Breakable pots with random loot"},
+                {"\u2611", "Quest tracking system"},
+                {"\u2726", "Minimap with entity markers"},
+                {"\u2694", "Teleport ability with particles"},
+                {"\u2605", "Floating damage numbers"},
+                {"\u2302", "Screen shake & hit flash FX"}
+            };
 
-            text = "- Leveling up Mechanics";
-            x = getXforCenteredText(text) - (int)(1.95 * gp.tileSize);
-            y += 1.5 * gp.tileSize;
-            g2.drawString(text, x, y);
+            Color[] entryColors = {
+                new Color(255, 200, 80),
+                new Color(220, 90, 70),
+                new Color(180, 80, 200),
+                new Color(255, 220, 100),
+                new Color(100, 200, 120),
+                new Color(80, 180, 230),
+                new Color(255, 200, 80),
+                new Color(220, 90, 70),
+                new Color(255, 220, 100),
+                new Color(100, 200, 120)
+            };
 
-            text = "Back";
-            x = getXforCenteredText(text);
-            y += gp.tileSize*2;
-            g2.drawString(text, x, y);
-            if (commandNum == 0) {
-                g2.drawString(">", x-gp.tileSize / 2, y);
+            int entryY = py + 78;
+            int entryX = px + 40;
+
+            for (int i = 0; i < entries.length; i++) {
+                int ey = entryY + i * 34;
+                if (ey > py + panelH - 70) break; // don't overflow
+
+                // Bullet/icon
+                g2.setFont(g2.getFont().deriveFont(Font.PLAIN, 16F));
+                g2.setColor(entryColors[i % entryColors.length]);
+                g2.drawString(entries[i][0], entryX, ey);
+
+                // Entry text
+                g2.setFont(g2.getFont().deriveFont(Font.PLAIN, 17F));
+                g2.setColor(new Color(210, 205, 195));
+                g2.drawString(entries[i][1], entryX + 26, ey);
             }
+
+            // Controls info section
+            int ctrlY = py + panelH - 80;
+            g2.setColor(new Color(60, 55, 70, 60));
+            g2.fillRoundRect(px + 25, ctrlY, panelW - 50, 40, 10, 10);
+            g2.setFont(g2.getFont().deriveFont(Font.BOLD, 13F));
+            g2.setColor(new Color(160, 155, 140));
+            g2.drawString("WASD Move | Enter Attack | Space Blink | Shift Roll | Z/X/C/V Skills", px + 40, ctrlY + 25);
+
+            // Back button
+            boolean backSel = (commandNum == 0);
+            g2.setFont(g2.getFont().deriveFont(Font.BOLD, 20F));
+            text = "\u2190 Back";
+            tw = (int) g2.getFontMetrics().getStringBounds(text, g2).getWidth();
+            g2.setColor(backSel ? new Color(120, 180, 255) : new Color(100, 95, 85));
+            g2.drawString(text, px + (panelW - tw) / 2, py + panelH - 18);
         }
     }
     public void drawPauseScreen() {
@@ -764,7 +1030,7 @@ public class UI {
                 charIndex++;
             }
 
-            if ( gp.keyH.enterPressed == true ) {
+            if ( gp.keyH.enterPressed ) {
 
                 charIndex = 0;
                 combinedText = "";
@@ -1181,28 +1447,40 @@ public class UI {
         int dFrameWidth = frameWidth;
         int dFrameHeight = gp.tileSize * 3;
 
-        // DRAW DESCRIPTION TEXT
-        int textX = dFrameX + 30;
-        int textY = dFrameY + gp.tileSize;
-        g2.setFont(g2.getFont().deriveFont(28F));
-
+        // DRAW TOOLTIP / DESCRIPTION
         if (itemIndex < gp.player.inventory.size()) {
             Entity item = gp.player.inventory.get(itemIndex);
-            if (item != null && (item.type == gp.player.type_consumable || item == gp.player.currentShield || item == gp.player.currentWeapon || item.type == gp.player.type_buffs || item.type == gp.player.type_book)) {
+            if (item != null) {
                 drawSubWindow(dFrameX, dFrameY, dFrameWidth, dFrameHeight);
-                // draw item icon and name at top of description
+                // Item icon and name
                 int iconX = dFrameX + 20;
                 int iconY = dFrameY + 20;
                 g2.drawImage(item.down1, iconX, iconY, gp.tileSize, gp.tileSize, null);
-                g2.setFont(g2.getFont().deriveFont(32F));
-                g2.setColor(Color.white);
-                g2.drawString(item.name, iconX + gp.tileSize + 10, iconY + gp.tileSize / 2 + 10);
-
-                textY = iconY + gp.tileSize + 20;
                 g2.setFont(g2.getFont().deriveFont(28F));
-                for (String line : item.description.split("\n")) {
-                    g2.drawString(line, textX, textY);
-                    textY += 32;
+                g2.setColor(Color.white);
+                g2.drawString(item.name, iconX + gp.tileSize + 10, iconY + gp.tileSize / 2 + 5);
+
+                // Stat comparison for equipment
+                int statY = iconY + gp.tileSize / 2 + 24;
+                g2.setFont(g2.getFont().deriveFont(18F));
+                if (item.type == gp.player.type_sword && item.attackValue != 0) {
+                    int diff = item.attackValue - (gp.player.currentWeapon != null ? gp.player.currentWeapon.attackValue : 0);
+                    drawStatComparison(iconX + gp.tileSize + 10, statY, "ATK " + item.attackValue, diff, item == gp.player.currentWeapon);
+                } else if (item.type == gp.player.type_shield && item.defenseValue != 0) {
+                    int diff = item.defenseValue - (gp.player.currentShield != null ? gp.player.currentShield.defenseValue : 0);
+                    drawStatComparison(iconX + gp.tileSize + 10, statY, "DEF " + item.defenseValue, diff, item == gp.player.currentShield);
+                }
+
+                // Description text
+                int textX = dFrameX + 30;
+                int textY = iconY + gp.tileSize + 20;
+                g2.setFont(g2.getFont().deriveFont(22F));
+                g2.setColor(new Color(200, 200, 200));
+                if (!item.description.isEmpty()) {
+                    for (String line : item.description.split("\n")) {
+                        g2.drawString(line, textX, textY);
+                        textY += 26;
+                    }
                 }
             }
         }
@@ -1459,13 +1737,47 @@ public class UI {
         g2.fillRect(frameX + pad, frameY + 58, fw - pad * 2, 2);
 
         // Key bindings table
-        g2.setFont(g2.getFont().deriveFont(Font.PLAIN, 24F));
-        String[] actions = { "Move", "Confirm", "Pause", "Options" };
-        String[] keys    = { "W A S D", "ENTER", "P", "ESC" };
+        g2.setFont(g2.getFont().deriveFont(Font.PLAIN, 19F));
+        String[] actions = {
+            "Move",
+            "Attack / Confirm",
+            "Shoot",
+            "Dodge Roll",
+            "Blink",
+            "Shockwave",
+            "Void Snare",
+            "Frost Nova",
+            "Overdrive",
+            "Inventory",
+            "Skill Tree",
+            "Quest Log",
+            "Minimap",
+            "Pause",
+            "Options",
+            "Debug Tools"
+        };
+        String[] keys    = {
+            "W A S D",
+            "ENTER",
+            "F",
+            "SHIFT + Move",
+            "SPACE",
+            "Z",
+            "X",
+            "C",
+            "V",
+            "E",
+            "K",
+            "Q",
+            "M",
+            "P",
+            "ESC",
+            "T / H / R / Y"
+        };
         int textX = frameX + pad;
         int keyX  = frameX + fw - pad;
-        int textY = frameY + 100;
-        int rowH  = 50;
+        int textY = frameY + 92;
+        int rowH  = 34;
 
         for (int i = 0; i < actions.length; i++) {
             int ry = textY + i * rowH;
@@ -1583,6 +1895,402 @@ public class UI {
         g2.setColor(new Color(0, 0, 0, transitionAlpha));
         g2.fillRect(0, 0, gp.screenWidth, gp.screenHeight);
     }
+
+    public void drawLevelUpScreen() {
+        int w = 420, h = 340;
+        int x = (gp.screenWidth - w) / 2;
+        int y = (gp.screenHeight - h) / 2;
+
+        // Dim background with slight vignette feel
+        g2.setColor(new Color(0, 0, 0, 170));
+        g2.fillRect(0, 0, gp.screenWidth, gp.screenHeight);
+
+        // Main panel with gradient background
+        java.awt.GradientPaint bgGrad = new java.awt.GradientPaint(
+            x, y, new Color(20, 15, 35, 240),
+            x, y + h, new Color(10, 8, 18, 250));
+        g2.setPaint(bgGrad);
+        g2.fillRoundRect(x, y, w, h, 16, 16);
+
+        // Golden border with glow
+        g2.setColor(new Color(255, 200, 60, 40));
+        g2.setStroke(new java.awt.BasicStroke(6f));
+        g2.drawRoundRect(x - 1, y - 1, w + 2, h + 2, 18, 18);
+        g2.setColor(new Color(200, 170, 80));
+        g2.setStroke(new java.awt.BasicStroke(2f));
+        g2.drawRoundRect(x + 2, y + 2, w - 4, h - 4, 14, 14);
+
+        // Decorative top accent line
+        java.awt.GradientPaint accentGrad = new java.awt.GradientPaint(
+            x + 40, y + 8, new Color(255, 200, 60, 0),
+            x + w / 2, y + 8, new Color(255, 200, 60, 200));
+        g2.setPaint(accentGrad);
+        g2.setStroke(new java.awt.BasicStroke(1.5f));
+        g2.drawLine(x + 40, y + 8, x + w / 2, y + 8);
+        accentGrad = new java.awt.GradientPaint(
+            x + w / 2, y + 8, new Color(255, 200, 60, 200),
+            x + w - 40, y + 8, new Color(255, 200, 60, 0));
+        g2.setPaint(accentGrad);
+        g2.drawLine(x + w / 2, y + 8, x + w - 40, y + 8);
+
+        // Title with shadow
+        g2.setFont(g2.getFont().deriveFont(Font.BOLD, 34f));
+        String title = "LEVEL UP";
+        int tw = (int) g2.getFontMetrics().getStringBounds(title, g2).getWidth();
+        int tx = x + (w - tw) / 2;
+        // Shadow
+        g2.setColor(new Color(0, 0, 0, 120));
+        g2.drawString(title, tx + 2, y + 48);
+        // Gold gradient text
+        java.awt.GradientPaint titleGrad = new java.awt.GradientPaint(
+            tx, y + 20, new Color(255, 230, 120),
+            tx, y + 50, new Color(220, 170, 50));
+        g2.setPaint(titleGrad);
+        g2.drawString(title, tx, y + 46);
+
+        // Level badge
+        g2.setFont(g2.getFont().deriveFont(Font.BOLD, 16f));
+        String lvl = "Lv. " + gp.player.level;
+        int lw = (int) g2.getFontMetrics().getStringBounds(lvl, g2).getWidth();
+        int badgeX = x + (w - lw - 20) / 2;
+        g2.setColor(new Color(255, 200, 60, 25));
+        g2.fillRoundRect(badgeX, y + 56, lw + 20, 22, 11, 11);
+        g2.setColor(new Color(255, 220, 100, 100));
+        g2.setStroke(new java.awt.BasicStroke(1f));
+        g2.drawRoundRect(badgeX, y + 56, lw + 20, 22, 11, 11);
+        g2.setColor(new Color(255, 220, 130));
+        g2.drawString(lvl, badgeX + 10, y + 73);
+
+        // Divider line
+        g2.setColor(new Color(120, 100, 60, 80));
+        g2.drawLine(x + 30, y + 88, x + w - 30, y + 88);
+
+        // Subtitle
+        g2.setFont(g2.getFont().deriveFont(Font.PLAIN, 14f));
+        g2.setColor(new Color(180, 170, 150));
+        String sub = "Choose a stat to upgrade";
+        int sw2 = (int) g2.getFontMetrics().getStringBounds(sub, g2).getWidth();
+        g2.drawString(sub, x + (w - sw2) / 2, y + 106);
+
+        // Stat options
+        String[] options = gp.player.levelUpOptions;
+        if (options == null) return;
+
+        // Stat icons (Unicode symbols)
+        String[] icons = {"\u2764", "\u2694", "\u2756"}; // heart, swords, diamond
+        Color[] statColors = {
+            new Color(230, 80, 80),   // red for HP
+            new Color(80, 180, 230),  // blue for ATK/SPD
+            new Color(80, 200, 120)   // green for DEF/Mana
+        };
+
+        g2.setFont(g2.getFont().deriveFont(Font.PLAIN, 22f));
+
+        for (int i = 0; i < 3; i++) {
+            int oy = y + 118 + i * 58;
+            boolean selected = (gp.player.levelUpChoice == i);
+            int optW = w - 50;
+            int optX = x + 25;
+            int optH = 46;
+
+            if (selected) {
+                // Glow behind selected option
+                g2.setColor(new Color(255, 200, 60, 15));
+                g2.fillRoundRect(optX - 4, oy - 4, optW + 8, optH + 8, 14, 14);
+
+                // Selected background gradient
+                java.awt.GradientPaint optGrad = new java.awt.GradientPaint(
+                    optX, oy, new Color(255, 200, 60, 40),
+                    optX + optW, oy, new Color(255, 200, 60, 15));
+                g2.setPaint(optGrad);
+                g2.fillRoundRect(optX, oy, optW, optH, 10, 10);
+
+                // Gold border
+                g2.setColor(new Color(255, 210, 80, 180));
+                g2.setStroke(new java.awt.BasicStroke(2f));
+                g2.drawRoundRect(optX, oy, optW, optH, 10, 10);
+
+                // Left accent bar
+                g2.setColor(new Color(255, 210, 80));
+                g2.fillRoundRect(optX, oy + 6, 3, optH - 12, 2, 2);
+            } else {
+                // Unselected: subtle dark background
+                g2.setColor(new Color(40, 35, 55, 100));
+                g2.fillRoundRect(optX, oy, optW, optH, 10, 10);
+                g2.setColor(new Color(80, 70, 90, 60));
+                g2.setStroke(new java.awt.BasicStroke(1f));
+                g2.drawRoundRect(optX, oy, optW, optH, 10, 10);
+            }
+
+            // Icon circle
+            int iconR = 14;
+            int iconCX = optX + 24;
+            int iconCY = oy + optH / 2;
+            Color sc = statColors[i % statColors.length];
+            g2.setColor(new Color(sc.getRed(), sc.getGreen(), sc.getBlue(), selected ? 60 : 30));
+            g2.fillOval(iconCX - iconR, iconCY - iconR, iconR * 2, iconR * 2);
+            g2.setColor(selected ? sc : new Color(sc.getRed(), sc.getGreen(), sc.getBlue(), 140));
+            g2.setStroke(new java.awt.BasicStroke(1.5f));
+            g2.drawOval(iconCX - iconR, iconCY - iconR, iconR * 2, iconR * 2);
+
+            // Icon text
+            g2.setFont(g2.getFont().deriveFont(14f));
+            g2.setColor(selected ? sc.brighter() : sc);
+            int iw = (int) g2.getFontMetrics().getStringBounds(icons[i % icons.length], g2).getWidth();
+            g2.drawString(icons[i % icons.length], iconCX - iw / 2, iconCY + 5);
+
+            // Option text
+            g2.setFont(g2.getFont().deriveFont(selected ? Font.BOLD : Font.PLAIN, 20f));
+            g2.setColor(selected ? Color.WHITE : new Color(160, 155, 145));
+            g2.drawString(options[i], optX + 50, oy + 30);
+
+            // Small arrow for selected
+            if (selected) {
+                g2.setFont(g2.getFont().deriveFont(Font.PLAIN, 12f));
+                g2.setColor(new Color(255, 210, 80, 180));
+                g2.drawString("\u25B6", optX + optW - 22, oy + 28);
+            }
+        }
+
+        // Bottom hint with key icons
+        g2.setFont(g2.getFont().deriveFont(Font.PLAIN, 13f));
+        g2.setColor(new Color(120, 115, 105));
+        String hint = "[W/S] Navigate    [Enter] Confirm";
+        int hw = (int) g2.getFontMetrics().getStringBounds(hint, g2).getWidth();
+        g2.drawString(hint, x + (w - hw) / 2, y + h - 16);
+    }
+
+    public void drawLevelUpBanner() {
+        if (gp.player.levelUpBannerTimer <= 0 || gp.player.levelUpBannerText == null || gp.player.levelUpBannerText.isEmpty()) {
+            return;
+        }
+
+        int t = gp.player.levelUpBannerTimer;
+        float in = Math.min(1f, (180 - t) / 24f);
+        float out = Math.min(1f, t / 24f);
+        float alphaScale = Math.min(in, out);
+        if (t > 156) alphaScale = in;
+        if (t < 24) alphaScale = out;
+
+        float pulse = (float)((Math.sin(animTick * 0.18f) + 1.0) * 0.5);
+        int y = gp.screenHeight / 2 - gp.tileSize * 2;
+        int panelW = 420;
+        int panelH = 56;
+        int x = gp.screenWidth / 2 - panelW / 2;
+
+        g2.setColor(new Color(20, 16, 10, (int)(170 * alphaScale)));
+        g2.fillRoundRect(x, y, panelW, panelH, 16, 16);
+
+        g2.setColor(new Color(255, 210, 90, (int)((90 + 80 * pulse) * alphaScale)));
+        g2.setStroke(new BasicStroke(2f));
+        g2.drawRoundRect(x, y, panelW, panelH, 16, 16);
+
+        g2.setFont(g2.getFont().deriveFont(Font.BOLD, 28f));
+        String txt = gp.player.levelUpBannerText;
+        int tw = (int)g2.getFontMetrics().getStringBounds(txt, g2).getWidth();
+        int tx = gp.screenWidth / 2 - tw / 2;
+
+        g2.setColor(new Color(0, 0, 0, (int)(160 * alphaScale)));
+        g2.drawString(txt, tx + 2, y + 37);
+        g2.setColor(new Color(255, 230, 130, (int)(255 * alphaScale)));
+        g2.drawString(txt, tx, y + 35);
+    }
+
+    public void drawSkillTreeScreen() {
+        int w = 860;
+        int h = 540;
+        int x = (gp.screenWidth - w) / 2;
+        int y = (gp.screenHeight - h) / 2;
+
+        g2.setColor(new Color(5, 6, 10, 180));
+        g2.fillRect(0, 0, gp.screenWidth, gp.screenHeight);
+
+        java.awt.GradientPaint bg = new java.awt.GradientPaint(
+            x, y, new Color(18, 14, 10, 242),
+            x, y + h, new Color(10, 9, 15, 248));
+        g2.setPaint(bg);
+        g2.fillRoundRect(x, y, w, h, 18, 18);
+
+        g2.setColor(new Color(220, 175, 80, 120));
+        g2.setStroke(new BasicStroke(2f));
+        g2.drawRoundRect(x + 2, y + 2, w - 4, h - 4, 16, 16);
+
+        g2.setFont(g2.getFont().deriveFont(Font.BOLD, 36f));
+        String title = "SKILL TREE";
+        int tw = (int) g2.getFontMetrics().getStringBounds(title, g2).getWidth();
+        g2.setColor(new Color(255, 220, 120));
+        g2.drawString(title, x + (w - tw) / 2, y + 52);
+
+        g2.setFont(g2.getFont().deriveFont(Font.BOLD, 18f));
+        g2.setColor(new Color(190, 210, 255));
+        g2.drawString("Skill Points: " + gp.player.skillPoints, x + 26, y + 54);
+
+        SkillTree.SkillNode[] nodes = gp.player.skillTree.getNodes();
+        int selected = gp.player.skillTree.selectedIndex;
+        SkillTree.SkillNode selectedNode = nodes[selected];
+        boolean selectedNodeRevealed = gp.player.skillTree.isRevealed(selected);
+
+        g2.setFont(g2.getFont().deriveFont(Font.PLAIN, 15f));
+        g2.setColor(new Color(210, 195, 165));
+        String selectedLabel = selectedNodeRevealed
+            ? "Selected: " + selectedNode.name
+            : "Selected: Unknown";
+        g2.drawString(selectedLabel, x + 26, y + 78);
+        int revealMaxCol = gp.player.skillTree.getRevealMaxCol();
+
+        int gridX = x + 90;
+        int gridY = y + 130;
+        int colSpace = 180;
+        int rowSpace = 95;
+        int nodeR = 34;
+
+        // Draw links first
+        g2.setStroke(new BasicStroke(3f));
+        for (SkillTree.SkillNode n : nodes) {
+            if (n.col > revealMaxCol) continue;
+            if (n.requires == null) continue;
+            int pIdx = gp.player.skillTree.findIndexById(n.requires);
+            if (pIdx < 0) continue;
+            SkillTree.SkillNode p = nodes[pIdx];
+            if (p.col > revealMaxCol) continue;
+
+            int x1 = gridX + p.col * colSpace;
+            int y1 = gridY + p.row * rowSpace;
+            int x2 = gridX + n.col * colSpace;
+            int y2 = gridY + n.row * rowSpace;
+
+            if (p.unlocked) g2.setColor(new Color(120, 200, 255, 170));
+            else g2.setColor(new Color(90, 80, 70, 130));
+
+            g2.drawLine(x1, y1, x2, y2);
+        }
+
+        float pulse = (float)((Math.sin(animTick * 0.16f) + 1.0) * 0.5);
+
+        // Draw nodes
+        for (int i = 0; i < nodes.length; i++) {
+            SkillTree.SkillNode n = nodes[i];
+            int nx = gridX + n.col * colSpace;
+            int ny = gridY + n.row * rowSpace;
+            boolean revealed = gp.player.skillTree.isRevealed(i);
+
+            boolean canUnlock = gp.player.skillTree.canUnlock(gp.player, i);
+            boolean isSelected = (i == selected);
+
+            if (!revealed) {
+                g2.setColor(new Color(28, 24, 24, 170));
+                g2.fillOval(nx - nodeR, ny - nodeR, nodeR * 2, nodeR * 2);
+
+                if (isSelected) {
+                    int glow = (int)(8 + pulse * 6);
+                    g2.setColor(new Color(255, 210, 90, 70));
+                    g2.fillOval(nx - nodeR - glow, ny - nodeR - glow, (nodeR + glow) * 2, (nodeR + glow) * 2);
+                }
+
+                g2.setColor(new Color(80, 70, 65, 120));
+                g2.setStroke(new BasicStroke(isSelected ? 3f : 2f));
+                g2.drawOval(nx - nodeR, ny - nodeR, nodeR * 2, nodeR * 2);
+
+                g2.setFont(g2.getFont().deriveFont(Font.BOLD, 20f));
+                g2.setColor(new Color(120, 110, 100, 180));
+                g2.drawString("?", nx - 6, ny + 7);
+
+                g2.setFont(g2.getFont().deriveFont(Font.PLAIN, 14f));
+                g2.setColor(new Color(120, 112, 100, 140));
+                g2.drawString("Unknown", nx - 30, ny + nodeR + 20);
+                continue;
+            }
+
+            if (n.unlocked) {
+                g2.setColor(new Color(70, 170, 120, 190));
+            } else if (canUnlock) {
+                g2.setColor(new Color(140, 120, 70, 180));
+            } else {
+                g2.setColor(new Color(45, 40, 38, 170));
+            }
+            g2.fillOval(nx - nodeR, ny - nodeR, nodeR * 2, nodeR * 2);
+
+            if (isSelected) {
+                int glow = (int)(8 + pulse * 6);
+                g2.setColor(new Color(255, 210, 90, 70));
+                g2.fillOval(nx - nodeR - glow, ny - nodeR - glow, (nodeR + glow) * 2, (nodeR + glow) * 2);
+            }
+
+            if (n.unlocked) g2.setColor(new Color(120, 240, 170));
+            else if (canUnlock) g2.setColor(new Color(250, 210, 110));
+            else g2.setColor(new Color(110, 105, 95));
+            g2.setStroke(new BasicStroke(isSelected ? 3f : 2f));
+            g2.drawOval(nx - nodeR, ny - nodeR, nodeR * 2, nodeR * 2);
+
+            g2.setFont(g2.getFont().deriveFont(Font.BOLD, 12f));
+            String cost = "C" + n.cost;
+            int cw = (int)g2.getFontMetrics().getStringBounds(cost, g2).getWidth();
+            g2.setColor(new Color(230, 225, 210));
+            g2.drawString(cost, nx - cw / 2, ny + 4);
+
+            g2.setFont(g2.getFont().deriveFont(Font.PLAIN, 14f));
+            g2.setColor(n.unlocked ? new Color(180, 235, 200) : new Color(195, 185, 170));
+            int nw = (int)g2.getFontMetrics().getStringBounds(n.name, g2).getWidth();
+            g2.drawString(n.name, nx - nw / 2, ny + nodeR + 20);
+        }
+
+        SkillTree.SkillNode sel = nodes[selected];
+        int infoX = x + 40;
+        int infoY = y + h - 130;
+        int infoW = w - 80;
+        int infoH = 88;
+
+        g2.setColor(new Color(25, 22, 18, 210));
+        g2.fillRoundRect(infoX, infoY, infoW, infoH, 12, 12);
+        g2.setColor(new Color(140, 120, 85, 120));
+        g2.setStroke(new BasicStroke(1.5f));
+        g2.drawRoundRect(infoX, infoY, infoW, infoH, 12, 12);
+
+        boolean selectedRevealed = gp.player.skillTree.isRevealed(selected);
+        if (selectedRevealed) {
+            g2.setFont(g2.getFont().deriveFont(Font.BOLD, 22f));
+            g2.setColor(new Color(245, 220, 130));
+            g2.drawString(sel.name, infoX + 16, infoY + 30);
+
+            g2.setFont(g2.getFont().deriveFont(Font.PLAIN, 16f));
+            g2.setColor(new Color(210, 205, 190));
+            g2.drawString(sel.description, infoX + 16, infoY + 56);
+
+            boolean canUnlockSel = gp.player.skillTree.canUnlock(gp.player, selected);
+            String status = sel.unlocked ? "Unlocked" : (canUnlockSel ? "Press ENTER to unlock" : "Locked (need points/prerequisite)");
+            g2.setColor(sel.unlocked ? new Color(130, 220, 150) : (canUnlockSel ? new Color(255, 210, 110) : new Color(150, 145, 130)));
+            g2.drawString(status, infoX + 16, infoY + 78);
+        } else {
+            g2.setFont(g2.getFont().deriveFont(Font.BOLD, 22f));
+            g2.setColor(new Color(170, 160, 145));
+            g2.drawString("Unknown Skill", infoX + 16, infoY + 30);
+
+            g2.setFont(g2.getFont().deriveFont(Font.PLAIN, 16f));
+            g2.setColor(new Color(145, 138, 125));
+            g2.drawString(getHiddenSkillTeaser(sel), infoX + 16, infoY + 56);
+            g2.drawString("Advance further to reveal the exact skill.", infoX + 16, infoY + 78);
+        }
+
+        g2.setFont(g2.getFont().deriveFont(Font.PLAIN, 14f));
+        g2.setColor(new Color(150, 145, 130));
+        String hint = "WASD/Arrows Move  |  Enter Unlock  |  K or Esc Close";
+        int hw = (int)g2.getFontMetrics().getStringBounds(hint, g2).getWidth();
+        g2.drawString(hint, x + (w - hw) / 2, y + h - 12);
+    }
+
+    private String getHiddenSkillTeaser(SkillTree.SkillNode node) {
+        return switch (node.id) {
+            case "SHOCKWAVE" -> "A close-range burst is waiting in this path.";
+            case "VOID_SNARE" -> "A force that drags nearby enemies inward.";
+            case "FROST_NOVA" -> "A cold eruption that can freeze enemies.";
+            case "OVERDRIVE" -> "A brief surge that boosts speed and damage.";
+            case "IRON_WILL" -> "A defensive trait that hardens you in battle.";
+            case "WINDSTEP" -> "A mobility art linked to rapid evasive movement.";
+            case "PHASE_TUNING" -> "A refinement that improves blink flow.";
+            default -> "A hidden skill tied to this branch's next power.";
+        };
+    }
+
     public void drawSubWindow(int x, int y, int width, int height) {
 
         // Dark background with leather feel
@@ -1599,6 +2307,23 @@ public class UI {
         g2.setStroke(OPT_STROKE_THIN);
         g2.drawRoundRect(x + 7, y + 7, width - 14, height - 14, 12, 12);
     }
+
+    /** Draw a stat value with colored delta indicator for inventory tooltips. */
+    private void drawStatComparison(int x, int y, String label, int diff, boolean equipped) {
+        g2.setColor(new Color(180, 180, 180));
+        g2.drawString(label, x, y);
+        if (equipped) {
+            g2.setColor(new Color(240, 190, 90));
+            g2.drawString(" (equipped)", x + g2.getFontMetrics().stringWidth(label), y);
+        } else if (diff > 0) {
+            g2.setColor(new Color(80, 220, 80));
+            g2.drawString(" \u25B2+" + diff, x + g2.getFontMetrics().stringWidth(label), y);
+        } else if (diff < 0) {
+            g2.setColor(new Color(220, 80, 80));
+            g2.drawString(" \u25BC" + diff, x + g2.getFontMetrics().stringWidth(label), y);
+        }
+    }
+
     public int getXforCenteredText(String text) {
 
         int length = (int)g2.getFontMetrics().getStringBounds(text, g2).getWidth();

@@ -68,7 +68,7 @@ public class NPC_Alucard extends Entity{
     }
     public void setAction() {
 
-        if ( onPath == true ) {
+        if ( onPath ) {
 
             int goalCol = 44;
             int goalRow = 36;
@@ -106,10 +106,10 @@ public class NPC_Alucard extends Entity{
         facePlayer();
         if ( gp.player.level < 3 && gp.player.hasKey == 0 )
             startDialogue(this, 0);
-        else if ( gp.player.level <= 3  && gp.player.hasKey >= 0 )
-            startDialogue(this, 1);
         else if ( gp.player.level >= 3 && gp.csManager.sceneNum >= gp.csManager.ending )
             startDialogue(this, 2);
+        else
+            startDialogue(this, 1);
 
         onPath = true;
 

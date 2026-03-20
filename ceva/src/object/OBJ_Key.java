@@ -54,11 +54,11 @@ public class OBJ_Key extends Entity{
         
             OBJ_Chest chest = (OBJ_Chest) gp.obj[chestIndex];
         
-            if (chest.opened == false) {
+            if (!chest.opened) {
             
                 gp.playSE(3);
             
-                if (gp.player.canObtainItem(chest.loot) == false) {
+                if (!gp.player.canObtainItem(chest.loot)) {
                     chest.startDialogue(chest, 1);  // inventory full
                 }
                 else {

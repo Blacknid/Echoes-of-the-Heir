@@ -90,12 +90,12 @@ public class EventHandler{
         if ( distance > gp.tileSize ) {
             canTouchEvent = true;
         }
-        if ( canTouchEvent == true ) {
+        if ( canTouchEvent ) {
 
             // Map-specific events
             if (gp.currentMapId.equals("harta")) {
                 // Healing pool (only exists on harta map at tile 54,22)
-                if ( hit(54, 22, "any") == true ) { healingPool( gp.dialogueState ); }
+                if ( hit(54, 22, "any") ) { healingPool( gp.dialogueState ); }
             }
 
             // Map transitions: use smooth fade transition when stepping on trigger tile
@@ -104,7 +104,7 @@ public class EventHandler{
                 int col = Integer.parseInt(parts[0]);
                 int row = Integer.parseInt(parts[1]);
                 MapTransition mt = mapTransitions.get(key);
-                if ( hit(col, row, "any") == true ) {
+                if ( hit(col, row, "any") ) {
                     // Save the trigger position (where we entered from) before transitioning
                     lastTriggerCol = col;
                     lastTriggerRow = row;
@@ -156,7 +156,7 @@ public class EventHandler{
         eventRect[col][row].x = col * gp.tileSize + eventRect[col][row].x;
         eventRect[col][row].y = row * gp.tileSize + eventRect[col][row].y;
 
-        if ( gp.player.solidArea.intersects(eventRect[col][row]) && eventRect[col][row].eventDone == false ) {
+        if ( gp.player.solidArea.intersects(eventRect[col][row]) && !eventRect[col][row].eventDone ) {
             if ( gp.player.direction.contentEquals(reqDirection) || reqDirection.contentEquals("any")) {
                 hit = true;
 

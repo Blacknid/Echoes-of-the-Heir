@@ -82,10 +82,8 @@ public class Eye extends Entity {
 
     private void loadEyeImages() {
         BufferedImage[][] frames = loadSpriteMatrix("/res/monster/Eye_spritesheet", 32, 32);
-        UtilityTool utilityTool = new UtilityTool();
-
         for (int i = 0; i < 8; i++) {
-            BufferedImage baseFrame = utilityTool.scaleImage(frames[0][i], gp.tileSize, gp.tileSize);
+            BufferedImage baseFrame = UtilityTool.scaleImage(frames[0][i], gp.tileSize, gp.tileSize);
 
             rightFrames[i] = baseFrame;
             downFrames[i] = Projectile.rotateImage(baseFrame, 90);

@@ -14,6 +14,9 @@ public class Sound {
     int volumeScale = 3;
     float volume;
 
+    // OPTIMIZATION: Cache clips to avoid re-opening the same audio file repeatedly
+    private Clip[] clipCache = new Clip[30];
+
     public Sound() {
 
         soundURL[0] = getClass().getResource("/res/sound/Michiduta Theme.wav");
@@ -32,33 +35,46 @@ public class Sound {
     }
 
     public void setFile(int i) {
-
         try {
-
-            AudioInputStream ais = AudioSystem.getAudioInputStream(soundURL[i]);
-            clip = AudioSystem.getClip();
-            clip.open(ais);
-            fc = (FloatControl)clip.getControl(FloatControl.Type.MASTER_GAIN);
+            // Reuse cached clip if available
+            if (clipCache[i] != null && clipCache[i].isOpen()) {
+                clip = clipCache[i];
+                clip.stop();
+                clip.setFramePosition(0);
+            } else {
+                // Close previous clip in this slot to prevent resource leak
+                if (clipCache[i] != null) {
+                    clipCache[i].close();
+                }
+                AudioInputStream ais = AudioSystem.getAudioInputStream(soundURL[i]);
+                clip = AudioSystem.getClip();
+                clip.open(ais);
+                ais.close(); // Close the stream after opening the clip
+                clipCache[i] = clip;
+            }
+            fc = (FloatControl) clip.getControl(FloatControl.Type.MASTER_GAIN);
             checkVolume();
-
-        }catch(Exception e) {
-
+        } catch(Exception e) {
+            e.printStackTrace();
         }
     }
     public void play() {
-
-        clip.start();
+        if (clip != null) {
+            clip.setFramePosition(0);
+            clip.start();
+        }
     }
     public void loop() {
-
-        clip.loop(Clip.LOOP_CONTINUOUSLY);
+        if (clip != null) {
+            clip.loop(Clip.LOOP_CONTINUOUSLY);
+        }
     }
     public void stop() {
-
-        clip.stop();
+        if (clip != null) {
+            clip.stop();
+        }
     }
     public void checkVolume() {
-
         switch (volumeScale) {
             case 0: volume = -80f; break;
             case 1: volume = -20f; break;
@@ -67,6 +83,8 @@ public class Sound {
             case 4: volume = 1f; break;
             case 5: volume = 6f; break;
         }
-        fc.setValue(volume);
+        if (fc != null) {
+            fc.setValue(volume);
+        }
     }
 }
