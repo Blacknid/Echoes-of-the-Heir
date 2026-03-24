@@ -31,18 +31,25 @@ public class OBJ_Gem extends Entity {
     
     public void setDialogues() {
 
-        dialogues[0][0] = "You pick up a beautiful Dark Gem.";
-        dialogues[0][1] = "You found the Dark Heart , the legendary treasure!";
-        dialogues[0][2] = "As you hold it, a sudden warmth \nfills your body.";
-        dialogues[1][0] = "You feel a strange aura \nemanating from the gem.\n It seems you are not\nworthy to possess it yet.";
+        ensureDialogues()[0][0] = "You pick up a beautiful Dark Gem.";
+        ensureDialogues()[0][1] = "You found the Dark Heart , the legendary treasure!";
+        ensureDialogues()[0][2] = "As you hold it, a sudden warmth \nfills your body.";
+        ensureDialogues()[1][0] = "You feel a strange aura \nemanating from the gem.\n It seems you are not\nworthy to possess it yet.";
     }
     public boolean use( Entity entity ) {
+
+        // Prevent repeated gem pickup logic if player already owns it.
+        if (gp.player.hasGem > 0) {
+            return true;
+        }
         
         if ( gp.player.level >= 3 ) {
+            gp.player.hasGem = 1;
             gp.playSE(2);
             startDialogue(this, 0);
             gp.gameState = gp.cutsceneState;
             gp.csManager.sceneNum = gp.csManager.ending;
+            gp.csManager.scenePhase = 0;
             return true;
         }
         else {

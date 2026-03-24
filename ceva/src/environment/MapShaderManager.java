@@ -5,10 +5,9 @@ import java.awt.Color;
 import java.awt.Composite;
 import java.awt.Graphics2D;
 import java.awt.RadialGradientPaint;
+import java.awt.RenderingHints;
 import java.awt.image.BufferedImage;
 import java.util.Random;
-
-import entity.Particle;
 import main.GamePanel;
 
 /**
@@ -26,6 +25,28 @@ public class MapShaderManager {
     public static final int SHIMMER_LEVELS = 36;
     public Color[] waterShimmerColors;
 
+    // OPTIMIZATION: Pre-computed sine lookup table to avoid Math.sin/cos per tile per frame
+    private static final int SIN_TABLE_SIZE = 1024;
+    private static final float SIN_TABLE_SCALE = SIN_TABLE_SIZE / (float)(2 * Math.PI);
+    private static final float[] SIN_TABLE = new float[SIN_TABLE_SIZE];
+    static {
+        for (int i = 0; i < SIN_TABLE_SIZE; i++) {
+            SIN_TABLE[i] = (float) Math.sin(2 * Math.PI * i / SIN_TABLE_SIZE);
+        }
+    }
+    
+    private static float fastSin(double angle) {
+        int idx = (int)(angle * SIN_TABLE_SCALE) % SIN_TABLE_SIZE;
+        if (idx < 0) idx += SIN_TABLE_SIZE;
+        return SIN_TABLE[idx];
+    }
+    
+    private static float fastCos(double angle) {
+        int idx = (int)((angle + Math.PI * 0.5) * SIN_TABLE_SCALE) % SIN_TABLE_SIZE;
+        if (idx < 0) idx += SIN_TABLE_SIZE;
+        return SIN_TABLE[idx];
+    }
+
     // ===================== VIGNETTE =====================
     private BufferedImage vignetteImage;
     private float vignetteStrength = 0.45f;
@@ -40,6 +61,24 @@ public class MapShaderManager {
     private float windX = 0.3f;
     private float windY = -0.1f;
 
+    // ===================== WEATHER SYSTEM =====================
+    private static final int MAX_RAIN = 250;
+    private float[] rainX, rainY, rainSpeed, rainAlpha, rainLength;
+
+    private static final int MAX_SNOW = 120;
+    private float[] snowX, snowY, snowSpeed, snowSize, snowDrift, snowAlpha;
+
+    // Storm lightning flash
+    private int stormFlashTimer = 0;
+    private int nextFlashIn = 0;
+
+    // Weather overlay tint colors
+    private static final Color RAIN_TINT  = new Color(40, 80, 160, 12);
+    private static final Color STORM_TINT = new Color(30, 60, 140, 18);
+    private static final Color SNOW_TINT  = new Color(180, 210, 240, 8);
+    private static final Color RAIN_DROP_COLOR = new Color(180, 210, 255);
+    private static final Color SNOW_FLAKE_COLOR = new Color(240, 245, 255);
+
     public MapShaderManager(GamePanel gp) {
         this.gp = gp;
     }
@@ -48,6 +87,7 @@ public class MapShaderManager {
         initWaterShimmer();
         createVignette();
         initParticles();
+        initWeather();
         warmOverlay = new Color(255, 220, 160, 7);
     }
 
@@ -66,14 +106,14 @@ public class MapShaderManager {
 
     /** Vertical wave offset for a water tile (call from TileManager). */
     public int getWaterWaveOffset(int worldCol, int worldRow) {
-        double wave = Math.sin(worldCol * 0.7 + worldRow * 0.3 + tick * 0.055) * 1.5;
+        float wave = fastSin(worldCol * 0.7 + worldRow * 0.3 + tick * 0.055) * 1.5f;
         return (int) wave;
     }
 
     /** Shimmer color index for a water tile (call from TileManager). */
     public int getWaterShimmerIndex(int worldCol, int worldRow) {
-        double phase = Math.sin(worldCol * 1.2 + worldRow * 0.8 + tick * 0.09);
-        int idx = (int) ((phase * 0.5 + 0.5) * (SHIMMER_LEVELS - 1));
+        float phase = fastSin(worldCol * 1.2 + worldRow * 0.8 + tick * 0.09);
+        int idx = (int) ((phase * 0.5f + 0.5f) * (SHIMMER_LEVELS - 1));
         return Math.max(0, Math.min(SHIMMER_LEVELS - 1, idx));
     }
 
@@ -121,9 +161,9 @@ public class MapShaderManager {
             pX[i] += pVX[i];
             pY[i] += pVY[i];
 
-            // Gentle sine drift
-            pX[i] += (float) Math.sin(tick * 0.02 + i) * 0.15f;
-            pY[i] += (float) Math.cos(tick * 0.015 + i * 0.7) * 0.1f;
+            // Gentle sine drift (uses fast LUT instead of Math.sin/cos)
+            pX[i] += fastSin(tick * 0.02 + i) * 0.15f;
+            pY[i] += fastCos(tick * 0.015 + i * 0.7) * 0.1f;
 
             // Fade in / out
             pAlpha[i] += pAlphaDir[i];
@@ -224,5 +264,148 @@ public class MapShaderManager {
     public void update() {
         tick++;
         updateParticles();
+        updateWeather();
+    }
+
+    // =====================================================================
+    //  WEATHER SYSTEM
+    // =====================================================================
+
+    private void initWeather() {
+        rainX = new float[MAX_RAIN];
+        rainY = new float[MAX_RAIN];
+        rainSpeed = new float[MAX_RAIN];
+        rainAlpha = new float[MAX_RAIN];
+        rainLength = new float[MAX_RAIN];
+        for (int i = 0; i < MAX_RAIN; i++) resetRaindrop(i, true);
+
+        snowX = new float[MAX_SNOW];
+        snowY = new float[MAX_SNOW];
+        snowSpeed = new float[MAX_SNOW];
+        snowSize = new float[MAX_SNOW];
+        snowDrift = new float[MAX_SNOW];
+        snowAlpha = new float[MAX_SNOW];
+        for (int i = 0; i < MAX_SNOW; i++) resetSnowflake(i, true);
+
+        nextFlashIn = 300 + random.nextInt(300);
+    }
+
+    private void resetRaindrop(int i, boolean randomY) {
+        rainX[i] = random.nextFloat() * (gp.screenWidth + 60) - 30;
+        rainY[i] = randomY ? random.nextFloat() * gp.screenHeight : -(random.nextFloat() * 40);
+        rainSpeed[i] = 12 + random.nextFloat() * 6;
+        rainAlpha[i] = 0.25f + random.nextFloat() * 0.35f;
+        rainLength[i] = 8 + random.nextFloat() * 6;
+    }
+
+    private void resetSnowflake(int i, boolean randomY) {
+        snowX[i] = random.nextFloat() * (gp.screenWidth + 40) - 20;
+        snowY[i] = randomY ? random.nextFloat() * gp.screenHeight : -(random.nextFloat() * 30);
+        snowSpeed[i] = 1 + random.nextFloat() * 2;
+        snowSize[i] = 2 + random.nextFloat() * 3;
+        snowDrift[i] = random.nextFloat() * 6.28f; // random phase
+        snowAlpha[i] = 0.3f + random.nextFloat() * 0.5f;
+    }
+
+    private void updateWeather() {
+        if (gp.eManager == null) return;
+        int ws = gp.eManager.weatherState;
+        float intensity = gp.eManager.weatherIntensity;
+        if (intensity <= 0.001f) return;
+
+        if (ws == EnvironmentManager.WEATHER_RAIN || ws == EnvironmentManager.WEATHER_STORM) {
+            int active = (int)(MAX_RAIN * intensity);
+            // LOD: reduce particles under low FPS
+            if (gp.currentFPS > 0 && gp.currentFPS < 48) active = active / 2;
+            for (int i = 0; i < active; i++) {
+                rainY[i] += rainSpeed[i];
+                rainX[i] -= 2.0f; // slight diagonal
+                rainX[i] += fastSin(tick * 0.04 + i) * 0.3f;
+                if (rainY[i] > gp.screenHeight + 10) {
+                    resetRaindrop(i, false);
+                }
+            }
+            // Storm: lightning flash timer
+            if (ws == EnvironmentManager.WEATHER_STORM) {
+                if (stormFlashTimer > 0) stormFlashTimer--;
+                nextFlashIn--;
+                if (nextFlashIn <= 0) {
+                    stormFlashTimer = 4;
+                    nextFlashIn = 300 + random.nextInt(300);
+                }
+            }
+        }
+
+        if (ws == EnvironmentManager.WEATHER_SNOW) {
+            int active = (int)(MAX_SNOW * intensity);
+            if (gp.currentFPS > 0 && gp.currentFPS < 48) active = active / 2;
+            for (int i = 0; i < active; i++) {
+                snowY[i] += snowSpeed[i];
+                snowX[i] += fastSin(tick * 0.03 + snowDrift[i]) * 0.8f;
+                if (snowY[i] > gp.screenHeight + 10 || snowX[i] < -20 || snowX[i] > gp.screenWidth + 20) {
+                    resetSnowflake(i, false);
+                }
+            }
+        }
+    }
+
+    public void drawWeather(Graphics2D g2) {
+        if (gp.eManager == null) return;
+        int ws = gp.eManager.weatherState;
+        float intensity = gp.eManager.weatherIntensity;
+        if (intensity <= 0.001f && stormFlashTimer <= 0) return;
+
+        Composite original = g2.getComposite();
+
+        // Storm lightning flash (bright white overlay)
+        if (ws == EnvironmentManager.WEATHER_STORM && stormFlashTimer > 0) {
+            float flashA = Math.min(1f, stormFlashTimer / 4f * 0.15f * intensity);
+            g2.setComposite(AlphaComposite.getInstance(AlphaComposite.SRC_OVER, flashA));
+            g2.setColor(Color.WHITE);
+            g2.fillRect(0, 0, gp.screenWidth, gp.screenHeight);
+        }
+
+        if (ws == EnvironmentManager.WEATHER_RAIN || ws == EnvironmentManager.WEATHER_STORM) {
+            // Rain drops as diagonal lines
+            g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
+            int active = (int)(MAX_RAIN * intensity);
+            if (gp.currentFPS > 0 && gp.currentFPS < 48) active = active / 2;
+            for (int i = 0; i < active; i++) {
+                float a = Math.min(1f, rainAlpha[i] * intensity);
+                g2.setComposite(AlphaComposite.getInstance(AlphaComposite.SRC_OVER, a));
+                g2.setColor(RAIN_DROP_COLOR);
+                int x1 = (int) rainX[i];
+                int y1 = (int) rainY[i];
+                int x2 = x1 + 2;
+                int y2 = y1 - (int) rainLength[i];
+                g2.drawLine(x1, y1, x2, y2);
+            }
+            g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_OFF);
+
+            // Overlay tint
+            Color tint = (ws == EnvironmentManager.WEATHER_STORM) ? STORM_TINT : RAIN_TINT;
+            g2.setComposite(AlphaComposite.getInstance(AlphaComposite.SRC_OVER, Math.min(1f, intensity)));
+            g2.setColor(tint);
+            g2.fillRect(0, 0, gp.screenWidth, gp.screenHeight);
+        }
+
+        if (ws == EnvironmentManager.WEATHER_SNOW) {
+            int active = (int)(MAX_SNOW * intensity);
+            if (gp.currentFPS > 0 && gp.currentFPS < 48) active = active / 2;
+            for (int i = 0; i < active; i++) {
+                float a = Math.min(1f, snowAlpha[i] * intensity);
+                g2.setComposite(AlphaComposite.getInstance(AlphaComposite.SRC_OVER, a));
+                g2.setColor(SNOW_FLAKE_COLOR);
+                int sz = (int) snowSize[i];
+                g2.fillOval((int) snowX[i], (int) snowY[i], sz, sz);
+            }
+
+            // Overlay tint
+            g2.setComposite(AlphaComposite.getInstance(AlphaComposite.SRC_OVER, Math.min(1f, intensity)));
+            g2.setColor(SNOW_TINT);
+            g2.fillRect(0, 0, gp.screenWidth, gp.screenHeight);
+        }
+
+        g2.setComposite(original);
     }
 }

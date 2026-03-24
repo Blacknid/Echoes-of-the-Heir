@@ -4,9 +4,11 @@ import java.awt.Graphics2D;
 import java.awt.RenderingHints;
 import java.awt.image.BufferedImage;
 
-public class UtilityTool {
+public final class UtilityTool {
 
-    public BufferedImage scaleImage(BufferedImage original, int width, int height) {
+    private UtilityTool() {}
+
+    public static BufferedImage scaleImage(BufferedImage original, int width, int height) {
 
         BufferedImage scaleImage = new BufferedImage(width, height, BufferedImage.TYPE_INT_ARGB);
         Graphics2D g2 = scaleImage.createGraphics();

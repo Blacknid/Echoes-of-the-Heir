@@ -72,3 +72,22 @@ Quests & story – add NPC dialogues, objectives, branching paths.
 Equipment & crafting – more items, upgrades, recipes.
 Multiplayer/coop – if ambitious, networked play.
 Platform support – current code is desktop‑Swing; you could port to LibGDX, Android, etc.
+
+   380	### Partially Implemented (Playable but Basic)
+   381	⚠️ NPC system (only 1 NPC, basic random/path AI)
+   382	⚠️ Monster AI (1 type, basic behavior tree)
+   383	⚠️ Progression (3 level cap for ending)
+   384	⚠️ Dialogue (static strings, no choice trees)
+   385	⚠️ Save/Load system (exists but not fully reviewed)
+   386	
+   387	### Missing/Minimal (Not Implemented)
+   388	❌ Boss battles
+   389	❌ Skill/magic system (only projectiles)
+   390	❌ Stat distribution (class-locked)
+   391	❌ Quest system (only goal: collect gem)
+   392	❌ Crafting/enchanting
+   393	❌ Equipment upgrades
+   394	❌ Mini-map
+   395	❌ Multiple weapon/armor options
+   396	❌ Persistent choices in dialogue
+   397	❌ End-game content beyond gem collection

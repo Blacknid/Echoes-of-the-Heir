@@ -1,13 +1,13 @@
 package main;
-import java.util.Timer;
 
+import ai.PathFinder;
+import data.SaveLoad;
 import entity.Entity;
+import entity.Particle;
 import entity.Player;
 import entity.Projectile;
-import entity.Particle;
 import environment.EnvironmentManager;
 import environment.MapShaderManager;
-
 import java.awt.Color;
 import java.awt.Dimension;
 import java.awt.Font;
@@ -15,22 +15,19 @@ import java.awt.Graphics;
 import java.awt.Graphics2D;
 import java.awt.GraphicsDevice;
 import java.awt.GraphicsEnvironment;
+import java.awt.Rectangle;
 import java.awt.Toolkit;
 import java.awt.image.BufferedImage;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Comparator;
+import java.util.HashMap;
+import java.util.Map;
 import javax.swing.JFrame;
 import javax.swing.JPanel;
 import javax.swing.SwingUtilities;
-import java.awt.Rectangle;
-
-import ai.PathFinder;
-import data.SaveLoad;
 import tile.TileManager;
 import tiles_interactive.interactiveTile;
-import java.util.HashMap;
-import java.util.Map;
 
 public class GamePanel extends JPanel implements Runnable{
 
@@ -54,8 +51,6 @@ public class GamePanel extends JPanel implements Runnable{
     public final int worldHeight = tileSize * maxScreenRow;
     
     // FOR FULLSCREEN
-    int screenWidth2 = screenWidth;
-    int screenHeight2 = screenHeight;
     Rectangle windowedBounds;
     BufferedImage tempScreen;
     Graphics2D g2;
@@ -88,7 +83,26 @@ public class GamePanel extends JPanel implements Runnable{
     public EnvironmentManager eManager = new EnvironmentManager(this);
     public MapShaderManager mapShader;
     public environment.TileParticleEmitter tileParticleEmitter;
+    public ScreenShake screenShake = new ScreenShake();
     SaveLoad saveLoad = new SaveLoad(this);
+
+    // SMOOTH CAMERA
+    public float cameraX, cameraY;          // smooth world-space camera top-left
+    private static final float CAM_LERP = 0.12f;
+    private static final int CAM_DEADZONE = 32; // pixels before camera starts catching up
+
+    // MINIMAP
+    public Minimap minimap;
+
+    // QUEST SYSTEM
+    public QuestManager questManager;
+
+    // GLOBAL HIT-STOP: freezes all entities for impactful hits
+    public int globalHitstopTimer = 0;
+
+    // DAMAGE NUMBERS
+    public ObjectPool<entity.DamageNumber> damageNumberPool;
+    public java.util.ArrayList<entity.DamageNumber> damageNumbers = new java.util.ArrayList<>();
     // Map registry: id -> tmx path
     public Map<String, String> mapRegistry = new HashMap<>();
     // Track which map is currently active (matches a key in mapRegistry)
@@ -101,7 +115,7 @@ public class GamePanel extends JPanel implements Runnable{
     public Entity obj[] = new Entity[100];
     public Entity npc[] = new Entity[10];
     public Entity monster[] = new Entity[20];
-    public interactiveTile iTile[] = new interactiveTile[10]; // size depends on how many interactive tiles you have
+    public interactiveTile iTile[] = new interactiveTile[30]; // expanded for breakable pots
     public ArrayList<Entity> projectilesList = new ArrayList<>();
     public ArrayList<Entity> particleList = new ArrayList<>();    
     // MAP ENTITY STORAGE: Preserve entity states when switching between maps
@@ -118,12 +132,7 @@ public class GamePanel extends JPanel implements Runnable{
     int entityListIndex = 0; // Track insertion point for efficient reuse
     
     // OPTIMIZATION: Define Comparator once to avoid garbage collection lag
-    Comparator<Entity> renderSorter = new Comparator<Entity>() {
-        @Override
-        public int compare(Entity e1, Entity e2) {
-            return Integer.compare(e1.worldY, e2.worldY);
-        }
-    };
+    Comparator<Entity> renderSorter = (e1, e2) -> Integer.compare(e1.worldY, e2.worldY);
 
     // GAME STATE 
     public int gameState;
@@ -136,6 +145,8 @@ public class GamePanel extends JPanel implements Runnable{
     public final int gameOverState = 6;
     public final int cutsceneState = 7;
     public final int transitionState = 8;
+    public final int levelUpState = 9;
+    public final int skillTreeState = 10;
 
     //ABILITY
     public boolean teleportation = false;
@@ -213,8 +224,33 @@ public class GamePanel extends JPanel implements Runnable{
     // TILE PARTICLES: footstep dust/grass/stone particles when entities move
     tileParticleEmitter = new environment.TileParticleEmitter(this);
 
-    tempScreen = new BufferedImage(screenWidth, screenHeight, BufferedImage.TYPE_INT_ARGB);
+    // DAMAGE NUMBERS: pooled floating text
+    damageNumberPool = new ObjectPool<>(
+        () -> new entity.DamageNumber(this),
+        15, 10
+    );
+
+    // SMOOTH CAMERA: initialize to player position
+    cameraX = player.worldX - player.screenX;
+    cameraY = player.worldY - player.screenY;
+
+    // MINIMAP: create and bake initial terrain
+    minimap = new Minimap(this);
+    minimap.bakeTerrainImage();
+
+    // QUEST SYSTEM
+    questManager = new QuestManager(this);
+    questManager.addQuest("find_keys", "Find the Keys", "Collect 3 keys to open the gate", 3);
+    questManager.addQuest("slay_monsters", "Monster Slayer", "Defeat 5 monsters", 5);
+
+    // OPTIMIZATION: Use TYPE_INT_ARGB_PRE for faster alpha blending in Java2D
+    tempScreen = new BufferedImage(screenWidth, screenHeight, BufferedImage.TYPE_INT_ARGB_PRE);
     g2 = (Graphics2D) tempScreen.getGraphics();
+    
+    // OPTIMIZATION: Set rendering hints once at setup instead of per-frame
+    g2.setRenderingHint(java.awt.RenderingHints.KEY_RENDERING, java.awt.RenderingHints.VALUE_RENDER_SPEED);
+    g2.setRenderingHint(java.awt.RenderingHints.KEY_INTERPOLATION, java.awt.RenderingHints.VALUE_INTERPOLATION_NEAREST_NEIGHBOR);
+    g2.setRenderingHint(java.awt.RenderingHints.KEY_COLOR_RENDERING, java.awt.RenderingHints.VALUE_COLOR_RENDER_SPEED);
 
     if (fullScreenOn) {
         setFullScreen();
@@ -279,6 +315,9 @@ public class GamePanel extends JPanel implements Runnable{
 
         // Update collision cache used by CollisionChecker
         cChecker.updateCollisionRectsCache();
+
+        // Rebake minimap for new map
+        if (minimap != null) minimap.bakeTerrainImage();
 
         // --- Save current map's entities before switching ---
         saveMapEntities(previousMapId);
@@ -356,7 +395,7 @@ public class GamePanel extends JPanel implements Runnable{
 
         deathSoundPlayed = false;
 
-        if ( restart == true ) {
+        if ( restart ) {
             // Full restart — reload the main map from scratch
             currentMapId = "harta";
             String path = mapRegistry.getOrDefault(currentMapId, "/res/maps/harta.tmx");
@@ -364,6 +403,9 @@ public class GamePanel extends JPanel implements Runnable{
             tileM.loadMapFromTMX(path);
             tileM.loadCollisionLayer(path);
             cChecker.updateCollisionRectsCache();
+
+            // Rebake minimap for new map
+            if (minimap != null) minimap.bakeTerrainImage();
 
             // Clear all saved map states
             savedObjects.clear();
@@ -447,8 +489,6 @@ public class GamePanel extends JPanel implements Runnable{
             }
         }
 
-        screenWidth2 = window.getWidth();
-        screenHeight2 = window.getHeight();
         window.toFront();
         requestFocusInWindow();
     }
@@ -499,15 +539,18 @@ public class GamePanel extends JPanel implements Runnable{
         gameThread.start();
     }
 
+    @Override
     public void run() {
 
-        double updateInterval = 1000000000.0 / TARGET_UPS;
+        final double updateInterval = 1_000_000_000.0 / TARGET_UPS;
         double updateDelta = 0;
         double renderDelta = 0;
+        double drawInterval = 1_000_000_000.0 / Math.max(30, FPS);
         long lastTime = System.nanoTime();
         long currentTime;
         long timer = 0;
         int frameCount = 0;
+        int cachedFPS = FPS;
 
         while(gameThread != null) {
 
@@ -516,11 +559,18 @@ public class GamePanel extends JPanel implements Runnable{
 
             updateDelta += elapsed / updateInterval;
 
-            double drawInterval = 1000000000.0 / Math.max(30, FPS);
+            // Only recalculate draw interval when FPS target changes (e.g. V-Sync toggle)
+            if (cachedFPS != FPS) {
+                cachedFPS = FPS;
+                drawInterval = 1_000_000_000.0 / Math.max(30, cachedFPS);
+            }
             renderDelta += elapsed / drawInterval;
 
             timer += elapsed;
             lastTime = currentTime;
+
+            // Cap update catch-up to prevent spiral of death
+            if (updateDelta > 5) updateDelta = 5;
 
             while (updateDelta >= 1) {
                 update();
@@ -528,19 +578,19 @@ public class GamePanel extends JPanel implements Runnable{
             }
 
             if (renderDelta >= 1) {
-                drawToTempScreen(); // draw = Buffered image
-                repaint(); // screen = Swing paint pipeline
+                drawToTempScreen();
+                repaint();
                 frameCount++;
                 renderDelta = 0;
             }
 
-            if(timer >= 1000000000) {
+            if(timer >= 1_000_000_000) {
                 currentFPS = frameCount;
                 frameCount = 0;
                 timer = 0;
             }
 
-            Thread.yield();
+            // Reduce CPU usage: sleep instead of spin-waiting
             try {
                 Thread.sleep(1);
             } catch (InterruptedException e) {
@@ -561,15 +611,48 @@ public class GamePanel extends JPanel implements Runnable{
     }
 
 
+    /** Trigger a global hit-stop freeze. Only overrides if stronger than current. */
+    public void triggerHitstop(int frames) {
+        if (frames > globalHitstopTimer) globalHitstopTimer = frames;
+    }
+
     public void update() {
 
         if(gameState == playState) {
+            // Refresh viewport cache once per frame
+            vpCacheValid = false;
+            updateViewportCache();
+
+            // INPUT COOLDOWNS
+            keyH.update();
+
+            // GLOBAL HIT-STOP: freeze entities but keep visual feedback running
+            if (globalHitstopTimer > 0) {
+                globalHitstopTimer--;
+                // Still update visual-only systems during freeze
+                for (int i = particleList.size() - 1; i >= 0; i--) {
+                    Entity particle = particleList.get(i);
+                    if (particle != null) {
+                        if (particle.alive) particle.update();
+                        else { particleList.remove(i); particlePool.release((Particle) particle); }
+                    }
+                }
+                if (tileParticleEmitter != null) tileParticleEmitter.update();
+                if (mapShader != null) mapShader.update();
+                screenShake.update();
+                for (int i = damageNumbers.size() - 1; i >= 0; i--) {
+                    entity.DamageNumber dn = damageNumbers.get(i);
+                    if (dn.alive) dn.update();
+                    else { damageNumbers.remove(i); damageNumberPool.release(dn); }
+                }
+                return; // skip all entity/world logic
+            }
+
             // PLAYER
             player.update();
             // NPC
             for ( int i = 0 ; i < npc.length; i++ ) {
                 if ( npc[i] != null ) {
-                    // OPTIMIZATION: Only update NPCs that are in or near viewport
                     if (isEntityInViewport(npc[i], tileSize * 2)) {
                         npc[i].update();
                     }
@@ -578,13 +661,13 @@ public class GamePanel extends JPanel implements Runnable{
             // MONSTER
             for ( int i = 0 ; i < monster.length ; i++ ) {
                 if ( monster[i] != null ) {
-                    if ( monster[i].alive == true && monster[i].dying == false ) {
+                    if ( monster[i].alive && !monster[i].dying ) {
                         // OPTIMIZATION: Only update monsters that are in or near viewport
                         if (isEntityInViewport(monster[i], tileSize * 2)) {
                             monster[i].update();
                         }
                     }
-                    if ( monster[i].alive == false ) {
+                    if ( !monster[i].alive ) {
                         monster[i] = null;
                     }
                 }
@@ -593,7 +676,7 @@ public class GamePanel extends JPanel implements Runnable{
             for ( int i = projectilesList.size() - 1 ; i >= 0 ; i-- ) {
                 Entity proj = projectilesList.get(i);
                 if (proj != null) {
-                    if (proj.alive == true) {
+                    if (proj.alive) {
                         proj.update();
                     } else {
                         projectilesList.remove(i);
@@ -606,7 +689,7 @@ public class GamePanel extends JPanel implements Runnable{
             for ( int i = particleList.size() - 1 ; i >= 0 ; i-- ) {
                 Entity particle = particleList.get(i);
                 if (particle != null) {
-                    if (particle.alive == true) {
+                    if (particle.alive) {
                         particle.update();
                     } else {
                         particleList.remove(i);
@@ -622,6 +705,24 @@ public class GamePanel extends JPanel implements Runnable{
             }
             eManager.update();
 
+            // COLORED LIGHTS: Register dynamic light sources each frame
+            if (eManager.lightning != null) {
+                eManager.lightning.clearLights();
+                // Player warm glow
+                eManager.lightning.addLight(
+                    player.worldX + tileSize / 2, player.worldY + tileSize / 2,
+                    tileSize * 4, new java.awt.Color(255, 240, 220), 0.25f);
+                // Torch objects: warm orange with subtle flicker
+                for (int i = 0; i < obj.length; i++) {
+                    if (obj[i] != null && obj[i].lightSource && obj[i].lightRadius > 0) {
+                        float flicker = 0.22f + 0.06f * (float) Math.sin(System.nanoTime() * 0.000000003 + i * 1.7);
+                        eManager.lightning.addLight(
+                            obj[i].worldX + tileSize / 2, obj[i].worldY + tileSize / 2,
+                            obj[i].lightRadius * tileSize, new java.awt.Color(255, 170, 60), flicker);
+                    }
+                }
+            }
+
             // SHADER EFFECTS: advance animation tick & ambient particles
             if (mapShader != null) {
                 mapShader.update();
@@ -631,12 +732,38 @@ public class GamePanel extends JPanel implements Runnable{
             if (tileParticleEmitter != null) {
                 tileParticleEmitter.update();
             }
+
+            // SCREEN SHAKE
+            screenShake.update();
+
+            // SMOOTH CAMERA: lerp towards player
+            float targetCamX = player.worldX - player.screenX;
+            float targetCamY = player.worldY - player.screenY;
+            float dx = targetCamX - cameraX;
+            float dy = targetCamY - cameraY;
+            if (Math.abs(dx) > CAM_DEADZONE) cameraX += dx * CAM_LERP;
+            else cameraX += dx * 0.4f;
+            if (Math.abs(dy) > CAM_DEADZONE) cameraY += dy * CAM_LERP;
+            else cameraY += dy * 0.4f;
+
+            // DAMAGE NUMBERS
+            for (int i = damageNumbers.size() - 1; i >= 0; i--) {
+                entity.DamageNumber dn = damageNumbers.get(i);
+                if (dn.alive) {
+                    dn.update();
+                } else {
+                    damageNumbers.remove(i);
+                    damageNumberPool.release(dn);
+                }
+            }
         }
             if (player.life <= 0) {
             player.life = 0; // safety clamp
 
+            if (gameState != gameOverState) {
+                ui.commandNum = 0;
+            }
             gameState = gameOverState;
-            ui.commandNum = 0;
 
             stopMusic();
             if (!deathSoundPlayed) {
@@ -648,37 +775,42 @@ public class GamePanel extends JPanel implements Runnable{
 
     /**
      * OPTIMIZATION: Check if an entity is within viewport range (with margin buffer).
-     * Only entities on or near the screen need their update() called.
+     * Only entities on or near the screen need their update() called. 
      * @param entity The entity to check
      * @param margin Extra distance beyond screen boundaries to include (for smooth transitions)
      * @return true if the entity should be updated
      */
+    // OPTIMIZATION: Cache viewport bounds per frame instead of recalculating per entity
+    private int vpMinX, vpMaxX, vpMinY, vpMaxY;
+    private boolean vpCacheValid = false;
+
+    private void updateViewportCache() {
+        vpMinX = Math.round(cameraX);
+        vpMaxX = vpMinX + screenWidth;
+        vpMinY = Math.round(cameraY);
+        vpMaxY = vpMinY + screenHeight;
+        vpCacheValid = true;
+    }
+
     public boolean isEntityInViewport(Entity entity, int margin) {
-        int minX = player.worldX - player.screenX - margin;
-        int maxX = player.worldX - player.screenX + screenWidth + margin;
-        int minY = player.worldY - player.screenY - margin;
-        int maxY = player.worldY - player.screenY + screenHeight + margin;
-        
-        return entity.worldX + tileSize > minX &&
-               entity.worldX < maxX &&
-               entity.worldY + tileSize > minY &&
-               entity.worldY < maxY;
+        if (!vpCacheValid) updateViewportCache();
+        return entity.worldX + tileSize > vpMinX - margin &&
+               entity.worldX < vpMaxX + margin &&
+               entity.worldY + tileSize > vpMinY - margin &&
+               entity.worldY < vpMaxY + margin;
     }
 
     public void drawToTempScreen() {
     //DEBUG
     long drawStart = 0;
-    if(keyH.showDebugText == true ) {
+    if(keyH.showDebugText) {
         drawStart = System.nanoTime();
     }
 
     drawCurrentState();
 
     // DEBUG TEXT
-    if(keyH.showDebugText == true ) {
-        long drawEnd = System.nanoTime();
-        long passed = drawEnd - drawStart;
-
+    if(keyH.showDebugText) {
         g2.setFont(new Font("Arial",Font.PLAIN, 20));
         g2.setColor(Color.WHITE);
         int x = 10;
@@ -713,6 +845,7 @@ public class GamePanel extends JPanel implements Runnable{
             case optionsState:
             case gameOverState:
             case cutsceneState:
+            case skillTreeState:
             default:
                 drawWorldState();
                 break;
@@ -720,6 +853,22 @@ public class GamePanel extends JPanel implements Runnable{
     }
 
     private void drawWorldState() {
+
+        // OPTIMIZATION: Ensure anti-aliasing is OFF during world rendering (tiles, entities)
+        // AA is expensive for fillRect/drawImage and not needed for pixel art
+        g2.setRenderingHint(java.awt.RenderingHints.KEY_ANTIALIASING, java.awt.RenderingHints.VALUE_ANTIALIAS_OFF);
+        g2.setRenderingHint(java.awt.RenderingHints.KEY_TEXT_ANTIALIASING, java.awt.RenderingHints.VALUE_TEXT_ANTIALIAS_OFF);
+
+        // SMOOTH CAMERA + SCREEN SHAKE: offset the entire world
+        int camOffX = Math.round(cameraX - (player.worldX - player.screenX));
+        int camOffY = Math.round(cameraY - (player.worldY - player.screenY));
+        int shakeX = screenShake.getOffsetX();
+        int shakeY = screenShake.getOffsetY();
+        int totalOffX = camOffX + shakeX;
+        int totalOffY = camOffY + shakeY;
+        if (totalOffX != 0 || totalOffY != 0) {
+            g2.translate(totalOffX, totalOffY);
+        }
 
         tileM.prepareVisibleTiles();
         tileM.drawBackground(g2);
@@ -785,31 +934,50 @@ public class GamePanel extends JPanel implements Runnable{
 
         clearRenderableEntities();
 
+        // DAMAGE NUMBERS (draw above entities, below UI)
+        for (int i = 0; i < damageNumbers.size(); i++) {
+            entity.DamageNumber dn = damageNumbers.get(i);
+            if (dn.alive) dn.draw(g2);
+        }
+
         // CUTSCENE
         csManager.draw(g2);
 
-        // SHADER: ambient floating particles (between world and environment overlay)
-        if (mapShader != null) {
-            mapShader.drawAmbientParticles(g2);
-        }
-
-        // SHADER: subtle warm color grading
-        if (mapShader != null) {
-            mapShader.drawColorGrading(g2);
-        }
-
-        // ENVIRONMENT (day/night darkness overlay)
+        // ENVIRONMENT (day/night darkness overlay — world-space, needs camera translate)
         eManager.draw(g2);
 
-        // SHADER: vignette (darkened edges, cinematic feel)
+        // UNDO CAMERA + SHAKE before drawing screen-space effects and UI
+        if (totalOffX != 0 || totalOffY != 0) {
+            g2.translate(-totalOffX, -totalOffY);
+        }
+
+        // SHADER: screen-space effects (drawn after camera undo so they stay fixed on screen)
         if (mapShader != null) {
+            mapShader.drawAmbientParticles(g2);
+            mapShader.drawWeather(g2);
+            mapShader.drawColorGrading(g2);
             mapShader.drawVignette(g2);
         }
 
         // UI
         ui.draw(g2);
 
-        if (HitBoxes == true) {
+        // MINIMAP (drawn on top of UI, under debug)
+        if (minimap != null && gameState == playState) {
+            minimap.draw(g2);
+        }
+
+        // QUEST TRACKER (below minimap)
+        if (questManager != null && gameState == playState) {
+            questManager.drawTracker(g2);
+        }
+
+        // QUEST LOG OVERLAY
+        if (questManager != null && questManager.isLogOpen()) {
+            questManager.drawLog(g2);
+        }
+
+        if (HitBoxes) {
     
             g2.setColor(new Color(255, 0, 0, 128)); // red semi-transparent
 
@@ -997,6 +1165,8 @@ public class GamePanel extends JPanel implements Runnable{
     }
 
     private void addToRenderList(Entity entity) {
+        // OPTIMIZATION: Skip entities outside viewport (no need to sort/draw them)
+        if (!isEntityInViewport(entity, tileSize)) return;
         if (entityListIndex < entityList.size()) {
             entityList.set(entityListIndex, entity);
         } else {

@@ -16,16 +16,10 @@ public class Config {
 
     public void saveConfig () {
 
-        try {
-            BufferedWriter bw = new BufferedWriter(new FileWriter("config.txt"));
+        try (BufferedWriter bw = new BufferedWriter(new FileWriter("config.txt"))) {
 
             // FULL SCREEN
-            if ( gp.fullScreenOn == true ) {
-                bw.write("On");
-            }
-            if ( gp.fullScreenOn == false ) {
-                bw.write("Off");
-            }
+            bw.write(gp.fullScreenOn ? "On" : "Off");
             bw.newLine();
 
             // MUSIC VOLUME
@@ -37,15 +31,8 @@ public class Config {
             bw.newLine();
 
             // V-SYNC
-            if ( gp.vSyncOn == true ) {
-                bw.write("On");
-            }
-            if ( gp.vSyncOn == false ) {
-                bw.write("Off");
-            }
+            bw.write(gp.vSyncOn ? "On" : "Off");
             bw.newLine();
-
-            bw.close();
 
         } catch (IOException e) {
             e.printStackTrace();
@@ -53,18 +40,12 @@ public class Config {
     }
     public void loadConfig () {
 
-        try {
-            BufferedReader br = new BufferedReader(new FileReader("config.txt"));
+        try (BufferedReader br = new BufferedReader(new FileReader("config.txt"))) {
 
             String s = br.readLine();
 
             // FULL SCREEN
-            if ( s.equals("On")) {
-                gp.fullScreenOn = true;
-            }
-            if ( s.equals("Off")) {
-                gp.fullScreenOn = false;
-            }
+            gp.fullScreenOn = "On".equals(s);
 
             // MUSIC VOLUME
             s = br.readLine();
@@ -76,14 +57,7 @@ public class Config {
 
             // V-SYNC
             s = br.readLine();
-            if ( "On".equals(s)) {
-                gp.vSyncOn = true;
-            }
-            if ( "Off".equals(s)) {
-                gp.vSyncOn = false;
-            }
-
-            br.close();
+            gp.vSyncOn = "On".equals(s);
 
         } catch (Exception e) {
             e.printStackTrace();

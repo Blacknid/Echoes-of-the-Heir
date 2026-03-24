@@ -102,6 +102,8 @@ public class TileManager {
 
     // Multi-layer map (visual only)
     public ArrayList<int[][]> mapLayers = new ArrayList<>();
+    public ArrayList<Float> layerParallaxX = new ArrayList<>();
+    public ArrayList<Float> layerParallaxY = new ArrayList<>();
 
     // Collision rectangles (from object layer)
     public ArrayList<java.awt.Rectangle> collisionRects = new ArrayList<>();
@@ -146,7 +148,6 @@ public class TileManager {
             ts.depthSort = depthSort;
             ts.tiles = new Tile[ts.tileCount];
 
-            UtilityTool uTool = new UtilityTool();
             for (int index = 0; index < ts.tileCount; index++) {
                 int tileX = (index % safeColumns) * tileWidth;
                 int tileY = (index / safeColumns) * tileHeight;
@@ -159,7 +160,7 @@ public class TileManager {
                 BufferedImage sub = tilesetImage.getSubimage(tileX, tileY, tileWidth, tileHeight);
                 int scaledWidth = Math.max(1, tileWidth * scale);
                 int scaledHeight = Math.max(1, tileHeight * scale);
-                ts.tiles[index].image = uTool.scaleImage(sub, scaledWidth, scaledHeight);
+                ts.tiles[index].image = UtilityTool.scaleImage(sub, scaledWidth, scaledHeight);
                 ts.tiles[index].drawOffsetY = Math.max(0, scaledHeight - tileSize);
                 ts.tiles[index].collision = false;
             }
@@ -254,6 +255,8 @@ public class TileManager {
         try {
             loadTilesets(path);
             mapLayers.clear();
+            layerParallaxX.clear();
+            layerParallaxY.clear();
 
             Document doc = parseXmlResource(path);
             if (doc == null) {
@@ -264,6 +267,8 @@ public class TileManager {
             for (int l = 0; l < layers.getLength(); l++) {
                 Element layer = (Element) layers.item(l);
                 Element data = (Element) layer.getElementsByTagName("data").item(0);
+                float parallaxX = getFloatAttribute(layer, "parallaxx", 1.0f);
+                float parallaxY = getFloatAttribute(layer, "parallaxy", 1.0f);
                 String csv = data.getTextContent().trim().replaceAll("\\s+", "");
                 String[] numbers = csv.split(",");
 
@@ -280,6 +285,8 @@ public class TileManager {
                     }
                 }
                 mapLayers.add(layerMap);
+                layerParallaxX.add(parallaxX);
+                layerParallaxY.add(parallaxY);
             }
             System.out.println("Loaded " + mapLayers.size() + " tile layers");
         } catch (Exception e) {
@@ -338,34 +345,59 @@ public class TileManager {
     private int cachedPlayerWorldX = -1;
     private int cachedPlayerWorldY = -1;
 
+    // OPTIMIZATION: Reusable pool of VisibleTileDraw objects to avoid GC pressure
+    private final ArrayList<VisibleTileDraw> tileDrawPool = new ArrayList<>();
+    private int poolIndex = 0;
+
+    private VisibleTileDraw getPooledTileDraw() {
+        if (poolIndex < tileDrawPool.size()) {
+            return tileDrawPool.get(poolIndex++);
+        }
+        VisibleTileDraw vtd = new VisibleTileDraw();
+        tileDrawPool.add(vtd);
+        poolIndex++;
+        return vtd;
+    }
+
     // OPTIMIZATION: Improved viewport culling logic
     public void prepareVisibleTiles() {
         int playerWorldX = gp.player.worldX;
         int playerWorldY = gp.player.worldY;
+        int cameraWorldX = playerWorldX - gp.player.screenX;
+        int cameraWorldY = playerWorldY - gp.player.screenY;
         
-        // Update viewport bounds only if player moved significantly
-        if (playerWorldX != cachedPlayerWorldX || playerWorldY != cachedPlayerWorldY) {
-            cachedPlayerWorldX = playerWorldX;
-            cachedPlayerWorldY = playerWorldY;
-            cachedViewportMinX = playerWorldX - gp.player.screenX;
-            cachedViewportMaxX = playerWorldX + (gp.screenWidth - gp.player.screenX);
-            cachedViewportMinY = playerWorldY - gp.player.screenY;
-            cachedViewportMaxY = playerWorldY + (gp.screenHeight - gp.player.screenY);
-        }
+        // Update viewport bounds
+        cachedPlayerWorldX = playerWorldX;
+        cachedPlayerWorldY = playerWorldY;
+        cachedViewportMinX = cameraWorldX;
+        cachedViewportMaxX = cameraWorldX + gp.screenWidth;
+        cachedViewportMinY = cameraWorldY;
+        cachedViewportMaxY = cameraWorldY + gp.screenHeight;
 
         backgroundVisibleTiles.clear();
         depthVisibleTiles.clear();
+        poolIndex = 0;
+
+        // OPTIMIZATION: Calculate visible column/row range to avoid iterating entire 100x100 world
+        int extraMargin = tileSize * 2; // extra margin for oversized tiles
+        int minCol = Math.max(0, (cachedViewportMinX - extraMargin) / tileSize);
+        int maxCol = Math.min(gp.maxWorldCol - 1, (cachedViewportMaxX + extraMargin) / tileSize);
+        int minRow = Math.max(0, (cachedViewportMinY - extraMargin) / tileSize);
+        int maxRow = Math.min(gp.maxWorldRow - 1, (cachedViewportMaxY + extraMargin) / tileSize);
 
         for (int layerIndex = 0; layerIndex < mapLayers.size(); layerIndex++) {
             int[][] map = mapLayers.get(layerIndex);
+            float parallaxX = layerIndex < layerParallaxX.size() ? layerParallaxX.get(layerIndex) : 1.0f;
+            float parallaxY = layerIndex < layerParallaxY.size() ? layerParallaxY.get(layerIndex) : 1.0f;
 
-            for (int worldRow = 0; worldRow < gp.maxWorldRow; worldRow++) {
-                for (int worldCol = 0; worldCol < gp.maxWorldCol; worldCol++) {
+            // Only iterate visible tile range instead of full map
+            for (int worldRow = minRow; worldRow <= maxRow; worldRow++) {
+                for (int worldCol = minCol; worldCol <= maxCol; worldCol++) {
                     int gid = map[worldCol][worldRow];
-                    if (gid == 0) continue; // Skip empty tiles
+                    if (gid == 0) continue;
                     
                     Tile currentTile = getTileByGID(gid);
-                    if (currentTile == null) continue;
+                    if (currentTile == null || currentTile.image == null) continue;
 
                     Tileset tileset = getTilesetForGID(gid);
                     if (tileset == null) continue;
@@ -373,19 +405,12 @@ public class TileManager {
                     int worldX = worldCol * tileSize;
                     int worldY = worldRow * tileSize;
                     int drawWorldY = worldY - currentTile.drawOffsetY;
-                    
-                    // Early culling: check if tile is in viewport
-                    if (worldX + currentTile.image.getWidth() < cachedViewportMinX ||
-                        worldX > cachedViewportMaxX ||
-                        drawWorldY + currentTile.image.getHeight() < cachedViewportMinY ||
-                        drawWorldY > cachedViewportMaxY) {
-                        continue;
-                    }
 
-                    int screenX = worldX - playerWorldX + gp.player.screenX;
-                    int screenY = drawWorldY - playerWorldY + gp.player.screenY;
+                    int screenX = Math.round(worldX - (cameraWorldX * parallaxX));
+                    int screenY = Math.round(drawWorldY - (cameraWorldY * parallaxY));
 
-                    VisibleTileDraw visibleTile = new VisibleTileDraw();
+                    // OPTIMIZATION: Reuse pooled objects instead of allocating new ones
+                    VisibleTileDraw visibleTile = getPooledTileDraw();
                     visibleTile.image = currentTile.image;
                     visibleTile.screenX = screenX;
                     visibleTile.screenY = screenY;
@@ -448,7 +473,7 @@ public class TileManager {
     }
 
     private void drawPathOverlay(Graphics2D g2) {
-        if ( gp.drawPath == true ) {
+        if ( gp.drawPath ) {
             int playerWorldX = gp.player.worldX;
             int playerWorldY = gp.player.worldY;
             g2.setColor(new java.awt.Color(255, 0, 0, 128));
@@ -596,6 +621,19 @@ public class TileManager {
         }
 
         return null;
+    }
+
+    private float getFloatAttribute(Element element, String attributeName, float defaultValue) {
+        String value = element.getAttribute(attributeName);
+        if (value == null || value.isBlank()) {
+            return defaultValue;
+        }
+
+        try {
+            return Float.parseFloat(value.trim());
+        } catch (NumberFormatException e) {
+            return defaultValue;
+        }
     }
 
     private Document parseXmlResource(String path) throws Exception {

@@ -2,6 +2,7 @@ package main;
 
 import entity.Entity;
 import java.awt.Rectangle;
+import java.util.ArrayList;
 
 public class CollisionChecker {
 
@@ -11,16 +12,49 @@ public class CollisionChecker {
     private Rectangle tempRect = new Rectangle();
     private int collisionRectsSize = 0; // Cache the size
 
+    // OPTIMIZATION: Spatial grid for collision rectangles
+    // Divides the world into cells; only check rects in nearby cells
+    private static final int GRID_CELL_SIZE = 128; // pixels per grid cell (2 tiles)
+    private ArrayList<Integer>[] spatialGrid;
+    private int gridCols, gridRows;
+
     public CollisionChecker(GamePanel gp) {
         this.gp = gp;
     }
 
-    // OPTIMIZATION: Use cached size to avoid calling size() repeatedly
+    // OPTIMIZATION: Build spatial grid index for collision rectangles
+    @SuppressWarnings("unchecked")
     public void updateCollisionRectsCache() {
         collisionRectsSize = gp.tileM.collisionRects.size();
+        
+        // Build spatial grid
+        gridCols = (gp.worldWidth / GRID_CELL_SIZE) + 2;
+        gridRows = (gp.worldHeight / GRID_CELL_SIZE) + 2;
+        int totalCells = gridCols * gridRows;
+        spatialGrid = new ArrayList[totalCells];
+        
+        for (int i = 0; i < collisionRectsSize; i++) {
+            Rectangle r = gp.tileM.collisionRects.get(i);
+            int minCellX = Math.max(0, r.x / GRID_CELL_SIZE);
+            int minCellY = Math.max(0, r.y / GRID_CELL_SIZE);
+            int maxCellX = Math.min(gridCols - 1, (r.x + r.width) / GRID_CELL_SIZE);
+            int maxCellY = Math.min(gridRows - 1, (r.y + r.height) / GRID_CELL_SIZE);
+            
+            for (int cy = minCellY; cy <= maxCellY; cy++) {
+                for (int cx = minCellX; cx <= maxCellX; cx++) {
+                    int idx = cy * gridCols + cx;
+                    if (idx >= 0 && idx < totalCells) {
+                        if (spatialGrid[idx] == null) {
+                            spatialGrid[idx] = new ArrayList<>(4);
+                        }
+                        spatialGrid[idx].add(i);
+                    }
+                }
+            }
+        }
     }
 
-    // OPTIMIZATION: Reuse Rectangle to avoid allocation
+    // OPTIMIZATION: Use spatial grid for tile collision checks
     public void checkTile(Entity entity) {
 
         tempRect.x = entity.worldX + entity.solidArea.x;
@@ -36,39 +70,75 @@ public class CollisionChecker {
             case "right" -> tempRect.x += entity.speed;
         }
 
-        // Check against collision rectangles (use cached size)
-        if (collisionRectsSize == 0) {
-            collisionRectsSize = gp.tileM.collisionRects.size();
-        }
-        
         entity.collisionOn = false;
-        for (int i = 0; i < collisionRectsSize; i++) {
-            if (tempRect.intersects(gp.tileM.collisionRects.get(i))) {
-                entity.collisionOn = true;
-                break;
+        
+        // Use spatial grid if available
+        if (spatialGrid != null && gridCols > 0) {
+            int minCX = Math.max(0, tempRect.x / GRID_CELL_SIZE);
+            int minCY = Math.max(0, tempRect.y / GRID_CELL_SIZE);
+            int maxCX = Math.min(gridCols - 1, (tempRect.x + tempRect.width) / GRID_CELL_SIZE);
+            int maxCY = Math.min(gridRows - 1, (tempRect.y + tempRect.height) / GRID_CELL_SIZE);
+            
+            for (int cy = minCY; cy <= maxCY && !entity.collisionOn; cy++) {
+                for (int cx = minCX; cx <= maxCX && !entity.collisionOn; cx++) {
+                    int idx = cy * gridCols + cx;
+                    if (idx >= 0 && idx < spatialGrid.length && spatialGrid[idx] != null) {
+                        ArrayList<Integer> cell = spatialGrid[idx];
+                        for (int j = 0; j < cell.size(); j++) {
+                            if (tempRect.intersects(gp.tileM.collisionRects.get(cell.get(j)))) {
+                                entity.collisionOn = true;
+                                break;
+                            }
+                        }
+                    }
+                }
+            }
+        } else {
+            // Fallback to linear scan
+            for (int i = 0; i < collisionRectsSize; i++) {
+                if (tempRect.intersects(gp.tileM.collisionRects.get(i))) {
+                    entity.collisionOn = true;
+                    break;
+                }
             }
         }
     }
 
-    // OPTIMIZATION: Reuse Rectangle to avoid allocation
+    // OPTIMIZATION: Use spatial grid for next-position collision checks
     public void checkTileNext(Entity entity, int nextX, int nextY) {
         entity.collisionOn = false;
     
-        // Get entity bounds at the next position
         tempRect.x = nextX + entity.solidArea.x;
         tempRect.y = nextY + entity.solidArea.y;
         tempRect.width = entity.solidArea.width;
         tempRect.height = entity.solidArea.height;
         
-        // Check collision against collision rectangles (use cached size)
-        if (collisionRectsSize == 0) {
-            collisionRectsSize = gp.tileM.collisionRects.size();
-        }
-        
-        for (int i = 0; i < collisionRectsSize; i++) {
-            if (tempRect.intersects(gp.tileM.collisionRects.get(i))) {
-                entity.collisionOn = true;
-                break;
+        if (spatialGrid != null && gridCols > 0) {
+            int minCX = Math.max(0, tempRect.x / GRID_CELL_SIZE);
+            int minCY = Math.max(0, tempRect.y / GRID_CELL_SIZE);
+            int maxCX = Math.min(gridCols - 1, (tempRect.x + tempRect.width) / GRID_CELL_SIZE);
+            int maxCY = Math.min(gridRows - 1, (tempRect.y + tempRect.height) / GRID_CELL_SIZE);
+            
+            for (int cy = minCY; cy <= maxCY && !entity.collisionOn; cy++) {
+                for (int cx = minCX; cx <= maxCX && !entity.collisionOn; cx++) {
+                    int idx = cy * gridCols + cx;
+                    if (idx >= 0 && idx < spatialGrid.length && spatialGrid[idx] != null) {
+                        ArrayList<Integer> cell = spatialGrid[idx];
+                        for (int j = 0; j < cell.size(); j++) {
+                            if (tempRect.intersects(gp.tileM.collisionRects.get(cell.get(j)))) {
+                                entity.collisionOn = true;
+                                break;
+                            }
+                        }
+                    }
+                }
+            }
+        } else {
+            for (int i = 0; i < collisionRectsSize; i++) {
+                if (tempRect.intersects(gp.tileM.collisionRects.get(i))) {
+                    entity.collisionOn = true;
+                    break;
+                }
             }
         }
     }

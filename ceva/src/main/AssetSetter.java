@@ -2,6 +2,7 @@ package main;
 
 import entity.Entity;
 import entity.NPC_Alucard;
+import monster.MON_SkeletonArcher;
 import monster.MON_monster;
 import object.OBJ_Book;
 import object.OBJ_Boots;
@@ -15,6 +16,7 @@ import object.OBJ_Tent;
 import object.OBJ_Torch;
 import object.OBJ_Tower;
 import tiles_interactive.IT_Coins;
+import tiles_interactive.IT_Pot;
 
 public class AssetSetter {
 
@@ -36,8 +38,14 @@ public class AssetSetter {
 
     private void setInteractiveTile_harta() {
         int i = 0;
-        gp.iTile[i] = new IT_Coins(gp, 69, 30);
-        i++;
+        gp.iTile[i] = new IT_Coins(gp, 69, 30); i++;
+        // Breakable pots scattered around the map
+        gp.iTile[i] = new IT_Pot(gp, 65, 62); i++;
+        gp.iTile[i] = new IT_Pot(gp, 66, 62); i++;
+        gp.iTile[i] = new IT_Pot(gp, 75, 70); i++;
+        gp.iTile[i] = new IT_Pot(gp, 82, 46); i++;
+        gp.iTile[i] = new IT_Pot(gp, 60, 55); i++;
+        gp.iTile[i] = new IT_Pot(gp, 73, 48); i++;
     }
 
     private void setInteractiveTile_test() {
@@ -249,6 +257,9 @@ public class AssetSetter {
         gp.monster[i] = new MON_monster(gp, 74, 49); i++;
         gp.monster[i] = new MON_monster(gp, 61, 57); i++;
         gp.monster[i] = new MON_monster(gp, 59, 49); i++;
+        // Skeleton archers (ranged)
+        gp.monster[i] = new MON_SkeletonArcher(gp, 72, 60); i++;
+        gp.monster[i] = new MON_SkeletonArcher(gp, 78, 50); i++;
 
         spawnTowerEyes();
     }

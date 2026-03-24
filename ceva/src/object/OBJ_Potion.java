@@ -34,7 +34,7 @@ public class OBJ_Potion extends Entity {
 
     public void setDialogue() {
 
-        dialogues[0][0] = "Your life is already full.";
+        ensureDialogues()[0][0] = "Your life is already full.";
 
     }
 
@@ -47,7 +47,7 @@ public class OBJ_Potion extends Entity {
 
         int healAmount = Math.min(value, gp.player.maxLife - gp.player.life);
 
-        dialogues[1][0] = "You drink the potion.\n Your life has been recovered by " + healAmount + ".";
+        ensureDialogues()[1][0] = "You drink the potion.\n Your life has been recovered by " + healAmount + ".";
         
         gp.player.life += healAmount;
 

@@ -13,12 +13,15 @@ public class KeyHandler implements KeyListener {
     // Actions
     public boolean enterPressed, dashPressed;
 
+    // Ability keys
+    public boolean shockwavePressed, voidSnarePressed, frostNovaPressed, overdrivePressed;
+
     // Debug
     public boolean showDebugText = false;
 
     // Abilities
-    private int teleportCooldown = 0;
-    private final int TELEPORT_COOLDOWN_MAX = 10;
+    public int teleportCooldown = 0;
+    public static final int TELEPORT_COOLDOWN_MAX = 90; // ~1.5 seconds
 
     private int projectileCooldown = 0;
 
@@ -57,23 +60,30 @@ public class KeyHandler implements KeyListener {
         else if (gp.gameState == gp.gameOverState) {
             handleGameOverState(code);
         }
+        // LEVEL UP STATE
+        else if (gp.gameState == gp.levelUpState) {
+            handleLevelUpState(code);
+        }
+        // SKILL TREE STATE
+        else if (gp.gameState == gp.skillTreeState) {
+            handleSkillTreeState(code);
+        }
     }
 
     public void keyReleased(KeyEvent e) {
-        int code = e.getKeyCode();
-
-        if (code == KeyEvent.VK_W) upPressed = false;
-        if (code == KeyEvent.VK_S) downPressed = false;
-        if (code == KeyEvent.VK_A) leftPressed = false;
-        if (code == KeyEvent.VK_D) rightPressed = false;
-        if (code == KeyEvent.VK_UP) upPressed = false;
-        if (code == KeyEvent.VK_DOWN) downPressed = false;
-        if (code == KeyEvent.VK_LEFT) leftPressed = false;
-        if (code == KeyEvent.VK_RIGHT) rightPressed = false;
-        if (code == KeyEvent.VK_F) shotKeyPressed = false;
-        if (code == KeyEvent.VK_SPACE) dashPressed = false;
-        if (code == KeyEvent.VK_SHIFT) dashPressed = false;
-        if (code == KeyEvent.VK_ENTER) enterPressed = false;
+        switch (e.getKeyCode()) {
+            case KeyEvent.VK_W, KeyEvent.VK_UP -> upPressed = false;
+            case KeyEvent.VK_S, KeyEvent.VK_DOWN -> downPressed = false;
+            case KeyEvent.VK_A, KeyEvent.VK_LEFT -> leftPressed = false;
+            case KeyEvent.VK_D, KeyEvent.VK_RIGHT -> rightPressed = false;
+            case KeyEvent.VK_F -> shotKeyPressed = false;
+            case KeyEvent.VK_SPACE, KeyEvent.VK_SHIFT -> dashPressed = false;
+            case KeyEvent.VK_Z -> shockwavePressed = false;
+            case KeyEvent.VK_X -> voidSnarePressed = false;
+            case KeyEvent.VK_C -> frostNovaPressed = false;
+            case KeyEvent.VK_V -> overdrivePressed = false;
+            case KeyEvent.VK_ENTER -> enterPressed = false;
+        }
     }
 
     @Override
@@ -97,6 +107,7 @@ public class KeyHandler implements KeyListener {
             }
             if (code == KeyEvent.VK_I) {
                 gp.ui.titleScreenState = 2;
+                gp.ui.commandNum = 0;
                 gp.playSE(3);
             }
             if (code == KeyEvent.VK_ENTER) {
@@ -146,15 +157,17 @@ public class KeyHandler implements KeyListener {
         // Game state changes
         if (code == KeyEvent.VK_P) { gp.gameState = gp.pauseState; }
         if (code == KeyEvent.VK_ESCAPE) { gp.gameState = gp.optionsState; }
-        if (code == KeyEvent.VK_E) { gp.gameState = gp.characterState; }
+        // Only allow opening inventory if no other overlay is open
+        if (code == KeyEvent.VK_E && !isOverlayOpen()) { gp.gameState = gp.characterState; }
+        if (code == KeyEvent.VK_K && !isOverlayOpen()) { gp.gameState = gp.skillTreeState; }
         if (code == KeyEvent.VK_ENTER) { enterPressed = true; }
         if (code == KeyEvent.VK_F) { shotKeyPressed = true; }
 
         // DEBUGS   
 
         // Dash
-        if ( (code == KeyEvent.VK_SHIFT ) && ( leftPressed == true || rightPressed == true 
-                        || upPressed == true || downPressed == true ) ) { dashPressed = true; }
+        if ( (code == KeyEvent.VK_SHIFT ) && ( leftPressed || rightPressed 
+                        || upPressed || downPressed ) ) { dashPressed = true; }
 
         // Debug toggle
         if (code == KeyEvent.VK_T) { showDebugText = !showDebugText; }
@@ -166,33 +179,90 @@ public class KeyHandler implements KeyListener {
         if (code == KeyEvent.VK_R) { gp.tileM.loadMapFromTMX("/res/maps/harta.tmx"); }
 
         // Path toggle
-        if (code == KeyEvent.VK_Y) { PathFinderDubug(); } 
+        if (code == KeyEvent.VK_Y) { gp.drawPath = !gp.drawPath; } 
+
+        // Minimap toggle
+        if (code == KeyEvent.VK_M && gp.minimap != null && !isOverlayOpen()) { gp.minimap.toggle(); }
+
+        // Quest log toggle - close if open, only open if no other overlay is active
+        if (code == KeyEvent.VK_Q && gp.questManager != null) {
+            if (gp.questManager.isLogOpen()) {
+                gp.questManager.toggleLog(); // always allow closing
+            } else if (!isOverlayOpen()) {
+                gp.questManager.toggleLog();
+            }
+        }
 
 
 
         // Abilities
-        if ( code == KeyEvent.VK_SPACE && gp.teleportation == true ) { handleTeleport(); }
+        if ( code == KeyEvent.VK_SPACE && gp.teleportation ) { handleTeleport(); }
+        if ( code == KeyEvent.VK_Z ) { shockwavePressed = true; }
+        if ( code == KeyEvent.VK_X ) { voidSnarePressed = true; }
+        if ( code == KeyEvent.VK_C ) { frostNovaPressed = true; }
+        if ( code == KeyEvent.VK_V ) { overdrivePressed = true; }
     }
 
-    public void PathFinderDubug() {
-        if (gp.drawPath == false) {
-            gp.drawPath = true;
-        } else {
-            gp.drawPath = false;
-        }
+    /** Returns true if any overlay (quest log, minimap) is currently open */
+    private boolean isOverlayOpen() {
+        return (gp.questManager != null && gp.questManager.isLogOpen());
     }
 
     private void handleTeleport() {
         if ( teleportCooldown == 0) {
+            // Spawn departure particles at origin
+            gp.player.spawnTeleportParticles(true);
+
             switch (gp.player.direction) {
                 case "up" -> gp.player.worldY -= gp.tileSize * 3;
                 case "down" -> gp.player.worldY += gp.tileSize * 3;
                 case "left" -> gp.player.worldX -= gp.tileSize * 3;
                 case "right" -> gp.player.worldX += gp.tileSize * 3;
             }
-            teleportCooldown = TELEPORT_COOLDOWN_MAX;
+
+            // Spawn arrival particles at destination
+            gp.player.spawnTeleportParticles(false);
+
+            // Brief invincibility after teleport
+            gp.player.invincible = true;
+            gp.player.invincibleCounter = 20;
+
+            gp.screenShake.shakeLight();
+            gp.playSE(3);
+
+            teleportCooldown = gp.player.getTeleportCooldownMax();
         }
-        if (teleportCooldown > 0) teleportCooldown--;
+    }
+
+    private void handleSkillTreeState(int code) {
+        if (code == KeyEvent.VK_ESCAPE || code == KeyEvent.VK_K) {
+            gp.gameState = gp.playState;
+            gp.playSE(3);
+            return;
+        }
+
+        if (code == KeyEvent.VK_W || code == KeyEvent.VK_UP) {
+            gp.player.skillTree.moveSelection(gp.player, 0, -1);
+            gp.playSE(7);
+        }
+        if (code == KeyEvent.VK_S || code == KeyEvent.VK_DOWN) {
+            gp.player.skillTree.moveSelection(gp.player, 0, 1);
+            gp.playSE(7);
+        }
+        if (code == KeyEvent.VK_A || code == KeyEvent.VK_LEFT) {
+            gp.player.skillTree.moveSelection(gp.player, -1, 0);
+            gp.playSE(7);
+        }
+        if (code == KeyEvent.VK_D || code == KeyEvent.VK_RIGHT) {
+            gp.player.skillTree.moveSelection(gp.player, 1, 0);
+            gp.playSE(7);
+        }
+
+        if (code == KeyEvent.VK_ENTER) {
+            if (!gp.player.skillTree.unlockSelected(gp.player)) {
+                gp.playSE(8);
+            }
+        }
     }
 
     private void handleCharacterState(int code) {
@@ -249,28 +319,11 @@ public class KeyHandler implements KeyListener {
         leftPressed = false;
         rightPressed = false;
         
-        // Menu navigation: W/S or UP/DOWN arrows to move
-        if (code == KeyEvent.VK_W || code == KeyEvent.VK_UP) {
-            // Move up: 1 -> 0
-            if (gp.ui.commandNum == 1) {
-                gp.ui.commandNum = 0;
-                gp.playSE(3);
-            }
-            else if (gp.ui.commandNum == 0) {
-                gp.ui.commandNum = 1;
-                gp.playSE(3);
-            }
-        }
-        if (code == KeyEvent.VK_S || code == KeyEvent.VK_DOWN) {
-            // Move down: 0 -> 1
-            if (gp.ui.commandNum == 0) {
-                gp.ui.commandNum = 1;
-                gp.playSE(3);
-            }
-            else if (gp.ui.commandNum == 1) {
-                gp.ui.commandNum = 0;
-                gp.playSE(3);
-            }
+        // Menu navigation: W/S or UP/DOWN arrows to toggle
+        if (code == KeyEvent.VK_W || code == KeyEvent.VK_UP ||
+            code == KeyEvent.VK_S || code == KeyEvent.VK_DOWN) {
+            gp.ui.commandNum = 1 - gp.ui.commandNum;
+            gp.playSE(3);
         }
         // Execute selected option with ENTER
         if (code == KeyEvent.VK_ENTER) {
@@ -289,6 +342,23 @@ public class KeyHandler implements KeyListener {
                 gp.resetGame(true);
                 gp.gameState = gp.titleState;
             }
+        }
+    }
+
+    private void handleLevelUpState(int code) {
+        if (code == KeyEvent.VK_W || code == KeyEvent.VK_UP) {
+            gp.player.levelUpChoice--;
+            if (gp.player.levelUpChoice < 0) gp.player.levelUpChoice = 2;
+            gp.playSE(3);
+        }
+        if (code == KeyEvent.VK_S || code == KeyEvent.VK_DOWN) {
+            gp.player.levelUpChoice++;
+            if (gp.player.levelUpChoice > 2) gp.player.levelUpChoice = 0;
+            gp.playSE(3);
+        }
+        if (code == KeyEvent.VK_ENTER) {
+            gp.player.applyLevelUpChoice();
+            gp.gameState = gp.playState;
         }
     }
 

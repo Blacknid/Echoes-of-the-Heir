@@ -9,7 +9,7 @@ public class OBJ_Coins extends Entity {
         super(gp);
 
         name = "Coins";
-        down1 = setup("/res/objects/Coins", gp.tileSize, gp.tileSize);
+        down1 = setup("/res/interactive/Coins", gp.tileSize, gp.tileSize);
         
         // HITBOX: Small coins hitbox (24x24) centered
         solidArea.x = 20;  // 20px left + 24px width + 20px right = 64

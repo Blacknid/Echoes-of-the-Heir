@@ -1,10 +1,8 @@
 package main;
 
 import java.awt.AlphaComposite;
-import java.util.Timer;
 import java.awt.Color;
 import java.awt.Graphics2D;
-
 import object.OBJ_Gem;
 
 public class CutsceneManager {
@@ -61,7 +59,11 @@ public class CutsceneManager {
         if ( scenePhase == 0 ) {
 
             gp.stopMusic();
-            gp.ui.npc = new OBJ_Gem(gp);
+            // Keep the current gem dialogue source if it was already set by pickup.
+            // Fallback only if cutscene was started without an NPC context.
+            if (gp.ui.npc == null) {
+                gp.ui.npc = new OBJ_Gem(gp);
+            }
             scenePhase++;
         }
         if ( scenePhase == 1 ) {
@@ -70,15 +72,15 @@ public class CutsceneManager {
         }
         if ( scenePhase == 2 ) {
 
-            // PLAY THE FANFARE
-            gp.gameState = gp.pauseState;
+            // PLAY THE FANFARE while staying in cutscene mode
+            gp.gameState = gp.cutsceneState;
             gp.playSE(6);
             scenePhase++;
         } 
         if ( scenePhase == 3 ) {
 
             // WAIT UNTIL THE SOUND EFFECT ENDS
-            if ( counterReached(200) == true ) {
+            if ( counterReached(200) ) {
                 scenePhase++;
             }
         }
@@ -108,7 +110,7 @@ public class CutsceneManager {
             String text = "After a long way, \nour Spirit found the Dark Heart \nand reached a new power! \n[TO BE CONTINUED]";
             drawString(alpha, 38f, 200, text, 70);
 
-            if ( counterReached(600) == true ) {
+            if ( counterReached(600) ) {
                 //gp.playMusic(ending);
                 scenePhase++;
             }
@@ -120,7 +122,7 @@ public class CutsceneManager {
 
             drawString(1f, 120f, gp.screenHeight / 2, "Michiduta Adventure", 40);
         
-            if ( counterReached(300) == true ) {
+            if ( counterReached(300) ) {
                 scenePhase++;
             }
         }
@@ -132,7 +134,7 @@ public class CutsceneManager {
             y = gp.screenHeight / 2;
             drawString(1f, 38f, y, endCredit, 40);
 
-            if ( counterReached(480) == true ) {
+            if ( counterReached(480) ) {
                 scenePhase++;
             }
         }
@@ -146,7 +148,7 @@ public class CutsceneManager {
             y--;    
             drawString(1f, 38f, y, endCredit, 40);
 
-            if ( counterReached(2500) == true ) {
+            if ( counterReached(2500) ) {
                 scenePhase++;
             }
         }
@@ -156,7 +158,7 @@ public class CutsceneManager {
 
             drawString(1f, 120f, gp.screenHeight / 2, "Michiduta Adventure", 40);
 
-            if ( counterReached(480) == true ) {
+            if ( counterReached(480) ) {
                 scenePhase++;
             }
         }

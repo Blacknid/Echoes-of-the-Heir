@@ -53,17 +53,44 @@ public class Entity {
     private int walkFrameDirection = 1;
     public int actionLockCounter = 0;
     public int invincibleCounter = 0;
+    public int invincibleDuration = 10; // frames of i-frames after hit (short for combo-friendly combat)
     public int shotAvailableCounter = 0;
     int dyingCounter = 0;
     int hpBarCounter = 0;
+    public int crowdControlTimer = 0;
+    public boolean deathRewardsQueued = false;
+    public int deathRewardExp = 0;
+    public int deathRewardQuestKills = 0;
+    public int deathRewardCoins = 0;
+
+    // HIT FLASH: white overlay on damage
+    public int hitFlashCounter = 0;
+    private static final int HIT_FLASH_DURATION = 6;
+    // OPTIMIZATION: Pre-allocated Color constants to avoid per-frame allocation
+    private static final Color HP_BAR_BG = new Color(35, 35, 35);
+    private static final Color HP_BAR_FG = new Color(255, 0, 30);
+    private static final Color SPARK_COLOR_1 = new Color(255, 235, 120);
+    private static final Color SPARK_COLOR_2 = new Color(255, 200, 80);
+    private static final Color COIN_MSG_COLOR = new Color(255, 210, 90);
+    // OPTIMIZATION: Reusable flash image to avoid per-frame BufferedImage allocation
+    private BufferedImage hitFlashBuffer;
+    private int hitFlashBufferW, hitFlashBufferH;
 
     // TILE PARTICLES: throttle counter for footstep particle emission
     public int footstepParticleCounter = 0;
     
-    // DIALOGUE
-    public String dialogues[][] = new String[100][100];
+    // DIALOGUE (lazy-initialized to avoid wasting memory on entities that don't talk)
+    public String dialogues[][];
     public int dialogueIndex = 0;
     public int dialogueSet = 0;
+    
+    // OPTIMIZATION: Lazy dialogue access - only allocates when first written
+    public String[][] ensureDialogues() {
+        if (dialogues == null) {
+            dialogues = new String[20][20];
+        }
+        return dialogues;
+    }
     
     // IMAGES
     // Renamed class level 'image' to 'activeImage' to avoid confusion, 
@@ -194,7 +221,7 @@ public class Entity {
         gp.cChecker.checkEntity(this, gp.monster);
         boolean contactPlayer = gp.cChecker.checkPlayer(this);
 
-        if (type == type_monster && contactPlayer == true && gp.player.invincible == false) {
+        if (type == type_monster && contactPlayer && !gp.player.invincible) {
             
             gp.playSE(8);
 
@@ -254,6 +281,19 @@ public class Entity {
 
     } 
     public void update() {
+        if (crowdControlTimer > 0) {
+            crowdControlTimer--;
+            if (invincible) {
+                invincibleCounter++;
+                if (invincibleCounter > invincibleDuration) {
+                    invincible = false;
+                    invincibleCounter = 0;
+                }
+            }
+            if (hitFlashCounter > 0) hitFlashCounter--;
+            return;
+        }
+
         // handling knockback first ensures the push isn't blocked by normal collision checks
         if (knockBack) {
             // move by vector regardless of collision state
@@ -284,7 +324,7 @@ public class Entity {
         // NORMAL MOVEMENT
         // IF COLLISION IS FALSE, MOVE
         // Only run manual movement if pathfinding is NOT active
-        if (collisionOn == false && onPath == false) {
+        if (!collisionOn && !onPath) {
             switch (direction) {
                 case "up": worldY -= speed; break;
                 case "down": worldY += speed; break;
@@ -340,13 +380,15 @@ public class Entity {
             walkFrameDirection = 1;
         }
 
-        if (invincible == true) {
+        if (invincible) {
             invincibleCounter++;
-            if (invincibleCounter > 40) {
+            if (invincibleCounter > invincibleDuration) {
                 invincible = false;
                 invincibleCounter = 0;
             }
         }
+        // HIT FLASH countdown
+        if (hitFlashCounter > 0) hitFlashCounter--;
         if (shotAvailableCounter < 30) {
             shotAvailableCounter++;
         }
@@ -363,6 +405,9 @@ public class Entity {
             worldX - gp.tileSize < gp.player.worldX + gp.player.screenX &&
             worldY + gp.tileSize > gp.player.worldY - gp.player.screenY && 
             worldY - gp.tileSize < gp.player.worldY + gp.player.screenY) {      
+
+            int drawW = gp.tileSize;
+            int drawH = gp.tileSize;
 
             switch (direction) {
                 case "up":
@@ -384,14 +429,14 @@ public class Entity {
             }
 
             // Monster HP Bar
-            if (type == type_monster && hpBarOn == true) {
+            if (type == type_monster && hpBarOn) {
                 double oneScale = (double)gp.tileSize / maxLife;
                 double hpBarValue = oneScale * life;
 
-                g2.setColor(new Color(35, 35, 35));
+                g2.setColor(HP_BAR_BG);
                 g2.fillRect(screenX - 1, screenY - 16, gp.tileSize + 2, 12);
 
-                g2.setColor(new Color(255, 0, 30));
+                g2.setColor(HP_BAR_FG);
                 g2.fillRect(screenX, screenY - 15, (int)hpBarValue, 10);
 
                 hpBarCounter++;
@@ -401,25 +446,67 @@ public class Entity {
                 }
             }
 
-            if (invincible == true) {
+            if (invincible) {
                 hpBarOn = true;
                 hpBarCounter = 0;
                 changeAlpha(g2, 0.4F);
             }
-            if (dying == true) {
+            if (dying) {
+                int deathJitter = Math.max(0, 6 - dyingCounter / 8);
+                if (deathJitter > 0) {
+                    screenX += (int) ((Math.random() * (deathJitter * 2 + 1)) - deathJitter);
+                    screenY += (int) ((Math.random() * (deathJitter * 2 + 1)) - deathJitter);
+                }
+
+                // Arcade squash/pop before fade out.
+                if (dyingCounter < 22) {
+                    float t = dyingCounter / 22f;
+                    float stretchX = 1.0f + (float)Math.sin(t * Math.PI) * 0.25f;
+                    float squashY = 1.0f - (float)Math.sin(t * Math.PI) * 0.20f;
+                    drawW = Math.max(1, (int)(gp.tileSize * stretchX));
+                    drawH = Math.max(1, (int)(gp.tileSize * squashY));
+                }
                 dyingAnimation(g2);
             }
                 
             // Safe guard against null images
             if (currentSprite != null) {
-                g2.drawImage(currentSprite, screenX, screenY, gp.tileSize, gp.tileSize, null);
+                int drawX = screenX - (drawW - gp.tileSize) / 2;
+                int drawY = screenY - (drawH - gp.tileSize);
+                g2.drawImage(currentSprite, drawX, drawY, drawW, drawH, null);
+            }
+
+            // HIT FLASH: tint sprite white when recently damaged
+            // OPTIMIZATION: Reuse a single buffer instead of allocating a new BufferedImage every frame
+            if (hitFlashCounter > 0 && currentSprite != null) {
+                float flashAlpha = Math.min(1f, hitFlashCounter / (float) HIT_FLASH_DURATION * 0.8f);
+                int sprW = currentSprite.getWidth();
+                int sprH = currentSprite.getHeight();
+                // Lazily allocate or resize the reusable flash buffer
+                if (hitFlashBuffer == null || hitFlashBufferW < sprW || hitFlashBufferH < sprH) {
+                    hitFlashBufferW = sprW;
+                    hitFlashBufferH = sprH;
+                    hitFlashBuffer = new BufferedImage(sprW, sprH, BufferedImage.TYPE_INT_ARGB);
+                }
+                java.awt.Graphics2D fg = hitFlashBuffer.createGraphics();
+                // Clear previous contents
+                fg.setComposite(AlphaComposite.Clear);
+                fg.fillRect(0, 0, hitFlashBufferW, hitFlashBufferH);
+                // Draw sprite then overlay white
+                fg.setComposite(AlphaComposite.SrcOver);
+                fg.drawImage(currentSprite, 0, 0, null);
+                fg.setComposite(AlphaComposite.getInstance(AlphaComposite.SRC_ATOP, flashAlpha));
+                fg.setColor(Color.WHITE);
+                fg.fillRect(0, 0, sprW, sprH);
+                fg.dispose();
+                g2.drawImage(hitFlashBuffer, screenX, screenY, gp.tileSize, gp.tileSize, null);
             }
             
             changeAlpha(g2, 1F);
         }
     }
 
-    private BufferedImage getWalkFrameImage(String facing, int frame) {
+    protected BufferedImage getWalkFrameImage(String facing, int frame) {
         return switch (facing) {
             case "up" -> switch (frame) {
                 case 1 -> up1;  case 2 -> up2;case 3 -> up3;  case 4 -> up4;
@@ -452,28 +539,98 @@ public class Entity {
     
     public void dyingAnimation(Graphics2D g2) {
         dyingCounter++;
-        int i = 5;
-        if (dyingCounter <= i) { changeAlpha(g2, 0f); }
-        if (dyingCounter > i && dyingCounter <= i*2) { changeAlpha(g2, 1f); }
-        if (dyingCounter > i*2 && dyingCounter <= i*3) { changeAlpha(g2, 0f); }
-        if (dyingCounter > i*3 && dyingCounter <= i*4) { changeAlpha(g2, 1f); }
-        if (dyingCounter > i*4 && dyingCounter <= i*5) { changeAlpha(g2, 0f); }
-        if (dyingCounter > i*5 && dyingCounter <= i*6) { changeAlpha(g2, 1f); }
-        if (dyingCounter > i*6 && dyingCounter <= i*7) { changeAlpha(g2, 0f); }
-        if (dyingCounter > i*7 && dyingCounter <= i*8) { changeAlpha(g2, 1f); }
-        if (dyingCounter > i*8) {
+
+        // Phase 1 (frames 1-24): arcade flicker + pulse
+        if (dyingCounter <= 24) {
+            int interval = 3;
+            int phase = (dyingCounter - 1) / interval;
+            changeAlpha(g2, (phase % 2 == 0) ? 0.25f : 0.95f);
+
+            if (dyingCounter % 6 == 0) {
+                for (int i = 0; i < 4; i++) {
+                    Particle p = gp.particlePool.get();
+                    float angle = (float)(Math.random() * Math.PI * 2.0);
+                    int dx = (int)Math.round(Math.cos(angle) * 2);
+                    int dy = (int)Math.round(Math.sin(angle) * 2);
+                    p.setWithPosition(this, this, SPARK_COLOR_1, 4, 2, 14, dx, dy, Particle.STYLE_SPARK);
+                    gp.particleList.add(p);
+                }
+            }
+        }
+        // Phase 2 (frames 25-44): fade out
+        else if (dyingCounter <= 44) {
+            float alpha = 1f - ((dyingCounter - 24) / 20f);
+            changeAlpha(g2, Math.max(0f, alpha));
+        }
+        // Phase 3: emit death burst particles and remove
+        else {
+            grantQueuedDeathRewards();
+
+            // Burst of 12 spark particles on death
+            for (int i = 0; i < 12; i++) {
+                Particle p = gp.particlePool.get();
+                float angle = (float)(i * Math.PI * 2 / 12);
+                int dx = (int)(Math.cos(angle) * 3);
+                int dy = (int)(Math.sin(angle) * 3);
+                p.setWithPosition(this, this, SPARK_COLOR_2, 5, 3, 22, dx, dy, Particle.STYLE_SPARK);
+                gp.particleList.add(p);
+            }
             alive = false;
+        }
+    }
+
+    public void applyCrowdControl(int frames) {
+        if (frames > crowdControlTimer) {
+            crowdControlTimer = frames;
+        }
+    }
+
+    public void beginDeath(int rewardExp, int rewardQuestKills, int rewardCoins) {
+        if (dying || !alive) return;
+
+        dying = true;
+        collision = false;
+        onPath = false;
+        knockBack = false;
+        speed = 0;
+        crowdControlTimer = 0;
+        dyingCounter = 0;
+        deathRewardExp = Math.max(0, rewardExp);
+        deathRewardQuestKills = Math.max(0, rewardQuestKills);
+        deathRewardCoins = Math.max(0, rewardCoins);
+        deathRewardsQueued = true;
+    }
+
+    private void grantQueuedDeathRewards() {
+        if (!deathRewardsQueued) return;
+
+        deathRewardsQueued = false;
+
+        if (type == type_monster) {
+            if (name != null) {
+                gp.ui.addMessage("Killed the " + name + "!", Color.WHITE);
+            }
+            if (deathRewardExp > 0) {
+                gp.player.exp += deathRewardExp;
+                gp.player.checkLevelUp();
+            }
+            if (deathRewardQuestKills > 0 && gp.questManager != null) {
+                gp.questManager.progress("slay_monsters", deathRewardQuestKills);
+            }
+            if (deathRewardCoins > 0) {
+                gp.player.coin += deathRewardCoins;
+                gp.ui.addMessage("+" + deathRewardCoins + " coins", COIN_MSG_COLOR);
+            }
         }
     }
     public void changeAlpha(Graphics2D g2, float alphaValue) {
         g2.setComposite(AlphaComposite.getInstance(AlphaComposite.SRC_OVER, alphaValue));
     }
     public BufferedImage setup(String imagePath, int width, int height) {
-        UtilityTool uTool = new UtilityTool();
         BufferedImage image = null;
         try {
             image = ImageIO.read(getClass().getResourceAsStream(imagePath + ".png"));
-            image = uTool.scaleImage(image, width, height);
+            image = UtilityTool.scaleImage(image, width, height);
         } catch(IOException e) {
             e.printStackTrace();
         }
@@ -525,7 +682,7 @@ public class Entity {
         gp.pFinder.setNodes(startCol, startRow, goalCol, goalRow, this);
 
         // If path found
-        if (gp.pFinder.search() == true) {
+        if (gp.pFinder.search()) {
             if (gp.pFinder.pathList.isEmpty()) {
                 onPath = false;
                 return;

@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<map version="1.10" tiledversion="1.11.2" orientation="orthogonal" renderorder="right-down" width="100" height="100" tilewidth="32" tileheight="32" infinite="0" nextlayerid="8" nextobjectid="4">
+<map version="1.10" tiledversion="1.11.2" orientation="orthogonal" renderorder="right-down" width="100" height="100" tilewidth="32" tileheight="32" infinite="0" nextlayerid="8" nextobjectid="5">
  <tileset firstgid="1" name="grass" tilewidth="32" tileheight="32" tilecount="12" columns="6">
   <image source="../tiles/Grass_sheet.png" width="192" height="64"/>
  </tileset>
@@ -542,5 +542,6 @@
    </properties>
   </object>
   <object id="3" x="1728" y="576" width="128" height="128"/>
+  <object id="4" x="1749" y="816" width="25" height="15"/>
  </objectgroup>
 </map>
