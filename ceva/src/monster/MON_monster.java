@@ -24,11 +24,11 @@ public class MON_monster extends Entity {
         defaultSpeed = 1;
         speed = defaultSpeed;
         walkFrameCount = 6;
-        maxLife = 3;
+        maxLife = 6;
         life = maxLife;
-        attack = 1;
+        attack = 2;
         defense = 0;
-        exp = 2;
+        exp = 3;
 
         solidArea.x = 12;
         solidArea.y = 8;

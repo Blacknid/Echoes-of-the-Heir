@@ -53,6 +53,7 @@ public class Entity {
     private int walkFrameDirection = 1;
     public int actionLockCounter = 0;
     public int invincibleCounter = 0;
+    public int invincibleDuration = 10; // frames of i-frames after hit (short for combo-friendly combat)
     public int shotAvailableCounter = 0;
     int dyingCounter = 0;
     int hpBarCounter = 0;
@@ -65,14 +66,31 @@ public class Entity {
     // HIT FLASH: white overlay on damage
     public int hitFlashCounter = 0;
     private static final int HIT_FLASH_DURATION = 6;
+    // OPTIMIZATION: Pre-allocated Color constants to avoid per-frame allocation
+    private static final Color HP_BAR_BG = new Color(35, 35, 35);
+    private static final Color HP_BAR_FG = new Color(255, 0, 30);
+    private static final Color SPARK_COLOR_1 = new Color(255, 235, 120);
+    private static final Color SPARK_COLOR_2 = new Color(255, 200, 80);
+    private static final Color COIN_MSG_COLOR = new Color(255, 210, 90);
+    // OPTIMIZATION: Reusable flash image to avoid per-frame BufferedImage allocation
+    private BufferedImage hitFlashBuffer;
+    private int hitFlashBufferW, hitFlashBufferH;
 
     // TILE PARTICLES: throttle counter for footstep particle emission
     public int footstepParticleCounter = 0;
     
-    // DIALOGUE (reduced from 100x100 - most entities use very few dialogues)
-    public String dialogues[][] = new String[20][20];
+    // DIALOGUE (lazy-initialized to avoid wasting memory on entities that don't talk)
+    public String dialogues[][];
     public int dialogueIndex = 0;
     public int dialogueSet = 0;
+    
+    // OPTIMIZATION: Lazy dialogue access - only allocates when first written
+    public String[][] ensureDialogues() {
+        if (dialogues == null) {
+            dialogues = new String[20][20];
+        }
+        return dialogues;
+    }
     
     // IMAGES
     // Renamed class level 'image' to 'activeImage' to avoid confusion, 
@@ -267,7 +285,7 @@ public class Entity {
             crowdControlTimer--;
             if (invincible) {
                 invincibleCounter++;
-                if (invincibleCounter > 40) {
+                if (invincibleCounter > invincibleDuration) {
                     invincible = false;
                     invincibleCounter = 0;
                 }
@@ -364,7 +382,7 @@ public class Entity {
 
         if (invincible) {
             invincibleCounter++;
-            if (invincibleCounter > 40) {
+            if (invincibleCounter > invincibleDuration) {
                 invincible = false;
                 invincibleCounter = 0;
             }
@@ -415,10 +433,10 @@ public class Entity {
                 double oneScale = (double)gp.tileSize / maxLife;
                 double hpBarValue = oneScale * life;
 
-                g2.setColor(new Color(35, 35, 35));
+                g2.setColor(HP_BAR_BG);
                 g2.fillRect(screenX - 1, screenY - 16, gp.tileSize + 2, 12);
 
-                g2.setColor(new Color(255, 0, 30));
+                g2.setColor(HP_BAR_FG);
                 g2.fillRect(screenX, screenY - 15, (int)hpBarValue, 10);
 
                 hpBarCounter++;
@@ -459,19 +477,29 @@ public class Entity {
             }
 
             // HIT FLASH: tint sprite white when recently damaged
+            // OPTIMIZATION: Reuse a single buffer instead of allocating a new BufferedImage every frame
             if (hitFlashCounter > 0 && currentSprite != null) {
                 float flashAlpha = Math.min(1f, hitFlashCounter / (float) HIT_FLASH_DURATION * 0.8f);
-                // Create a white-tinted copy of the sprite
-                java.awt.image.BufferedImage flashImg = new java.awt.image.BufferedImage(
-                    currentSprite.getWidth(), currentSprite.getHeight(), java.awt.image.BufferedImage.TYPE_INT_ARGB);
-                java.awt.Graphics2D fg = flashImg.createGraphics();
+                int sprW = currentSprite.getWidth();
+                int sprH = currentSprite.getHeight();
+                // Lazily allocate or resize the reusable flash buffer
+                if (hitFlashBuffer == null || hitFlashBufferW < sprW || hitFlashBufferH < sprH) {
+                    hitFlashBufferW = sprW;
+                    hitFlashBufferH = sprH;
+                    hitFlashBuffer = new BufferedImage(sprW, sprH, BufferedImage.TYPE_INT_ARGB);
+                }
+                java.awt.Graphics2D fg = hitFlashBuffer.createGraphics();
+                // Clear previous contents
+                fg.setComposite(AlphaComposite.Clear);
+                fg.fillRect(0, 0, hitFlashBufferW, hitFlashBufferH);
+                // Draw sprite then overlay white
+                fg.setComposite(AlphaComposite.SrcOver);
                 fg.drawImage(currentSprite, 0, 0, null);
-                // Composite white only onto existing pixels (SRC_ATOP)
                 fg.setComposite(AlphaComposite.getInstance(AlphaComposite.SRC_ATOP, flashAlpha));
                 fg.setColor(Color.WHITE);
-                fg.fillRect(0, 0, flashImg.getWidth(), flashImg.getHeight());
+                fg.fillRect(0, 0, sprW, sprH);
                 fg.dispose();
-                g2.drawImage(flashImg, screenX, screenY, gp.tileSize, gp.tileSize, null);
+                g2.drawImage(hitFlashBuffer, screenX, screenY, gp.tileSize, gp.tileSize, null);
             }
             
             changeAlpha(g2, 1F);
@@ -524,7 +552,7 @@ public class Entity {
                     float angle = (float)(Math.random() * Math.PI * 2.0);
                     int dx = (int)Math.round(Math.cos(angle) * 2);
                     int dy = (int)Math.round(Math.sin(angle) * 2);
-                    p.setWithPosition(this, this, new Color(255, 235, 120), 4, 2, 14, dx, dy, Particle.STYLE_SPARK);
+                    p.setWithPosition(this, this, SPARK_COLOR_1, 4, 2, 14, dx, dy, Particle.STYLE_SPARK);
                     gp.particleList.add(p);
                 }
             }
@@ -544,7 +572,7 @@ public class Entity {
                 float angle = (float)(i * Math.PI * 2 / 12);
                 int dx = (int)(Math.cos(angle) * 3);
                 int dy = (int)(Math.sin(angle) * 3);
-                p.setWithPosition(this, this, new Color(255, 200, 80), 5, 3, 22, dx, dy, Particle.STYLE_SPARK);
+                p.setWithPosition(this, this, SPARK_COLOR_2, 5, 3, 22, dx, dy, Particle.STYLE_SPARK);
                 gp.particleList.add(p);
             }
             alive = false;
@@ -591,7 +619,7 @@ public class Entity {
             }
             if (deathRewardCoins > 0) {
                 gp.player.coin += deathRewardCoins;
-                gp.ui.addMessage("+" + deathRewardCoins + " coins", new Color(255, 210, 90));
+                gp.ui.addMessage("+" + deathRewardCoins + " coins", COIN_MSG_COLOR);
             }
         }
     }

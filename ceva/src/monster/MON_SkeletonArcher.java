@@ -35,11 +35,11 @@ public class MON_SkeletonArcher extends Entity {
         defaultSpeed = 1;
         speed = defaultSpeed;
         walkFrameCount = 6;
-        maxLife = 4;
+        maxLife = 8;
         life = maxLife;
-        attack = 2;
-        defense = 0;
-        exp = 4;
+        attack = 3;
+        defense = 1;
+        exp = 7;
 
         solidArea.x = 12;
         solidArea.y = 8;

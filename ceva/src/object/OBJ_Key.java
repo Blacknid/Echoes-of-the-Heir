@@ -32,9 +32,9 @@ public class OBJ_Key extends Entity{
 
     public void setDialogue() {
     
-        dialogues[0][0] = "You use the " + name + " to open the door.";
-        dialogues[1][0] = "You use the " + name + " to open the chest.";
-        dialogues[2][0] = "There is nothing to use the key on.";
+        ensureDialogues()[0][0] = "You use the " + name + " to open the door.";
+        ensureDialogues()[1][0] = "You use the " + name + " to open the chest.";
+        ensureDialogues()[2][0] = "There is nothing to use the key on.";
     
     }
 

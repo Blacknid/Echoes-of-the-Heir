@@ -1,7 +1,9 @@
 package main;
 
 import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
 
 /**
  * Generic object pool for reducing garbage collection pressure by reusing objects.
@@ -10,7 +12,8 @@ import java.util.List;
 @SuppressWarnings("unchecked")
 public class ObjectPool<T> {
     private List<T> available = new ArrayList<>();
-    private List<T> inUse = new ArrayList<>();
+    // OPTIMIZATION: Use HashSet for O(1) contains/remove instead of O(n) linear scan
+    private Set<T> inUse = new HashSet<>();
     private PoolableObject factory;
     private int expandSize;
 

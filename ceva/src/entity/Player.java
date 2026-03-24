@@ -16,7 +16,6 @@ import java.awt.AlphaComposite;
 public class Player extends Entity {
 
     // Constants
-    private final int attackDuration = 20; // Total duration of attack animation in frames
     public final int maxInventorySize = 20;
 
     // Instance variables
@@ -35,6 +34,7 @@ public class Player extends Entity {
     private int comboStep = 0;       // 0, 1, 2 (light, light, heavy)
     private int comboWindow = 0;     // frames remaining to chain next attack
     private static final int COMBO_WINDOW_MAX = 20;
+    private boolean attackBuffered = false; // buffered input for rapid presses mid-attack
 
     // Level-up stat choice
     public int levelUpChoice = 0;    // currently highlighted option (0-2)
@@ -58,15 +58,16 @@ public class Player extends Entity {
     public int levelUpBannerTimer = 0;
     public String levelUpBannerText = "";
 
-    // Dodge roll (replaces basic dash)
+    // Swift Evade (medieval dodge — snappy sidestep with weight)
     private boolean dashing = false;
     private int dashCounter = 0;
-    private final int dashDuration = 12; // frames (slightly longer than old dash)
+    private final int dashDuration = 10;  // frames (~0.17s — snappy burst)
     private int dashCooldown = 0;
-    private final int dashCooldownMax = 45; // shorter cooldown
+    private final int dashCooldownMax = 38; // ~0.63s cooldown
     private boolean dashParticle = false;
-    private int dashGrayFadeCounter = 0;
-    private static final int DASH_GRAY_FADE_FRAMES = 30; // ~0.5s at 60 FPS
+    private int evadeRecovery = 0;         // brief post-evade slowdown (footing)
+    private static final int EVADE_RECOVERY_FRAMES = 3;
+    private int evadeFlashTimer = 0;       // armor-glint flash on evade start
     private int shockwaveCooldown = 0;
     private int voidSnareCooldown = 0;
     private int frostNovaCooldown = 0;
@@ -78,6 +79,18 @@ public class Player extends Entity {
     private static final int FROST_NOVA_COOLDOWN_MAX = 200;
     private static final int OVERDRIVE_COOLDOWN_MAX = 420;
     private static final int OVERDRIVE_DURATION = 180;
+
+    // Attack anticipation (wind-up hold on frame 1)
+    private int anticipationTimer = -1;
+
+    // Swing trail afterimages
+    private static final int TRAIL_SIZE = 4;
+    private final int[] trailWorldX = new int[TRAIL_SIZE];
+    private final int[] trailWorldY = new int[TRAIL_SIZE];
+    private int trailIndex = 0;
+    private int trailCount = 0;
+    private boolean trailActive = false;
+
     private int idleCounter = 0;
     private int idleFrameDirection = 1;
     private final int idleFrameInterval = 10;
@@ -152,7 +165,7 @@ public class Player extends Entity {
     }
 
     public void setDialogue() {
-        dialogues[0][0] = "You are level " + level + " now!\n" + "Your stats have increased, keep going!";
+        ensureDialogues()[0][0] = "You are level " + level + " now!\n" + "Your stats have increased, keep going!";
     }
 
     public void setDefaultPositions() {
@@ -288,49 +301,47 @@ public class Player extends Entity {
             movingThisFrame = false;
         }
 
-        // Handle dodge roll
-        if (dashUnlocked && keyH.dashPressed && dashCooldown == 0 && !dashing && !attacking) {
+        // Swift Evade — snappy medieval sidestep
+        if (dashUnlocked && keyH.dashPressed && dashCooldown == 0 && !dashing && !attacking && evadeRecovery == 0) {
             dashing = true;
             dashCounter = dashDuration;
             dashCooldown = getDashCooldownMax();
-            invincible = true;    // i-frames during roll
-            dashGrayFadeCounter = 0;
+            invincible = true;
+            evadeFlashTimer = 3;  // brief armor glint
             spawnDashBurst(true);
-            dashParticle = true;
-            generateParticle(this, this);
-            dashParticle = false;
+            gp.playSE(10); // quick whoosh
         }
         if (dashing) {
-            int elapsed = dashDuration - dashCounter;
-            float t = Math.max(0f, Math.min(1f, elapsed / (float)Math.max(1, dashDuration)));
-            float speedMultiplier = 2.2f + (float)Math.sin(t * Math.PI) * 1.2f;
+            // Quadratic ease-out: explosive start, smooth deceleration
+            float t = Math.max(0f, Math.min(1f, (dashDuration - dashCounter) / (float)Math.max(1, dashDuration)));
+            float speedMultiplier = 3.2f * (1f - t * t);  // burst → decel
             speed = Math.max(defaultSpeed + 1, Math.round(defaultSpeed * speedMultiplier));
-            invincible = true;        // maintain i-frames for full roll
-            invincibleCounter = 0;    // prevent i-frame timer from expiring mid-roll
+            invincible = true;
+            invincibleCounter = 0;  // hold i-frames during evade
             dashCounter--;
-            // Trail particles every 2 frames with slight directional spread.
-            if (dashCounter % 2 == 0) {
+            // Dust trail every 3 frames
+            if (dashCounter % 3 == 0) {
                 spawnDashTrail();
             }
             if (dashCounter <= 0) {
                 dashing = false;
-                speed = defaultSpeed;
+                speed = Math.max(1, defaultSpeed - 1); // brief heavy landing
+                evadeRecovery = EVADE_RECOVERY_FRAMES;
                 spawnDashBurst(false);
-                // i-frames linger briefly after roll ends
-                invincibleCounter = 45;
+                invincibleCounter = 54; // tight grace period (~6 real i-frames)
             }
         }
+        // Post-evade recovery: regain footing
+        if (evadeRecovery > 0) {
+            evadeRecovery--;
+            if (evadeRecovery == 0) {
+                speed = defaultSpeed;
+            }
+        }
+        if (evadeFlashTimer > 0) evadeFlashTimer--;
         if (dashCooldown > 0) dashCooldown--;
 
-        if (invincible) {
-            if (dashing || dashGrayFadeCounter > 0) {
-                if (dashGrayFadeCounter < DASH_GRAY_FADE_FRAMES) {
-                    dashGrayFadeCounter++;
-                }
-            }
-        } else {
-            dashGrayFadeCounter = 0;
-        }
+        // (invincibility alpha handled in draw)
 
         if (shockwaveCooldown > 0) shockwaveCooldown--;
         if (voidSnareCooldown > 0) voidSnareCooldown--;
@@ -353,12 +364,19 @@ public class Player extends Entity {
 
         handleAbilityInputs();
 
+        // Hitstop is now handled globally in GamePanel.triggerHitstop()
+
         // Combo window countdown
         if (comboWindow > 0) comboWindow--;
         if (comboWindow <= 0 && !attacking) comboStep = 0;
 
         // Handle attacking first
         if (attacking && !attackCanceled) {
+            // Buffer attack input during active attack for responsive combos
+            if (keyH.enterPressed) {
+                attackBuffered = true;
+                keyH.enterPressed = false;
+            }
             attacking();
             // Slight attack movement if holding the same direction
             int attackMoveSpeed = Math.max(1, speed / 2);
@@ -483,10 +501,11 @@ public class Player extends Entity {
                 gp.cChecker.checkEntity(this, gp.iTile);
                 gp.eHandler.checkEvent();
 
-                // Start attack if enter pressed (combo chain within window)
-                if (keyH.enterPressed && !attackCanceled && !dashing) {
+                // Start attack if enter pressed or buffered (combo chain within window)
+                if ((keyH.enterPressed || attackBuffered) && !attackCanceled && !dashing) {
                     attacking = true;
                     spriteCounter = 0;
+                    attackBuffered = false;
                     if (comboWindow > 0 && comboStep < 2) {
                         comboStep++;
                     } else if (comboWindow <= 0) {
@@ -494,6 +513,7 @@ public class Player extends Entity {
                     }
                 }
                 attackCanceled = false;
+                attackBuffered = false;
                 keyH.enterPressed = false;
                 // Update animation sprites
                 updateSprite();
@@ -583,21 +603,97 @@ public class Player extends Entity {
 
     public void attacking() {
         spriteCounter++;
-        // Heavy finisher (combo step 2) is slightly faster
-        int duration = (comboStep == 2) ? attackDuration - 4 : attackDuration;
+        // Each combo step feels different:
+        // Step 0: quick jab (16 frames)
+        // Step 1: swift slash (18 frames)
+        // Step 2: heavy finisher (14 frames — faster wind-up, devastating)
+        int duration;
+        switch (comboStep) {
+            case 0 -> duration = 16;
+            case 1 -> duration = 18;
+            default -> duration = 14; // heavy is snappier
+        }
+
+        // --- ANTICIPATION PHASE: hold frame 1 with slight pullback ---
+        if (anticipationTimer < 0) {
+            // First frame of attack: initialize anticipation
+            anticipationTimer = switch (comboStep) {
+                case 0 -> 4;   // quick jab: short wind-up
+                case 1 -> 3;   // swift slash: minimal
+                default -> 6;  // heavy finisher: dramatic wind-up
+            };
+            spriteCounter = 0;
+            trailCount = 0;
+            trailIndex = 0;
+            trailActive = false;
+        }
+        if (anticipationTimer > 0) {
+            anticipationTimer--;
+            spriteNum = 1; // hold first attack pose
+            // Slight pullback opposite to facing (collision-checked)
+            int pullSpeed = 2;
+            int pullX = worldX, pullY = worldY;
+            switch (direction) {
+                case "up"    -> pullY += pullSpeed;
+                case "down"  -> pullY -= pullSpeed;
+                case "left"  -> pullX += pullSpeed;
+                case "right" -> pullX -= pullSpeed;
+            }
+            int origX = worldX, origY = worldY;
+            worldX = pullX; worldY = pullY;
+            collisionOn = false;
+            gp.cChecker.checkTile(this);
+            if (collisionOn) { worldX = origX; worldY = origY; }
+            return; // stay in anticipation — don't run swing logic
+        }
+
         int frameLength = duration / 5;
         int currentFrame = spriteCounter / frameLength + 1;
         if (currentFrame > 5) currentFrame = 5;
         spriteNum = currentFrame;
-        // HIT on frame 3 only (middle swing)
+
+        // --- SWING TRAIL: record positions during active swing frames ---
+        if (currentFrame >= 2 && currentFrame <= 4) {
+            trailWorldX[trailIndex] = worldX;
+            trailWorldY[trailIndex] = worldY;
+            trailIndex = (trailIndex + 1) % TRAIL_SIZE;
+            if (trailCount < TRAIL_SIZE) trailCount++;
+            trailActive = true;
+        }
+
+        // Forward lunge on heavy finisher (step 2) during windup frames
+        if (comboStep == 2 && currentFrame <= 2) {
+            int lungeSpeed = 3;
+            int lungeX = worldX, lungeY = worldY;
+            switch (direction) {
+                case "up" -> lungeY -= lungeSpeed;
+                case "down" -> lungeY += lungeSpeed;
+                case "left" -> lungeX -= lungeSpeed;
+                case "right" -> lungeX += lungeSpeed;
+            }
+            int origX = worldX, origY = worldY;
+            worldX = lungeX;
+            worldY = lungeY;
+            collisionOn = false;
+            gp.cChecker.checkTile(this);
+            if (collisionOn) {
+                worldX = origX;
+                worldY = origY;
+            }
+        }
+
+        // HIT on frame 3 (middle swing)
         if (currentFrame == 3 && spriteCounter % frameLength == 0) {
             performAttackHitbox();
         }
-        // End attack → open combo window
+        // End attack → open combo window (shorter on heavy = combo resets naturally)
         if (spriteCounter >= duration) {
             spriteCounter = 0;
             attacking = false;
-            comboWindow = COMBO_WINDOW_MAX;
+            anticipationTimer = -1;
+            trailActive = false;
+            trailCount = 0;
+            comboWindow = (comboStep == 2) ? 10 : COMBO_WINDOW_MAX;
         }
     }
 
@@ -653,13 +749,17 @@ public class Player extends Entity {
         if (i != 999) {
             if (!gp.monster[i].invincible) {
                 gp.playSE(5);
-                // Combo damage: step 0 = 1x, step 1 = 1x, step 2 (heavy) = 1.5x
+                // Combo damage escalation: step 0 = 1x, step 1 = 1.15x, step 2 = 1.6x
                 boolean isHeavy = (comboStep == 2);
-                int effectiveAttack = isHeavy ? (int)(attack * 1.5f) : attack;
-                effectiveAttack = Math.max(1, (int)(effectiveAttack * getTotalMeleeMultiplier()));
+                float comboMultiplier = switch (comboStep) {
+                    case 1  -> 1.15f;
+                    case 2  -> 1.6f;
+                    default -> 1.0f;
+                };
+                int effectiveAttack = Math.max(1, (int)(attack * comboMultiplier * getTotalMeleeMultiplier()));
                 int kb = (currentWeapon != null) ? currentWeapon.knockBackPower / 2 : 1;
                 if (kb < 1) kb = 1;
-                if (isHeavy) kb = (int)(kb * 1.5f); // extra knockback on heavy
+                if (isHeavy) kb = (int)(kb * 2.0f);
                 knockBack(gp.monster[i], kb, worldX, worldY);
                 int damage = effectiveAttack - gp.monster[i].defense;
                 if (damage < 0) {
@@ -667,11 +767,30 @@ public class Player extends Entity {
                 }
                 gp.monster[i].life -= damage;
                 generateParticle(this, gp.monster[i]);
-                generateSparks(gp.monster[i]);
+
+                // Escalating spark colors per combo step
+                Color sparkColor = switch (comboStep) {
+                    case 1  -> new Color(255, 200, 80);  // golden
+                    case 2  -> new Color(255, 120, 50);  // fiery orange
+                    default -> new Color(255, 220, 100); // pale yellow
+                };
+                generateComboSparks(gp.monster[i], sparkColor, comboStep);
                 spawnDamageNumber(gp.monster[i], damage, isHeavy);
-                gp.monster[i].hitFlashCounter = 6;
-                gp.screenShake.shakeLight();
-                if (isHeavy) gp.screenShake.shakeMedium(); // extra shake on heavy finisher
+                gp.monster[i].hitFlashCounter = isHeavy ? 10 : 6;
+
+                // Escalating screen shake per combo step
+                switch (comboStep) {
+                    case 0 -> gp.screenShake.shakeLight();
+                    case 1 -> gp.screenShake.shakeMedium();
+                    case 2 -> gp.screenShake.shakeHeavy();
+                }
+
+                // Global hitstop: brief freeze-frame (scales with combo)
+                switch (comboStep) {
+                    case 0 -> gp.triggerHitstop(2);
+                    case 1 -> gp.triggerHitstop(3);
+                    case 2 -> gp.triggerHitstop(5);
+                }
 
                 gp.monster[i].invincible = true;
                 gp.monster[i].damageReaction();
@@ -679,6 +798,27 @@ public class Player extends Entity {
                     killMonster(gp.monster[i]);
                 }
             }
+        }
+    }
+
+    /** Emit directional sparks with count/size scaling by combo step. */
+    private void generateComboSparks(Entity target, Color color, int step) {
+        int count = 4 + step * 2; // 4, 6, 8 sparks
+        int baseSize = 3 + step;   // 3, 4, 5
+        int baseX = 0, baseY = 0;
+        switch (direction) {
+            case "up" -> baseY = -1;
+            case "down" -> baseY = 1;
+            case "left" -> baseX = -1;
+            case "right" -> baseX = 1;
+        }
+        for (int i = 0; i < count; i++) {
+            Particle spark = gp.particlePool.get();
+            int dx = baseX + (int)((Math.random() - 0.5) * 3);
+            int dy = baseY + (int)((Math.random() - 0.5) * 3);
+            if (dx == 0 && dy == 0) dx = 1;
+            spark.setWithPosition(this, target, color, baseSize, 3, 12 + step * 2, dx, dy, Particle.STYLE_SPARK);
+            gp.particleList.add(spark);
         }
     }
 
@@ -840,7 +980,8 @@ public class Player extends Entity {
 
     private void killMonster(Entity monster) {
         if (monster == null || monster.dying || !monster.alive) return;
-        monster.beginDeath(monster.exp, 1, 0);
+        int coinDrop = Math.max(1, monster.exp / 2);
+        monster.beginDeath(monster.exp, 1, coinDrop);
         gp.screenShake.shakeMedium();
     }
 
@@ -889,9 +1030,10 @@ public class Player extends Entity {
             life -= damage;
             invincible = true;
 
-            // HIT FLASH + SHAKE when player takes damage
+            // HIT FLASH + SHAKE + HITSTOP when player takes damage
             hitFlashCounter = 6;
             gp.screenShake.shakeMedium();
+            gp.triggerHitstop(3);
             // compute knockback direction away from the monster
             int dx = worldX - gp.monster[i].worldX;
             int dy = worldY - gp.monster[i].worldY;
@@ -986,34 +1128,52 @@ public class Player extends Entity {
             case "right" -> dirX = 1;
         }
 
+        // Dirt wisps trailing behind (earth tones)
         for (int i = 0; i < 2; i++) {
             Particle trail = gp.particlePool.get();
-            int sideX = (int)((Math.random() - 0.5) * 2.0);
-            int sideY = (int)((Math.random() - 0.5) * 2.0);
-            trail.setWithPosition(this, this, new Color(200, 190, 170), 4 + i, 1, 14,
-                    -dirX + sideX, -dirY + sideY, Particle.STYLE_TRAIL);
+            int sideX = (int)((Math.random() - 0.5) * 3.0);
+            int sideY = (int)((Math.random() - 0.5) * 3.0);
+            // Earthy brown
+            Color dustColor = (i == 0) ? new Color(165, 140, 105) : new Color(140, 120, 90);
+            trail.setWithPosition(this, this, dustColor, 3 + i, 1, 10,
+                    -dirX + sideX, -dirY + sideY, Particle.STYLE_DUST);
             gp.particleList.add(trail);
-        }
-
-        if (dashCounter % 4 == 0) {
-            Particle spark = gp.particlePool.get();
-            spark.setWithPosition(this, this, new Color(245, 220, 150), 3, 2, 10,
-                    -dirX, -dirY, Particle.STYLE_SPARK);
-            gp.particleList.add(spark);
         }
     }
 
     private void spawnDashBurst(boolean start) {
-        Color burstColor = start ? new Color(220, 210, 185) : new Color(180, 190, 210);
-        int count = start ? 8 : 6;
-        for (int i = 0; i < count; i++) {
-            double angle = (Math.PI * 2.0 * i) / count;
-            int dx = (int)Math.round(Math.cos(angle));
-            int dy = (int)Math.round(Math.sin(angle));
-            Particle p = gp.particlePool.get();
-            p.setWithPosition(this, this, burstColor, start ? 5 : 4, start ? 2 : 1, start ? 16 : 12,
-                    dx, dy, Particle.STYLE_SPARK);
-            gp.particleList.add(p);
+        if (start) {
+            // Ground dust cloud on evade start — earthy burst from feet
+            Color dustColor = new Color(180, 155, 120);  // warm stone
+            for (int i = 0; i < 6; i++) {
+                double angle = (Math.PI * 2.0 * i) / 6;
+                int dx = (int)Math.round(Math.cos(angle));
+                int dy = (int)Math.round(Math.sin(angle));
+                Particle p = gp.particlePool.get();
+                p.setWithPosition(this, this, dustColor, 5, 2, 12,
+                        dx, dy, Particle.STYLE_DUST);
+                gp.particleList.add(p);
+            }
+            // 2 larger central dust puffs rising up
+            for (int i = 0; i < 2; i++) {
+                Particle puff = gp.particlePool.get();
+                int sx = (int)((Math.random() - 0.5) * 2);
+                puff.setWithPosition(this, this, new Color(155, 135, 105), 6, 1, 16,
+                        sx, -1, Particle.STYLE_DUST);
+                gp.particleList.add(puff);
+            }
+        } else {
+            // Landing dirt scatter — small stones/dust on arrival
+            Color landColor = new Color(150, 130, 100);  // darker earth
+            for (int i = 0; i < 4; i++) {
+                double angle = (Math.PI * 2.0 * i) / 4 + Math.random() * 0.5;
+                int dx = (int)Math.round(Math.cos(angle));
+                int dy = (int)Math.round(Math.sin(angle));
+                Particle p = gp.particlePool.get();
+                p.setWithPosition(this, this, landColor, 3, 1, 8,
+                        dx, dy, Particle.STYLE_DUST);
+                gp.particleList.add(p);
+            }
         }
     }
 
@@ -1246,13 +1406,56 @@ public class Player extends Entity {
         int tempScreenY = screenY;
         int frame = Math.max(1, spriteNum);
 
+        int drawW = gp.tileSize;
+        int drawH = gp.tileSize;
+
         if (attacking) {
             image = getAttackFrame(direction, frame);
-            // Offset the draw position for attack sprites
+            // Attack sprites have doubled dimension — set proper draw size and offset
             switch(direction) {
-                case "up"    -> tempScreenY -= gp.tileSize;
-                case "left"  -> tempScreenX -= gp.tileSize;
-                // down and right: no offset needed
+                case "up" -> {
+                    drawW = gp.tileSize;
+                    drawH = gp.tileSize * 2;
+                    tempScreenY -= gp.tileSize;
+                }
+                case "down" -> {
+                    drawW = gp.tileSize;
+                    drawH = gp.tileSize * 2;
+                }
+                case "left" -> {
+                    drawW = gp.tileSize * 2;
+                    drawH = gp.tileSize;
+                    tempScreenX -= gp.tileSize;
+                }
+                case "right" -> {
+                    drawW = gp.tileSize * 2;
+                    drawH = gp.tileSize;
+                }
+            }
+
+            // --- SWING TRAIL: draw warm-tinted afterimages behind the active swing ---
+            if (trailActive && trailCount > 0 && image != null) {
+                java.awt.Composite savedTrail = g2.getComposite();
+                float[] trailAlphas = {0.22f, 0.14f, 0.08f, 0.04f};
+                int playerWX = gp.player.worldX;
+                int playerWY = gp.player.worldY;
+                int playerSX = gp.player.screenX;
+                int playerSY = gp.player.screenY;
+                for (int ti = 0; ti < trailCount; ti++) {
+                    // Read from ring buffer: newest = (trailIndex - 1), oldest first
+                    int idx = (trailIndex - trailCount + ti + TRAIL_SIZE) % TRAIL_SIZE;
+                    int tSX = trailWorldX[idx] - playerWX + playerSX;
+                    int tSY = trailWorldY[idx] - playerWY + playerSY;
+                    // Apply same attack offset as main sprite
+                    switch (direction) {
+                        case "up" -> tSY -= gp.tileSize;
+                        case "left" -> tSX -= gp.tileSize;
+                    }
+                    float alpha = (ti < trailAlphas.length) ? trailAlphas[ti] : 0.03f;
+                    g2.setComposite(AlphaComposite.getInstance(AlphaComposite.SRC_OVER, alpha));
+                    g2.drawImage(image, tSX, tSY, drawW, drawH, null);
+                }
+                g2.setComposite(savedTrail);
             }
         } else if (!movingThisFrame) {
             image = getIdleFrame(direction, frame);
@@ -1263,53 +1466,60 @@ public class Player extends Entity {
         // Fallback to first walk frame if null
         if (image == null) {
             image = getWalkFrameImage(direction, 1);
+            drawW = gp.tileSize;
+            drawH = gp.tileSize;
         }
 
-        int drawW = gp.tileSize;
-        int drawH = gp.tileSize;
         int drawX = tempScreenX;
         int drawY = tempScreenY;
 
         if (dashing) {
-            float dashPhase = 1f - (dashCounter / (float)Math.max(1, dashDuration));
-            float pulse = (float)Math.sin(dashPhase * Math.PI);
-
+            // Subtle directional lean — character leans into the evade
+            float t = (dashDuration - dashCounter) / (float)Math.max(1, dashDuration);
+            float lean = (float)Math.sin(t * Math.PI) * 0.06f; // subtle
             if ("left".equals(direction) || "right".equals(direction)) {
-                drawW = (int)(gp.tileSize * (1.2f + 0.1f * pulse));
-                drawH = (int)(gp.tileSize * (0.84f - 0.06f * pulse));
+                drawW = (int)(gp.tileSize * (1.0f + lean));
+                drawH = (int)(gp.tileSize * (1.0f - lean * 0.4f));
             } else {
-                drawW = (int)(gp.tileSize * (0.9f - 0.05f * pulse));
-                drawH = (int)(gp.tileSize * (1.14f + 0.08f * pulse));
+                drawW = (int)(gp.tileSize * (1.0f - lean * 0.4f));
+                drawH = (int)(gp.tileSize * (1.0f + lean));
             }
-
             drawX = tempScreenX - (drawW - gp.tileSize) / 2;
             drawY = tempScreenY - (drawH - gp.tileSize) / 2;
 
-            int dirX = 0;
-            int dirY = 0;
+            // Tight motion-blur afterimages (3 closely spaced)
+            int dirX = 0, dirY = 0;
             switch (direction) {
                 case "up" -> dirY = -1;
                 case "down" -> dirY = 1;
                 case "left" -> dirX = -1;
                 case "right" -> dirX = 1;
             }
-
             java.awt.Composite saved = g2.getComposite();
-            for (int i = 1; i <= 2; i++) {
-                float alpha = (i == 1) ? 0.24f : 0.14f;
-                g2.setComposite(AlphaComposite.getInstance(AlphaComposite.SRC_OVER, alpha));
-                int trailOffset = 7 * i;
-                g2.drawImage(image, drawX - dirX * trailOffset, drawY - dirY * trailOffset, drawW, drawH, null);
+            float[] alphas = {0.28f, 0.16f, 0.07f};
+            int[] offsets = {5, 10, 15};
+            for (int i = 0; i < 3; i++) {
+                g2.setComposite(AlphaComposite.getInstance(AlphaComposite.SRC_OVER, alphas[i]));
+                g2.drawImage(image,
+                    drawX - dirX * offsets[i], drawY - dirY * offsets[i],
+                    drawW, drawH, null);
             }
             g2.setComposite(saved);
         }
 
+        // Armor-glint flash on evade start
+        if (evadeFlashTimer > 0) {
+            float flashAlpha = evadeFlashTimer / 3f * 0.35f;
+            java.awt.Composite saved = g2.getComposite();
+            g2.setComposite(AlphaComposite.getInstance(AlphaComposite.SRC_OVER, flashAlpha));
+            g2.setColor(new Color(255, 245, 220));
+            g2.fillRect(drawX + 8, drawY + 8, drawW - 16, drawH - 16);
+            g2.setComposite(saved);
+        }
+
         if (invincible) {
-            float alpha = 0.4f;
-            if (dashGrayFadeCounter > 0) {
-                float t = Math.min(1f, dashGrayFadeCounter / (float)DASH_GRAY_FADE_FRAMES);
-                alpha = 1f - (0.6f * t); // 1.0 -> 0.4 over ~0.5s
-            }
+            // Simple flicker during i-frames — no lingering gray
+            float alpha = (invincibleCounter % 4 < 2) ? 0.5f : 0.85f;
             g2.setComposite(AlphaComposite.getInstance(AlphaComposite.SRC_OVER, alpha));
         }
         g2.drawImage(image, drawX, drawY, drawW, drawH, null);
@@ -1401,33 +1611,46 @@ public class Player extends Entity {
 
     public void checkLevelUp() {
         while (exp >= nextLevelExp) {
+            exp -= nextLevelExp;  // subtract — XP bar resets each level
             level++;
-            nextLevelExp = nextLevelExp * 2;
+            nextLevelExp = 4 + level * 3;  // linear growth: 7, 10, 13, 16, 19...
 
-            // Baseline level growth
-            life = Math.min(life + 2, maxLife);
+            // +1 skill point per level
             skillPoints++;
-
-            // Periodic passive growth at milestone levels
-            if (level % 3 == 0) {
-                maxLife += 1;
-                life = Math.min(maxLife, life + 1);
-            }
-            if (level % 4 == 0) {
-                strenght += 1;
-                attack = getAttack();
-            }
-            if (level % 5 == 0) {
-                dexterity += 1;
-                defense = getDefense();
-            }
-            if (level % 6 == 0) {
-                maxMana += 1;
-                mana = Math.min(maxMana, mana + 1);
-            }
+            // Heal a bit on level up
+            life = Math.min(life + 2, maxLife);
 
             triggerLevelUpEffects();
+            generateLevelUpChoices();
+            gp.gameState = gp.levelUpState;
         }
+    }
+
+    /** Build 3 random stat upgrade options for the level-up choice screen. */
+    private void generateLevelUpChoices() {
+        // Pool of possible stat upgrades
+        String[][] pool = {
+            {"maxLife",   "+1 Max HP",       "1"},
+            {"strenght",  "+1 Strength",      "1"},
+            {"dexterity", "+1 Dexterity",     "1"},
+            {"speed",     "+1 Speed",         "1"},
+            {"maxMana",   "+1 Max Mana",      "1"},
+        };
+
+        // Shuffle and pick 3 distinct options
+        java.util.List<String[]> options = new java.util.ArrayList<>(java.util.Arrays.asList(pool));
+        java.util.Collections.shuffle(options);
+
+        levelUpOptions = new String[3];
+        levelUpValues = new int[3];
+        levelUpStatKeys = new String[3];
+
+        for (int i = 0; i < 3; i++) {
+            levelUpStatKeys[i] = options.get(i)[0];
+            levelUpOptions[i] = options.get(i)[1];
+            levelUpValues[i] = Integer.parseInt(options.get(i)[2]);
+        }
+        levelUpChoice = 0;
     }
 
     private void triggerLevelUpEffects() {
@@ -1437,7 +1660,7 @@ public class Player extends Entity {
 
         levelUpBannerText = getLevelUpFlavorText(level);
         levelUpBannerTimer = 180;
-        gp.ui.addMessage("Level " + level + "! +1 Skill Point", new Color(255, 220, 110));
+        gp.ui.addMessage("Level " + level + "! +1 Skill Point  Choose a stat!", new Color(255, 220, 110));
     }
 
     private String getLevelUpFlavorText(int newLevel) {
@@ -1546,6 +1769,15 @@ public class Player extends Entity {
             case "VOID_SNARE" -> voidSnareUnlocked = true;
             case "FROST_NOVA" -> frostNovaUnlocked = true;
             case "OVERDRIVE" -> overdriveUnlocked = true;
+            case "QUICK_RECOVERY" -> {
+                dashCooldownBonus += dashCooldownMax / 2;
+                defaultSpeed += 1;
+                speed = defaultSpeed;
+            }
+            case "ARCANE_MASTERY" -> {
+                maxMana += 3;
+                mana = maxMana;
+            }
             default -> {
                 return;
             }
@@ -1586,7 +1818,7 @@ public class Player extends Entity {
     @Override
     public Color getParticleColor() {
         if (dashParticle) {
-            return new Color(160, 160, 160); // gray dust for dash
+            return new Color(170, 145, 110); // earthy dust
         }
         return new Color(210, 32, 45);
     }
@@ -1594,7 +1826,7 @@ public class Player extends Entity {
     @Override
     public int getParticleSize() {
         if (dashParticle) {
-            return 6; // smaller for dash
+            return 5;
         }
         return 10;
     }
@@ -1602,7 +1834,7 @@ public class Player extends Entity {
     @Override
     public int getParticleSpeed() {
         if (dashParticle) {
-            return 2; // faster for dash
+            return 1;
         }
         return 2;
     }
@@ -1610,7 +1842,7 @@ public class Player extends Entity {
     @Override
     public int getParticleMaxLife() {
         if (dashParticle) {
-            return 15; // shorter life for dash
+            return 10;
         }
         return 24;
     }
@@ -1643,25 +1875,21 @@ public class Player extends Entity {
         return maxLife;
     }
 
-    // Dash particles
+    // Dash particles (medieval earth tones)
     public Color getParticleColorDash() {
-        Color color = new Color(150, 150, 150); // gray dust
-        return color;
+        return new Color(170, 145, 110);
     }
 
     public int getParticleSizeDash() {
-        int size = 6; // smaller
-        return size;
+        return 5;
     }
 
     public int getParticleSpeedDash() {
-        int speed = 2; // faster
-        return speed;
+        return 1;
     }
 
     public int getParticleMaxLifeDash() {
-        int maxLife = 15; // shorter life
-        return maxLife;
+        return 10;
     }
 
 }

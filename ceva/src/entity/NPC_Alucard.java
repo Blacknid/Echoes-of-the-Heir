@@ -51,19 +51,19 @@ public class NPC_Alucard extends Entity{
     }
     public void setDialogue() {
 
-        dialogues[0][0] = "Hello, spirit !";
-        dialogues[0][1] = "I see, so you've come for the treasure?";
-        dialogues[0][2] = "You should start by doing some research.";
-        dialogues[0][3] = "I can help you find the first key.\nYou should go South.";
+        ensureDialogues()[0][0] = "Hello, spirit !";
+        ensureDialogues()[0][1] = "I see, so you've come for the treasure?";
+        ensureDialogues()[0][2] = "You should start by doing some research.";
+        ensureDialogues()[0][3] = "I can help you find the first key.\nYou should go South.";
 
-        dialogues[1][0] = "The Dark Heart is hidden deep\nwithin the castle.";
-        dialogues[1][1] = "Only those worthy can possess it.";
-        dialogues[1][2] = "Prove your worth by reaching\nLevel 3.";
-        dialogues[1][3] = "Good luck on your journey!";
+        ensureDialogues()[1][0] = "The Dark Heart is hidden deep\nwithin the castle.";
+        ensureDialogues()[1][1] = "Only those worthy can possess it.";
+        ensureDialogues()[1][2] = "Prove your worth by reaching\nLevel 3.";
+        ensureDialogues()[1][3] = "Good luck on your journey!";
 
-        dialogues[2][0] = "You have done well to reach Level 3.";
-        dialogues[2][1] = "You are now worthy to possess\nthe Dark Heart.";
-        dialogues[2][2] = "Take it and fulfill your destiny.";
+        ensureDialogues()[2][0] = "You have done well to reach Level 3.";
+        ensureDialogues()[2][1] = "You are now worthy to possess\nthe Dark Heart.";
+        ensureDialogues()[2][2] = "Take it and fulfill your destiny.";
 
     }
     public void setAction() {

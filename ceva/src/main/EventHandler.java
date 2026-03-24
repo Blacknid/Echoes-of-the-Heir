@@ -78,7 +78,7 @@ public class EventHandler{
     }
     public void setDialogue() {
         
-        eventMaster.dialogues[0][0] = "All your health and mana has been restored.\nYou feel refreshed.  \n( Game saved )";
+        eventMaster.ensureDialogues()[0][0] = "All your health and mana has been restored.\nYou feel refreshed.  \n( Game saved )";
     }
 
     public void checkEvent() {
