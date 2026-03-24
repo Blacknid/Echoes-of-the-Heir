@@ -119,7 +119,7 @@ public class Player extends Entity {
         worldY = (int)(gp.tileSize * 21.5);
         defaultSpeed = 4;
         speed = defaultSpeed;
-        direction = "down";
+        direction = DIR_DOWN;
         level = 1;
         maxLife = 3;
         life = maxLife;
@@ -171,7 +171,7 @@ public class Player extends Entity {
     public void setDefaultPositions() {
         worldX = (int)(gp.tileSize * 24.5);
         worldY = (int)(gp.tileSize * 15.5);
-        direction = "down";
+        direction = DIR_DOWN;
     }
 
     public void setPlayerStats(int life, int strenght, int dexterity, int speed, int mana) {
@@ -196,93 +196,47 @@ public class Player extends Entity {
      * Adaugam un sistem de incarcare a unui spritesheet cu un numar variabil de cadre pe rand.
      */
     public void getPlayerImages() {
-        // Specify frames per direction (randuri)
+        // Sheet order: down=row0, left=row1, right=row2, up=row3 — maps directly to DIR_DOWN=0,LEFT=1,RIGHT=2,UP=3
         int[] framesPerRow = {7, 8, 8, 7}; // down, left, right, up
-        BufferedImage[][] frames = loadSheetVariable("/res/player/Player_walking-sheet", framesPerRow);
-        // Assign down frames
-        down1 = frames[0][0];
-        down2 = frames[0][1];
-        down3 = frames[0][2];
-        down4 = frames[0][3];
-        down5 = frames[0][4];
-        down6 = frames[0][5];
-        down7 = frames[0][6];
-        // Assign left frames
-        left1 = frames[1][0];
-        left2 = frames[1][1];
-        left3 = frames[1][2];
-        left4 = frames[1][3];
-        left5 = frames[1][4];
-        left6 = frames[1][5];
-        left7 = frames[1][6];
-        left8 = frames[1][7];
-        // Assign right frames
-        right1 = frames[2][0];
-        right2 = frames[2][1];
-        right3 = frames[2][2];
-        right4 = frames[2][3];
-        right5 = frames[2][4];
-        right6 = frames[2][5];
-        right7 = frames[2][6];
-        right8 = frames[2][7];
-        // Assign up frames
-        up1 = frames[3][0];
-        up2 = frames[3][1];
-        up3 = frames[3][2];
-        up4 = frames[3][3];
-        up5 = frames[3][4];
-        up6 = frames[3][5];
-        up7 = frames[3][6];
+        walkFrames = loadSheetVariable("/res/player/Player_walking-sheet", framesPerRow);
     }
 
     public void getPlayerAttackImages() {
-        attackUp1 = setup("/res/player/b.attack/up/u1", gp.tileSize, gp.tileSize * 2);
-        attackUp2 = setup("/res/player/b.attack/up/u2", gp.tileSize, gp.tileSize * 2);
-        attackUp3 = setup("/res/player/b.attack/up/u3", gp.tileSize, gp.tileSize * 2);
-        attackUp4 = setup("/res/player/b.attack/up/u4", gp.tileSize, gp.tileSize * 2);
-        attackUp5 = setup("/res/player/b.attack/up/u5", gp.tileSize, gp.tileSize * 2);
-        attackDown1 = setup("/res/player/b.attack/front/f1", gp.tileSize, gp.tileSize * 2);
-        attackDown2 = setup("/res/player/b.attack/front/f2", gp.tileSize, gp.tileSize * 2);
-        attackDown3 = setup("/res/player/b.attack/front/f3", gp.tileSize, gp.tileSize * 2);
-        attackDown4 = setup("/res/player/b.attack/front/f4", gp.tileSize, gp.tileSize * 2);
-        attackDown5 = setup("/res/player/b.attack/front/f5", gp.tileSize, gp.tileSize * 2);
-        attackLeft1 = setup("/res/player/b.attack/left/l1", gp.tileSize * 2, gp.tileSize);
-        attackLeft2 = setup("/res/player/b.attack/left/l2", gp.tileSize * 2, gp.tileSize);
-        attackLeft3 = setup("/res/player/b.attack/left/l3", gp.tileSize * 2, gp.tileSize);
-        attackLeft4 = setup("/res/player/b.attack/left/l4", gp.tileSize * 2, gp.tileSize);
-        attackLeft5 = setup("/res/player/b.attack/left/l5", gp.tileSize * 2, gp.tileSize);
-        attackRight1 = setup("/res/player/b.attack/right/r1", gp.tileSize * 2, gp.tileSize);
-        attackRight2 = setup("/res/player/b.attack/right/r2", gp.tileSize * 2, gp.tileSize);
-        attackRight3 = setup("/res/player/b.attack/right/r3", gp.tileSize * 2, gp.tileSize);
-        attackRight4 = setup("/res/player/b.attack/right/r4", gp.tileSize * 2, gp.tileSize);
-        attackRight5 = setup("/res/player/b.attack/right/r5", gp.tileSize * 2, gp.tileSize);
+        attackFrames = new BufferedImage[4][5];
+        // UP
+        attackFrames[DIR_UP][0] = setup("/res/player/b.attack/up/u1", gp.tileSize, gp.tileSize * 2);
+        attackFrames[DIR_UP][1] = setup("/res/player/b.attack/up/u2", gp.tileSize, gp.tileSize * 2);
+        attackFrames[DIR_UP][2] = setup("/res/player/b.attack/up/u3", gp.tileSize, gp.tileSize * 2);
+        attackFrames[DIR_UP][3] = setup("/res/player/b.attack/up/u4", gp.tileSize, gp.tileSize * 2);
+        attackFrames[DIR_UP][4] = setup("/res/player/b.attack/up/u5", gp.tileSize, gp.tileSize * 2);
+        // DOWN
+        attackFrames[DIR_DOWN][0] = setup("/res/player/b.attack/front/f1", gp.tileSize, gp.tileSize * 2);
+        attackFrames[DIR_DOWN][1] = setup("/res/player/b.attack/front/f2", gp.tileSize, gp.tileSize * 2);
+        attackFrames[DIR_DOWN][2] = setup("/res/player/b.attack/front/f3", gp.tileSize, gp.tileSize * 2);
+        attackFrames[DIR_DOWN][3] = setup("/res/player/b.attack/front/f4", gp.tileSize, gp.tileSize * 2);
+        attackFrames[DIR_DOWN][4] = setup("/res/player/b.attack/front/f5", gp.tileSize, gp.tileSize * 2);
+        // LEFT
+        attackFrames[DIR_LEFT][0] = setup("/res/player/b.attack/left/l1", gp.tileSize * 2, gp.tileSize);
+        attackFrames[DIR_LEFT][1] = setup("/res/player/b.attack/left/l2", gp.tileSize * 2, gp.tileSize);
+        attackFrames[DIR_LEFT][2] = setup("/res/player/b.attack/left/l3", gp.tileSize * 2, gp.tileSize);
+        attackFrames[DIR_LEFT][3] = setup("/res/player/b.attack/left/l4", gp.tileSize * 2, gp.tileSize);
+        attackFrames[DIR_LEFT][4] = setup("/res/player/b.attack/left/l5", gp.tileSize * 2, gp.tileSize);
+        // RIGHT
+        attackFrames[DIR_RIGHT][0] = setup("/res/player/b.attack/right/r1", gp.tileSize * 2, gp.tileSize);
+        attackFrames[DIR_RIGHT][1] = setup("/res/player/b.attack/right/r2", gp.tileSize * 2, gp.tileSize);
+        attackFrames[DIR_RIGHT][2] = setup("/res/player/b.attack/right/r3", gp.tileSize * 2, gp.tileSize);
+        attackFrames[DIR_RIGHT][3] = setup("/res/player/b.attack/right/r4", gp.tileSize * 2, gp.tileSize);
+        attackFrames[DIR_RIGHT][4] = setup("/res/player/b.attack/right/r5", gp.tileSize * 2, gp.tileSize);
     }
 
     public void getPlayerIdleImages() {
-
-        int[] framesPerRow = {6, 6, 6, 6}; // up, down, left, right
+        int[] framesPerRow = {6, 6, 6, 6}; // sheet rows: up, down, left, right
         BufferedImage[][] frames = loadSheetVariable("/res/player/Player_idle-sheet", framesPerRow);
-
-        // Assign up idle frames
-
-        upidle1 = frames[0][0];  upidle2 = frames[0][1];  upidle3 = frames[0][2];
-        upidle4 = frames[0][3];  upidle5 = frames[0][4];  upidle6 = frames[0][5];
-
-        // Assign down idle frames
-
-        downidle1 = frames[1][0];  downidle2 = frames[1][1];  downidle3 = frames[1][2];
-        downidle4 = frames[1][3];  downidle5 = frames[1][4];  downidle6 = frames[1][5];
-
-        // Assign left idle frames
-
-        leftidle1 = frames[2][0];  leftidle2 = frames[2][1];  leftidle3 = frames[2][2];
-        leftidle4 = frames[2][3];  leftidle5 = frames[2][4];  leftidle6 = frames[2][5];
-
-        // Assign right idle frames
-
-        rightidle1 = frames[3][0];  rightidle2 = frames[3][1];  rightidle3 = frames[3][2];
-        rightidle4 = frames[3][3];  rightidle5 = frames[3][4];  rightidle6 = frames[3][5];
-
+        idleFrames = new BufferedImage[4][];
+        idleFrames[DIR_UP]    = frames[0]; // row 0 = up
+        idleFrames[DIR_DOWN]  = frames[1]; // row 1 = down
+        idleFrames[DIR_LEFT]  = frames[2]; // row 2 = left
+        idleFrames[DIR_RIGHT] = frames[3]; // row 3 = right
     }
 
     // Update and movement methods
@@ -383,10 +337,10 @@ public class Player extends Entity {
             int nextX = worldX;
             int nextY = worldY;
             switch(direction) {
-                case "up": if (keyH.upPressed) nextY -= attackMoveSpeed; break;
-                case "down": if (keyH.downPressed) nextY += attackMoveSpeed; break;
-                case "left": if (keyH.leftPressed) nextX -= attackMoveSpeed; break;
-                case "right": if (keyH.rightPressed) nextX += attackMoveSpeed; break;
+                case DIR_UP:    if (keyH.upPressed)    nextY -= attackMoveSpeed; break;
+                case DIR_DOWN:  if (keyH.downPressed)  nextY += attackMoveSpeed; break;
+                case DIR_LEFT:  if (keyH.leftPressed)  nextX -= attackMoveSpeed; break;
+                case DIR_RIGHT: if (keyH.rightPressed) nextX += attackMoveSpeed; break;
             }
             // Save original position
             int originalX = worldX;
@@ -426,10 +380,10 @@ public class Player extends Entity {
             movingThisFrame = moving;
             
             // Set facing direction: vertical priority (up/down animation for diagonals)
-            if (movingUp) direction = "up";
-            else if (movingDown) direction = "down";
-            else if (movingLeft) direction = "left";
-            else if (movingRight) direction = "right";
+            if (movingUp) direction = DIR_UP;
+            else if (movingDown) direction = DIR_DOWN;
+            else if (movingLeft) direction = DIR_LEFT;
+            else if (movingRight) direction = DIR_RIGHT;
 
             if (moving || keyH.enterPressed) {
                 idleCounter = 0;
@@ -451,8 +405,8 @@ public class Player extends Entity {
                 // Horizontal axis
                 if (movingHorizontal && !keyH.enterPressed) {
                     // Temporarily set direction for collision checker prediction
-                    String savedDir = direction;
-                    direction = movingLeft ? "left" : "right";
+                    int savedDir = direction;
+                    direction = movingLeft ? DIR_LEFT : DIR_RIGHT;
                     collisionOn = false;
                     gp.cChecker.checkTile(this);
                     gp.cChecker.checkObject(this, false);
@@ -468,8 +422,8 @@ public class Player extends Entity {
 
                 // Vertical axis
                 if (movingVertical && !keyH.enterPressed) {
-                    String savedDir = direction;
-                    direction = movingUp ? "up" : "down";
+                    int savedDir = direction;
+                    direction = movingUp ? DIR_UP : DIR_DOWN;
                     collisionOn = false;
                     gp.cChecker.checkTile(this);
                     gp.cChecker.checkObject(this, false);
@@ -485,10 +439,10 @@ public class Player extends Entity {
 
                 // --- Full collision pass for pickups, NPC interaction, events ---
                 // Reset direction to the animation direction for game logic
-                if (movingUp) direction = "up";
-                else if (movingDown) direction = "down";
-                else if (movingLeft) direction = "left";
-                else if (movingRight) direction = "right";
+                if (movingUp) direction = DIR_UP;
+                else if (movingDown) direction = DIR_DOWN;
+                else if (movingLeft) direction = DIR_LEFT;
+                else if (movingRight) direction = DIR_RIGHT;
 
                 collisionOn = false;
                 gp.cChecker.checkTile(this);
@@ -634,10 +588,10 @@ public class Player extends Entity {
             int pullSpeed = 2;
             int pullX = worldX, pullY = worldY;
             switch (direction) {
-                case "up"    -> pullY += pullSpeed;
-                case "down"  -> pullY -= pullSpeed;
-                case "left"  -> pullX += pullSpeed;
-                case "right" -> pullX -= pullSpeed;
+                case DIR_UP    -> pullY += pullSpeed;
+                case DIR_DOWN  -> pullY -= pullSpeed;
+                case DIR_LEFT  -> pullX += pullSpeed;
+                case DIR_RIGHT -> pullX -= pullSpeed;
             }
             int origX = worldX, origY = worldY;
             worldX = pullX; worldY = pullY;
@@ -666,10 +620,10 @@ public class Player extends Entity {
             int lungeSpeed = 3;
             int lungeX = worldX, lungeY = worldY;
             switch (direction) {
-                case "up" -> lungeY -= lungeSpeed;
-                case "down" -> lungeY += lungeSpeed;
-                case "left" -> lungeX -= lungeSpeed;
-                case "right" -> lungeX += lungeSpeed;
+                case DIR_UP    -> lungeY -= lungeSpeed;
+                case DIR_DOWN  -> lungeY += lungeSpeed;
+                case DIR_LEFT  -> lungeX -= lungeSpeed;
+                case DIR_RIGHT -> lungeX += lungeSpeed;
             }
             int origX = worldX, origY = worldY;
             worldX = lungeX;
@@ -707,28 +661,28 @@ public class Player extends Entity {
         int ts = gp.tileSize;
         // IMPROVED: Attack hitbox is now bigger and more forgiving, matches sprite dimensions
         switch(direction) {
-            case "up":
+            case DIR_UP:
                 // Vertical attack sprite is tileSize × tileSize*2, extends upward
                 attackHitbox.solidArea.width = ts - 16;  // 48 width (centered)
                 attackHitbox.solidArea.height = ts + 16; // 80 height (larger reach)
                 attackHitbox.worldX += 8;   // Center horizontally
                 attackHitbox.worldY -= ts + 16; // Extend upward
                 break;
-            case "down":
+            case DIR_DOWN:
                 // Vertical attack sprite is tileSize × tileSize*2, extends downward
                 attackHitbox.solidArea.width = ts - 16;  // 48 width (centered)
                 attackHitbox.solidArea.height = ts + 16; // 80 height (larger reach)
                 attackHitbox.worldX += 8;   // Center horizontally
                 attackHitbox.worldY += ts;  // Extend downward from player
                 break;
-            case "left":
+            case DIR_LEFT:
                 // Horizontal attack sprite is tileSize*2 × tileSize, extends leftward
                 attackHitbox.solidArea.width = ts + 16;  // 80 width (larger reach)
                 attackHitbox.solidArea.height = ts - 16; // 48 height (centered)
                 attackHitbox.worldX -= ts + 16; // Extend leftward
                 attackHitbox.worldY += 8;   // Center vertically
                 break;
-            case "right":
+            case DIR_RIGHT:
                 // Horizontal attack sprite is tileSize*2 × tileSize, extends rightward
                 attackHitbox.solidArea.width = ts + 16;  // 80 width (larger reach)
                 attackHitbox.solidArea.height = ts - 16; // 48 height (centered)
@@ -807,10 +761,10 @@ public class Player extends Entity {
         int baseSize = 3 + step;   // 3, 4, 5
         int baseX = 0, baseY = 0;
         switch (direction) {
-            case "up" -> baseY = -1;
-            case "down" -> baseY = 1;
-            case "left" -> baseX = -1;
-            case "right" -> baseX = 1;
+            case DIR_UP    -> baseY = -1;
+            case DIR_DOWN  -> baseY = 1;
+            case DIR_LEFT  -> baseX = -1;
+            case DIR_RIGHT -> baseX = 1;
         }
         for (int i = 0; i < count; i++) {
             Particle spark = gp.particlePool.get();
@@ -1000,10 +954,10 @@ public class Player extends Entity {
         // determine vector from player's facing
         int vx = 0, vy = 0;
         switch(direction) {
-            case "up":    vy = -power; break;
-            case "down":  vy = power;  break;
-            case "left":  vx = -power; break;
-            case "right": vx = power;  break;
+            case DIR_UP:    vy = -power; break;
+            case DIR_DOWN:  vy = power;  break;
+            case DIR_LEFT:  vx = -power; break;
+            case DIR_RIGHT: vx = power;  break;
         }
         // assign vector and travel distance (quarter tile per power unit)
         entity.knockBackVectorX = vx;
@@ -1038,9 +992,9 @@ public class Player extends Entity {
             int dx = worldX - gp.monster[i].worldX;
             int dy = worldY - gp.monster[i].worldY;
             if (Math.abs(dx) > Math.abs(dy)) {
-                direction = (dx > 0) ? "right" : "left";
+                direction = (dx > 0) ? DIR_RIGHT : DIR_LEFT;
             } else {
-                direction = (dy > 0) ? "down" : "up";
+                direction = (dy > 0) ? DIR_DOWN : DIR_UP;
             }
             // monster hit power is roughly its attack value (smaller)
             int kb = (gp.monster[i].attack + 1) / 2;
@@ -1079,10 +1033,10 @@ public class Player extends Entity {
         // Determine spark direction based on player facing
         int baseX = 0, baseY = 0;
         switch (direction) {
-            case "up" -> baseY = -1;
-            case "down" -> baseY = 1;
-            case "left" -> baseX = -1;
-            case "right" -> baseX = 1;
+            case DIR_UP    -> baseY = -1;
+            case DIR_DOWN  -> baseY = 1;
+            case DIR_LEFT  -> baseX = -1;
+            case DIR_RIGHT -> baseX = 1;
         }
         for (int i = 0; i < 6; i++) {
             Particle spark = gp.particlePool.get();
@@ -1122,10 +1076,10 @@ public class Player extends Entity {
         int dirX = 0;
         int dirY = 0;
         switch (direction) {
-            case "up" -> dirY = -1;
-            case "down" -> dirY = 1;
-            case "left" -> dirX = -1;
-            case "right" -> dirX = 1;
+            case DIR_UP    -> dirY = -1;
+            case DIR_DOWN  -> dirY = 1;
+            case DIR_LEFT  -> dirX = -1;
+            case DIR_RIGHT -> dirX = 1;
         }
 
         // Dirt wisps trailing behind (earth tones)
@@ -1413,21 +1367,21 @@ public class Player extends Entity {
             image = getAttackFrame(direction, frame);
             // Attack sprites have doubled dimension — set proper draw size and offset
             switch(direction) {
-                case "up" -> {
+                case DIR_UP -> {
                     drawW = gp.tileSize;
                     drawH = gp.tileSize * 2;
                     tempScreenY -= gp.tileSize;
                 }
-                case "down" -> {
+                case DIR_DOWN -> {
                     drawW = gp.tileSize;
                     drawH = gp.tileSize * 2;
                 }
-                case "left" -> {
+                case DIR_LEFT -> {
                     drawW = gp.tileSize * 2;
                     drawH = gp.tileSize;
                     tempScreenX -= gp.tileSize;
                 }
-                case "right" -> {
+                case DIR_RIGHT -> {
                     drawW = gp.tileSize * 2;
                     drawH = gp.tileSize;
                 }
@@ -1448,8 +1402,8 @@ public class Player extends Entity {
                     int tSY = trailWorldY[idx] - playerWY + playerSY;
                     // Apply same attack offset as main sprite
                     switch (direction) {
-                        case "up" -> tSY -= gp.tileSize;
-                        case "left" -> tSX -= gp.tileSize;
+                        case DIR_UP   -> tSY -= gp.tileSize;
+                        case DIR_LEFT -> tSX -= gp.tileSize;
                     }
                     float alpha = (ti < trailAlphas.length) ? trailAlphas[ti] : 0.03f;
                     g2.setComposite(AlphaComposite.getInstance(AlphaComposite.SRC_OVER, alpha));
@@ -1477,7 +1431,7 @@ public class Player extends Entity {
             // Subtle directional lean — character leans into the evade
             float t = (dashDuration - dashCounter) / (float)Math.max(1, dashDuration);
             float lean = (float)Math.sin(t * Math.PI) * 0.06f; // subtle
-            if ("left".equals(direction) || "right".equals(direction)) {
+            if (direction == DIR_LEFT || direction == DIR_RIGHT) {
                 drawW = (int)(gp.tileSize * (1.0f + lean));
                 drawH = (int)(gp.tileSize * (1.0f - lean * 0.4f));
             } else {
@@ -1490,10 +1444,10 @@ public class Player extends Entity {
             // Tight motion-blur afterimages (3 closely spaced)
             int dirX = 0, dirY = 0;
             switch (direction) {
-                case "up" -> dirY = -1;
-                case "down" -> dirY = 1;
-                case "left" -> dirX = -1;
-                case "right" -> dirX = 1;
+                case DIR_UP    -> dirY = -1;
+                case DIR_DOWN  -> dirY = 1;
+                case DIR_LEFT  -> dirX = -1;
+                case DIR_RIGHT -> dirX = 1;
             }
             java.awt.Composite saved = g2.getComposite();
             float[] alphas = {0.28f, 0.16f, 0.07f};
@@ -1526,78 +1480,25 @@ public class Player extends Entity {
         g2.setComposite(AlphaComposite.getInstance(AlphaComposite.SRC_OVER, 1f));
     }
 
-    private BufferedImage getIdleFrame(String dir, int frame) {
-        return switch(dir) {
-            case "up" -> switch(frame) {
-                case 1 -> upidle1; case 2 -> upidle2; case 3 -> upidle3;
-                case 4 -> upidle4; case 5 -> upidle5; case 6 -> upidle6;
-                default -> upidle1;
-            };
-            case "down" -> switch(frame) {
-                case 1 -> downidle1; case 2 -> downidle2; case 3 -> downidle3;
-                case 4 -> downidle4; case 5 -> downidle5; case 6 -> downidle6;
-                default -> downidle1;
-            };
-            case "left" -> switch(frame) {
-                case 1 -> leftidle1; case 2 -> leftidle2; case 3 -> leftidle3;
-                case 4 -> leftidle4; case 5 -> leftidle5; case 6 -> leftidle6;
-                default -> leftidle1;
-            };
-            case "right" -> switch(frame) {
-                case 1 -> rightidle1; case 2 -> rightidle2; case 3 -> rightidle3;
-                case 4 -> rightidle4; case 5 -> rightidle5; case 6 -> rightidle6;
-                default -> rightidle1;
-            };
-            default -> downidle1;
-        };
+    private BufferedImage getIdleFrame(int dir, int frame) {
+        if (idleFrames != null && dir >= 0 && dir < idleFrames.length && idleFrames[dir] != null) {
+            int idx = frame - 1;
+            if (idx >= 0 && idx < idleFrames[dir].length) return idleFrames[dir][idx];
+            return idleFrames[dir][0]; // fallback first frame
+        }
+        return null;
     }
 
-    private BufferedImage getAttackFrame(String dir, int frame) {
-        return switch(dir) {
-            case "up" -> switch(frame) {
-                case 1 -> attackUp1; case 2 -> attackUp2; case 3 -> attackUp3;
-                case 4 -> attackUp4; case 5 -> attackUp5; default -> attackUp1;
-            };
-            case "down" -> switch(frame) {
-                case 1 -> attackDown1; case 2 -> attackDown2; case 3 -> attackDown3;
-                case 4 -> attackDown4; case 5 -> attackDown5; default -> attackDown1;
-            };
-            case "left" -> switch(frame) {
-                case 1 -> attackLeft1; case 2 -> attackLeft2; case 3 -> attackLeft3;
-                case 4 -> attackLeft4; case 5 -> attackLeft5; default -> attackLeft1;
-            };
-            case "right" -> switch(frame) {
-                case 1 -> attackRight1; case 2 -> attackRight2; case 3 -> attackRight3;
-                case 4 -> attackRight4; case 5 -> attackRight5; default -> attackRight1;
-            };
-            default -> attackDown1;
-        };
+    private BufferedImage getAttackFrame(int dir, int frame) {
+        if (attackFrames != null && dir >= 0 && dir < attackFrames.length && attackFrames[dir] != null) {
+            int idx = frame - 1;
+            if (idx >= 0 && idx < attackFrames[dir].length) return attackFrames[dir][idx];
+            return attackFrames[dir][0]; // fallback first frame
+        }
+        return null;
     }
 
-    @Override
-    protected BufferedImage getWalkFrameImage(String dir, int frame) {
-        return switch(dir) {
-            case "up" -> switch(frame) {
-                case 1 -> up1; case 2 -> up2; case 3 -> up3; case 4 -> up4;
-                case 5 -> up5; case 6 -> up6; case 7 -> up7; default -> up1;
-            };
-            case "down" -> switch(frame) {
-                case 1 -> down1; case 2 -> down2; case 3 -> down3; case 4 -> down4;
-                case 5 -> down5; case 6 -> down6; case 7 -> down7; default -> down1;
-            };
-            case "left" -> switch(frame) {
-                case 1 -> left1; case 2 -> left2; case 3 -> left3; case 4 -> left4;
-                case 5 -> left5; case 6 -> left6; case 7 -> left7; case 8 -> left8;
-                default -> left1;
-            };
-            case "right" -> switch(frame) {
-                case 1 -> right1; case 2 -> right2; case 3 -> right3; case 4 -> right4;
-                case 5 -> right5; case 6 -> right6; case 7 -> right7; case 8 -> right8;
-                default -> right1;
-            };
-            default -> down1;
-        };
-    }
+    // getWalkFrameImage is inherited from Entity (uses walkFrames array with legacy fallback)
 
     // Utility methods
     public int getAttack() {

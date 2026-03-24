@@ -111,7 +111,7 @@ public class PathFinder {
         );
 
         // Check collision layer rectangles
-        ArrayList<Rectangle> rects = gp.tileM.collisionRects;
+        ArrayList<Rectangle> rects = gp.tileM.collisionBounds;
         for (int i = 0, size = rects.size(); i < size; i++) {
             if (futureHitbox.intersects(rects.get(i))) {
                 return true;

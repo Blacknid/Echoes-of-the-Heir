@@ -2,6 +2,7 @@ package main;
 
 import entity.Entity;
 import java.awt.Rectangle;
+import java.awt.Shape;
 import java.util.ArrayList;
 
 public class CollisionChecker {
@@ -10,7 +11,6 @@ public class CollisionChecker {
     
     // OPTIMIZATION: Reuse Rectangle objects to avoid allocation overhead
     private Rectangle tempRect = new Rectangle();
-    private int collisionRectsSize = 0; // Cache the size
 
     // OPTIMIZATION: Spatial grid for collision rectangles
     // Divides the world into cells; only check rects in nearby cells
@@ -25,16 +25,16 @@ public class CollisionChecker {
     // OPTIMIZATION: Build spatial grid index for collision rectangles
     @SuppressWarnings("unchecked")
     public void updateCollisionRectsCache() {
-        collisionRectsSize = gp.tileM.collisionRects.size();
+        int shapeCount = gp.tileM.collisionShapes.size();
         
-        // Build spatial grid
+        // Build spatial grid using bounding boxes for broad-phase
         gridCols = (gp.worldWidth / GRID_CELL_SIZE) + 2;
         gridRows = (gp.worldHeight / GRID_CELL_SIZE) + 2;
         int totalCells = gridCols * gridRows;
         spatialGrid = new ArrayList[totalCells];
         
-        for (int i = 0; i < collisionRectsSize; i++) {
-            Rectangle r = gp.tileM.collisionRects.get(i);
+        for (int i = 0; i < shapeCount; i++) {
+            Rectangle r = gp.tileM.collisionBounds.get(i);
             int minCellX = Math.max(0, r.x / GRID_CELL_SIZE);
             int minCellY = Math.max(0, r.y / GRID_CELL_SIZE);
             int maxCellX = Math.min(gridCols - 1, (r.x + r.width) / GRID_CELL_SIZE);
@@ -64,41 +64,60 @@ public class CollisionChecker {
 
         // Predict movement
         switch(entity.direction) {
-            case "up" -> tempRect.y -= entity.speed;
-            case "down" -> tempRect.y += entity.speed;
-            case "left" -> tempRect.x -= entity.speed;
-            case "right" -> tempRect.x += entity.speed;
+            case Entity.DIR_UP:    tempRect.y -= entity.speed; break;
+            case Entity.DIR_DOWN:  tempRect.y += entity.speed; break;
+            case Entity.DIR_LEFT:  tempRect.x -= entity.speed; break;
+            case Entity.DIR_RIGHT: tempRect.x += entity.speed; break;
         }
 
         entity.collisionOn = false;
-        
-        // Use spatial grid if available
-        if (spatialGrid != null && gridCols > 0) {
-            int minCX = Math.max(0, tempRect.x / GRID_CELL_SIZE);
-            int minCY = Math.max(0, tempRect.y / GRID_CELL_SIZE);
-            int maxCX = Math.min(gridCols - 1, (tempRect.x + tempRect.width) / GRID_CELL_SIZE);
-            int maxCY = Math.min(gridRows - 1, (tempRect.y + tempRect.height) / GRID_CELL_SIZE);
-            
-            for (int cy = minCY; cy <= maxCY && !entity.collisionOn; cy++) {
-                for (int cx = minCX; cx <= maxCX && !entity.collisionOn; cx++) {
-                    int idx = cy * gridCols + cx;
-                    if (idx >= 0 && idx < spatialGrid.length && spatialGrid[idx] != null) {
-                        ArrayList<Integer> cell = spatialGrid[idx];
-                        for (int j = 0; j < cell.size(); j++) {
-                            if (tempRect.intersects(gp.tileM.collisionRects.get(cell.get(j)))) {
-                                entity.collisionOn = true;
-                                break;
+
+        // --- Tile-layer collision (only if collisionTileLayers is configured) ---
+        if (!gp.tileM.collisionTileLayers.isEmpty()) {
+            int ts = gp.tileSize;
+            int leftCol   = tempRect.x / ts;
+            int rightCol  = (tempRect.x + tempRect.width) / ts;
+            int topRow    = tempRect.y / ts;
+            int bottomRow = (tempRect.y + tempRect.height) / ts;
+            for (int row = topRow; row <= bottomRow && !entity.collisionOn; row++) {
+                for (int col = leftCol; col <= rightCol && !entity.collisionOn; col++) {
+                    if (gp.tileM.isTileBlocking(col, row)) {
+                        entity.collisionOn = true;
+                    }
+                }
+            }
+        }
+
+        // --- Shape collision (from Tiled objectgroup layers — rects, rotated rects, polygons, ellipses) ---
+        if (!entity.collisionOn) {
+            if (spatialGrid != null && gridCols > 0) {
+                int minCX = Math.max(0, tempRect.x / GRID_CELL_SIZE);
+                int minCY = Math.max(0, tempRect.y / GRID_CELL_SIZE);
+                int maxCX = Math.min(gridCols - 1, (tempRect.x + tempRect.width) / GRID_CELL_SIZE);
+                int maxCY = Math.min(gridRows - 1, (tempRect.y + tempRect.height) / GRID_CELL_SIZE);
+                
+                for (int cy = minCY; cy <= maxCY && !entity.collisionOn; cy++) {
+                    for (int cx = minCX; cx <= maxCX && !entity.collisionOn; cx++) {
+                        int idx = cy * gridCols + cx;
+                        if (idx >= 0 && idx < spatialGrid.length && spatialGrid[idx] != null) {
+                            ArrayList<Integer> cell = spatialGrid[idx];
+                            for (int j = 0; j < cell.size(); j++) {
+                                Shape shape = gp.tileM.collisionShapes.get(cell.get(j));
+                                if (shape.intersects(tempRect)) {
+                                    entity.collisionOn = true;
+                                    break;
+                                }
                             }
                         }
                     }
                 }
-            }
-        } else {
-            // Fallback to linear scan
-            for (int i = 0; i < collisionRectsSize; i++) {
-                if (tempRect.intersects(gp.tileM.collisionRects.get(i))) {
-                    entity.collisionOn = true;
-                    break;
+            } else {
+                ArrayList<Shape> shapes = gp.tileM.collisionShapes;
+                for (int i = 0; i < shapes.size(); i++) {
+                    if (shapes.get(i).intersects(tempRect)) {
+                        entity.collisionOn = true;
+                        break;
+                    }
                 }
             }
         }
@@ -112,32 +131,53 @@ public class CollisionChecker {
         tempRect.y = nextY + entity.solidArea.y;
         tempRect.width = entity.solidArea.width;
         tempRect.height = entity.solidArea.height;
-        
-        if (spatialGrid != null && gridCols > 0) {
-            int minCX = Math.max(0, tempRect.x / GRID_CELL_SIZE);
-            int minCY = Math.max(0, tempRect.y / GRID_CELL_SIZE);
-            int maxCX = Math.min(gridCols - 1, (tempRect.x + tempRect.width) / GRID_CELL_SIZE);
-            int maxCY = Math.min(gridRows - 1, (tempRect.y + tempRect.height) / GRID_CELL_SIZE);
-            
-            for (int cy = minCY; cy <= maxCY && !entity.collisionOn; cy++) {
-                for (int cx = minCX; cx <= maxCX && !entity.collisionOn; cx++) {
-                    int idx = cy * gridCols + cx;
-                    if (idx >= 0 && idx < spatialGrid.length && spatialGrid[idx] != null) {
-                        ArrayList<Integer> cell = spatialGrid[idx];
-                        for (int j = 0; j < cell.size(); j++) {
-                            if (tempRect.intersects(gp.tileM.collisionRects.get(cell.get(j)))) {
-                                entity.collisionOn = true;
-                                break;
+
+        // Tile-layer collision (only if collisionTileLayers is configured)
+        if (!gp.tileM.collisionTileLayers.isEmpty()) {
+            int ts = gp.tileSize;
+            int leftCol   = tempRect.x / ts;
+            int rightCol  = (tempRect.x + tempRect.width) / ts;
+            int topRow    = tempRect.y / ts;
+            int bottomRow = (tempRect.y + tempRect.height) / ts;
+            for (int row = topRow; row <= bottomRow && !entity.collisionOn; row++) {
+                for (int col = leftCol; col <= rightCol && !entity.collisionOn; col++) {
+                    if (gp.tileM.isTileBlocking(col, row)) {
+                        entity.collisionOn = true;
+                    }
+                }
+            }
+        }
+
+        // Shape collision
+        if (!entity.collisionOn) {
+            if (spatialGrid != null && gridCols > 0) {
+                int minCX = Math.max(0, tempRect.x / GRID_CELL_SIZE);
+                int minCY = Math.max(0, tempRect.y / GRID_CELL_SIZE);
+                int maxCX = Math.min(gridCols - 1, (tempRect.x + tempRect.width) / GRID_CELL_SIZE);
+                int maxCY = Math.min(gridRows - 1, (tempRect.y + tempRect.height) / GRID_CELL_SIZE);
+                
+                for (int cy = minCY; cy <= maxCY && !entity.collisionOn; cy++) {
+                    for (int cx = minCX; cx <= maxCX && !entity.collisionOn; cx++) {
+                        int idx = cy * gridCols + cx;
+                        if (idx >= 0 && idx < spatialGrid.length && spatialGrid[idx] != null) {
+                            ArrayList<Integer> cell = spatialGrid[idx];
+                            for (int j = 0; j < cell.size(); j++) {
+                                Shape shape = gp.tileM.collisionShapes.get(cell.get(j));
+                                if (shape.intersects(tempRect)) {
+                                    entity.collisionOn = true;
+                                    break;
+                                }
                             }
                         }
                     }
                 }
-            }
-        } else {
-            for (int i = 0; i < collisionRectsSize; i++) {
-                if (tempRect.intersects(gp.tileM.collisionRects.get(i))) {
-                    entity.collisionOn = true;
-                    break;
+            } else {
+                ArrayList<Shape> shapes = gp.tileM.collisionShapes;
+                for (int i = 0; i < shapes.size(); i++) {
+                    if (shapes.get(i).intersects(tempRect)) {
+                        entity.collisionOn = true;
+                        break;
+                    }
                 }
             }
         }
@@ -159,10 +199,10 @@ public class CollisionChecker {
 
                 // Apply predicted movement
                 switch(entity.direction) {
-                    case "up" -> entityY -= entity.speed;
-                    case "down" -> entityY += entity.speed;
-                    case "left" -> entityX -= entity.speed;
-                    case "right" -> entityX += entity.speed;
+                    case Entity.DIR_UP    -> entityY -= entity.speed;
+                    case Entity.DIR_DOWN  -> entityY += entity.speed;
+                    case Entity.DIR_LEFT  -> entityX -= entity.speed;
+                    case Entity.DIR_RIGHT -> entityX += entity.speed;
                 }
 
                 // Check intersection
@@ -201,10 +241,10 @@ public class CollisionChecker {
 
                 // Apply predicted movement
                 switch(entity.direction) {
-                    case "up" -> entityY -= entity.speed;
-                    case "down" -> entityY += entity.speed;
-                    case "left" -> entityX -= entity.speed;
-                    case "right" -> entityX += entity.speed;
+                    case Entity.DIR_UP    -> entityY -= entity.speed;
+                    case Entity.DIR_DOWN  -> entityY += entity.speed;
+                    case Entity.DIR_LEFT  -> entityX -= entity.speed;
+                    case Entity.DIR_RIGHT -> entityX += entity.speed;
                 }
 
                 // Check intersection
@@ -237,10 +277,10 @@ public class CollisionChecker {
 
         // Apply predicted movement
         switch(entity.direction) {
-            case "up" -> entityY -= entity.speed;
-            case "down" -> entityY += entity.speed;
-            case "left" -> entityX -= entity.speed;
-            case "right" -> entityX += entity.speed;
+            case Entity.DIR_UP    -> entityY -= entity.speed;
+            case Entity.DIR_DOWN  -> entityY += entity.speed;
+            case Entity.DIR_LEFT  -> entityX -= entity.speed;
+            case Entity.DIR_RIGHT -> entityX += entity.speed;
         }
 
         // Check intersection

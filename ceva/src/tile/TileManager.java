@@ -1,10 +1,17 @@
 package tile;
 
 import java.awt.Graphics2D;
+import java.awt.Rectangle;
+import java.awt.Shape;
+import java.awt.geom.AffineTransform;
+import java.awt.geom.Ellipse2D;
+import java.awt.geom.Path2D;
+import java.awt.geom.Rectangle2D;
 import java.awt.image.BufferedImage;
 import java.io.InputStream;
 import java.util.ArrayList;
 import java.util.Comparator;
+import java.util.HashSet;
 import javax.imageio.ImageIO;
 import javax.xml.parsers.DocumentBuilder;
 import javax.xml.parsers.DocumentBuilderFactory;
@@ -23,6 +30,12 @@ public class TileManager {
     final int scale = 2;
     public final int tileSize = originalTileSize * scale;
 
+    // Per-map TMX tile size (updated when loading a map; used for scaling)
+    int mapTileSize = originalTileSize;
+    // Pixel offset for infinite maps (after shifting chunks to start at 0,0)
+    int mapOffsetPixelsX = 0;
+    int mapOffsetPixelsY = 0;
+
     // Tilesets
     public class Tileset {
         String name;
@@ -39,11 +52,13 @@ public class TileManager {
         BufferedImage image;
         int screenX;
         int screenY;
+        int worldX;         // worldCol * tileSize (for fast sub-tile camera update)
+        int screenBaseY;    // (worldRow * tileSize) - drawOffsetY (for fast sub-tile camera update)
+        float parallaxX, parallaxY; // stored so screen pos can be recalculated without full rebuild
         int baseWorldY;
         int layerIndex;
         int worldCol;
         int renderOrder;
-        boolean waterEffect;
         int worldRow;
         int sortY;
     }
@@ -100,18 +115,41 @@ public class TileManager {
     private final ArrayList<VisibleTileDraw> backgroundVisibleTiles = new ArrayList<>();
     private final ArrayList<VisibleTileDraw> depthVisibleTiles = new ArrayList<>();
 
-    // Multi-layer map (visual only)
+    // Multi-layer map
     public ArrayList<int[][]> mapLayers = new ArrayList<>();
+    public ArrayList<String> layerNames = new ArrayList<>();
     public ArrayList<Float> layerParallaxX = new ArrayList<>();
     public ArrayList<Float> layerParallaxY = new ArrayList<>();
 
-    // Collision rectangles (from object layer)
-    public ArrayList<java.awt.Rectangle> collisionRects = new ArrayList<>();
+    // Collision shapes (from Tiled objectgroup layers — rectangles, rotated rects, polygons, ellipses)
+    public ArrayList<Shape> collisionShapes = new ArrayList<>();
+    // Bounding boxes for each shape (used by spatial grid for broad-phase)
+    public ArrayList<Rectangle> collisionBounds = new ArrayList<>();
+
+    // --- Configurable collision settings ---
+    // Objectgroup layer names whose rectangles provide collision (default: "Collision")
+    public HashSet<String> collisionObjectLayers = new HashSet<>();
+    // Tile layer names where all non-empty tiles block movement (default: none)
+    public HashSet<String> collisionTileLayers = new HashSet<>();
 
     public TileManager(GamePanel gp) {
         this.gp = gp;
 
+        // Default: only the "Collision" objectgroup provides collision rectangles
+        collisionObjectLayers.add("Collision");
+
         initializeDefaultMap();
+        printCollisionConfig();
+    }
+
+    /** Print current collision configuration to console. */
+    public void printCollisionConfig() {
+        System.out.println("=== COLLISION CONFIGURATION ===");
+        System.out.println("Object layers (rectangles): " + collisionObjectLayers);
+        System.out.println("Tile layers (full tile blocking): " + collisionTileLayers);
+        System.out.println("Loaded collision shapes: " + collisionShapes.size());
+        System.out.println("Tile layer names in map: " + layerNames);
+        System.out.println("===============================");
     }
 
     private void initializeDefaultMap() {
@@ -158,11 +196,13 @@ public class TileManager {
 
                 ts.tiles[index] = new Tile();
                 BufferedImage sub = tilesetImage.getSubimage(tileX, tileY, tileWidth, tileHeight);
-                int scaledWidth = Math.max(1, tileWidth * scale);
-                int scaledHeight = Math.max(1, tileHeight * scale);
+                // Scale tiles proportionally: game tileSize / map tileSize gives the world scale factor.
+                // This preserves oversized tiles (e.g. 190x200 trees) at their correct visual size.
+                float tileScale = (float) tileSize / mapTileSize;
+                int scaledWidth = Math.max(1, Math.round(tileWidth * tileScale));
+                int scaledHeight = Math.max(1, Math.round(tileHeight * tileScale));
                 ts.tiles[index].image = UtilityTool.scaleImage(sub, scaledWidth, scaledHeight);
                 ts.tiles[index].drawOffsetY = Math.max(0, scaledHeight - tileSize);
-                ts.tiles[index].collision = false;
             }
 
             tilesets.add(ts);
@@ -180,6 +220,11 @@ public class TileManager {
             if (doc == null) {
                 return;
             }
+
+            // Read map base tile size first so addTileset can scale oversized tiles correctly
+            Element mapRootEl = doc.getDocumentElement();
+            String mapTw = mapRootEl.getAttribute("tilewidth");
+            mapTileSize = (mapTw != null && !mapTw.isEmpty()) ? Integer.parseInt(mapTw) : originalTileSize;
 
             NodeList tilesetNodes = doc.getElementsByTagName("tileset");
             for (int i = 0; i < tilesetNodes.getLength(); i++) {
@@ -250,11 +295,15 @@ public class TileManager {
         return null;
     }
 
+    // Mask to strip Tiled flip flags (horizontal, vertical, diagonal) from GIDs
+    private static final long GID_MASK = 0x1FFFFFFFL;
+
     // ---------------- Load tile layers ----------------
     public void loadMapFromTMX(String path) {
         try {
             loadTilesets(path);
             mapLayers.clear();
+            layerNames.clear();
             layerParallaxX.clear();
             layerParallaxY.clear();
 
@@ -263,32 +312,106 @@ public class TileManager {
                 return;
             }
 
+            // Read TMX map tile size
+            Element mapRoot = doc.getDocumentElement();
+            String tw = mapRoot.getAttribute("tilewidth");
+            if (tw != null && !tw.isEmpty()) {
+                mapTileSize = Integer.parseInt(tw);
+            } else {
+                mapTileSize = originalTileSize;
+            }
+
+            // Detect infinite map
+            boolean infinite = "1".equals(mapRoot.getAttribute("infinite"));
+            int offsetX = 0, offsetY = 0;
+
+            if (infinite) {
+                // Scan ALL chunks to find the min x/y so we can shift to 0,0
+                int minX = Integer.MAX_VALUE, minY = Integer.MAX_VALUE;
+                NodeList allChunks = doc.getElementsByTagName("chunk");
+                for (int c = 0; c < allChunks.getLength(); c++) {
+                    Element chunk = (Element) allChunks.item(c);
+                    int cx = Integer.parseInt(chunk.getAttribute("x"));
+                    int cy = Integer.parseInt(chunk.getAttribute("y"));
+                    if (cx < minX) minX = cx;
+                    if (cy < minY) minY = cy;
+                }
+                if (minX != Integer.MAX_VALUE) {
+                    offsetX = -minX;
+                    offsetY = -minY;
+                }
+                System.out.println("Infinite map detected: tile offset (" + offsetX + ", " + offsetY + ")");
+            }
+
+            // Store pixel offsets for collision layer (tile offset * game tile size)
+            mapOffsetPixelsX = offsetX * tileSize;
+            mapOffsetPixelsY = offsetY * tileSize;
+
             NodeList layers = doc.getElementsByTagName("layer");
             for (int l = 0; l < layers.getLength(); l++) {
                 Element layer = (Element) layers.item(l);
+                String layerName = layer.getAttribute("name");
                 Element data = (Element) layer.getElementsByTagName("data").item(0);
                 float parallaxX = getFloatAttribute(layer, "parallaxx", 1.0f);
                 float parallaxY = getFloatAttribute(layer, "parallaxy", 1.0f);
-                String csv = data.getTextContent().trim().replaceAll("\\s+", "");
-                String[] numbers = csv.split(",");
 
                 int[][] layerMap = new int[gp.maxWorldCol][gp.maxWorldRow];
-                int col = 0, row = 0;
-                for (String numStr : numbers) {
-                    int gid = Integer.parseInt(numStr.trim());
-                    layerMap[col][row] = gid;
-                    col++;
-                    if (col == gp.maxWorldCol) {
-                        col = 0;
-                        row++;
-                        if (row == gp.maxWorldRow) break;
+
+                NodeList chunks = data.getElementsByTagName("chunk");
+                if (chunks.getLength() > 0) {
+                    // Infinite map: parse each chunk and place tiles at offset position
+                    for (int c = 0; c < chunks.getLength(); c++) {
+                        Element chunk = (Element) chunks.item(c);
+                        int cx = Integer.parseInt(chunk.getAttribute("x")) + offsetX;
+                        int cy = Integer.parseInt(chunk.getAttribute("y")) + offsetY;
+                        int cw = Integer.parseInt(chunk.getAttribute("width"));
+                        String csv = chunk.getTextContent().trim().replaceAll("\\s+", "");
+                        String[] numbers = csv.split(",");
+                        int col = 0, row = 0;
+                        for (String numStr : numbers) {
+                            if (numStr.isEmpty()) continue;
+                            int gid = (int) (Long.parseLong(numStr.trim()) & GID_MASK);
+                            int mapCol = cx + col;
+                            int mapRow = cy + row;
+                            if (mapCol >= 0 && mapCol < gp.maxWorldCol && mapRow >= 0 && mapRow < gp.maxWorldRow) {
+                                layerMap[mapCol][mapRow] = gid;
+                            }
+                            col++;
+                            if (col == cw) {
+                                col = 0;
+                                row++;
+                            }
+                        }
+                    }
+                } else {
+                    // Normal flat CSV
+                    String layerWidthStr = layer.getAttribute("width");
+                    int layerWidth = (layerWidthStr != null && !layerWidthStr.isEmpty())
+                            ? Integer.parseInt(layerWidthStr) : gp.maxWorldCol;
+                    String csv = data.getTextContent().trim().replaceAll("\\s+", "");
+                    String[] numbers = csv.split(",");
+                    int col = 0, row = 0;
+                    for (String numStr : numbers) {
+                        if (numStr.isEmpty()) continue;
+                        int gid = (int) (Long.parseLong(numStr.trim()) & GID_MASK);
+                        if (col < gp.maxWorldCol && row < gp.maxWorldRow) {
+                            layerMap[col][row] = gid;
+                        }
+                        col++;
+                        if (col == layerWidth) {
+                            col = 0;
+                            row++;
+                            if (row >= gp.maxWorldRow) break;
+                        }
                     }
                 }
+
                 mapLayers.add(layerMap);
+                layerNames.add(layerName);
                 layerParallaxX.add(parallaxX);
                 layerParallaxY.add(parallaxY);
             }
-            System.out.println("Loaded " + mapLayers.size() + " tile layers");
+            System.out.println("Loaded " + mapLayers.size() + " tile layers (mapTileSize=" + mapTileSize + "px)");
         } catch (Exception e) {
             System.out.println("Failed to load map: " + path);
             e.printStackTrace(System.out);
@@ -300,35 +423,42 @@ public class TileManager {
         try {
             Document doc = parseXmlResource(path);
             if (doc == null) {
+                System.out.println("WARNING: Could not load collision layer — TMX not found: " + path);
                 return;
             }
 
-            collisionRects.clear();
+            collisionShapes.clear();
+            collisionBounds.clear();
+            int matchedLayers = 0;
 
             NodeList objectGroups = doc.getElementsByTagName("objectgroup");
             for (int i = 0; i < objectGroups.getLength(); i++) {
                 Element og = (Element) objectGroups.item(i);
-                if (!og.getAttribute("name").equals("Collision")) continue;
+                String layerName = og.getAttribute("name");
+                if (!collisionObjectLayers.contains(layerName)) continue;
+                matchedLayers++;
+                System.out.println("Loading collision shapes from objectgroup: '" + layerName + "'");
 
                 NodeList objects = og.getElementsByTagName("object");
                 for (int j = 0; j < objects.getLength(); j++) {
-                    Element obj = (Element) objects.item(j);
-                    int x = Math.round(Float.parseFloat(obj.getAttribute("x")));
-                    int y = Math.round(Float.parseFloat(obj.getAttribute("y")));
-                    int width = Math.round(Float.parseFloat(obj.getAttribute("width")));
-                    int height = Math.round(Float.parseFloat(obj.getAttribute("height")));
-
-                    // Scale according to your tile size
-                    x = x * gp.tileSize / originalTileSize;
-                    y = y * gp.tileSize / originalTileSize;
-                    width = width * gp.tileSize / originalTileSize;
-                    height = height * gp.tileSize / originalTileSize;
-
-                    collisionRects.add(new java.awt.Rectangle(x, y, width, height));
+                    try {
+                        Element obj = (Element) objects.item(j);
+                        Shape shape = parseCollisionObject(obj);
+                        if (shape != null) {
+                            collisionShapes.add(shape);
+                            collisionBounds.add(shape.getBounds());
+                        }
+                    } catch (Exception objEx) {
+                        System.out.println("Skipping bad collision object: " + objEx.getMessage());
+                    }
                 }
             }
 
-            System.out.println("Loaded collision layer with " + collisionRects.size() + " rectangles");
+            if (matchedLayers == 0) {
+                System.out.println("WARNING: No matching objectgroup found in " + path);
+                System.out.println("  Configured collision object layers: " + collisionObjectLayers);
+            }
+            System.out.println("Loaded collision layer with " + collisionShapes.size() + " shapes from " + path);
 
         } catch (Exception e) {
             System.out.println("Failed to load collision layer: " + path);
@@ -336,14 +466,114 @@ public class TileManager {
         }
     }
 
-    // OPTIMIZATION: Cache viewport bounds to avoid repeated calculations
-    // Variables for viewport culling
-    private int cachedViewportMinX = -1;
-    private int cachedViewportMaxX = -1;
-    private int cachedViewportMinY = -1;
-    private int cachedViewportMaxY = -1;
-    private int cachedPlayerWorldX = -1;
-    private int cachedPlayerWorldY = -1;
+    /**
+     * Parse a single Tiled object into a collision Shape.
+     * Supports: rectangles (with rotation), ellipses (with rotation), polygons (with rotation).
+     * All coordinates are scaled from Tiled map tile size to the game tileSize.
+     */
+    private Shape parseCollisionObject(Element obj) {
+        double sf = (double) tileSize / mapTileSize; // scale factor (adapts to TMX tile size)
+
+        String xAttr = obj.getAttribute("x");
+        String yAttr = obj.getAttribute("y");
+        if (xAttr.isEmpty() || yAttr.isEmpty()) return null;
+
+        double x = Double.parseDouble(xAttr) * sf + mapOffsetPixelsX;
+        double y = Double.parseDouble(yAttr) * sf + mapOffsetPixelsY;
+
+        double rotation = 0;
+        String rotAttr = obj.getAttribute("rotation");
+        if (!rotAttr.isEmpty()) {
+            rotation = Double.parseDouble(rotAttr);
+        }
+
+        // --- Polygon ---
+        NodeList polygonNodes = obj.getElementsByTagName("polygon");
+        if (polygonNodes.getLength() > 0) {
+            String pointsStr = ((Element) polygonNodes.item(0)).getAttribute("points");
+            return buildPolygonShape(x, y, rotation, pointsStr, sf);
+        }
+
+        // --- Ellipse ---
+        NodeList ellipseNodes = obj.getElementsByTagName("ellipse");
+        if (ellipseNodes.getLength() > 0) {
+            String wAttr = obj.getAttribute("width");
+            String hAttr = obj.getAttribute("height");
+            if (wAttr.isEmpty() || hAttr.isEmpty()) return null;
+            double w = Double.parseDouble(wAttr) * sf;
+            double h = Double.parseDouble(hAttr) * sf;
+            return buildEllipseShape(x, y, w, h, rotation);
+        }
+
+        // --- Polyline (skip — open shape, no area for collision) ---
+        NodeList polylineNodes = obj.getElementsByTagName("polyline");
+        if (polylineNodes.getLength() > 0) {
+            System.out.println("Skipping collision object #" + obj.getAttribute("id") + " (polyline — no area)");
+            return null;
+        }
+
+        // --- Rectangle (default Tiled object type) ---
+        String wAttr = obj.getAttribute("width");
+        String hAttr = obj.getAttribute("height");
+        if (wAttr.isEmpty() || hAttr.isEmpty()) {
+            System.out.println("Skipping collision object #" + obj.getAttribute("id") + " (point — no area)");
+            return null;
+        }
+        double w = Double.parseDouble(wAttr) * sf;
+        double h = Double.parseDouble(hAttr) * sf;
+        return buildRectShape(x, y, w, h, rotation);
+    }
+
+    private Shape buildRectShape(double x, double y, double w, double h, double rotation) {
+        if (rotation == 0) {
+            return new Rectangle2D.Double(x, y, w, h);
+        }
+        // Tiled rotates around the object's origin (top-left)
+        AffineTransform at = new AffineTransform();
+        at.translate(x, y);
+        at.rotate(Math.toRadians(rotation));
+        return at.createTransformedShape(new Rectangle2D.Double(0, 0, w, h));
+    }
+
+    private Shape buildEllipseShape(double x, double y, double w, double h, double rotation) {
+        if (rotation == 0) {
+            return new Ellipse2D.Double(x, y, w, h);
+        }
+        AffineTransform at = new AffineTransform();
+        at.translate(x, y);
+        at.rotate(Math.toRadians(rotation));
+        return at.createTransformedShape(new Ellipse2D.Double(0, 0, w, h));
+    }
+
+    private Shape buildPolygonShape(double x, double y, double rotation, String pointsStr, double sf) {
+        String[] pairs = pointsStr.trim().split("\\s+");
+        Path2D.Double poly = new Path2D.Double();
+        for (int i = 0; i < pairs.length; i++) {
+            String[] coords = pairs[i].split(",");
+            double px = Double.parseDouble(coords[0]) * sf;
+            double py = Double.parseDouble(coords[1]) * sf;
+            if (i == 0) poly.moveTo(px, py);
+            else poly.lineTo(px, py);
+        }
+        poly.closePath();
+
+        AffineTransform at = new AffineTransform();
+        at.translate(x, y);
+        if (rotation != 0) {
+            at.rotate(Math.toRadians(rotation));
+        }
+        return at.createTransformedShape(poly);
+    }
+
+    // OPTIMIZATION: Direct GID-indexed arrays for O(1) tile lookups (replaces per-tile linear tileset scans)
+    private Tile[]    gidToTile;
+    private int[]     gidToRenderOrder;
+    private boolean[] gidToDepthSort;
+
+    // OPTIMIZATION: Dirty tracking — skip rebuild when viewport is identical to last frame
+    private int lastVisMinCol = -99, lastVisMaxCol = -99;
+    private int lastVisMinRow = -99, lastVisMaxRow = -99;
+    private int lastCamWorldX = Integer.MIN_VALUE, lastCamWorldY = Integer.MIN_VALUE;
 
     // OPTIMIZATION: Reusable pool of VisibleTileDraw objects to avoid GC pressure
     private final ArrayList<VisibleTileDraw> tileDrawPool = new ArrayList<>();
@@ -359,70 +589,88 @@ public class TileManager {
         return vtd;
     }
 
-    // OPTIMIZATION: Improved viewport culling logic
     public void prepareVisibleTiles() {
-        int playerWorldX = gp.player.worldX;
-        int playerWorldY = gp.player.worldY;
-        int cameraWorldX = playerWorldX - gp.player.screenX;
-        int cameraWorldY = playerWorldY - gp.player.screenY;
-        
-        // Update viewport bounds
-        cachedPlayerWorldX = playerWorldX;
-        cachedPlayerWorldY = playerWorldY;
-        cachedViewportMinX = cameraWorldX;
-        cachedViewportMaxX = cameraWorldX + gp.screenWidth;
-        cachedViewportMinY = cameraWorldY;
-        cachedViewportMaxY = cameraWorldY + gp.screenHeight;
+        int cameraWorldX = gp.player.worldX - gp.player.screenX;
+        int cameraWorldY = gp.player.worldY - gp.player.screenY;
+
+        // Compute visible tile range
+        int extraMargin = tileSize * 2;
+        int minCol = Math.max(0, (cameraWorldX - extraMargin) / tileSize);
+        int maxCol = Math.min(gp.maxWorldCol - 1, (cameraWorldX + gp.screenWidth  + extraMargin) / tileSize);
+        int minRow = Math.max(0, (cameraWorldY - extraMargin) / tileSize);
+        int maxRow = Math.min(gp.maxWorldRow - 1, (cameraWorldY + gp.screenHeight + extraMargin) / tileSize);
+
+        boolean rangeChanged = (minCol != lastVisMinCol || maxCol != lastVisMaxCol
+                             || minRow != lastVisMinRow || maxRow != lastVisMaxRow);
+        boolean camMoved     = (cameraWorldX != lastCamWorldX || cameraWorldY != lastCamWorldY);
+
+        // OPTIMIZATION 1: Nothing changed at all — reuse everything (player standing still)
+        if (!rangeChanged && !camMoved) return;
+
+        lastCamWorldX = cameraWorldX;
+        lastCamWorldY = cameraWorldY;
+
+        if (!rangeChanged) {
+            // OPTIMIZATION 2: Same set of tiles, camera moved sub-tile.
+            // Just recalculate screenX/Y from stored world coords — skip full rebuild AND sort.
+            int bgSize = backgroundVisibleTiles.size();
+            for (int i = 0; i < bgSize; i++) {
+                VisibleTileDraw vtd = backgroundVisibleTiles.get(i);
+                vtd.screenX = Math.round(vtd.worldX      - cameraWorldX * vtd.parallaxX);
+                vtd.screenY = Math.round(vtd.screenBaseY - cameraWorldY * vtd.parallaxY);
+            }
+            int dpSize = depthVisibleTiles.size();
+            for (int i = 0; i < dpSize; i++) {
+                VisibleTileDraw vtd = depthVisibleTiles.get(i);
+                vtd.screenX = Math.round(vtd.worldX      - cameraWorldX * vtd.parallaxX);
+                vtd.screenY = Math.round(vtd.screenBaseY - cameraWorldY * vtd.parallaxY);
+            }
+            return;
+        }
+
+        // OPTIMIZATION 3: Full rebuild — but using O(1) direct GID arrays instead of linear tileset scans
+        lastVisMinCol = minCol; lastVisMaxCol = maxCol;
+        lastVisMinRow = minRow; lastVisMaxRow = maxRow;
 
         backgroundVisibleTiles.clear();
         depthVisibleTiles.clear();
         poolIndex = 0;
 
-        // OPTIMIZATION: Calculate visible column/row range to avoid iterating entire 100x100 world
-        int extraMargin = tileSize * 2; // extra margin for oversized tiles
-        int minCol = Math.max(0, (cachedViewportMinX - extraMargin) / tileSize);
-        int maxCol = Math.min(gp.maxWorldCol - 1, (cachedViewportMaxX + extraMargin) / tileSize);
-        int minRow = Math.max(0, (cachedViewportMinY - extraMargin) / tileSize);
-        int maxRow = Math.min(gp.maxWorldRow - 1, (cachedViewportMaxY + extraMargin) / tileSize);
-
         for (int layerIndex = 0; layerIndex < mapLayers.size(); layerIndex++) {
             int[][] map = mapLayers.get(layerIndex);
-            float parallaxX = layerIndex < layerParallaxX.size() ? layerParallaxX.get(layerIndex) : 1.0f;
-            float parallaxY = layerIndex < layerParallaxY.size() ? layerParallaxY.get(layerIndex) : 1.0f;
+            float px = layerIndex < layerParallaxX.size() ? layerParallaxX.get(layerIndex) : 1.0f;
+            float py = layerIndex < layerParallaxY.size() ? layerParallaxY.get(layerIndex) : 1.0f;
 
-            // Only iterate visible tile range instead of full map
             for (int worldRow = minRow; worldRow <= maxRow; worldRow++) {
                 for (int worldCol = minCol; worldCol <= maxCol; worldCol++) {
                     int gid = map[worldCol][worldRow];
                     if (gid == 0) continue;
-                    
-                    Tile currentTile = getTileByGID(gid);
+
+                    // O(1) direct lookup — no linear tileset scan
+                    Tile currentTile = (gidToTile != null && gid < gidToTile.length) ? gidToTile[gid] : null;
                     if (currentTile == null || currentTile.image == null) continue;
 
-                    Tileset tileset = getTilesetForGID(gid);
-                    if (tileset == null) continue;
+                    int worldX     = worldCol * tileSize;
+                    int worldY     = worldRow * tileSize;
+                    int screenBaseY = worldY - currentTile.drawOffsetY;
 
-                    int worldX = worldCol * tileSize;
-                    int worldY = worldRow * tileSize;
-                    int drawWorldY = worldY - currentTile.drawOffsetY;
-
-                    int screenX = Math.round(worldX - (cameraWorldX * parallaxX));
-                    int screenY = Math.round(drawWorldY - (cameraWorldY * parallaxY));
-
-                    // OPTIMIZATION: Reuse pooled objects instead of allocating new ones
                     VisibleTileDraw visibleTile = getPooledTileDraw();
-                    visibleTile.image = currentTile.image;
-                    visibleTile.screenX = screenX;
-                    visibleTile.screenY = screenY;
-                    visibleTile.baseWorldY = worldY;
-                    visibleTile.layerIndex = layerIndex;
-                    visibleTile.worldCol = worldCol;
-                    visibleTile.worldRow = worldRow;
-                    visibleTile.renderOrder = tileset.renderOrder;
-                    visibleTile.waterEffect = tileset.waterEffect;
-                    visibleTile.sortY = worldY;
+                    visibleTile.image       = currentTile.image;
+                    visibleTile.worldX      = worldX;
+                    visibleTile.screenBaseY = screenBaseY;
+                    visibleTile.screenX     = Math.round(worldX      - cameraWorldX * px);
+                    visibleTile.screenY     = Math.round(screenBaseY - cameraWorldY * py);
+                    visibleTile.parallaxX   = px;
+                    visibleTile.parallaxY   = py;
+                    visibleTile.baseWorldY  = worldY;
+                    visibleTile.layerIndex  = layerIndex;
+                    visibleTile.worldCol    = worldCol;
+                    visibleTile.worldRow    = worldRow;
+                    visibleTile.renderOrder = (gidToRenderOrder != null && gid < gidToRenderOrder.length)
+                                              ? gidToRenderOrder[gid] : 0;
+                    visibleTile.sortY       = worldY;
 
-                    if (tileset.depthSort) {
+                    if (gidToDepthSort != null && gid < gidToDepthSort.length && gidToDepthSort[gid]) {
                         depthVisibleTiles.add(visibleTile);
                     } else {
                         backgroundVisibleTiles.add(visibleTile);
@@ -437,15 +685,7 @@ public class TileManager {
 
     public void drawBackground(Graphics2D g2) {
         for (VisibleTileDraw visibleTile : backgroundVisibleTiles) {
-            if (visibleTile.waterEffect && gp.mapShader != null) {
-                int waveY = gp.mapShader.getWaterWaveOffset(visibleTile.worldCol, visibleTile.worldRow);
-                g2.drawImage(visibleTile.image, visibleTile.screenX, visibleTile.screenY + waveY, null);
-                int idx = gp.mapShader.getWaterShimmerIndex(visibleTile.worldCol, visibleTile.worldRow);
-                g2.setColor(gp.mapShader.waterShimmerColors[idx]);
-                g2.fillRect(visibleTile.screenX, visibleTile.screenY + waveY, tileSize, tileSize);
-            } else {
-                g2.drawImage(visibleTile.image, visibleTile.screenX, visibleTile.screenY, null);
-            }
+            g2.drawImage(visibleTile.image, visibleTile.screenX, visibleTile.screenY, null);
         }
 
         drawPathOverlay(g2);
@@ -461,15 +701,7 @@ public class TileManager {
 
     public void drawDepthTile(Graphics2D g2, int index) {
         VisibleTileDraw visibleTile = depthVisibleTiles.get(index);
-        if (visibleTile.waterEffect && gp.mapShader != null) {
-            int waveY = gp.mapShader.getWaterWaveOffset(visibleTile.worldCol, visibleTile.worldRow);
-            g2.drawImage(visibleTile.image, visibleTile.screenX, visibleTile.screenY + waveY, null);
-            int idx = gp.mapShader.getWaterShimmerIndex(visibleTile.worldCol, visibleTile.worldRow);
-            g2.setColor(gp.mapShader.waterShimmerColors[idx]);
-            g2.fillRect(visibleTile.screenX, visibleTile.screenY + waveY, tileSize, tileSize);
-        } else {
-            g2.drawImage(visibleTile.image, visibleTile.screenX, visibleTile.screenY, null);
-        }
+        g2.drawImage(visibleTile.image, visibleTile.screenX, visibleTile.screenY, null);
     }
 
     private void drawPathOverlay(Graphics2D g2) {
@@ -489,18 +721,37 @@ public class TileManager {
     }
 
     private void rebuildTileLookup() {
-        int totalTiles = 0;
+        // Find max GID to size the direct lookup arrays
+        int maxGIDValue = 0;
         for (Tileset ts : tilesets) {
-            totalTiles += ts.tiles.length;
+            int tsMax = ts.firstGID + ts.tileCount - 1;
+            if (tsMax > maxGIDValue) maxGIDValue = tsMax;
         }
 
+        // Build O(1) direct GID lookup arrays — eliminates per-tile linear tileset scan
+        gidToTile         = new Tile[maxGIDValue + 1];
+        gidToRenderOrder  = new int[maxGIDValue + 1];
+        gidToDepthSort    = new boolean[maxGIDValue + 1];
+        for (Tileset ts : tilesets) {
+            for (int i = 0; i < ts.tileCount && i < ts.tiles.length; i++) {
+                int gid = ts.firstGID + i;
+                gidToTile[gid]        = ts.tiles[i];
+                gidToRenderOrder[gid] = ts.renderOrder;
+                gidToDepthSort[gid]   = ts.depthSort;
+            }
+        }
+
+        // Existing flat lookup (kept for external callers)
+        int totalTiles = 0;
+        for (Tileset ts : tilesets) totalTiles += ts.tiles.length;
         tile = new Tile[totalTiles];
         int index = 0;
         for (Tileset ts : tilesets) {
-            for (Tile singleTile : ts.tiles) {
-                tile[index++] = singleTile;
-            }
+            for (Tile singleTile : ts.tiles) tile[index++] = singleTile;
         }
+
+        // Invalidate dirty tracking so the next prepareVisibleTiles does a full rebuild
+        lastVisMinCol = -99;
     }
 
     private Tileset getTilesetForGID(int gid) {
@@ -517,6 +768,24 @@ public class TileManager {
     private boolean isWaterTileset(String name, String path) {
         String normalized = (name + " " + path).toLowerCase();
         return normalized.contains("water");
+    }
+
+    /**
+     * Check if any configured collision tile layer has a non-empty tile at the given column/row.
+     * Only layers whose name is in collisionTileLayers are checked.
+     * By default collisionTileLayers is empty, so this returns false unless you add layer names.
+     * Example: collisionTileLayers.add("water") to make the water tile layer block movement.
+     */
+    public boolean isTileBlocking(int col, int row) {
+        if (col < 0 || col >= gp.maxWorldCol || row < 0 || row >= gp.maxWorldRow) return true;
+        if (collisionTileLayers.isEmpty()) return false;
+        for (int l = 0; l < mapLayers.size(); l++) {
+            if (l >= layerNames.size()) continue;
+            if (!collisionTileLayers.contains(layerNames.get(l))) continue;
+            int gid = mapLayers.get(l)[col][row];
+            if (gid != 0) return true;
+        }
+        return false;
     }
 
     private boolean isGrassTileset(Tileset tileset) {
@@ -618,6 +887,14 @@ public class TileManager {
 
         if (normalized.startsWith("../tiles/") || normalized.startsWith("tiles/")) {
             return "/res/" + normalized.replaceFirst("^(\\.\\./)+", "");
+        }
+
+        // Fallback: extract filename and try /res/tiles/<filename>
+        int lastSlash = normalized.lastIndexOf('/');
+        String filename = lastSlash >= 0 ? normalized.substring(lastSlash + 1) : normalized;
+        if (!filename.isEmpty()) {
+            System.out.println("Resolving external tileset '" + source + "' -> /res/tiles/" + filename);
+            return "/res/tiles/" + filename;
         }
 
         return null;

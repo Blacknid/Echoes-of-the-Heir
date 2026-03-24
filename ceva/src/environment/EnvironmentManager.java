@@ -17,7 +17,7 @@ public class EnvironmentManager {
     public float filterAlpha = 0f; 
     public int dayCounter = 0;
     
-    public final int dayDuration = 10800;      // 3 minutes, time * 60 (FPS) = total frames for day/night cycle
+    public final int dayDuration = 100;      // 3 minutes, time * 60 (FPS) = total frames for day/night cycle
     public final int transitionDuration = 3600; // 2 minute transition (3600 frames at 60 FPS)
 
     // ADD THIS LINE HERE:
@@ -30,8 +30,8 @@ public class EnvironmentManager {
     public static final int WEATHER_STORM = 2;
     public static final int WEATHER_SNOW  = 3;
 
-    public int weatherState = WEATHER_RAIN;
-    private int weatherTarget = WEATHER_RAIN;
+    public int weatherState = WEATHER_CLEAR;
+    private int weatherTarget = WEATHER_CLEAR; // For smooth transitions
     public float weatherIntensity = 1f;        // 0→1 smooth fade
     private static final float WEATHER_FADE_SPEED = 0.008f; // ~2 sec to full
 

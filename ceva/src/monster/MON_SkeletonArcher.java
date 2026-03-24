@@ -2,7 +2,6 @@ package monster;
 
 import entity.Entity;
 import entity.Projectile;
-import java.awt.image.BufferedImage;
 import java.util.Random;
 import main.GamePanel;
 
@@ -14,7 +13,7 @@ public class MON_SkeletonArcher extends Entity {
 
     GamePanel gp;
     private static final Random random = new Random();
-    private static final String[] DIRECTIONS = {"up", "down", "left", "right"};
+    private static final int[] DIRECTIONS = {DIR_DOWN, DIR_LEFT, DIR_RIGHT, DIR_UP};
 
     // AI behavior
     private int shootCooldown = 0;
@@ -56,16 +55,8 @@ public class MON_SkeletonArcher extends Entity {
 
     public void getImage() {
         // Reuse mummy sprite (can be replaced with unique sprite later)
-        int[] framesPerRow = {6, 6, 6, 6};
-        BufferedImage[][] frames = loadSheetVariable("/res/monster/Monster_walking-sheet", framesPerRow);
-        down1 = frames[0][0];   down2 = frames[0][1];   down3 = frames[0][2];
-        down4 = frames[0][3];   down5 = frames[0][4];   down6 = frames[0][5];
-        left1 = frames[1][0];   left2 = frames[1][1];   left3 = frames[1][2];
-        left4 = frames[1][3];   left5 = frames[1][4];   left6 = frames[1][5];
-        right1 = frames[2][0];  right2 = frames[2][1];  right3 = frames[2][2];
-        right4 = frames[2][3];  right5 = frames[2][4];  right6 = frames[2][5];
-        up1 = frames[3][0];     up2 = frames[3][1];     up3 = frames[3][2];
-        up4 = frames[3][3];     up5 = frames[3][4];     up6 = frames[3][5];
+        int[] framesPerRow = {6, 6, 6, 6}; // down, left, right, up (matches DIR_DOWN=0,LEFT=1,RIGHT=2,UP=3)
+        walkFrames = loadSheetVariable("/res/monster/Monster_walking-sheet", framesPerRow);
     }
 
     @Override
@@ -126,7 +117,8 @@ public class MON_SkeletonArcher extends Entity {
             p.solidArea.y = projectile.solidArea.y;
             p.solidArea.width = projectile.solidArea.width;
             p.solidArea.height = projectile.solidArea.height;
-            // Copy sprites
+            // Copy sprites (share walkFrames array — it's read-only)
+            p.walkFrames = projectile.walkFrames;
             p.up1 = projectile.up1; p.up2 = projectile.up2;
             p.down1 = projectile.down1; p.down2 = projectile.down2;
             p.left1 = projectile.left1; p.left2 = projectile.left2;
@@ -139,26 +131,26 @@ public class MON_SkeletonArcher extends Entity {
 
     private void facePlayer(int dx, int dy) {
         if (Math.abs(dx) > Math.abs(dy)) {
-            direction = dx > 0 ? "left" : "right";
+            direction = dx > 0 ? DIR_LEFT : DIR_RIGHT;
         } else {
-            direction = dy > 0 ? "up" : "down";
+            direction = dy > 0 ? DIR_UP : DIR_DOWN;
         }
     }
 
     private void setFleeDirection(int dx, int dy) {
         if (Math.abs(dx) > Math.abs(dy)) {
-            direction = dx > 0 ? "right" : "left";
+            direction = dx > 0 ? DIR_RIGHT : DIR_LEFT;
         } else {
-            direction = dy > 0 ? "down" : "up";
+            direction = dy > 0 ? DIR_DOWN : DIR_UP;
         }
     }
 
     private void setStrafeDirecion(int dx, int dy) {
         // Move perpendicular to player direction
         if (Math.abs(dx) > Math.abs(dy)) {
-            direction = random.nextBoolean() ? "up" : "down";
+            direction = random.nextBoolean() ? DIR_UP : DIR_DOWN;
         } else {
-            direction = random.nextBoolean() ? "left" : "right";
+            direction = random.nextBoolean() ? DIR_LEFT : DIR_RIGHT;
         }
     }
 

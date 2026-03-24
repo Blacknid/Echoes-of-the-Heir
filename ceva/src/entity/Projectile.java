@@ -13,7 +13,7 @@ public class Projectile extends Entity implements Poolable {
         super(gp);
     }
 
-    public void set(int worldX, int worldY, String direction, boolean alive, Entity user) {
+    public void set(int worldX, int worldY, int direction, boolean alive, Entity user) {
 
         this.worldX = worldX;
         this.worldY = worldY;
@@ -86,10 +86,10 @@ public class Projectile extends Entity implements Poolable {
         speed = moveSpeed;
 
         switch(direction) {
-            case "up": worldY -= speed; break;
-            case "down": worldY += speed; break;
-            case "left": worldX -= speed; break;
-            case "right": worldX += speed; break;
+            case DIR_UP:    worldY -= speed; break;
+            case DIR_DOWN:  worldY += speed; break;
+            case DIR_LEFT:  worldX -= speed; break;
+            case DIR_RIGHT: worldX += speed; break;
         }
 
         life--;
@@ -139,7 +139,7 @@ public class Projectile extends Entity implements Poolable {
         life = 0;
         worldX = 0;
         worldY = 0;
-        direction = "down";
+        direction = DIR_DOWN;
         spriteNum = 1;
         spriteCounter = 0;
     }

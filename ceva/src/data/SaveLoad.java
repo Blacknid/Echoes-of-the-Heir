@@ -1,17 +1,54 @@
 package data;
 
-import java.io.*;
-
 import entity.Entity;
+import java.io.*;
+import java.security.SecureRandom;
+import java.util.HashMap;
+import java.util.Map;
+import javax.crypto.Cipher;
+import javax.crypto.spec.IvParameterSpec;
+import javax.crypto.spec.SecretKeySpec;
 import main.GamePanel;
 import object.*;
 
 public class SaveLoad {
 
+    // AES-128 key — 16 bytes (change these values to make your save unique)
+    private static final byte[] SAVE_KEY = {
+        0x4D,0x69,0x63,0x68,0x69,0x41,0x64,0x76,
+        0x65,0x6E,0x74,0x75,0x72,0x65,0x32,0x30
+    };
+
     GamePanel gp;
 
     public SaveLoad(GamePanel gp) {
         this.gp = gp;
+    }
+
+    // =========================
+    // CRYPTO HELPERS
+    // =========================
+    private byte[] encrypt(String plaintext) throws Exception {
+        byte[] iv = new byte[16];
+        new SecureRandom().nextBytes(iv);
+        Cipher cipher = Cipher.getInstance("AES/CBC/PKCS5Padding");
+        cipher.init(Cipher.ENCRYPT_MODE, new SecretKeySpec(SAVE_KEY, "AES"), new IvParameterSpec(iv));
+        byte[] enc = cipher.doFinal(plaintext.getBytes("UTF-8"));
+        // File layout: [16-byte IV][ciphertext]
+        byte[] out = new byte[16 + enc.length];
+        System.arraycopy(iv,  0, out,  0, 16);
+        System.arraycopy(enc, 0, out, 16, enc.length);
+        return out;
+    }
+
+    private String decrypt(byte[] data) throws Exception {
+        byte[] iv = new byte[16];
+        System.arraycopy(data, 0, iv, 0, 16);
+        byte[] enc = new byte[data.length - 16];
+        System.arraycopy(data, 16, enc, 0, enc.length);
+        Cipher cipher = Cipher.getInstance("AES/CBC/PKCS5Padding");
+        cipher.init(Cipher.DECRYPT_MODE, new SecretKeySpec(SAVE_KEY, "AES"), new IvParameterSpec(iv));
+        return new String(cipher.doFinal(enc), "UTF-8");
     }
 
     // =========================
@@ -41,66 +78,56 @@ public class SaveLoad {
     // =========================
     public void save() {
 
-        try (ObjectOutputStream oos =
-             new ObjectOutputStream(new FileOutputStream("save.dat"))) {
-
-            DataStorage ds = new DataStorage();
+        try {
+            StringBuilder sb = new StringBuilder();
 
             // PLAYER STATS
-            ds.level = gp.player.level;
-            ds.maxLife = gp.player.maxLife;
-            ds.life = gp.player.life;
-            ds.maxMana = gp.player.maxMana;
-            ds.mana = gp.player.mana;
-            ds.strenght = gp.player.strenght;
-            ds.dexterity = gp.player.dexterity;
-            ds.exp = gp.player.exp;
-            ds.nextLevelExp = gp.player.nextLevelExp;
-            ds.coin = gp.player.coin;
+            sb.append("player.level=").append(gp.player.level).append('\n');
+            sb.append("player.maxLife=").append(gp.player.maxLife).append('\n');
+            sb.append("player.life=").append(gp.player.life).append('\n');
+            sb.append("player.maxMana=").append(gp.player.maxMana).append('\n');
+            sb.append("player.mana=").append(gp.player.mana).append('\n');
+            sb.append("player.strenght=").append(gp.player.strenght).append('\n');
+            sb.append("player.dexterity=").append(gp.player.dexterity).append('\n');
+            sb.append("player.exp=").append(gp.player.exp).append('\n');
+            sb.append("player.nextLevelExp=").append(gp.player.nextLevelExp).append('\n');
+            sb.append("player.coin=").append(gp.player.coin).append('\n');
 
             // LOCATION
-            ds.playerWorldX = gp.player.worldX;
-            ds.playerWorldY = gp.player.worldY;
+            sb.append("player.worldX=").append(gp.player.worldX).append('\n');
+            sb.append("player.worldY=").append(gp.player.worldY).append('\n');
+
+            // EQUIPMENT SLOTS
+            sb.append("player.weaponSlot=").append(gp.player.getCurrentWeaponSlot()).append('\n');
+            sb.append("player.shieldSlot=").append(gp.player.getCurrentShieldSlot()).append('\n');
 
             // INVENTORY
-            for (Entity e : gp.player.inventory) {
-                ds.itemNames.add(e.name);
-                ds.itemAmounts.add(e.amount);
+            sb.append("inventory.size=").append(gp.player.inventory.size()).append('\n');
+            for (int i = 0; i < gp.player.inventory.size(); i++) {
+                sb.append("inventory.").append(i).append(".name=").append(gp.player.inventory.get(i).name).append('\n');
+                sb.append("inventory.").append(i).append(".amount=").append(gp.player.inventory.get(i).amount).append('\n');
             }
-
-            ds.currentWeaponSlot = gp.player.getCurrentWeaponSlot();
-            ds.currentShieldSlot = gp.player.getCurrentShieldSlot();
 
             // OBJECTS ON MAP
             int size = gp.obj.length;
-
-            ds.mapObjectNames = new String[size];
-            ds.mapObjectWorldX = new int[size];
-            ds.mapObjectWorldY = new int[size];
-            ds.mapObjectLootName = new String[size];
-            ds.mapObjectOpened = new boolean[size];
-
+            sb.append("obj.size=").append(size).append('\n');
             for (int i = 0; i < size; i++) {
-
                 if (gp.obj[i] == null) {
-                    ds.mapObjectNames[i] = "NA";
-                    ds.mapObjectLootName[i] = "NA";
+                    sb.append("obj.").append(i).append(".name=NA\n");
                     continue;
                 }
-
-                ds.mapObjectNames[i] = gp.obj[i].name;
-                ds.mapObjectWorldX[i] = gp.obj[i].worldX;
-                ds.mapObjectWorldY[i] = gp.obj[i].worldY;
-                ds.mapObjectOpened[i] = gp.obj[i].opened;
-
-                if (gp.obj[i].loot != null) {
-                    ds.mapObjectLootName[i] = gp.obj[i].loot.name;
-                } else {
-                    ds.mapObjectLootName[i] = "NA";
-                }
+                sb.append("obj.").append(i).append(".name=").append(gp.obj[i].name).append('\n');
+                sb.append("obj.").append(i).append(".worldX=").append(gp.obj[i].worldX).append('\n');
+                sb.append("obj.").append(i).append(".worldY=").append(gp.obj[i].worldY).append('\n');
+                sb.append("obj.").append(i).append(".opened=").append(gp.obj[i].opened).append('\n');
+                String lootName = gp.obj[i].loot != null ? gp.obj[i].loot.name : "NA";
+                sb.append("obj.").append(i).append(".loot=").append(lootName).append('\n');
             }
 
-            oos.writeObject(ds);
+            byte[] encrypted = encrypt(sb.toString());
+            try (FileOutputStream fos = new FileOutputStream("save.dat")) {
+                fos.write(encrypted);
+            }
 
         } catch (Exception e) {
             e.printStackTrace();
@@ -113,74 +140,77 @@ public class SaveLoad {
     // =========================
     public void load() {
 
-        try (ObjectInputStream ois =
-             new ObjectInputStream(new FileInputStream("save.dat"))) {
+        try {
+            byte[] raw;
+            try (FileInputStream fis = new FileInputStream("save.dat")) {
+                raw = fis.readAllBytes();
+            }
+            String plaintext = decrypt(raw);
 
-            DataStorage ds = (DataStorage) ois.readObject();
+            Map<String, String> map = new HashMap<>();
+            for (String line : plaintext.split("\n")) {
+                int eq = line.indexOf('=');
+                if (eq > 0) map.put(line.substring(0, eq).trim(), line.substring(eq + 1).trim());
+            }
 
             // PLAYER STATS
-            gp.player.level = ds.level;
-            gp.player.maxLife = ds.maxLife;
-            gp.player.life = ds.life;
-            gp.player.maxMana = ds.maxMana;
-            gp.player.mana = ds.mana;
-            gp.player.strenght = ds.strenght;
-            gp.player.dexterity = ds.dexterity;
-            gp.player.exp = ds.exp;
-            gp.player.nextLevelExp = ds.nextLevelExp;
-            gp.player.coin = ds.coin;
+            gp.player.level        = Integer.parseInt(map.getOrDefault("player.level",        "1"));
+            gp.player.maxLife      = Integer.parseInt(map.getOrDefault("player.maxLife",      "6"));
+            gp.player.life         = Integer.parseInt(map.getOrDefault("player.life",         "6"));
+            gp.player.maxMana      = Integer.parseInt(map.getOrDefault("player.maxMana",      "4"));
+            gp.player.mana         = Integer.parseInt(map.getOrDefault("player.mana",         "4"));
+            gp.player.strenght     = Integer.parseInt(map.getOrDefault("player.strenght",     "1"));
+            gp.player.dexterity    = Integer.parseInt(map.getOrDefault("player.dexterity",    "1"));
+            gp.player.exp          = Integer.parseInt(map.getOrDefault("player.exp",          "0"));
+            gp.player.nextLevelExp = Integer.parseInt(map.getOrDefault("player.nextLevelExp", "5"));
+            gp.player.coin         = Integer.parseInt(map.getOrDefault("player.coin",         "0"));
 
             // LOCATION
-            gp.player.worldX = ds.playerWorldX;
-            gp.player.worldY = ds.playerWorldY;
+            gp.player.worldX = Integer.parseInt(map.getOrDefault("player.worldX", "0"));
+            gp.player.worldY = Integer.parseInt(map.getOrDefault("player.worldY", "0"));
 
             // INVENTORY
             gp.player.inventory.clear();
-
-            for (int i = 0; i < ds.itemNames.size(); i++) {
-                Entity item = getObject(ds.itemNames.get(i));
+            int invSize = Integer.parseInt(map.getOrDefault("inventory.size", "0"));
+            for (int i = 0; i < invSize; i++) {
+                Entity item = getObject(map.get("inventory." + i + ".name"));
                 if (item != null) {
-                    item.amount = ds.itemAmounts.get(i);
+                    item.amount = Integer.parseInt(map.getOrDefault("inventory." + i + ".amount", "1"));
                     gp.player.inventory.add(item);
                 }
             }
 
             // CURRENT EQUIPMENT
-            if (ds.currentWeaponSlot < gp.player.inventory.size()) {
-                gp.player.currentWeapon =
-                        gp.player.inventory.get(ds.currentWeaponSlot);
-            }
-
-            if (ds.currentShieldSlot < gp.player.inventory.size()) {
-                gp.player.currentShield =
-                        gp.player.inventory.get(ds.currentShieldSlot);
-            }
+            int weaponSlot = Integer.parseInt(map.getOrDefault("player.weaponSlot", "0"));
+            int shieldSlot = Integer.parseInt(map.getOrDefault("player.shieldSlot", "1"));
+            if (weaponSlot < gp.player.inventory.size()) gp.player.currentWeapon = gp.player.inventory.get(weaponSlot);
+            if (shieldSlot < gp.player.inventory.size()) gp.player.currentShield = gp.player.inventory.get(shieldSlot);
 
             gp.player.getAttack();
             gp.player.getDefense();
             gp.player.getPlayerAttackImages();
 
             // OBJECTS ON MAP
-            for (int i = 0; i < gp.obj.length; i++) {
-
-                if (ds.mapObjectNames[i].equals("NA")) {
+            int objSize = Integer.parseInt(map.getOrDefault("obj.size", "0"));
+            for (int i = 0; i < Math.min(objSize, gp.obj.length); i++) {
+                String name = map.get("obj." + i + ".name");
+                if (name == null || name.equals("NA")) {
                     gp.obj[i] = null;
                     continue;
                 }
-
-                gp.obj[i] = getObject(ds.mapObjectNames[i]);
+                gp.obj[i] = getObject(name);
                 if (gp.obj[i] == null) continue;
 
-                gp.obj[i].worldX = ds.mapObjectWorldX[i];
-                gp.obj[i].worldY = ds.mapObjectWorldY[i];
-                gp.obj[i].opened = ds.mapObjectOpened[i];
+                gp.obj[i].worldX = Integer.parseInt(map.getOrDefault("obj." + i + ".worldX", "0"));
+                gp.obj[i].worldY = Integer.parseInt(map.getOrDefault("obj." + i + ".worldY", "0"));
+                gp.obj[i].opened = Boolean.parseBoolean(map.getOrDefault("obj." + i + ".opened", "false"));
 
-                if (!gp.obj[i].opened && !ds.mapObjectLootName[i].equals("NA")) {
-                    gp.obj[i].loot = getObject(ds.mapObjectLootName[i]);
-                } else {
+                String lootName = map.get("obj." + i + ".loot");
+                if (gp.obj[i].opened || lootName == null || lootName.equals("NA")) {
                     gp.obj[i].loot = null;
+                } else {
+                    gp.obj[i].loot = getObject(lootName);
                 }
-
                 if (gp.obj[i].opened) {
                     gp.obj[i].down1 = gp.obj[i].image1;
                 }

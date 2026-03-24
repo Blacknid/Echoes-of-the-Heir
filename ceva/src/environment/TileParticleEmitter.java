@@ -23,11 +23,12 @@ public class TileParticleEmitter {
     // ─── Generic particle API types ───
     public enum ParticleType {
         FOOTSTEP_GRASS,
-        FOOTSTEP_STONE
+        FOOTSTEP_STONE,
+        LEAF_FALL
     }
 
     // ─── Pool ───
-    private static final int MAX_PARTICLES = 120;
+    private static final int MAX_PARTICLES = 200;
     private final FP[] particles = new FP[MAX_PARTICLES];
     private final int[] activeIndices = new int[MAX_PARTICLES];
     private final int[] indexInActive = new int[MAX_PARTICLES];
@@ -59,6 +60,13 @@ public class TileParticleEmitter {
     private final ParticlePreset stonePreset = new ParticlePreset(
         STONE_COLORS, 1, 2, 14, 21, 0.06f, 1.2f, 0.8f, -0.30f
     );
+    private final ParticlePreset leafPreset = new ParticlePreset(
+        LEAF_COLORS, 2, 4, 80, 140, 0.012f, 0.6f, 0.3f, 0.15f
+    );
+
+    // ─── Ambient tree leaf spawning ───
+    private int leafSpawnTimer = 0;
+    private static final int LEAF_SPAWN_INTERVAL = 8; // frames between leaf spawn attempts
 
     public TileParticleEmitter(GamePanel gp) {
         this.gp = gp;
@@ -80,16 +88,16 @@ public class TileParticleEmitter {
     // ═══════════════════════════════════════════════════════════
 
     /**
-     * Backward-compatible API used by existing entity/player calls.
+     * Emit footstep particles. direction uses Entity.DIR_DOWN/LEFT/RIGHT/UP constants.
      */
-    public void emit(int worldX, int worldY, int tileType, String direction) {
+    public void emit(int worldX, int worldY, int tileType, int direction) {
         emitFootstep(worldX, worldY, tileType, direction);
     }
 
     /**
      * User-friendly high-level helper for terrain footsteps.
      */
-    public void emitFootstep(int worldX, int worldY, int tileType, String direction) {
+    public void emitFootstep(int worldX, int worldY, int tileType, int direction) {
         ParticleType type = particleTypeFromTile(tileType);
         if (type == null) return;
 
@@ -100,7 +108,7 @@ public class TileParticleEmitter {
     /**
      * Generic emission API for future effects (impact, sparks, snow, etc).
      */
-    public void emit(ParticleType type, int worldX, int worldY, String direction, int count) {
+    public void emit(ParticleType type, int worldX, int worldY, int direction, int count) {
         if (type == null || count <= 0) return;
         for (int i = 0; i < count; i++) {
             spawnOne(type, worldX, worldY, direction);
@@ -127,27 +135,42 @@ public class TileParticleEmitter {
         return baseCount;
     }
 
-    private void spawnOne(ParticleType type, int worldX, int worldY, String direction) {
+    private void spawnOne(ParticleType type, int worldX, int worldY, int direction) {
         int particleIndex = allocateParticleSlot();
         FP p = particles[particleIndex];
         ParticlePreset preset = getPreset(type);
 
-        // Foot position with slight random spread
-        int halfTile = gp.tileSize / 2;
-        p.worldX = worldX + halfTile + rng.nextInt(13) - 6;
-        p.worldY = worldY + gp.tileSize - 4 + rng.nextInt(5); // near feet
-        p.sortY = worldY; // entity's top worldY — used for depth sorting with entities
+        if (type == ParticleType.LEAF_FALL) {
+            // Leaf starts at random position within the tree tile area
+            p.worldX = worldX + rng.nextInt(gp.tileSize);
+            p.worldY = worldY + rng.nextInt(gp.tileSize / 2); // upper half of tree
+            p.sortY = worldY;
 
-        // Velocity: particles kick opposite to movement + random spread
-        float baseVX = 0, baseVY = 0;
-        switch (direction) {
-            case "up":    baseVY =  0.6f; break;
-            case "down":  baseVY = -0.5f; break;
-            case "left":  baseVX =  0.6f; break;
-            case "right": baseVX = -0.6f; break;
+            // Gentle drifting motion — sway left/right, fall slowly
+            p.vx = (rng.nextFloat() - 0.5f) * 0.5f;
+            p.vy = 0.15f + rng.nextFloat() * 0.25f; // gentle fall
+            p.swayAmplitude = 0.3f + rng.nextFloat() * 0.4f;
+            p.swaySpeed = 0.04f + rng.nextFloat() * 0.03f;
+            p.swayPhase = rng.nextFloat() * 6.28f; // random start phase
+        } else {
+            // Foot position with slight random spread
+            int halfTile = gp.tileSize / 2;
+            p.worldX = worldX + halfTile + rng.nextInt(13) - 6;
+            p.worldY = worldY + gp.tileSize - 4 + rng.nextInt(5); // near feet
+            p.sortY = worldY;
+
+            // Velocity: particles kick opposite to movement + random spread
+            float baseVX = 0, baseVY = 0;
+            switch (direction) {
+                case entity.Entity.DIR_UP:    baseVY =  0.6f; break;
+                case entity.Entity.DIR_DOWN:  baseVY = -0.5f; break;
+                case entity.Entity.DIR_LEFT:  baseVX =  0.6f; break;
+                case entity.Entity.DIR_RIGHT: baseVX = -0.6f; break;
+            }
+            p.vx = baseVX + (rng.nextFloat() - 0.5f) * preset.velocitySpreadX;
+            p.vy = baseVY + (rng.nextFloat() - 0.5f) * preset.velocitySpreadY + preset.verticalBias;
+            p.swayAmplitude = 0;
         }
-        p.vx = baseVX + (rng.nextFloat() - 0.5f) * preset.velocitySpreadX;
-        p.vy = baseVY + (rng.nextFloat() - 0.5f) * preset.velocitySpreadY + preset.verticalBias;
 
         p.color = preset.palette[rng.nextInt(preset.palette.length)];
         p.size = randomRangeInclusive(preset.minSize, preset.maxSize);
@@ -168,6 +191,7 @@ public class TileParticleEmitter {
         return switch (type) {
             case FOOTSTEP_GRASS -> grassPreset;
             case FOOTSTEP_STONE -> stonePreset;
+            case LEAF_FALL -> leafPreset;
         };
     }
 
@@ -220,13 +244,67 @@ public class TileParticleEmitter {
             int particleIndex = activeIndices[i];
             FP p = particles[particleIndex];
 
+            // Apply sway for leaf particles
+            if (p.swayAmplitude > 0) {
+                p.swayPhase += p.swaySpeed;
+                p.vx += (float) Math.sin(p.swayPhase) * p.swayAmplitude * 0.05f;
+            }
+
             p.worldX += p.vx;
             p.worldY += p.vy;
-            p.vy += p.gravity; // gravity pulls down
+            p.vy += p.gravity;
             p.life--;
 
             if (p.life <= 0) {
                 deactivateParticle(particleIndex);
+            }
+        }
+
+        // Ambient tree leaf spawning
+        leafSpawnTimer++;
+        if (leafSpawnTimer >= LEAF_SPAWN_INTERVAL) {
+            leafSpawnTimer = 0;
+            spawnAmbientLeaves();
+        }
+    }
+
+    /**
+     * Picks random visible tree tiles and spawns falling leaf particles from them.
+     */
+    private void spawnAmbientLeaves() {
+        // Find the "Trees" layer index
+        int treesLayerIndex = -1;
+        for (int l = 0; l < gp.tileM.layerNames.size(); l++) {
+            if (gp.tileM.layerNames.get(l).equalsIgnoreCase("Trees")) {
+                treesLayerIndex = l;
+                break;
+            }
+        }
+        if (treesLayerIndex < 0 || treesLayerIndex >= gp.tileM.mapLayers.size()) return;
+
+        int[][] treeLayer = gp.tileM.mapLayers.get(treesLayerIndex);
+
+        // Calculate visible tile range
+        int cameraX = gp.player.worldX - gp.player.screenX;
+        int cameraY = gp.player.worldY - gp.player.screenY;
+        int minCol = Math.max(0, cameraX / gp.tileSize - 1);
+        int maxCol = Math.min(gp.maxWorldCol - 1, (cameraX + gp.screenWidth) / gp.tileSize + 1);
+        int minRow = Math.max(0, cameraY / gp.tileSize - 1);
+        int maxRow = Math.min(gp.maxWorldRow - 1, (cameraY + gp.screenHeight) / gp.tileSize + 1);
+
+        // Try a few random visible positions for tree tiles
+        int attempts = 3;
+        for (int a = 0; a < attempts; a++) {
+            int col = minCol + rng.nextInt(Math.max(1, maxCol - minCol + 1));
+            int row = minRow + rng.nextInt(Math.max(1, maxRow - minRow + 1));
+            if (col >= 0 && col < gp.maxWorldCol && row >= 0 && row < gp.maxWorldRow) {
+                int gid = treeLayer[col][row];
+                if (gid != 0) {
+                    // This tile has a tree — spawn a leaf
+                    int worldX = col * gp.tileSize;
+                    int worldY = row * gp.tileSize;
+                    spawnOne(ParticleType.LEAF_FALL, worldX, worldY, entity.Entity.DIR_DOWN);
+                }
             }
         }
     }
@@ -340,6 +418,15 @@ public class TileParticleEmitter {
         new Color(120, 115, 110),  // dark stone
     };
 
+    private static final Color[] LEAF_COLORS = {
+        new Color( 60, 130, 20),   // deep green
+        new Color( 90, 160, 40),   // fresh green
+        new Color(120, 170, 50),   // light green
+        new Color(150, 140, 30),   // yellow-green
+        new Color(170, 120, 20),   // orange-brown
+        new Color(140, 100, 30),   // autumn brown
+    };
+
     // ═══════════════════════════════════════════════════════════
     //  Inner particle struct  (Footstep Particle)
     // ═══════════════════════════════════════════════════════════
@@ -347,12 +434,16 @@ public class TileParticleEmitter {
     private static class FP {
         boolean alive;
         float worldX, worldY;
-        float sortY;  // entity's worldY at spawn time — used for depth sorting
+        float sortY;
         float vx, vy;
         float gravity;
         Color color;
         int size;
         int life, maxLife;
+        // Leaf sway
+        float swayAmplitude;
+        float swaySpeed;
+        float swayPhase;
     }
 
     private static class ParticlePreset {

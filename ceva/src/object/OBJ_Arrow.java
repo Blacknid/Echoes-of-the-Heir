@@ -1,10 +1,9 @@
 package object;
 
-import java.awt.Color;
-import java.awt.image.BufferedImage;
-
 import entity.Entity;
 import entity.Projectile;
+import java.awt.Color;
+import java.awt.image.BufferedImage;
 import main.GamePanel;
 
 public class OBJ_Arrow extends Projectile {
@@ -38,14 +37,11 @@ public class OBJ_Arrow extends Projectile {
 
     public void getImage(){
         BufferedImage[][] temp_images = loadSpriteMatrix("/res/projectiles/Arrow", 32, 32);
-        up1 = rotateImage(temp_images[1][3], -180);
-        up2 = rotateImage(temp_images[1][3], -180);
-        down1 = temp_images[1][3];
-        down2 = temp_images[1][3];
-        left1 = rotateImage(temp_images[0][0], -180);
-        left2 = rotateImage(temp_images[0][0], -180);
-        right1 = temp_images[0][0];
-        right2 = temp_images[0][0];
+        walkFrames = new BufferedImage[4][2];
+        walkFrames[DIR_UP][0]    = walkFrames[DIR_UP][1]    = rotateImage(temp_images[1][3], -180);
+        walkFrames[DIR_DOWN][0]  = walkFrames[DIR_DOWN][1]  = temp_images[1][3];
+        walkFrames[DIR_LEFT][0]  = walkFrames[DIR_LEFT][1]  = rotateImage(temp_images[0][0], -180);
+        walkFrames[DIR_RIGHT][0] = walkFrames[DIR_RIGHT][1] = temp_images[0][0];
     }
     public boolean haveResource(Entity user) {
 

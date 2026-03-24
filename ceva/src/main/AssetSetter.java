@@ -31,8 +31,9 @@ public class AssetSetter {
         for (int i = 0; i < gp.iTile.length; i++) gp.iTile[i] = null;
 
         switch (gp.currentMapId) {
-            case "harta" -> setInteractiveTile_harta();
-            case "test"  -> setInteractiveTile_test();
+            case "harta"    -> setInteractiveTile_harta();
+            case "test"     -> setInteractiveTile_test();
+            case "Dungeon1" -> setInteractiveTile_Dungeon1();
         }
     }
 
@@ -52,21 +53,31 @@ public class AssetSetter {
         // No interactive tiles on test map yet
     }
 
+    private void setInteractiveTile_Dungeon1() {
+        // No interactive tiles in Dungeon1 yet
+    }
+
     // ========== EVENTS / MAP TRANSITIONS (dispatched by current map) ==========
     public void setEvents() {
         switch (gp.currentMapId) {
-            case "harta" -> setEvents_harta();
-            case "test"  -> setEvents_test();
+            case "harta"    -> setEvents_harta();
+            case "test"     -> setEvents_test();
+            case "Dungeon1" -> setEvents_Dungeon1();
         }
     }
 
     private void setEvents_harta() {
-        // Stepping on tile (69,30) transitions to 'test' map at spawn (5,5)
-        gp.eHandler.registerMapTransition(69, 30, "test", 5, 5);
+        // Stepping on tile (5,5) transitions to 'Dungeon1' map at spawn (5,5)
+        gp.eHandler.registerMapTransition(5, 5, "Dungeon1", 5, 5);
     }
 
     private void setEvents_test() {
         // No step-on triggers on test map - use doors to exit
+    }
+
+    private void setEvents_Dungeon1() {
+        // Stepping on tile (10,5) transitions back to harta at spawn (6,5)
+        // gp.eHandler.registerMapTransition(10, 5, "harta", 6, 5);
     }
 
     // ========== OBJECTS (dispatched by current map) ==========
@@ -74,8 +85,9 @@ public class AssetSetter {
         for (int i = 0; i < gp.obj.length; i++) gp.obj[i] = null;
 
         switch (gp.currentMapId) {
-            case "harta" -> setObject_harta();
-            case "test"  -> setObject_test();
+            case "harta"    -> setObject_harta();
+            case "test"     -> setObject_test();
+            case "Dungeon1" -> setObject_Dungeon1();
         }
     }
 
@@ -137,7 +149,7 @@ public class AssetSetter {
         gp.obj[i] = new OBJ_Door(gp);
         gp.obj[i].worldX = 24 * gp.tileSize;
         gp.obj[i].worldY = 25 * gp.tileSize;
-        ((OBJ_Door)gp.obj[i]).setDestination("test", 5, 7, true);
+        ((OBJ_Door)gp.obj[i]).setDestination("Dungeon1", 5, 7, true);
         i++;
         
         gp.obj[i] = new OBJ_Door(gp);
@@ -212,13 +224,18 @@ public class AssetSetter {
         i++;
     }
 
+    private void setObject_Dungeon1() {
+        // No objects in Dungeon1 yet
+    }
+
     // ========== NPCs (dispatched by current map) ==========
     public void setNPC() {
         for (int i = 0; i < gp.npc.length; i++) gp.npc[i] = null;
 
         switch (gp.currentMapId) {
-            case "harta" -> setNPC_harta();
-            case "test"  -> setNPC_test();
+            case "harta"    -> setNPC_harta();
+            case "test"     -> setNPC_test();
+            case "Dungeon1" -> setNPC_Dungeon1();
         }
     }
 
@@ -234,13 +251,18 @@ public class AssetSetter {
         // No NPCs on test map yet
     }
 
+    private void setNPC_Dungeon1() {
+        // No NPCs in Dungeon1 yet
+    }
+
     // ========== MONSTERS (dispatched by current map) ==========
     public void setMonster() {
         for (int i = 0; i < gp.monster.length; i++) gp.monster[i] = null;
 
         switch (gp.currentMapId) {
-            case "harta" -> setMonster_harta();
-            case "test"  -> setMonster_test();
+            case "harta"    -> setMonster_harta();
+            case "test"     -> setMonster_test();
+            case "Dungeon1" -> setMonster_Dungeon1();
         }
     }
 
@@ -266,6 +288,10 @@ public class AssetSetter {
 
     private void setMonster_test() {
         // No monsters on test map yet
+    }
+
+    private void setMonster_Dungeon1() {
+        // No monsters in Dungeon1 yet
     }
 
     /**

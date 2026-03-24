@@ -18,13 +18,20 @@ public class Entity {
     int pathUpdateCounter = 0;
     int pathUpdateInterval = 10;
 
+    // DIRECTION CONSTANTS
+    public static final int DIR_DOWN  = 0;
+    public static final int DIR_LEFT  = 1;
+    public static final int DIR_RIGHT = 2;
+    public static final int DIR_UP    = 3;
+    public static final int DIR_ANY   = -1; // for event checks (any facing)
+
     // POSITION & STATE
     public int worldX, worldY;
     public boolean alive = true;
     public boolean dying = false;
     boolean hpBarOn = false;
 
-    // SPRITES
+    // SPRITES - legacy named fields (still used by object/item classes)
     public BufferedImage up1, up2, up3, up4, up5, up6, up7,
         down1, down2, down3, down4, down5, down6, down7,
         left1, left2, left3, left4, left5, left6, left7, left8,
@@ -34,14 +41,19 @@ public class Entity {
         leftidle1, leftidle2, leftidle3, leftidle4, leftidle5, leftidle6, 
         rightidle1, rightidle2, rightidle3, rightidle4, rightidle5, rightidle6;
     public BufferedImage chest_1, chest_2;
+
+    // SPRITES - array-based storage: [dirIndex][frameIndex], dir = DIR_DOWN/LEFT/RIGHT/UP
+    public BufferedImage[][] walkFrames;   // walk animation per direction
+    public BufferedImage[][] idleFrames;   // idle animation per direction
+    public BufferedImage[][] attackFrames; // attack animation per direction
     
-    // ATTACK SPRITES
+    // ATTACK SPRITES - legacy named fields (still used by player draw code)
     public BufferedImage attackUp1, attackUp2, attackUp3, attackUp4, attackUp5, attackUp6;
     public BufferedImage attackDown1, attackDown2, attackDown3, attackDown4, attackDown5, attackDown6;
     public BufferedImage attackLeft1, attackLeft2, attackLeft3, attackLeft4, attackLeft5, attackLeft6;
     public BufferedImage attackRight1, attackRight2, attackRight3, attackRight4, attackRight5, attackRight6;
     
-    public String direction = "down";
+    public int direction = DIR_DOWN;
 
     // COUNTERS
     public int spriteCounter = 0;
@@ -198,10 +210,10 @@ public class Entity {
     public void setLoot(Entity loot) {}
     public void facePlayer() {
         switch (gp.player.direction) {
-            case "up": direction = "down"; break;
-            case "down": direction = "up"; break;
-            case "left": direction = "right"; break;
-            case "right": direction = "left"; break;
+            case DIR_UP:    direction = DIR_DOWN;  break;
+            case DIR_DOWN:  direction = DIR_UP;    break;
+            case DIR_LEFT:  direction = DIR_RIGHT; break;
+            case DIR_RIGHT: direction = DIR_LEFT;  break;
         }
     }
     public void interact() {}
@@ -326,10 +338,10 @@ public class Entity {
         // Only run manual movement if pathfinding is NOT active
         if (!collisionOn && !onPath) {
             switch (direction) {
-                case "up": worldY -= speed; break;
-                case "down": worldY += speed; break;
-                case "left": worldX -= speed; break;
-                case "right": worldX += speed; break;
+                case DIR_UP:    worldY -= speed; break;
+                case DIR_DOWN:  worldY += speed; break;
+                case DIR_LEFT:  worldX -= speed; break;
+                case DIR_RIGHT: worldX += speed; break;
             }
         }
         
@@ -409,21 +421,7 @@ public class Entity {
             int drawW = gp.tileSize;
             int drawH = gp.tileSize;
 
-            switch (direction) {
-                case "up":
-                    currentSprite = getWalkFrameImage("up", spriteNum);
-                    break;
-                case "down":
-                    currentSprite = getWalkFrameImage("down", spriteNum);
-                    break;
-                case "left":
-                    currentSprite = getWalkFrameImage("left", spriteNum);
-                    break;
-                case "right":
-                    currentSprite = getWalkFrameImage("right", spriteNum);
-                    break;
-            }
-
+            currentSprite = getWalkFrameImage(direction, spriteNum);
             if (currentSprite == null) {
                 currentSprite = getWalkFrameImage(direction, 1);
             }
@@ -506,31 +504,30 @@ public class Entity {
         }
     }
 
-    protected BufferedImage getWalkFrameImage(String facing, int frame) {
-        return switch (facing) {
-            case "up" -> switch (frame) {
-                case 1 -> up1;  case 2 -> up2;case 3 -> up3;  case 4 -> up4;
-                case 5 -> up5;  case 6 -> up6;
-                case 7 -> up7;  default -> null;
+    protected BufferedImage getWalkFrameImage(int dir, int frame) {
+        // Try new array-based storage first (Player, Monster, NPC)
+        if (walkFrames != null && dir >= 0 && dir < walkFrames.length && walkFrames[dir] != null) {
+            int idx = frame - 1;
+            if (idx >= 0 && idx < walkFrames[dir].length) return walkFrames[dir][idx];
+        }
+        // Fall back to legacy named fields (Object/Item classes)
+        return switch (dir) {
+            case DIR_UP -> switch (frame) {
+                case 1 -> up1;  case 2 -> up2;  case 3 -> up3;  case 4 -> up4;
+                case 5 -> up5;  case 6 -> up6;  case 7 -> up7;  default -> null;
             };
-            case "down" -> switch (frame) {
-                case 1 -> down1;    case 2 -> down2;
-                case 3 -> down3;    case 4 -> down4;
-                case 5 -> down5;    case 6 -> down6;
-                case 7 -> down7;    default -> null;
+            case DIR_DOWN -> switch (frame) {
+                case 1 -> down1; case 2 -> down2; case 3 -> down3; case 4 -> down4;
+                case 5 -> down5; case 6 -> down6; case 7 -> down7; default -> null;
             };
-            case "left" -> switch (frame) {
-                case 1 -> left1;    case 2 -> left2;
-                case 3 -> left3;    case 4 -> left4;
-                case 5 -> left5;    case 6 -> left6;
-                case 7 -> left7;    case 8 -> left8;
+            case DIR_LEFT -> switch (frame) {
+                case 1 -> left1; case 2 -> left2; case 3 -> left3; case 4 -> left4;
+                case 5 -> left5; case 6 -> left6; case 7 -> left7; case 8 -> left8;
                 default -> null;
             };
-            case "right" -> switch (frame) {
-                case 1 -> right1;   case 2 -> right2;
-                case 3 -> right3;   case 4 -> right4;
-                case 5 -> right5;   case 6 -> right6;
-                case 7 -> right7;   case 8 -> right8;
+            case DIR_RIGHT -> switch (frame) {
+                case 1 -> right1; case 2 -> right2; case 3 -> right3; case 4 -> right4;
+                case 5 -> right5; case 6 -> right6; case 7 -> right7; case 8 -> right8;
                 default -> null;
             };
             default -> null;
@@ -643,10 +640,10 @@ public class Entity {
         int nextWorldY = user.getTopY();
 
         switch (user.direction) {
-            case "up": nextWorldY = user.getTopY() - gp.player.speed; break;
-            case "down": nextWorldY = user.getBottomY() + gp.player.speed; break;
-            case "left": nextWorldX = user.getLeftX() - gp.player.speed; break;
-            case "right": nextWorldX = user.getRightX() + gp.player.speed; break;
+            case DIR_UP:    nextWorldY = user.getTopY() - gp.player.speed; break;
+            case DIR_DOWN:  nextWorldY = user.getBottomY() + gp.player.speed; break;
+            case DIR_LEFT:  nextWorldX = user.getLeftX() - gp.player.speed; break;
+            case DIR_RIGHT: nextWorldX = user.getRightX() + gp.player.speed; break;
         }
 
         int col = nextWorldX / gp.tileSize;
@@ -742,11 +739,11 @@ public class Entity {
     // Try to move vertically toward the target. Returns true if movement occurred.
     private boolean tryMoveVertical(int enTopY, int nextY) {
         if (enTopY > nextY) {
-            direction = "up";
+            direction = DIR_UP;
             checkCollision();
             if (!collisionOn) { worldY -= speed; return true; }
         } else if (enTopY < nextY) {
-            direction = "down";
+            direction = DIR_DOWN;
             checkCollision();
             if (!collisionOn) { worldY += speed; return true; }
         }
@@ -756,11 +753,11 @@ public class Entity {
     // Try to move horizontally toward the target. Returns true if movement occurred.
     private boolean tryMoveHorizontal(int enLeftX, int nextX) {
         if (enLeftX > nextX) {
-            direction = "left";
+            direction = DIR_LEFT;
             checkCollision();
             if (!collisionOn) { worldX -= speed; return true; }
         } else if (enLeftX < nextX) {
-            direction = "right";
+            direction = DIR_RIGHT;
             checkCollision();
             if (!collisionOn) { worldX += speed; return true; }
         }
@@ -777,19 +774,19 @@ public class Entity {
         boolean moved = false;
         if (Math.abs(dy) > Math.abs(dx)) {
             // Try vertical
-            if (dy < 0) { direction = "up"; checkCollision(); if (!collisionOn) { worldY -= speed; moved = true; } }
-            else if (dy > 0) { direction = "down"; checkCollision(); if (!collisionOn) { worldY += speed; moved = true; } }
+            if (dy < 0) { direction = DIR_UP; checkCollision(); if (!collisionOn) { worldY -= speed; moved = true; } }
+            else if (dy > 0) { direction = DIR_DOWN; checkCollision(); if (!collisionOn) { worldY += speed; moved = true; } }
             if (!moved) {
-                if (dx < 0) { direction = "left"; checkCollision(); if (!collisionOn) { worldX -= speed; } }
-                else if (dx > 0) { direction = "right"; checkCollision(); if (!collisionOn) { worldX += speed; } }
+                if (dx < 0) { direction = DIR_LEFT; checkCollision(); if (!collisionOn) { worldX -= speed; } }
+                else if (dx > 0) { direction = DIR_RIGHT; checkCollision(); if (!collisionOn) { worldX += speed; } }
             }
         } else {
             // Try horizontal
-            if (dx < 0) { direction = "left"; checkCollision(); if (!collisionOn) { worldX -= speed; moved = true; } }
-            else if (dx > 0) { direction = "right"; checkCollision(); if (!collisionOn) { worldX += speed; moved = true; } }
+            if (dx < 0) { direction = DIR_LEFT; checkCollision(); if (!collisionOn) { worldX -= speed; moved = true; } }
+            else if (dx > 0) { direction = DIR_RIGHT; checkCollision(); if (!collisionOn) { worldX += speed; moved = true; } }
             if (!moved) {
-                if (dy < 0) { direction = "up"; checkCollision(); if (!collisionOn) { worldY -= speed; } }
-                else if (dy > 0) { direction = "down"; checkCollision(); if (!collisionOn) { worldY += speed; } }
+                if (dy < 0) { direction = DIR_UP; checkCollision(); if (!collisionOn) { worldY -= speed; } }
+                else if (dy > 0) { direction = DIR_DOWN; checkCollision(); if (!collisionOn) { worldY += speed; } }
             }
         }
     }   

@@ -5,6 +5,8 @@ import java.io.BufferedWriter;
 import java.io.FileReader;
 import java.io.FileWriter;
 import java.io.IOException;
+import java.util.HashMap;
+import java.util.Map;
 
 public class Config {
 
@@ -18,21 +20,10 @@ public class Config {
 
         try (BufferedWriter bw = new BufferedWriter(new FileWriter("config.txt"))) {
 
-            // FULL SCREEN
-            bw.write(gp.fullScreenOn ? "On" : "Off");
-            bw.newLine();
-
-            // MUSIC VOLUME
-            bw.write(String.valueOf(gp.music.volumeScale));
-            bw.newLine();
-
-            // SE VOLUME
-            bw.write(String.valueOf(gp.se.volumeScale));
-            bw.newLine();
-
-            // V-SYNC
-            bw.write(gp.vSyncOn ? "On" : "Off");
-            bw.newLine();
+            bw.write("fullscreen=" + (gp.fullScreenOn ? "On" : "Off")); bw.newLine();
+            bw.write("musicVolume=" + gp.music.volumeScale);             bw.newLine();
+            bw.write("seVolume=" + gp.se.volumeScale);                   bw.newLine();
+            bw.write("vsync=" + (gp.vSyncOn ? "On" : "Off"));            bw.newLine();
 
         } catch (IOException e) {
             e.printStackTrace();
@@ -42,22 +33,17 @@ public class Config {
 
         try (BufferedReader br = new BufferedReader(new FileReader("config.txt"))) {
 
-            String s = br.readLine();
+            Map<String, String> map = new HashMap<>();
+            String line;
+            while ((line = br.readLine()) != null) {
+                int eq = line.indexOf('=');
+                if (eq > 0) map.put(line.substring(0, eq).trim(), line.substring(eq + 1).trim());
+            }
 
-            // FULL SCREEN
-            gp.fullScreenOn = "On".equals(s);
-
-            // MUSIC VOLUME
-            s = br.readLine();
-            gp.music.volumeScale = Integer.parseInt(s);
-
-            // SE VOLUME
-            s = br.readLine();
-            gp.se.volumeScale = Integer.parseInt(s);
-
-            // V-SYNC
-            s = br.readLine();
-            gp.vSyncOn = "On".equals(s);
+            gp.fullScreenOn      = "On".equals(map.getOrDefault("fullscreen", "Off"));
+            gp.music.volumeScale = Integer.parseInt(map.getOrDefault("musicVolume", "5"));
+            gp.se.volumeScale    = Integer.parseInt(map.getOrDefault("seVolume", "5"));
+            gp.vSyncOn           = "On".equals(map.getOrDefault("vsync", "Off"));
 
         } catch (Exception e) {
             e.printStackTrace();

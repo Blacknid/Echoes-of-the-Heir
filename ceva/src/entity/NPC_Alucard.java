@@ -9,7 +9,7 @@ public class NPC_Alucard extends Entity{
     public NPC_Alucard(GamePanel gp) {
         super(gp);
 
-        direction = "down";
+        direction = DIR_DOWN;
         speed = 1;
         walkFrameCount = 6;
         collision = true; // Blocks player movement
@@ -28,26 +28,14 @@ public class NPC_Alucard extends Entity{
         setDialogue();
     }
     public void getImage() {
-    
-        int[] framesPerRow = {6, 6, 6, 6}; // down, up, left, right
+        int[] framesPerRow = {6, 6, 6, 6}; // sheet rows: down, up, left, right
         BufferedImage[][] frames = loadSheetVariable("/res/npc/Alucard_walking-sheet", framesPerRow);
-        // Assign down frames
-        down1 = frames[0][0];   down2 = frames[0][1];   down3 = frames[0][2];
-        down4 = frames[0][3];   down5 = frames[0][4];   down6 = frames[0][5];
-
-        // Assign up frames
-        up1 = frames[1][0];   up2 = frames[1][1];   up3 = frames[1][2];
-        up4 = frames[1][3];   up5 = frames[1][4];   up6 = frames[1][5];
-
-        // Assign left frames
-        left1 = frames[2][0];   left2 = frames[2][1];   left3 = frames[2][2];
-        left4 = frames[2][3];   left5 = frames[2][4];   left6 = frames[2][5];
-
-        // Assign right frames
-        right1 = frames[3][0];  right2 = frames[3][1];
-        right3 = frames[3][2];  right4 = frames[3][3];
-        right5 = frames[3][4];  right6 = frames[3][5];
-        
+        // Map rows to direction indices (sheet order differs from DIR_* order)
+        walkFrames = new BufferedImage[4][];
+        walkFrames[DIR_DOWN]  = frames[0]; // row 0 = down
+        walkFrames[DIR_UP]    = frames[1]; // row 1 = up
+        walkFrames[DIR_LEFT]  = frames[2]; // row 2 = left
+        walkFrames[DIR_RIGHT] = frames[3]; // row 3 = right
     }
     public void setDialogue() {
 
@@ -85,16 +73,16 @@ public class NPC_Alucard extends Entity{
                 int i = random.nextInt(100)+1; // pick up a number from 1 <-> 100
 
                 if ( i <= 25 ) {
-                    direction = "up";
+                    direction = DIR_UP;
                 }   
                 if ( i > 25 && i <= 50 ) {
-                    direction = "down";
+                    direction = DIR_DOWN;
                 }
                 if ( i > 50 && i <= 75 ) {
-                    direction = "left";
+                    direction = DIR_LEFT;
                 }
                 if ( i > 75 && i <= 100 ) {
-                    direction = "right";
+                    direction = DIR_RIGHT;
                 }
 
             actionLockCounter = 0;

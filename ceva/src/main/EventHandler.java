@@ -7,7 +7,7 @@ import java.util.Map;
 public class EventHandler{
 
     GamePanel gp;
-    EventRect eventRect[][];
+    private final HashMap<Long, EventRect> eventMap = new HashMap<>();
     Entity eventMaster;
 
     int previousEventX, previousEventY;
@@ -21,55 +21,13 @@ public class EventHandler{
 
     public EventHandler(GamePanel gp) {
         this.gp = gp;
-
         eventMaster = new Entity(gp);
-
-        eventRect = new EventRect[gp.maxWorldCol][gp.maxWorldRow];
-
-        int col = 0;
-        int row = 0;
-        while ( col < gp.maxWorldCol && row < gp.maxWorldRow ) {
-
-        eventRect[col][row] = new EventRect();
-        eventRect[col][row].x = 8;
-        eventRect[col][row].y = 8;
-        eventRect[col][row].width = gp.tileSize - 16;
-        eventRect[col][row].height = gp.tileSize - 16;
-        eventRect[col][row].eventRectDefaultX = eventRect[col][row].x;
-        eventRect[col][row].eventRectDefaultY = eventRect[col][row].y;
-
-        col++;
-        if ( col == gp.maxWorldCol ) {
-            col = 0;
-            row++;
-            }
-        }
         setDialogue();
     }
     public void reset() {
-        // Clear all map transitions from the previous map
+        // Clear all map transitions and event states from the previous map
         mapTransitions.clear();
-
-        // Rebuild event rects (same logic as constructor)
-        eventRect = new EventRect[gp.maxWorldCol][gp.maxWorldRow];
-        int col = 0;
-        int row = 0;
-        while ( col < gp.maxWorldCol && row < gp.maxWorldRow ) {
-
-            eventRect[col][row] = new EventRect();
-            eventRect[col][row].x = 8;
-            eventRect[col][row].y = 8;
-            eventRect[col][row].width = gp.tileSize - 16;
-            eventRect[col][row].height = gp.tileSize - 16;
-            eventRect[col][row].eventRectDefaultX = eventRect[col][row].x;
-            eventRect[col][row].eventRectDefaultY = eventRect[col][row].y;
-
-            col++;
-            if ( col == gp.maxWorldCol ) {
-                col = 0;
-                row++;
-            }
-        }
+        eventMap.clear();
 
         // Reset touch state so events on the new map can trigger properly
         canTouchEvent = true;
@@ -95,7 +53,7 @@ public class EventHandler{
             // Map-specific events
             if (gp.currentMapId.equals("harta")) {
                 // Healing pool (only exists on harta map at tile 54,22)
-                if ( hit(54, 22, "any") ) { healingPool( gp.dialogueState ); }
+                if ( hit(54, 22, Entity.DIR_ANY) ) { healingPool( gp.dialogueState ); }
             }
 
             // Map transitions: use smooth fade transition when stepping on trigger tile
@@ -104,7 +62,7 @@ public class EventHandler{
                 int col = Integer.parseInt(parts[0]);
                 int row = Integer.parseInt(parts[1]);
                 MapTransition mt = mapTransitions.get(key);
-                if ( hit(col, row, "any") ) {
+                if ( hit(col, row, Entity.DIR_ANY) ) {
                     // Save the trigger position (where we entered from) before transitioning
                     lastTriggerCol = col;
                     lastTriggerRow = row;
@@ -147,17 +105,31 @@ public class EventHandler{
         int spawnCol, spawnRow;
         MapTransition(String id, int sc, int sr){ mapId = id; spawnCol = sc; spawnRow = sr; }
     }
-    public boolean hit(int col, int row, String reqDirection) {
+    private EventRect getEventRect(int col, int row) {
+        long key = ((long)col << 32) | (row & 0xFFFFFFFFL);
+        EventRect er = eventMap.get(key);
+        if (er == null) {
+            er = new EventRect();
+            er.x = 8; er.y = 8;
+            er.width = gp.tileSize - 16; er.height = gp.tileSize - 16;
+            er.eventRectDefaultX = 8; er.eventRectDefaultY = 8;
+            eventMap.put(key, er);
+        }
+        return er;
+    }
+
+    public boolean hit(int col, int row, int reqDirection) {
 
         boolean hit = false;
+        EventRect er = getEventRect(col, row);
 
         gp.player.solidArea.x = gp.player.worldX + gp.player.solidArea.x;
         gp.player.solidArea.y = gp.player.worldY + gp.player.solidArea.y;
-        eventRect[col][row].x = col * gp.tileSize + eventRect[col][row].x;
-        eventRect[col][row].y = row * gp.tileSize + eventRect[col][row].y;
+        er.x = col * gp.tileSize + er.x;
+        er.y = row * gp.tileSize + er.y;
 
-        if ( gp.player.solidArea.intersects(eventRect[col][row]) && !eventRect[col][row].eventDone ) {
-            if ( gp.player.direction.contentEquals(reqDirection) || reqDirection.contentEquals("any")) {
+        if ( gp.player.solidArea.intersects(er) && !er.eventDone ) {
+            if ( reqDirection == Entity.DIR_ANY || gp.player.direction == reqDirection ) {
                 hit = true;
 
                 previousEventX = gp.player.worldX;
@@ -167,8 +139,8 @@ public class EventHandler{
 
         gp.player.solidArea.x = gp.player.solidAreaDefaultX;
         gp.player.solidArea.y = gp.player.solidAreaDefaultY;
-        eventRect[col][row].x = eventRect[col][row].eventRectDefaultX;
-        eventRect[col][row].y = eventRect[col][row].eventRectDefaultY;
+        er.x = er.eventRectDefaultX;
+        er.y = er.eventRectDefaultY;
 
         return hit;
     }
