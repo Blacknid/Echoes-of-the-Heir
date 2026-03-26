@@ -5,7 +5,6 @@ import java.awt.Color;
 import java.awt.Composite;
 import java.awt.Graphics2D;
 import java.awt.RadialGradientPaint;
-import java.awt.RenderingHints;
 import java.awt.image.BufferedImage;
 import java.util.Random;
 import main.GamePanel;
@@ -185,6 +184,7 @@ public class MapShaderManager {
     }
 
     public void drawAmbientParticles(Graphics2D g2) {
+        /* 
         Composite original = g2.getComposite();
 
         for (int i = 0; i < PARTICLE_COUNT; i++) {
@@ -206,7 +206,7 @@ public class MapShaderManager {
             }
         }
 
-        g2.setComposite(original);
+        g2.setComposite(original);*/
     }
 
     // =====================================================================
@@ -367,20 +367,17 @@ public class MapShaderManager {
 
         if (ws == EnvironmentManager.WEATHER_RAIN || ws == EnvironmentManager.WEATHER_STORM) {
             // Rain drops as diagonal lines
-            g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
             int active = (int)(MAX_RAIN * intensity);
             if (gp.currentFPS > 0 && gp.currentFPS < 48) active = active / 2;
+            // Set composite + color ONCE before the loop — was 250 setComposite calls, now 1
+            float rainA = Math.min(1f, 0.4f * intensity);
+            g2.setComposite(AlphaComposite.getInstance(AlphaComposite.SRC_OVER, rainA));
+            g2.setColor(RAIN_DROP_COLOR);
             for (int i = 0; i < active; i++) {
-                float a = Math.min(1f, rainAlpha[i] * intensity);
-                g2.setComposite(AlphaComposite.getInstance(AlphaComposite.SRC_OVER, a));
-                g2.setColor(RAIN_DROP_COLOR);
                 int x1 = (int) rainX[i];
                 int y1 = (int) rainY[i];
-                int x2 = x1 + 2;
-                int y2 = y1 - (int) rainLength[i];
-                g2.drawLine(x1, y1, x2, y2);
+                g2.drawLine(x1, y1, x1 + 2, y1 - (int) rainLength[i]);
             }
-            g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_OFF);
 
             // Overlay tint
             Color tint = (ws == EnvironmentManager.WEATHER_STORM) ? STORM_TINT : RAIN_TINT;
@@ -392,10 +389,11 @@ public class MapShaderManager {
         if (ws == EnvironmentManager.WEATHER_SNOW) {
             int active = (int)(MAX_SNOW * intensity);
             if (gp.currentFPS > 0 && gp.currentFPS < 48) active = active / 2;
+            // Set composite + color ONCE before the loop — was 120 setComposite calls, now 1
+            float snowA = Math.min(1f, 0.5f * intensity);
+            g2.setComposite(AlphaComposite.getInstance(AlphaComposite.SRC_OVER, snowA));
+            g2.setColor(SNOW_FLAKE_COLOR);
             for (int i = 0; i < active; i++) {
-                float a = Math.min(1f, snowAlpha[i] * intensity);
-                g2.setComposite(AlphaComposite.getInstance(AlphaComposite.SRC_OVER, a));
-                g2.setColor(SNOW_FLAKE_COLOR);
                 int sz = (int) snowSize[i];
                 g2.fillOval((int) snowX[i], (int) snowY[i], sz, sz);
             }

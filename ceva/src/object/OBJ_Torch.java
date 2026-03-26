@@ -1,8 +1,8 @@
 package object;
 
 import entity.Entity;
-import main.GamePanel;
 import java.awt.image.BufferedImage;
+import main.GamePanel;
 
 public class OBJ_Torch extends Entity {
 

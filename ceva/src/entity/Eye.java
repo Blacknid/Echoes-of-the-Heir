@@ -20,7 +20,7 @@ public class Eye extends Entity {
 
         name = "Eye";
         type = type_monster;
-        direction = "down";
+        direction = DIR_DOWN;
         collision = false; // Player can walk through
         speed = 0;
         walkFrameCount = 8;
@@ -56,9 +56,9 @@ public class Eye extends Entity {
         if ((long) dx * dx + (long) dy * dy <= (long) maxTrackingDistance * maxTrackingDistance) {
             randomDirectionTimer = 0;
             if (Math.abs(dx) > Math.abs(dy)) {
-                direction = (dx < 0) ? "left" : "right";
+                direction = (dx < 0) ? DIR_LEFT : DIR_RIGHT;
             } else {
-                direction = (dy < 0) ? "up" : "down";
+                direction = (dy < 0) ? DIR_UP : DIR_DOWN;
             }
         } else {
             randomDirectionTimer++;
@@ -101,19 +101,19 @@ public class Eye extends Entity {
         int eyeTopOffset = gp.tileSize + 12;
 
         switch (direction) {
-            case "up" -> {
+            case DIR_UP -> {
                 solidArea.x = 16;
                 solidArea.y = -eyeTopOffset + 6;
                 solidArea.width = 32;
                 solidArea.height = 48;
             }
-            case "down" -> {
+            case DIR_DOWN -> {
                 solidArea.x = 16;
                 solidArea.y = -eyeTopOffset + 10;
                 solidArea.width = 32;
                 solidArea.height = 48;
             }
-            case "left", "right" -> {
+            case DIR_LEFT, DIR_RIGHT -> {
                 solidArea.x = 8;
                 solidArea.y = -eyeTopOffset + 16;
                 solidArea.width = 48;
@@ -129,19 +129,19 @@ public class Eye extends Entity {
         int frameIndex = Math.max(0, Math.min(spriteNum - 1, 7));
 
         return switch (direction) {
-            case "up" -> upFrames[frameIndex];
-            case "left" -> leftFrames[frameIndex];
-            case "right" -> rightFrames[frameIndex];
-            default -> downFrames[frameIndex];
+            case DIR_UP    -> upFrames[frameIndex];
+            case DIR_LEFT  -> leftFrames[frameIndex];
+            case DIR_RIGHT -> rightFrames[frameIndex];
+            default        -> downFrames[frameIndex];
         };
     }
 
-    private String randomDirection() {
+    private int randomDirection() {
         return switch (ThreadLocalRandom.current().nextInt(4)) {
-            case 0 -> "up";
-            case 1 -> "down";
-            case 2 -> "left";
-            default -> "right";
+            case 0 -> DIR_UP;
+            case 1 -> DIR_DOWN;
+            case 2 -> DIR_LEFT;
+            default -> DIR_RIGHT;
         };
     }
 

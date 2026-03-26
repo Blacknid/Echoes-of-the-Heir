@@ -16,7 +16,9 @@ import java.awt.Graphics2D;
 import java.awt.GraphicsDevice;
 import java.awt.GraphicsEnvironment;
 import java.awt.Rectangle;
+import java.awt.Shape;
 import java.awt.Toolkit;
+import java.awt.geom.AffineTransform;
 import java.awt.image.BufferedImage;
 import java.util.ArrayList;
 import java.util.Collections;
@@ -48,7 +50,7 @@ public class GamePanel extends JPanel implements Runnable{
     public final int maxWorldCol = 100;
     public final int maxWorldRow = 100;
     public final int worldWidth = tileSize * maxWorldCol;
-    public final int worldHeight = tileSize * maxScreenRow;
+    public final int worldHeight = tileSize * maxWorldRow;
     
     // FOR FULLSCREEN
     Rectangle windowedBounds;
@@ -84,6 +86,7 @@ public class GamePanel extends JPanel implements Runnable{
     public MapShaderManager mapShader;
     public environment.TileParticleEmitter tileParticleEmitter;
     public ScreenShake screenShake = new ScreenShake();
+    public MobSpawner mobSpawner;
     SaveLoad saveLoad = new SaveLoad(this);
 
     // SMOOTH CAMERA
@@ -182,6 +185,7 @@ public class GamePanel extends JPanel implements Runnable{
     // Register all maps once at startup
     registerMap("harta", "/res/maps/harta.tmx");
     registerMap("test", "/res/maps/test.tmx");
+    registerMap("Dungeon1", "/res/maps/Dungeon1.tmx");
 
     if (!loadingGame) {
         currentMapId = "harta";
@@ -193,6 +197,7 @@ public class GamePanel extends JPanel implements Runnable{
     
     aSetter.setNPC();
     aSetter.setMonster();
+    mobSpawner = new MobSpawner(this);
     gameState = titleState;
 
     // OPTIMIZATION: Initialize collision cache
@@ -704,6 +709,7 @@ public class GamePanel extends JPanel implements Runnable{
                 }
             }
             eManager.update();
+            mobSpawner.update();
 
             // COLORED LIGHTS: Register dynamic light sources each frame
             if (eManager.lightning != null) {
@@ -943,13 +949,19 @@ public class GamePanel extends JPanel implements Runnable{
         // CUTSCENE
         csManager.draw(g2);
 
-        // ENVIRONMENT (day/night darkness overlay — world-space, needs camera translate)
-        eManager.draw(g2);
+        // DEBUG HITBOXES — drawn in world-space (camera transform still active)
+        if (HitBoxes) {
+            drawHitboxDebug(g2);
+        }
 
         // UNDO CAMERA + SHAKE before drawing screen-space effects and UI
         if (totalOffX != 0 || totalOffY != 0) {
             g2.translate(-totalOffX, -totalOffY);
         }
+
+        // ENVIRONMENT — drawn in screen-space after camera undo so the overlay is always
+        // anchored at (0,0) and covers the full screen regardless of camera movement or dash
+        eManager.draw(g2);
 
         // SHADER: screen-space effects (drawn after camera undo so they stay fixed on screen)
         if (mapShader != null) {
@@ -978,142 +990,118 @@ public class GamePanel extends JPanel implements Runnable{
         }
 
         if (HitBoxes) {
-    
-            g2.setColor(new Color(255, 0, 0, 128)); // red semi-transparent
+            // Hitboxes are now drawn in drawHitboxDebug() inside camera transform
+        }
+    }
 
-            // PLAYER
-            Rectangle r = player.solidArea;
-            int px = player.worldX - player.worldX + player.screenX + r.x;
-            int py = player.worldY - player.worldY + player.screenY + r.y;
+    private void drawHitboxDebug(Graphics2D g2) {
+        g2.setColor(new Color(255, 0, 0, 128)); // red semi-transparent
+
+        // PLAYER
+        Rectangle r = player.solidArea;
+        int px = player.screenX + r.x;
+        int py = player.screenY + r.y;
+        g2.fillRect(px, py, r.width, r.height);
+        if (player.knockBack) {
+            g2.setColor(new Color(255, 0, 255, 128));
             g2.fillRect(px, py, r.width, r.height);
-            if (player.knockBack) {
-                g2.setColor(new Color(255, 0, 255, 128));
-                g2.fillRect(px, py, r.width, r.height);
-                g2.setColor(new Color(255, 0, 0, 128));
-                g2.setColor(Color.WHITE);
-                g2.setFont(new Font("Arial", Font.PLAIN, 12));
-                g2.drawString(String.valueOf(player.knockBackPower), px, py - 4);
-                // draw vector arrow
-                int cx = px + r.width/2;
-                int cy = py + r.height/2;
-                int vx = player.knockBackVectorX * 2;
-                int vy = player.knockBackVectorY * 2;
-                g2.drawLine(cx, cy, cx + vx, cy + vy);
-                g2.fillOval(cx + vx - 2, cy + vy - 2, 4, 4);
-                g2.setColor(new Color(255, 0, 0, 128));
-            }
+            g2.setColor(Color.WHITE);
+            g2.setFont(new Font("Arial", Font.PLAIN, 12));
+            g2.drawString(String.valueOf(player.knockBackPower), px, py - 4);
+            int cx = px + r.width/2;
+            int cy = py + r.height/2;
+            int vx = player.knockBackVectorX * 2;
+            int vy = player.knockBackVectorY * 2;
+            g2.drawLine(cx, cy, cx + vx, cy + vy);
+            g2.fillOval(cx + vx - 2, cy + vy - 2, 4, 4);
+            g2.setColor(new Color(255, 0, 0, 128));
+        }
 
-            // PLAYER ATTACK HITBOX
-            if (player.attacking) {
-                g2.setColor(new Color(255, 100, 0, 128)); // Orange semi-transparent for attack
-                
-                // Recreate attack hitbox for visualization (same logic as performAttackHitbox)
-                Rectangle attackRect = new Rectangle();
-                int ts = tileSize;
-                int attackWorldX = player.worldX;
-                int attackWorldY = player.worldY;
-                
-                switch(player.direction) {
-                    case "up":
-                        attackRect.width = ts - 16;
-                        attackRect.height = ts + 16;
-                        attackWorldX += 8;
-                        attackWorldY -= ts + 16;
-                        break;
-                    case "down":
-                        attackRect.width = ts - 16;
-                        attackRect.height = ts + 16;
-                        attackWorldX += 8;
-                        attackWorldY += ts;
-                        break;
-                    case "left":
-                        attackRect.width = ts + 16;
-                        attackRect.height = ts - 16;
-                        attackWorldX -= ts + 16;
-                        attackWorldY += 8;
-                        break;
-                    case "right":
-                        attackRect.width = ts + 16;
-                        attackRect.height = ts - 16;
-                        attackWorldX += ts;
-                        attackWorldY += 8;
-                        break;
-                }
-                // Convert to screen coordinates and draw
-                int screenX = attackWorldX - player.worldX + player.screenX;
-                int screenY = attackWorldY - player.worldY + player.screenY;
-                g2.fillRect(screenX, screenY, attackRect.width, attackRect.height);
+        // PLAYER ATTACK HITBOX
+        if (player.attacking) {
+            g2.setColor(new Color(255, 100, 0, 128));
+            int ts = tileSize;
+            int attackWorldX = player.worldX;
+            int attackWorldY = player.worldY;
+            int aw = 0, ah = 0;
+            switch(player.direction) {
+                case Entity.DIR_UP:    aw = ts - 16; ah = ts + 16; attackWorldX += 8; attackWorldY -= ts + 16; break;
+                case Entity.DIR_DOWN:  aw = ts - 16; ah = ts + 16; attackWorldX += 8; attackWorldY += ts; break;
+                case Entity.DIR_LEFT:  aw = ts + 16; ah = ts - 16; attackWorldX -= ts + 16; attackWorldY += 8; break;
+                case Entity.DIR_RIGHT: aw = ts + 16; ah = ts - 16; attackWorldX += ts; attackWorldY += 8; break;
             }
+            int screenX = attackWorldX - player.worldX + player.screenX;
+            int screenY = attackWorldY - player.worldY + player.screenY;
+            g2.fillRect(screenX, screenY, aw, ah);
+        }
 
-            // NPC
-            for(Entity n : npc) {
-                if(n != null) {
-                    r = n.solidArea;
-                    int nx = n.worldX - player.worldX + player.screenX + r.x;
-                    int ny = n.worldY - player.worldY + player.screenY + r.y;
-                    g2.fillRect(nx, ny, r.width, r.height);
-                }
+        // NPC
+        g2.setColor(new Color(255, 0, 0, 128));
+        for(Entity n : npc) {
+            if(n != null) {
+                r = n.solidArea;
+                int nx = n.worldX - player.worldX + player.screenX + r.x;
+                int ny = n.worldY - player.worldY + player.screenY + r.y;
+                g2.fillRect(nx, ny, r.width, r.height);
             }
+        }
 
-            // MONSTERS
-            g2.setColor(new Color(255, 255, 0, 128)); // Yellow for monsters
-            for(Entity m : monster) {
-                if(m != null) {
-                    r = m.solidArea;
-                    int mx = m.worldX - player.worldX + player.screenX + r.x;
-                    int my = m.worldY - player.worldY + player.screenY + r.y;
+        // MONSTERS
+        g2.setColor(new Color(255, 255, 0, 128));
+        for(Entity m : monster) {
+            if(m != null) {
+                r = m.solidArea;
+                int mx = m.worldX - player.worldX + player.screenX + r.x;
+                int my = m.worldY - player.worldY + player.screenY + r.y;
+                g2.fillRect(mx, my, r.width, r.height);
+                if (m.knockBack) {
+                    g2.setColor(new Color(255, 0, 255, 128));
                     g2.fillRect(mx, my, r.width, r.height);
-                    // visualise knockback state with magenta overlay
-                    if (m.knockBack) {
-                        g2.setColor(new Color(255, 0, 255, 128));
-                        g2.fillRect(mx, my, r.width, r.height);
-                        g2.setColor(new Color(255, 255, 0, 128));
-                        // show knockback power as debug text
-                        g2.setColor(Color.WHITE);
-                        g2.setFont(new Font("Arial", Font.PLAIN, 12));
-                        g2.drawString(String.valueOf(m.knockBackPower), mx, my - 4);
-                        // draw arrow for vector direction
-                        int cx = mx + r.width/2;
-                        int cy = my + r.height/2;
-                        int vx = m.knockBackVectorX * 2; // scale for visibility
-                        int vy = m.knockBackVectorY * 2;
-                        g2.drawLine(cx, cy, cx + vx, cy + vy);
-                        g2.fillOval(cx + vx - 2, cy + vy - 2, 4, 4);
-                        g2.setColor(new Color(255, 255, 0, 128));
-                    }
+                    g2.setColor(Color.WHITE);
+                    g2.setFont(new Font("Arial", Font.PLAIN, 12));
+                    g2.drawString(String.valueOf(m.knockBackPower), mx, my - 4);
+                    int cx = mx + r.width/2;
+                    int cy = my + r.height/2;
+                    int vx = m.knockBackVectorX * 2;
+                    int vy = m.knockBackVectorY * 2;
+                    g2.drawLine(cx, cy, cx + vx, cy + vy);
+                    g2.fillOval(cx + vx - 2, cy + vy - 2, 4, 4);
+                    g2.setColor(new Color(255, 255, 0, 128));
                 }
             }
+        }
 
-            // OBJECTS
-            for(Entity o : obj) {
-                if(o != null) {
-                    r = o.solidArea;
-                    int ox = o.worldX - player.worldX + player.screenX + r.x;
-                    int oy = o.worldY - player.worldY + player.screenY + r.y;
-                    g2.fillRect(ox, oy, r.width, r.height);
-                }
+        // OBJECTS
+        g2.setColor(new Color(255, 0, 0, 128));
+        for(Entity o : obj) {
+            if(o != null) {
+                r = o.solidArea;
+                int ox = o.worldX - player.worldX + player.screenX + r.x;
+                int oy = o.worldY - player.worldY + player.screenY + r.y;
+                g2.fillRect(ox, oy, r.width, r.height);
             }
+        }
 
-            // INTERACTIVE TILES
-            g2.setColor(new Color(0, 255, 255, 128)); // Cyan for interactive tiles
-            for(int i = 0; i < iTile.length; i++) {
-                if(iTile[i] != null) {
-                    r = iTile[i].solidArea;
-                    int ix = iTile[i].worldX - player.worldX + player.screenX + r.x;
-                    int iy = iTile[i].worldY - player.worldY + player.screenY + r.y;
-                    g2.fillRect(ix, iy, r.width, r.height);
-                }
+        // INTERACTIVE TILES
+        g2.setColor(new Color(0, 255, 255, 128));
+        for(int i = 0; i < iTile.length; i++) {
+            if(iTile[i] != null) {
+                r = iTile[i].solidArea;
+                int ix = iTile[i].worldX - player.worldX + player.screenX + r.x;
+                int iy = iTile[i].worldY - player.worldY + player.screenY + r.y;
+                g2.fillRect(ix, iy, r.width, r.height);
             }
+        }
 
-            // COLLISION LAYER RECTANGLES
-            if(tileM.collisionRects != null) {
-                g2.setColor(new Color(0, 0, 255, 128)); // blue semi-transparent
-                for(Rectangle cr : tileM.collisionRects) {
-                    int cx = cr.x - player.worldX + player.screenX;
-                    int cy = cr.y - player.worldY + player.screenY;
-                    g2.fillRect(cx, cy, cr.width, cr.height);
-                }
+        // COLLISION SHAPES (rectangles, rotated rects, polygons, ellipses)
+        if(tileM.collisionShapes != null && !tileM.collisionShapes.isEmpty()) {
+            g2.setColor(new Color(0, 0, 255, 128));
+            AffineTransform oldTransform = g2.getTransform();
+            g2.translate(-player.worldX + player.screenX, -player.worldY + player.screenY);
+            for(Shape shape : tileM.collisionShapes) {
+                g2.fill(shape);
             }
+            g2.setTransform(oldTransform);
         }
     }
 

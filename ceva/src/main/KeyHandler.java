@@ -1,5 +1,6 @@
 package main;
 
+import entity.Entity;
 import java.awt.event.KeyEvent;
 import java.awt.event.KeyListener;
 
@@ -214,10 +215,10 @@ public class KeyHandler implements KeyListener {
             gp.player.spawnTeleportParticles(true);
 
             switch (gp.player.direction) {
-                case "up" -> gp.player.worldY -= gp.tileSize * 3;
-                case "down" -> gp.player.worldY += gp.tileSize * 3;
-                case "left" -> gp.player.worldX -= gp.tileSize * 3;
-                case "right" -> gp.player.worldX += gp.tileSize * 3;
+                case Entity.DIR_UP    -> gp.player.worldY -= gp.tileSize * 3;
+                case Entity.DIR_DOWN  -> gp.player.worldY += gp.tileSize * 3;
+                case Entity.DIR_LEFT  -> gp.player.worldX -= gp.tileSize * 3;
+                case Entity.DIR_RIGHT -> gp.player.worldX += gp.tileSize * 3;
             }
 
             // Spawn arrival particles at destination

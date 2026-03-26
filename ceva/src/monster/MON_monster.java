@@ -1,7 +1,6 @@
 package monster;
 
 import entity.Entity;
-import java.awt.image.BufferedImage;
 import java.util.Random;
 import main.GamePanel;
 
@@ -10,7 +9,7 @@ public class MON_monster extends Entity {
     GamePanel gp;
     // OPTIMIZATION: Single Random instance instead of creating a new one every frame
     private static final Random random = new Random();
-    private static final String[] DIRECTIONS = {"up", "down", "left", "right"};
+    private static final int[] DIRECTIONS = {DIR_DOWN, DIR_LEFT, DIR_RIGHT, DIR_UP};
 
     public MON_monster(GamePanel gp, int col, int row) {
         super(gp);
@@ -41,16 +40,8 @@ public class MON_monster extends Entity {
     }
 
     public void getImage() {
-        int[] framesPerRow = {6, 6, 6, 6};
-        BufferedImage[][] frames = loadSheetVariable("/res/monster/Monster_walking-sheet", framesPerRow);
-        down1 = frames[0][0];   down2 = frames[0][1];   down3 = frames[0][2];
-        down4 = frames[0][3];   down5 = frames[0][4];   down6 = frames[0][5];
-        left1 = frames[1][0];   left2 = frames[1][1];   left3 = frames[1][2];
-        left4 = frames[1][3];   left5 = frames[1][4];   left6 = frames[1][5];
-        right1 = frames[2][0];   right2 = frames[2][1];   right3 = frames[2][2];
-        right4 = frames[2][3];   right5 = frames[2][4];   right6 = frames[2][5];
-        up1 = frames[3][0];  up2 = frames[3][1];  up3 = frames[3][2];
-        up4 = frames[3][3];  up5 = frames[3][4];  up6 = frames[3][5];
+        int[] framesPerRow = {6, 6, 6, 6}; // down, left, right, up (matches DIR_DOWN=0,LEFT=1,RIGHT=2,UP=3)
+        walkFrames = loadSheetVariable("/res/monster/Monster_walking-sheet", framesPerRow);
     }
 
     @Override
@@ -61,9 +52,9 @@ public class MON_monster extends Entity {
             int dx = worldX - gp.player.worldX;
             int dy = worldY - gp.player.worldY;
             if (Math.abs(dx) > Math.abs(dy)) {
-                direction = (dx > 0) ? "right" : "left";
+                direction = (dx > 0) ? DIR_RIGHT : DIR_LEFT;
             } else {
-                direction = (dy > 0) ? "down" : "up";
+                direction = (dy > 0) ? DIR_DOWN : DIR_UP;
             }
             if (fleeCounter > fleeDuration) {
                 fleeing = false;
