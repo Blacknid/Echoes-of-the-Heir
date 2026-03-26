@@ -2,6 +2,7 @@ package object;
 
 import entity.Entity;
 import main.GamePanel;
+import main.SFX;
 
 public class OBJ_Gem extends Entity {
 
@@ -45,7 +46,7 @@ public class OBJ_Gem extends Entity {
         
         if ( gp.player.level >= 3 ) {
             gp.player.hasGem = 1;
-            gp.playSE(2);
+            gp.playSE(SFX.EQUIP);
             startDialogue(this, 0);
             gp.gameState = gp.cutsceneState;
             gp.csManager.sceneNum = gp.csManager.ending;

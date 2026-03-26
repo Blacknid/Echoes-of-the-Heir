@@ -100,16 +100,16 @@ public class KeyHandler implements KeyListener {
         if (gp.ui.titleScreenState == 0) {
             if (code == KeyEvent.VK_W) {
                 gp.ui.commandNum = (gp.ui.commandNum - 1 + 3) % 3;
-                gp.playSE(3);
+                gp.playSE(SFX.MENU_SELECT);
             }
             if (code == KeyEvent.VK_S) {
                 gp.ui.commandNum = (gp.ui.commandNum + 1) % 3;
-                gp.playSE(3);
+                gp.playSE(SFX.MENU_SELECT);
             }
             if (code == KeyEvent.VK_I) {
                 gp.ui.titleScreenState = 2;
                 gp.ui.commandNum = 0;
-                gp.playSE(3);
+                gp.playSE(SFX.MENU_SELECT);
             }
             if (code == KeyEvent.VK_ENTER) {
                 if (gp.ui.commandNum == 0) { gp.ui.titleScreenState = 1; }
@@ -120,32 +120,32 @@ public class KeyHandler implements KeyListener {
             int maxCommand = 3;
             if (code == KeyEvent.VK_W) {
                 gp.ui.commandNum = (gp.ui.commandNum - 1 + maxCommand + 1) % (maxCommand + 1);
-                gp.playSE(3);
+                gp.playSE(SFX.MENU_SELECT);
             }
             if (code == KeyEvent.VK_S) {
                 gp.ui.commandNum = (gp.ui.commandNum + 1) % (maxCommand + 1);
-                gp.playSE(3);
+                gp.playSE(SFX.MENU_SELECT);
             }
             if (code == KeyEvent.VK_ENTER) {
                 switch (gp.ui.commandNum) {
                     case 0 -> { gp.player.setPlayerStats(4, 2, 1, 4, 3); startGame(); } 
                     case 1 -> { gp.player.setPlayerStats(2, 1, 3, 5, 2); startGame(); }
                     case 2 -> { gp.player.setPlayerStats(3, 1, 2, 5, 5); startGame(); }
-                    case 3 -> { gp.ui.titleScreenState = 0; gp.ui.commandNum = 0; gp.playSE(3); }
+                    case 3 -> { gp.ui.titleScreenState = 0; gp.ui.commandNum = 0; gp.playSE(SFX.MENU_SELECT); }
                 }
             }
         } else if (gp.ui.titleScreenState == 2 && code == KeyEvent.VK_ENTER) {
             if (gp.ui.commandNum == 0) {
                 gp.ui.titleScreenState = 0;
                 gp.ui.commandNum = 0;
-                gp.playSE(3);
+                gp.playSE(SFX.MENU_SELECT);
             }
         }
     }
 
     private void startGame() {
         gp.gameState = gp.playState;
-        gp.playMusic(0);
+        gp.playMusic(SFX.MUSIC_THEME);
     }
 
     private void handlePlayState(int code) {
@@ -229,7 +229,7 @@ public class KeyHandler implements KeyListener {
             gp.player.invincibleCounter = 20;
 
             gp.screenShake.shakeLight();
-            gp.playSE(3);
+            gp.playSE(SFX.MENU_SELECT);
 
             teleportCooldown = gp.player.getTeleportCooldownMax();
         }
@@ -238,30 +238,30 @@ public class KeyHandler implements KeyListener {
     private void handleSkillTreeState(int code) {
         if (code == KeyEvent.VK_ESCAPE || code == KeyEvent.VK_K) {
             gp.gameState = gp.playState;
-            gp.playSE(3);
+            gp.playSE(SFX.MENU_SELECT);
             return;
         }
 
         if (code == KeyEvent.VK_W || code == KeyEvent.VK_UP) {
             gp.player.skillTree.moveSelection(gp.player, 0, -1);
-            gp.playSE(7);
+            gp.playSE(SFX.MENU_CURSOR);
         }
         if (code == KeyEvent.VK_S || code == KeyEvent.VK_DOWN) {
             gp.player.skillTree.moveSelection(gp.player, 0, 1);
-            gp.playSE(7);
+            gp.playSE(SFX.MENU_CURSOR);
         }
         if (code == KeyEvent.VK_A || code == KeyEvent.VK_LEFT) {
             gp.player.skillTree.moveSelection(gp.player, -1, 0);
-            gp.playSE(7);
+            gp.playSE(SFX.MENU_CURSOR);
         }
         if (code == KeyEvent.VK_D || code == KeyEvent.VK_RIGHT) {
             gp.player.skillTree.moveSelection(gp.player, 1, 0);
-            gp.playSE(7);
+            gp.playSE(SFX.MENU_CURSOR);
         }
 
         if (code == KeyEvent.VK_ENTER) {
             if (!gp.player.skillTree.unlockSelected(gp.player)) {
-                gp.playSE(8);
+                gp.playSE(SFX.PLAYER_HIT);
             }
         }
     }
@@ -269,10 +269,10 @@ public class KeyHandler implements KeyListener {
     private void handleCharacterState(int code) {
         if (code == KeyEvent.VK_E) gp.gameState = gp.playState;
 
-        if (code == KeyEvent.VK_W && gp.ui.slotRow > 0) { gp.ui.slotRow--; gp.playSE(7); }
-        if (code == KeyEvent.VK_A && gp.ui.slotCol > 0) { gp.ui.slotCol--; gp.playSE(7); }
-        if (code == KeyEvent.VK_S && gp.ui.slotRow < 3) { gp.ui.slotRow++; gp.playSE(7); }
-        if (code == KeyEvent.VK_D && gp.ui.slotCol < 4) { gp.ui.slotCol++; gp.playSE(7); }
+        if (code == KeyEvent.VK_W && gp.ui.slotRow > 0) { gp.ui.slotRow--; gp.playSE(SFX.MENU_CURSOR); }
+        if (code == KeyEvent.VK_A && gp.ui.slotCol > 0) { gp.ui.slotCol--; gp.playSE(SFX.MENU_CURSOR); }
+        if (code == KeyEvent.VK_S && gp.ui.slotRow < 3) { gp.ui.slotRow++; gp.playSE(SFX.MENU_CURSOR); }
+        if (code == KeyEvent.VK_D && gp.ui.slotCol < 4) { gp.ui.slotCol++; gp.playSE(SFX.MENU_CURSOR); }
 
         if (code == KeyEvent.VK_ENTER) gp.player.selectItem();
 
@@ -302,13 +302,12 @@ public class KeyHandler implements KeyListener {
         if (gp.ui.subState != 0) return;
 
         if (gp.ui.commandNum == 2) {
-            gp.music.volumeScale = Math.max(0, Math.min(5, gp.music.volumeScale + change));
-            gp.music.checkVolume();
-            gp.playSE(3);
+            gp.audio.setMusicVolume(gp.audio.getMusicVolume() + change);
+            gp.playSE(SFX.MENU_SELECT);
         }
         if (gp.ui.commandNum == 3) {
-            gp.se.volumeScale = Math.max(0, Math.min(5, gp.se.volumeScale + change));
-            gp.playSE(3);
+            gp.audio.setSEVolume(gp.audio.getSEVolume() + change);
+            gp.playSE(SFX.MENU_SELECT);
         }
     }
 
@@ -323,7 +322,7 @@ public class KeyHandler implements KeyListener {
         if (code == KeyEvent.VK_W || code == KeyEvent.VK_UP ||
             code == KeyEvent.VK_S || code == KeyEvent.VK_DOWN) {
             gp.ui.commandNum = 1 - gp.ui.commandNum;
-            gp.playSE(3);
+            gp.playSE(SFX.MENU_SELECT);
         }
         // Execute selected option with ENTER
         if (code == KeyEvent.VK_ENTER) {
@@ -331,7 +330,7 @@ public class KeyHandler implements KeyListener {
                 // Retry: reset and continue playing
                 gp.resetGame(false);
                 gp.gameState = gp.playState;
-                gp.playMusic(0);
+                gp.playMusic(SFX.MUSIC_THEME);
                 gp.player.setDefaultPositions();
             }
             else if (gp.ui.commandNum == 1) {
@@ -349,12 +348,12 @@ public class KeyHandler implements KeyListener {
         if (code == KeyEvent.VK_W || code == KeyEvent.VK_UP) {
             gp.player.levelUpChoice--;
             if (gp.player.levelUpChoice < 0) gp.player.levelUpChoice = 2;
-            gp.playSE(3);
+            gp.playSE(SFX.MENU_SELECT);
         }
         if (code == KeyEvent.VK_S || code == KeyEvent.VK_DOWN) {
             gp.player.levelUpChoice++;
             if (gp.player.levelUpChoice > 2) gp.player.levelUpChoice = 0;
-            gp.playSE(3);
+            gp.playSE(SFX.MENU_SELECT);
         }
         if (code == KeyEvent.VK_ENTER) {
             gp.player.applyLevelUpChoice();

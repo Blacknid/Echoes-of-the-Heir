@@ -4,6 +4,7 @@ import java.awt.Graphics2D;
 import java.awt.image.BufferedImage;
 import main.GamePanel;
 import main.ObjectPool.Poolable;
+import main.SFX;
 
 public class Projectile extends Entity implements Poolable {
 
@@ -46,7 +47,7 @@ public class Projectile extends Entity implements Poolable {
             if (npcIndex != 999) {
                 if (gp.npc[npcIndex].name != null && gp.npc[npcIndex].name.equals("Eye")) {
                     if (!gp.npc[npcIndex].invincible) {
-                        gp.playSE(5);
+                        gp.playSE(SFX.GOT_GEM);
                         int kb = Math.max(1, this.speed / 3);
                         gp.player.knockBack(gp.npc[npcIndex], kb, worldX, worldY);
                         int damage = this.attack - gp.npc[npcIndex].defense;
@@ -77,7 +78,7 @@ public class Projectile extends Entity implements Poolable {
                 gp.player.hitFlashCounter = 6;
                 gp.player.bleed();
                 gp.screenShake.shakeLight();
-                gp.playSE(8);
+                gp.playSE(SFX.PLAYER_HIT);
                 generateParticle(user.projectile, gp.player);
                 alive = false;
             }

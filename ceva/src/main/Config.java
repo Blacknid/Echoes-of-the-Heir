@@ -21,9 +21,9 @@ public class Config {
         try (BufferedWriter bw = new BufferedWriter(new FileWriter("config.txt"))) {
 
             bw.write("fullscreen=" + (gp.fullScreenOn ? "On" : "Off")); bw.newLine();
-            bw.write("musicVolume=" + gp.music.volumeScale);             bw.newLine();
-            bw.write("seVolume=" + gp.se.volumeScale);                   bw.newLine();
-            bw.write("vsync=" + (gp.vSyncOn ? "On" : "Off"));            bw.newLine();
+            bw.write("musicVolume=" + gp.audio.getMusicVolume());        bw.newLine();
+            bw.write("seVolume=" + gp.audio.getSEVolume());              bw.newLine();
+            bw.write("vsync=" + (gp.vSyncOn ? "On" : "Off"));           bw.newLine();
 
         } catch (IOException e) {
             e.printStackTrace();
@@ -40,10 +40,11 @@ public class Config {
                 if (eq > 0) map.put(line.substring(0, eq).trim(), line.substring(eq + 1).trim());
             }
 
-            gp.fullScreenOn      = "On".equals(map.getOrDefault("fullscreen", "Off"));
-            gp.music.volumeScale = Integer.parseInt(map.getOrDefault("musicVolume", "5"));
-            gp.se.volumeScale    = Integer.parseInt(map.getOrDefault("seVolume", "5"));
-            gp.vSyncOn           = "On".equals(map.getOrDefault("vsync", "Off"));
+            gp.fullScreenOn = "On".equals(map.getOrDefault("fullscreen", "Off"));
+            int musicVol = Integer.parseInt(map.getOrDefault("musicVolume", "5"));
+            int seVol    = Integer.parseInt(map.getOrDefault("seVolume", "5"));
+            gp.audio.applyConfig(musicVol, seVol);
+            gp.vSyncOn = "On".equals(map.getOrDefault("vsync", "Off"));
 
         } catch (Exception e) {
             e.printStackTrace();

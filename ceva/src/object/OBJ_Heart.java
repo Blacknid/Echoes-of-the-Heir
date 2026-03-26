@@ -2,6 +2,7 @@ package object;
 
 import entity.Entity;
 import main.GamePanel;
+import main.SFX;
 
 public class OBJ_Heart extends Entity {
 
@@ -33,7 +34,7 @@ public class OBJ_Heart extends Entity {
             entity.life += 2;
             if (entity.life > entity.maxLife) entity.life = entity.maxLife;
             gp.ui.addMessage("+2 HP!", new java.awt.Color(80, 220, 80));
-            gp.playSE(2);
+            gp.playSE(SFX.EQUIP);
             return true;
         }
         return false;

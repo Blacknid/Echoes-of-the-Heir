@@ -2,6 +2,7 @@ package object;
 
 import entity.Entity;
 import main.GamePanel;
+import main.SFX;
 
 public class OBJ_Potion extends Entity {
 
@@ -60,7 +61,7 @@ public class OBJ_Potion extends Entity {
         startDialogue(this, 1);
     }
     
-    gp.playSE(2);
+    gp.playSE(SFX.EQUIP);
     return true;
 }
 }
