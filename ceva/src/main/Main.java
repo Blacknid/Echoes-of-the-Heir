@@ -6,7 +6,18 @@ import javax.swing.JFrame;
 public class Main {
 
     public static JFrame window;
+    public static final boolean OFFLINE_MODE = false;
+    public static String LICENSE_KEY = "MICHI001-2DF3";
+
     public static void main(String[] args) {
+
+        // Load license from properties file if present
+        try (java.io.InputStream in = new java.io.FileInputStream("license.properties")) {
+            java.util.Properties props = new java.util.Properties();
+            props.load(in);
+            String key = props.getProperty("license_key");
+            if (key != null && !key.isBlank()) LICENSE_KEY = key.trim();
+        } catch (Exception ignored) { /* use hardcoded fallback */ }
 
         // Enable OpenGL Java2D pipeline for smoother rendering.
         // V-Sync on/off is controlled from in-game settings.
