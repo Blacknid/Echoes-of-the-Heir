@@ -8,6 +8,7 @@ import java.awt.image.BufferedImage;
 import java.io.IOException;
 import javax.imageio.ImageIO;
 import main.GamePanel;
+import main.SFX;
 import main.UtilityTool;
 
 public class Entity {
@@ -36,30 +37,20 @@ public class Entity {
         down1, down2, down3, down4, down5, down6, down7,
         left1, left2, left3, left4, left5, left6, left7, left8,
         right1, right2, right3, right4, right5, right6, right7, right8;
-    public BufferedImage upidle1, upidle2, upidle3, upidle4, upidle5, upidle6, 
-        downidle1, downidle2, downidle3, downidle4, downidle5, downidle6, 
-        leftidle1, leftidle2, leftidle3, leftidle4, leftidle5, leftidle6, 
-        rightidle1, rightidle2, rightidle3, rightidle4, rightidle5, rightidle6;
-    public BufferedImage chest_1, chest_2;
+    // (idle/chest legacy sprite fields removed — use idleFrames[][] array instead)
 
     // SPRITES - array-based storage: [dirIndex][frameIndex], dir = DIR_DOWN/LEFT/RIGHT/UP
     public BufferedImage[][] walkFrames;   // walk animation per direction
     public BufferedImage[][] idleFrames;   // idle animation per direction
     public BufferedImage[][] attackFrames; // attack animation per direction
     
-    // ATTACK SPRITES - legacy named fields (still used by player draw code)
-    public BufferedImage attackUp1, attackUp2, attackUp3, attackUp4, attackUp5, attackUp6;
-    public BufferedImage attackDown1, attackDown2, attackDown3, attackDown4, attackDown5, attackDown6;
-    public BufferedImage attackLeft1, attackLeft2, attackLeft3, attackLeft4, attackLeft5, attackLeft6;
-    public BufferedImage attackRight1, attackRight2, attackRight3, attackRight4, attackRight5, attackRight6;
+    // (attack legacy sprite fields removed — use attackFrames[][] array instead)
     
     public int direction = DIR_DOWN;
 
     // COUNTERS
     public int spriteCounter = 0;
-    public int spriteCounter1 = 0;
     public int spriteNum = 1;
-    public int spriteNum1 = 1;
     public int walkFrameCount = 3;
     public int animationFrameInterval = 8;
     private int walkFrameDirection = 1;
@@ -121,8 +112,6 @@ public class Entity {
     public boolean drawing = true;
     public boolean onPath = false;
     public boolean knockBack = false;          // true while being pushed by an attack
-    public int knockBackCounter = 0;           // leftover frames for old system (deprecated)
-    public int knockBackDuration = 15;         // leftover frames for old system (deprecated)
     public int knockBackPower = 0;             // magnitude of the push (for debug display)
     // new vector-based knockback
     public int knockBackVectorX = 0;
@@ -196,9 +185,7 @@ public class Entity {
     
     public void resetCounter() {
         spriteCounter = 0;
-        spriteCounter1 = 0;
         spriteNum = 1;
-        spriteNum1 = 1;
         actionLockCounter = 0;
         invincibleCounter = 0;
         shotAvailableCounter = 0;
@@ -235,7 +222,7 @@ public class Entity {
 
         if (type == type_monster && contactPlayer && !gp.player.invincible) {
             
-            gp.playSE(8);
+            gp.playSE(SFX.PLAYER_HIT);
 
             int damage = attack - gp.player.defense;
             if (damage < 1) {

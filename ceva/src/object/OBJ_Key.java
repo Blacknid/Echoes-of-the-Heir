@@ -2,6 +2,7 @@ package object;
 
 import entity.Entity;
 import main.GamePanel;
+import main.SFX;
 
 public class OBJ_Key extends Entity{
 
@@ -46,7 +47,7 @@ public class OBJ_Key extends Entity{
         if (doorIndex != 999) {
 
             startDialogue(this, 0);
-            gp.playSE(3);
+            gp.playSE(SFX.MENU_SELECT);
             gp.obj[doorIndex] = null;
             return true;
         }
@@ -56,7 +57,7 @@ public class OBJ_Key extends Entity{
         
             if (!chest.opened) {
             
-                gp.playSE(3);
+                gp.playSE(SFX.MENU_SELECT);
             
                 if (!gp.player.canObtainItem(chest.loot)) {
                     chest.startDialogue(chest, 1);  // inventory full

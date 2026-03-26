@@ -45,6 +45,7 @@ public class TileManager {
         boolean waterEffect;
         int renderOrder;
         boolean depthSort;
+        boolean foreground;
         Tile[] tiles;
     }
 
@@ -114,6 +115,7 @@ public class TileManager {
     public Tile[] tile; // combined tiles for quick lookup
     private final ArrayList<VisibleTileDraw> backgroundVisibleTiles = new ArrayList<>();
     private final ArrayList<VisibleTileDraw> depthVisibleTiles = new ArrayList<>();
+    private final ArrayList<VisibleTileDraw> foregroundVisibleTiles = new ArrayList<>();
 
     // Multi-layer map
     public ArrayList<int[][]> mapLayers = new ArrayList<>();
@@ -158,7 +160,7 @@ public class TileManager {
     }
 
     // ---------------- Load tilesets ----------------
-    public void addTileset(String path, int firstGID, int tileWidth, int tileHeight, int tileCount, int columns, String name, int renderOrder, boolean depthSort) {
+    public void addTileset(String path, int firstGID, int tileWidth, int tileHeight, int tileCount, int columns, String name, int renderOrder, boolean depthSort, boolean foreground) {
         try {
             System.out.println("Trying to load: " + path);
             java.net.URL url = getClass().getResource(path);
@@ -184,6 +186,7 @@ public class TileManager {
             ts.waterEffect = isWaterTileset(name, path);
             ts.renderOrder = renderOrder;
             ts.depthSort = depthSort;
+            ts.foreground = foreground;
             ts.tiles = new Tile[ts.tileCount];
 
             for (int index = 0; index < ts.tileCount; index++) {
@@ -250,8 +253,10 @@ public class TileManager {
                     Integer.parseInt(tilesetElement.getAttribute("columns")),
                     tilesetElement.getAttribute("name"),
                     getTilesetRenderOrder(tilesetElement, resourcePath),
-                    getTilesetDepthSort(tilesetElement, resourcePath)
+                    getTilesetDepthSort(tilesetElement, resourcePath),
+                    getTilesetForeground(tilesetElement, resourcePath)
                 );
+                applyPerTileProperties(tilesets.get(tilesets.size() - 1), tilesetElement);
             }
 
             rebuildTileLookup();
@@ -569,6 +574,8 @@ public class TileManager {
     private Tile[]    gidToTile;
     private int[]     gidToRenderOrder;
     private boolean[] gidToDepthSort;
+    private boolean[] gidToForeground;
+    private int[]     gidToSortYOffset;
 
     // OPTIMIZATION: Dirty tracking — skip rebuild when viewport is identical to last frame
     private int lastVisMinCol = -99, lastVisMaxCol = -99;
@@ -625,6 +632,12 @@ public class TileManager {
                 vtd.screenX = Math.round(vtd.worldX      - cameraWorldX * vtd.parallaxX);
                 vtd.screenY = Math.round(vtd.screenBaseY - cameraWorldY * vtd.parallaxY);
             }
+            int fgSize = foregroundVisibleTiles.size();
+            for (int i = 0; i < fgSize; i++) {
+                VisibleTileDraw vtd = foregroundVisibleTiles.get(i);
+                vtd.screenX = Math.round(vtd.worldX      - cameraWorldX * vtd.parallaxX);
+                vtd.screenY = Math.round(vtd.screenBaseY - cameraWorldY * vtd.parallaxY);
+            }
             return;
         }
 
@@ -634,6 +647,7 @@ public class TileManager {
 
         backgroundVisibleTiles.clear();
         depthVisibleTiles.clear();
+        foregroundVisibleTiles.clear();
         poolIndex = 0;
 
         for (int layerIndex = 0; layerIndex < mapLayers.size(); layerIndex++) {
@@ -668,9 +682,17 @@ public class TileManager {
                     visibleTile.worldRow    = worldRow;
                     visibleTile.renderOrder = (gidToRenderOrder != null && gid < gidToRenderOrder.length)
                                               ? gidToRenderOrder[gid] : 0;
-                    visibleTile.sortY       = worldY;
 
-                    if (gidToDepthSort != null && gid < gidToDepthSort.length && gidToDepthSort[gid]) {
+                    // sortY = bottom edge of this tile + sortYOffset.
+                    // For multi-row structures (e.g. 2-tile fence top bar), set
+                    // sortYOffset on the TOP-row tiles in Tiled so their sortY
+                    // matches the bottom row's sortY — making them sort as one unit.
+                    int sortYOff = (gidToSortYOffset != null && gid < gidToSortYOffset.length) ? gidToSortYOffset[gid] : 0;
+                    visibleTile.sortY = worldY + tileSize + sortYOff;
+
+                    if (gidToForeground != null && gid < gidToForeground.length && gidToForeground[gid]) {
+                        foregroundVisibleTiles.add(visibleTile);
+                    } else if (gidToDepthSort != null && gid < gidToDepthSort.length && gidToDepthSort[gid]) {
                         depthVisibleTiles.add(visibleTile);
                     } else {
                         backgroundVisibleTiles.add(visibleTile);
@@ -681,6 +703,7 @@ public class TileManager {
 
         backgroundVisibleTiles.sort(backgroundTileComparator);
         depthVisibleTiles.sort(depthTileComparator);
+        foregroundVisibleTiles.sort(backgroundTileComparator);
     }
 
     public void drawBackground(Graphics2D g2) {
@@ -689,6 +712,12 @@ public class TileManager {
         }
 
         drawPathOverlay(g2);
+    }
+
+    public void drawForeground(Graphics2D g2) {
+        for (VisibleTileDraw visibleTile : foregroundVisibleTiles) {
+            g2.drawImage(visibleTile.image, visibleTile.screenX, visibleTile.screenY, null);
+        }
     }
 
     public int getDepthTileCount() {
@@ -732,12 +761,16 @@ public class TileManager {
         gidToTile         = new Tile[maxGIDValue + 1];
         gidToRenderOrder  = new int[maxGIDValue + 1];
         gidToDepthSort    = new boolean[maxGIDValue + 1];
+        gidToForeground   = new boolean[maxGIDValue + 1];
+        gidToSortYOffset  = new int[maxGIDValue + 1];
         for (Tileset ts : tilesets) {
             for (int i = 0; i < ts.tileCount && i < ts.tiles.length; i++) {
                 int gid = ts.firstGID + i;
                 gidToTile[gid]        = ts.tiles[i];
                 gidToRenderOrder[gid] = ts.renderOrder;
                 gidToDepthSort[gid]   = ts.depthSort;
+                gidToForeground[gid]  = ts.foreground;
+                if (ts.tiles[i] != null) gidToSortYOffset[gid] = ts.tiles[i].sortYOffset;
             }
         }
 
@@ -814,14 +847,16 @@ public class TileManager {
 
     private int getDefaultRenderOrder(String label, String resourcePath) {
         String normalized = (label + " " + resourcePath).toLowerCase();
+        // Structures (fences, buildings, walls) sit above trees when at the same Y
+        if (normalized.contains("fence") || normalized.contains("build") || normalized.contains("house")
+                || normalized.contains("tower") || normalized.contains("wall")) {
+            return 25;
+        }
         if (normalized.contains("tree") || normalized.contains("decor") || normalized.contains("foliage")) {
             return 20;
         }
         if (normalized.contains("shadow")) {
             return 15;
-        }
-        if (normalized.contains("build") || normalized.contains("house") || normalized.contains("tower")) {
-            return 10;
         }
         if (normalized.contains("water")) {
             return 5;
@@ -853,24 +888,63 @@ public class TileManager {
 
     private boolean isDepthSortedTileset(String label, String resourcePath) {
         String normalized = (label + " " + resourcePath).toLowerCase();
-        return normalized.contains("tree") || normalized.contains("decor") || normalized.contains("foliage");
+        return normalized.contains("tree") || normalized.contains("decor") || normalized.contains("foliage")
+            || normalized.contains("fence") || normalized.contains("build") || normalized.contains("house")
+            || normalized.contains("tower") || normalized.contains("wall");
+    }
+
+    private boolean getTilesetForeground(Element tilesetElement, String resourcePath) {
+        String value = getStringProperty(tilesetElement, "foreground", null);
+        if (value == null || value.isBlank()) {
+            return false;
+        }
+        return Boolean.parseBoolean(value.trim());
+    }
+
+    /**
+     * Reads per-tile custom properties from a <tileset> XML element and applies them
+     * to the already-loaded Tileset's Tile objects.
+     * Currently supports: sortYOffset (int) — shifts the depth-sort Y for that tile.
+     */
+    private void applyPerTileProperties(Tileset ts, Element tilesetElement) {
+        org.w3c.dom.NodeList children = tilesetElement.getChildNodes();
+        for (int i = 0; i < children.getLength(); i++) {
+            if (!(children.item(i) instanceof Element)) continue;
+            Element tileEl = (Element) children.item(i);
+            if (!"tile".equals(tileEl.getTagName())) continue;
+            String idStr = tileEl.getAttribute("id");
+            if (idStr == null || idStr.isBlank()) continue;
+            try {
+                int tileId = Integer.parseInt(idStr.trim());
+                int sortYOff = getIntProperty(tileEl, "sortYOffset", 0);
+                if (sortYOff != 0 && tileId >= 0 && tileId < ts.tiles.length && ts.tiles[tileId] != null) {
+                    ts.tiles[tileId].sortYOffset = sortYOff;
+                }
+            } catch (NumberFormatException ignored) {}
+        }
     }
 
     private String getStringProperty(Element element, String propertyName, String defaultValue) {
-        NodeList properties = element.getElementsByTagName("property");
-        for (int i = 0; i < properties.getLength(); i++) {
-            Element property = (Element) properties.item(i);
-            if (!propertyName.equals(property.getAttribute("name"))) {
-                continue;
+        // Only search <property> elements inside a direct <properties> child —
+        // NOT recursive, so per-tile properties don't leak up to the tileset level.
+        org.w3c.dom.NodeList children = element.getChildNodes();
+        for (int c = 0; c < children.getLength(); c++) {
+            if (!(children.item(c) instanceof Element)) continue;
+            Element child = (Element) children.item(c);
+            if (!"properties".equals(child.getTagName())) continue;
+            org.w3c.dom.NodeList props = child.getChildNodes();
+            for (int p = 0; p < props.getLength(); p++) {
+                if (!(props.item(p) instanceof Element)) continue;
+                Element property = (Element) props.item(p);
+                if (!"property".equals(property.getTagName())) continue;
+                if (!propertyName.equals(property.getAttribute("name"))) continue;
+                String value = property.getAttribute("value");
+                if (value == null || value.isBlank()) {
+                    value = property.getTextContent();
+                }
+                return value;
             }
-
-            String value = property.getAttribute("value");
-            if (value == null || value.isBlank()) {
-                value = property.getTextContent();
-            }
-            return value;
         }
-
         return defaultValue;
     }
 

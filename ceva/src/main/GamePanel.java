@@ -44,9 +44,11 @@ public class GamePanel extends JPanel implements Runnable{
     public final int screenWidth = tileSize * maxScreenCol; // 1280 pixels
     public final int screenHeight = tileSize * maxScreenRow; // 768 pixels
 
-    public boolean Hitboxes = true;
+    // DEBUG
+    public boolean HitBoxes = false;
+    public boolean drawPath = false;
 
-    // SETARIILE LUMI
+    // WORLD SETTINGS
     public final int maxWorldCol = 100;
     public final int maxWorldRow = 100;
     public final int worldWidth = tileSize * maxWorldCol;
@@ -56,13 +58,12 @@ public class GamePanel extends JPanel implements Runnable{
     Rectangle windowedBounds;
     BufferedImage tempScreen;
     Graphics2D g2;
+    // Saved identity transform — reset at the start of every frame to prevent
+    // AffineTransform accumulation when a translate is not perfectly undone
+    private java.awt.geom.AffineTransform identityTransform;
 
     public boolean fullScreenOn = false;
     public boolean vSyncOn = true; // V-Sync toggle: sync rendering to monitor refresh rate
-
-    //DEBUG
-    public boolean HitBoxes = false;
-    public boolean drawPath = false;
 
     // TIMING
     private static final int TARGET_UPS = 60; // Fixed simulation rate (game speed)
@@ -73,10 +74,13 @@ public class GamePanel extends JPanel implements Runnable{
     // SYSTEM
     public TileManager tileM = new TileManager(this);
     public KeyHandler keyH = new KeyHandler(this);
-    Sound music = new Sound();
-    Sound se = new Sound();
+    public AudioManager audio = new AudioManager();
+    // Legacy delegates — forward to AudioManager so old code still compiles
+    Sound music = audio.getMusicSound();
+    Sound se = audio.getSESound();
     public CollisionChecker cChecker = new CollisionChecker(this);
     public AssetSetter aSetter = new AssetSetter(this);
+    public MapObjectLoader mapObjectLoader = new MapObjectLoader(this);
     public UI ui = new UI(this);
     public EventHandler eHandler = new EventHandler(this);
     Config config = new Config(this);
@@ -135,21 +139,26 @@ public class GamePanel extends JPanel implements Runnable{
     int entityListIndex = 0; // Track insertion point for efficient reuse
     
     // OPTIMIZATION: Define Comparator once to avoid garbage collection lag
-    Comparator<Entity> renderSorter = (e1, e2) -> Integer.compare(e1.worldY, e2.worldY);
+    Comparator<Entity> renderSorter = (e1, e2) -> {
+        int feet1 = e1.worldY + e1.solidArea.y + e1.solidArea.height;
+        int feet2 = e2.worldY + e2.solidArea.y + e2.solidArea.height;
+        return Integer.compare(feet1, feet2);
+    };
 
-    // GAME STATE 
+    // GAME STATE — integer constants kept for backward compatibility
+    // New code should use GameState enum where possible.
     public int gameState;
-    public final int titleState = 0;
-    public final int playState = 1;
-    public final int pauseState = 2;
-    public final int dialogueState = 3;
-    public final int characterState = 4;
-    public final int optionsState = 5;
-    public final int gameOverState = 6;
-    public final int cutsceneState = 7;
-    public final int transitionState = 8;
-    public final int levelUpState = 9;
-    public final int skillTreeState = 10;
+    public static final int titleState = 0;
+    public static final int playState = 1;
+    public static final int pauseState = 2;
+    public static final int dialogueState = 3;
+    public static final int characterState = 4;
+    public static final int optionsState = 5;
+    public static final int gameOverState = 6;
+    public static final int cutsceneState = 7;
+    public static final int transitionState = 8;
+    public static final int levelUpState = 9;
+    public static final int skillTreeState = 10;
 
     //ABILITY
     public boolean teleportation = false;
@@ -189,14 +198,18 @@ public class GamePanel extends JPanel implements Runnable{
 
     if (!loadingGame) {
         currentMapId = "harta";
-        aSetter.setObject(); // NEW GAME ONLY
+        aSetter.setObject();
         eManager.setup();
         aSetter.setInteractiveTile();
-        aSetter.setEvents();
     }
     
     aSetter.setNPC();
     aSetter.setMonster();
+
+    if (!loadingGame) {
+        aSetter.loadEntitiesFromTMX();
+    }
+    aSetter.loadEventsFromTMX();
     mobSpawner = new MobSpawner(this);
     gameState = titleState;
 
@@ -256,6 +269,9 @@ public class GamePanel extends JPanel implements Runnable{
     g2.setRenderingHint(java.awt.RenderingHints.KEY_RENDERING, java.awt.RenderingHints.VALUE_RENDER_SPEED);
     g2.setRenderingHint(java.awt.RenderingHints.KEY_INTERPOLATION, java.awt.RenderingHints.VALUE_INTERPOLATION_NEAREST_NEIGHBOR);
     g2.setRenderingHint(java.awt.RenderingHints.KEY_COLOR_RENDERING, java.awt.RenderingHints.VALUE_COLOR_RENDER_SPEED);
+
+    // Save the clean identity transform so we can reset to it at the start of every frame
+    identityTransform = g2.getTransform();
 
     if (fullScreenOn) {
         setFullScreen();
@@ -343,15 +359,16 @@ public class GamePanel extends JPanel implements Runnable{
             // Returning to a previously visited map - restore saved entities
             restoreMapEntities(currentMapId);
         } else {
-            // First visit to this map - create fresh entities
+            // First visit to this map - create fresh entities from TMX
             aSetter.setObject();
             aSetter.setInteractiveTile();
             aSetter.setNPC();
             aSetter.setMonster();
+            aSetter.loadEntitiesFromTMX();
         }
         
-        // Always set up events (these can be dynamic based on game state)
-        aSetter.setEvents();
+        // Always register events (transitions, healing pools) from TMX
+        aSetter.loadEventsFromTMX();
 
         // Place player at spawn position (centered on tile)
         player.worldX = spawnCol * tileSize;
@@ -429,13 +446,17 @@ public class GamePanel extends JPanel implements Runnable{
             player.setDefaultValues();
             aSetter.setObject();
             aSetter.setInteractiveTile();
-            aSetter.setEvents();
         }
 
         player.setDefaultPositions();
         player.restoreLifeAndMana();
         aSetter.setNPC();
         aSetter.setMonster();
+
+        if (restart) {
+            aSetter.loadEntitiesFromTMX();
+        }
+        aSetter.loadEventsFromTMX();
     }
     public void setFullScreen() {
 
@@ -583,7 +604,9 @@ public class GamePanel extends JPanel implements Runnable{
             }
 
             if (renderDelta >= 1) {
-                drawToTempScreen();
+                synchronized (this) {
+                    drawToTempScreen();
+                }
                 repaint();
                 frameCount++;
                 renderDelta = 0;
@@ -609,10 +632,12 @@ public class GamePanel extends JPanel implements Runnable{
     @Override
     protected void paintComponent(Graphics g) {
         super.paintComponent(g);
-        if (tempScreen != null) {
-            g.drawImage(tempScreen, 0, 0, getWidth(), getHeight(), null);
-            Toolkit.getDefaultToolkit().sync();
+        synchronized (this) {
+            if (tempScreen != null) {
+                g.drawImage(tempScreen, 0, 0, getWidth(), getHeight(), null);
+            }
         }
+        Toolkit.getDefaultToolkit().sync();
     }
 
 
@@ -813,6 +838,14 @@ public class GamePanel extends JPanel implements Runnable{
         drawStart = System.nanoTime();
     }
 
+    // Reset the Graphics2D transform to identity each frame — prevents AffineTransform
+    // accumulation if any drawing code forgets to undo a translate/rotate.
+    g2.setTransform(identityTransform);
+    // Clear the back buffer to black; without this, ghosting occurs whenever
+    // the tile or UI layers don't cover every pixel (e.g. transitions, title screen).
+    g2.setBackground(Color.BLACK);
+    g2.clearRect(0, 0, screenWidth, screenHeight);
+
     drawCurrentState();
 
     // DEBUG TEXT
@@ -894,10 +927,12 @@ public class GamePanel extends JPanel implements Runnable{
         int depthTileIdx = 0;
 
         // DRAW ENTITIES + TILE PARTICLES interleaved by Y (depth-correct)
-        // Depth-sorted tiles and particles with sortY <= entity.worldY are drawn BEFORE the entity.
+        // Compare against entity feet (bottom of solidArea) so the crossover fires when
+        // the player visually steps past a structure's base row, not when their sprite top does.
         java.awt.Composite savedComp = g2.getComposite();
         for (int i = 0; i < entityListIndex; i++) {
-            int entityY = entityList.get(i).worldY;
+            entity.Entity e = entityList.get(i);
+            int entityY = e.worldY + e.solidArea.y + e.solidArea.height;
 
             while (true) {
                 float nextDepthTileY = depthTileIdx < depthTileCount ? tileM.getDepthTileSortY(depthTileIdx) : Float.MAX_VALUE;
@@ -920,7 +955,7 @@ public class GamePanel extends JPanel implements Runnable{
 
             // Restore composite in case a particle changed it
             g2.setComposite(savedComp);
-            entityList.get(i).draw(g2);
+            e.draw(g2);
         }
 
         while (depthTileIdx < depthTileCount || tpIdx < tpCount) {
@@ -937,6 +972,9 @@ public class GamePanel extends JPanel implements Runnable{
             }
         }
         g2.setComposite(savedComp);
+
+        // FOREGROUND TILES — drawn on top of all entities and depth-sorted tiles (e.g. building roofs/upper walls)
+        tileM.drawForeground(g2);
 
         clearRenderableEntities();
 
@@ -1176,18 +1214,12 @@ public class GamePanel extends JPanel implements Runnable{
     }
 
     public void playMusic(int i) {
-
-        music.setFile(i);
-        music.play();
-        music.loop();
+        audio.playMusic(i);
     }
     public void stopMusic() {
-
-        music.stop();
+        audio.stopMusic();
     }
     public void playSE(int i) {
-
-        se.setFile(i);
-        se.play();
+        audio.playSE(i);
     }
 }

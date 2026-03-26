@@ -1,9 +1,9 @@
 package object;
 
 import entity.Entity;
-import environment.EnvironmentManager;
-import main.GamePanel;
 import java.awt.Color;
+import main.GamePanel;
+import main.SFX;
 
 public class OBJ_Tent extends Entity {
 
@@ -31,7 +31,7 @@ public class OBJ_Tent extends Entity {
     public boolean use(Entity entity) {
         
         // 1. Play Sound
-        gp.playSE(2); 
+        gp.playSE(SFX.EQUIP); 
         
         // 2. Restore Player Stats
         gp.player.life = gp.player.maxLife;

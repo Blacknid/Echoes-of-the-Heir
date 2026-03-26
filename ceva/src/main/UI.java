@@ -24,8 +24,6 @@ public class UI {
     public BufferedImage Compas;
     public BufferedImage titleBackground;
     public boolean messageOn = false;
-    //public String message = "";
-    //int messageCounter = 0;
     ArrayList<String> message = new ArrayList<>();
     ArrayList<Integer> messageCounter = new ArrayList<>();
     ArrayList<Color> messageColor = new ArrayList<>();
@@ -1665,7 +1663,7 @@ public class UI {
                 drawMedievalToggle(rightCol + 100, ctrlY, gp.fullScreenOn);
                 if (selected && gp.keyH.enterPressed) {
                     gp.applyFullScreenSetting(!gp.fullScreenOn);
-                    gp.playSE(3);
+                    gp.playSE(SFX.MENU_SELECT);
                     gp.keyH.enterPressed = false;
                 }
             }
@@ -1677,10 +1675,10 @@ public class UI {
                 }
             }
             else if (i == 2) { // Music volume bar
-                drawMedievalSlider(rightCol, ctrlY, gp.music.volumeScale, 5);
+                drawMedievalSlider(rightCol, ctrlY, gp.audio.getMusicVolume(), 5);
             }
             else if (i == 3) { // SE volume bar
-                drawMedievalSlider(rightCol, ctrlY, gp.se.volumeScale, 5);
+                drawMedievalSlider(rightCol, ctrlY, gp.audio.getSEVolume(), 5);
             }
             else if (i == 4) { // Controls
                 if (selected) drawArrowHint(rightCol + 120, itemY);
@@ -1693,7 +1691,7 @@ public class UI {
                 if (selected && gp.keyH.enterPressed) {
                     gp.saveLoad.save();
                     addMessage("Game saved.", Color.WHITE);
-                    gp.playSE(3);
+                    gp.playSE(SFX.MENU_SELECT);
                     gp.keyH.enterPressed = false;
                 }
             }

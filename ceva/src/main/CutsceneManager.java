@@ -74,7 +74,7 @@ public class CutsceneManager {
 
             // PLAY THE FANFARE while staying in cutscene mode
             gp.gameState = gp.cutsceneState;
-            gp.playSE(6);
+            gp.playSE(SFX.VICTORY);
             scenePhase++;
         } 
         if ( scenePhase == 3 ) {
@@ -111,7 +111,6 @@ public class CutsceneManager {
             drawString(alpha, 38f, 200, text, 70);
 
             if ( counterReached(600) ) {
-                //gp.playMusic(ending);
                 scenePhase++;
             }
 

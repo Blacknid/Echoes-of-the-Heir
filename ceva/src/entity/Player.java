@@ -8,6 +8,7 @@ import java.awt.AlphaComposite;
  import java.util.ArrayList;
  import main.GamePanel;
  import main.KeyHandler;
+ import main.SFX;
  import main.SkillTree;
  import object.OBJ_Arrow;
  import object.OBJ_Shield_Wood;
@@ -82,6 +83,10 @@ public class Player extends Entity {
 
     // Attack anticipation (wind-up hold on frame 1)
     private int anticipationTimer = -1;
+
+    // Visual-only offset during attacks (lean into the swing without moving hitbox)
+    private int animOffsetX = 0;
+    private int animOffsetY = 0;
 
     // Swing trail afterimages
     private static final int TRAIL_SIZE = 4;
@@ -251,6 +256,9 @@ public class Player extends Entity {
             attacking = false;
             spriteCounter = 0;
             spriteNum = 1;
+            anticipationTimer = -1;
+            animOffsetX = 0;
+            animOffsetY = 0;
             idleDelayCounter = 0;
             movingThisFrame = false;
         }
@@ -263,7 +271,7 @@ public class Player extends Entity {
             invincible = true;
             evadeFlashTimer = 3;  // brief armor glint
             spawnDashBurst(true);
-            gp.playSE(10); // quick whoosh
+            gp.playSE(SFX.WEAPON_SWING); // quick whoosh
         }
         if (dashing) {
             // Quadratic ease-out: explosive start, smooth deceleration
@@ -492,7 +500,6 @@ public class Player extends Entity {
                     updateIdleSprite();
                 } else {
                     spriteNum = 1;
-                    spriteNum1 = 1;
                 }
             }
             if(gp.keyH.shotKeyPressed && !projectile.alive && shotAvailableCounter == 30 && projectile.haveResource(this)) {
@@ -503,7 +510,7 @@ public class Player extends Entity {
                 //ADD TO ARRAY
                 gp.projectilesList.add(projectile);
                 shotAvailableCounter = 0;
-                gp.playSE(12);
+                gp.playSE(SFX.ARROW);
             }
             if (shotAvailableCounter < 30) {
                 shotAvailableCounter++;
@@ -521,12 +528,6 @@ public class Player extends Entity {
 
     private void updateSprite() {
         spriteCounter++;
-        spriteCounter1++;
-        // Movement animation - speed
-        if (spriteCounter1 > 8) {
-            spriteNum1 = (spriteNum1 % 8) + 1; // loops 1-8
-            spriteCounter1 = 0;
-        }
         if (spriteCounter > 7) {
             spriteNum = (spriteNum % 7) + 1; // loops 1-7
             spriteCounter = 0;
@@ -551,60 +552,87 @@ public class Player extends Entity {
 
             idleCounter = 0;
         }
-
-        spriteNum1 = 1;
     }
 
     public void attacking() {
-        spriteCounter++;
-        // Each combo step feels different:
-        // Step 0: quick jab (16 frames)
-        // Step 1: swift slash (18 frames)
-        // Step 2: heavy finisher (14 frames — faster wind-up, devastating)
-        int duration;
-        switch (comboStep) {
-            case 0 -> duration = 16;
-            case 1 -> duration = 18;
-            default -> duration = 14; // heavy is snappier
-        }
+        // Variable per-frame hold durations for each combo step.
+        // Format: {frame1, frame2, frame3, frame4, frame5}
+        // Frames 2-3 (swing) are snappiest, frame 1 (windup) and 4-5 (recovery) linger.
+        int[][] frameDurations = {
+            {4, 2, 2, 4, 4},  // step 0: quick jab (16 total)
+            {4, 3, 3, 4, 4},  // step 1: swift slash (18 total)
+            {3, 2, 2, 3, 4},  // step 2: heavy finisher (14 total)
+        };
+        int[] durations = frameDurations[Math.min(comboStep, 2)];
 
-        // --- ANTICIPATION PHASE: hold frame 1 with slight pullback ---
+        // --- ANTICIPATION PHASE: brief hold on first frame for weight ---
         if (anticipationTimer < 0) {
-            // First frame of attack: initialize anticipation
             anticipationTimer = switch (comboStep) {
-                case 0 -> 4;   // quick jab: short wind-up
-                case 1 -> 3;   // swift slash: minimal
-                default -> 6;  // heavy finisher: dramatic wind-up
+                case 0 -> 3;   // quick jab: snappy
+                case 1 -> 2;   // swift slash: minimal
+                default -> 4;  // heavy finisher: deliberate
             };
             spriteCounter = 0;
             trailCount = 0;
             trailIndex = 0;
             trailActive = false;
+            animOffsetX = 0;
+            animOffsetY = 0;
         }
         if (anticipationTimer > 0) {
             anticipationTimer--;
-            spriteNum = 1; // hold first attack pose
-            // Slight pullback opposite to facing (collision-checked)
-            int pullSpeed = 2;
-            int pullX = worldX, pullY = worldY;
+            spriteNum = 1;
+            // Subtle visual lean backward during anticipation (no hitbox movement)
+            int leanPx = (comboStep == 2) ? 2 : 1;
             switch (direction) {
-                case DIR_UP    -> pullY += pullSpeed;
-                case DIR_DOWN  -> pullY -= pullSpeed;
-                case DIR_LEFT  -> pullX += pullSpeed;
-                case DIR_RIGHT -> pullX -= pullSpeed;
+                case DIR_UP    -> animOffsetY = leanPx;
+                case DIR_DOWN  -> animOffsetY = -leanPx;
+                case DIR_LEFT  -> animOffsetX = leanPx;
+                case DIR_RIGHT -> animOffsetX = -leanPx;
             }
-            int origX = worldX, origY = worldY;
-            worldX = pullX; worldY = pullY;
-            collisionOn = false;
-            gp.cChecker.checkTile(this);
-            if (collisionOn) { worldX = origX; worldY = origY; }
-            return; // stay in anticipation — don't run swing logic
+            return;
         }
 
-        int frameLength = duration / 5;
-        int currentFrame = spriteCounter / frameLength + 1;
-        if (currentFrame > 5) currentFrame = 5;
+        // --- SWING PHASE (counter only ticks here, not during anticipation) ---
+        spriteCounter++;
+
+        // Determine current frame from variable-length durations
+        int elapsed = 0;
+        int currentFrame = 5;
+        for (int f = 0; f < 5; f++) {
+            elapsed += durations[f];
+            if (spriteCounter <= elapsed) {
+                currentFrame = f + 1;
+                break;
+            }
+        }
         spriteNum = currentFrame;
+        int totalDuration = 0;
+        for (int d : durations) totalDuration += d;
+
+        // --- VISUAL OFFSET: lean forward during swing, ease back on recovery ---
+        int maxLean = (comboStep == 2) ? 3 : 2;
+        if (currentFrame <= 3) {
+            // Lean into the swing (frames 1-3)
+            float progress = Math.min(1f, currentFrame / 3f);
+            int lean = Math.round(maxLean * progress);
+            switch (direction) {
+                case DIR_UP    -> { animOffsetX = 0; animOffsetY = -lean; }
+                case DIR_DOWN  -> { animOffsetX = 0; animOffsetY = lean; }
+                case DIR_LEFT  -> { animOffsetX = -lean; animOffsetY = 0; }
+                case DIR_RIGHT -> { animOffsetX = lean; animOffsetY = 0; }
+            }
+        } else {
+            // Ease back to center (frames 4-5)
+            float recovery = (currentFrame - 3) / 2f;
+            int lean = Math.round(maxLean * (1f - recovery));
+            switch (direction) {
+                case DIR_UP    -> { animOffsetX = 0; animOffsetY = -lean; }
+                case DIR_DOWN  -> { animOffsetX = 0; animOffsetY = lean; }
+                case DIR_LEFT  -> { animOffsetX = -lean; animOffsetY = 0; }
+                case DIR_RIGHT -> { animOffsetX = lean; animOffsetY = 0; }
+            }
+        }
 
         // --- SWING TRAIL: record positions during active swing frames ---
         if (currentFrame >= 2 && currentFrame <= 4) {
@@ -615,38 +643,20 @@ public class Player extends Entity {
             trailActive = true;
         }
 
-        // Forward lunge on heavy finisher (step 2) during windup frames
-        if (comboStep == 2 && currentFrame <= 2) {
-            int lungeSpeed = 3;
-            int lungeX = worldX, lungeY = worldY;
-            switch (direction) {
-                case DIR_UP    -> lungeY -= lungeSpeed;
-                case DIR_DOWN  -> lungeY += lungeSpeed;
-                case DIR_LEFT  -> lungeX -= lungeSpeed;
-                case DIR_RIGHT -> lungeX += lungeSpeed;
-            }
-            int origX = worldX, origY = worldY;
-            worldX = lungeX;
-            worldY = lungeY;
-            collisionOn = false;
-            gp.cChecker.checkTile(this);
-            if (collisionOn) {
-                worldX = origX;
-                worldY = origY;
-            }
-        }
-
-        // HIT on frame 3 (middle swing)
-        if (currentFrame == 3 && spriteCounter % frameLength == 0) {
+        // HIT on frame 3 (first tick of that frame)
+        int frame3Start = durations[0] + durations[1] + 1;
+        if (currentFrame == 3 && spriteCounter == frame3Start) {
             performAttackHitbox();
         }
-        // End attack → open combo window (shorter on heavy = combo resets naturally)
-        if (spriteCounter >= duration) {
+        // End attack → open combo window
+        if (spriteCounter >= totalDuration) {
             spriteCounter = 0;
             attacking = false;
             anticipationTimer = -1;
             trailActive = false;
             trailCount = 0;
+            animOffsetX = 0;
+            animOffsetY = 0;
             comboWindow = (comboStep == 2) ? 10 : COMBO_WINDOW_MAX;
         }
     }
@@ -702,7 +712,7 @@ public class Player extends Entity {
     public void damageMonster(int i, int attack) {
         if (i != 999) {
             if (!gp.monster[i].invincible) {
-                gp.playSE(5);
+                gp.playSE(SFX.GOT_GEM); // TODO: likely should be SFX.MONSTER_HIT (index 9)
                 // Combo damage escalation: step 0 = 1x, step 1 = 1.15x, step 2 = 1.6x
                 boolean isHeavy = (comboStep == 2);
                 float comboMultiplier = switch (comboStep) {
@@ -809,7 +819,7 @@ public class Player extends Entity {
     private void castShockwave() {
         mana -= 1;
         shockwaveCooldown = getShockwaveCooldownMax();
-        gp.playSE(11);
+        gp.playSE(SFX.LEVEL_UP);
         gp.screenShake.shakeLight();
 
         int radius = gp.tileSize * 2;
@@ -850,7 +860,7 @@ public class Player extends Entity {
     private void castVoidSnare() {
         mana -= 1;
         voidSnareCooldown = getVoidSnareCooldownMax();
-        gp.playSE(3);
+        gp.playSE(SFX.MENU_SELECT);
 
         int radius = gp.tileSize * 3;
         for (int i = 0; i < gp.monster.length; i++) {
@@ -878,7 +888,7 @@ public class Player extends Entity {
     private void castFrostNova() {
         mana -= 2;
         frostNovaCooldown = getFrostNovaCooldownMax();
-        gp.playSE(3);
+        gp.playSE(SFX.MENU_SELECT);
 
         int radius = (int)(gp.tileSize * 2.4);
         for (int i = 0; i < gp.monster.length; i++) {
@@ -912,7 +922,7 @@ public class Player extends Entity {
         mana -= 2;
         overdriveCooldown = getOverdriveCooldownMax();
         overdriveTimer = OVERDRIVE_DURATION;
-        gp.playSE(11);
+        gp.playSE(SFX.LEVEL_UP);
         gp.ui.addMessage("OVERDRIVE engaged!", new Color(255, 185, 100));
     }
 
@@ -973,7 +983,7 @@ public class Player extends Entity {
             if (gp.monster[i].dying || !gp.monster[i].alive) {
                 return;
             }
-            gp.playSE(8);
+            gp.playSE(SFX.PLAYER_HIT);
             int damage = gp.monster[i].attack - defense;
             damage = (int)(damage * damageTakenMultiplier);
             // Only player bleeds when taking damage (removed generateParticle for monster)
@@ -1151,24 +1161,20 @@ public class Player extends Entity {
                     gp.obj[i] = null;
                 } else return;
             }
-            // INTERACTABLE OBJECTS
+            // INTERACTABLE OBJECTS (chests, doors, etc.)
             else if (gp.obj[i].type == type_obstacle) {
                 if(keyH.enterPressed) {
                     attackCanceled = true;
                     gp.obj[i].interact();
+                    keyH.enterPressed = false; // consume input so attack doesn't also trigger
                 }
             }
             // OBTAINABLE OBJECTS
             else if (canObtainItem(gp.obj[i])) {
                 attackCanceled = true;
-                gp.playSE(2);
+                gp.playSE(SFX.EQUIP);
                 String objectName = gp.obj[i].name;
                 switch (objectName) {
-                    // case "Compas" -> {
-                    //     gp.teleportation = true;
-                    //     gp.ui.addMessage("Teleportation unlocked!", Color.WHITE);
-                    //     break;
-                    // }
                     case "Potion" -> {
                         gp.obj[i] = null;
                         gp.ui.addMessage("You've got a potion!", Color.WHITE);
@@ -1182,7 +1188,7 @@ public class Player extends Entity {
                         break;
                     }
                     case "Key" -> {
-                        gp.playSE(2);
+                        gp.playSE(SFX.EQUIP);
                         hasKey++;
                         gp.obj[i] = null;
                         gp.ui.addMessage("You got a key!", Color.WHITE);
@@ -1191,11 +1197,11 @@ public class Player extends Entity {
                         }
                     }
                     case "Tent" -> {
-                        gp.playSE(2);
+                        gp.playSE(SFX.EQUIP);
                         gp.ui.addMessage("You got a tent!", Color.WHITE);
                     }
                     case "Spell book" -> {
-                        gp.playSE(2);
+                        gp.playSE(SFX.EQUIP);
                         gp.obj[i] = null;
                         gp.ui.addMessage("You got a new weapon!", Color.WHITE);
                     }
@@ -1209,8 +1215,8 @@ public class Player extends Entity {
             if (i != 999) {
                 attackCanceled = true;
                 gp.npc[i].speak();
-            } else {
-                gp.playSE(10);
+            } else if (!attackCanceled) {
+                gp.playSE(SFX.WEAPON_SWING);
                 attacking = true;
             }
         }
@@ -1262,17 +1268,17 @@ public class Player extends Entity {
                 currentWeapon = selectedItem;
                 attack = getAttack();
                 gp.ui.addMessage("Equipped " + selectedItem.name + "!", Color.WHITE);
-                gp.playSE(9); // equip sound
+                gp.playSE(SFX.MONSTER_HIT); // equip sound
             } else if (selectedItem.type == type_shield) {
                 currentShield = selectedItem;
                 defense = getDefense();
                 gp.ui.addMessage("Equipped " + selectedItem.name + "!", Color.WHITE);
-                gp.playSE(9);
+                gp.playSE(SFX.MONSTER_HIT);
             } else if (selectedItem.type == type_consumable) {
                 attackCanceled = true;
                 if (selectedItem.use(this) && !"Potion".equals(selectedItem.name)) {
                     gp.ui.addMessage("Used " + selectedItem.name + ".", Color.WHITE);
-                    gp.playSE(11); // generic use sound
+                    gp.playSE(SFX.LEVEL_UP); // generic use sound
                     if (selectedItem.amount > 1) {
                         selectedItem.amount--;
                     } else {
@@ -1348,7 +1354,7 @@ public class Player extends Entity {
             Entity item = inventory.get(itemIndex);
             inventory.remove(itemIndex);
             gp.ui.addMessage("Dropped " + item.name + ".", Color.WHITE);
-            gp.playSE(12); // use a drop sound or simple click
+            gp.playSE(SFX.ARROW); // use a drop sound or simple click
         }
     }
 
@@ -1424,8 +1430,8 @@ public class Player extends Entity {
             drawH = gp.tileSize;
         }
 
-        int drawX = tempScreenX;
-        int drawY = tempScreenY;
+        int drawX = tempScreenX + animOffsetX;
+        int drawY = tempScreenY + animOffsetY;
 
         if (dashing) {
             // Subtle directional lean — character leans into the evade
@@ -1555,7 +1561,7 @@ public class Player extends Entity {
     }
 
     private void triggerLevelUpEffects() {
-        gp.playSE(11);
+        gp.playSE(SFX.LEVEL_UP);
         spawnLevelUpBoom();
         gp.screenShake.shakeMedium();
 
@@ -1685,7 +1691,7 @@ public class Player extends Entity {
         }
 
         gp.ui.addMessage("Unlocked skill: " + nodeId.replace('_', ' '), new Color(120, 210, 255));
-        gp.playSE(3);
+        gp.playSE(SFX.MENU_SELECT);
     }
 
     // Stored stat keys for level-up application

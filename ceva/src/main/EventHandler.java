@@ -14,6 +14,10 @@ public class EventHandler{
     boolean canTouchEvent = true;
     // map transitions keyed by "col,row"
     Map<String, MapTransition> mapTransitions = new HashMap<>();
+    // healing pools keyed by "col,row"
+    Map<String, int[]> healingPools = new HashMap<>();
+    // damage traps keyed by "col,row" → damage amount
+    Map<String, int[]> damageTraps = new HashMap<>();
 
     // ENTRY POINT TRACKING: Store the trigger tile position when a transition is activated
     public int lastTriggerCol = 0;
@@ -27,6 +31,8 @@ public class EventHandler{
     public void reset() {
         // Clear all map transitions and event states from the previous map
         mapTransitions.clear();
+        healingPools.clear();
+        damageTraps.clear();
         eventMap.clear();
 
         // Reset touch state so events on the new map can trigger properly
@@ -50,10 +56,16 @@ public class EventHandler{
         }
         if ( canTouchEvent ) {
 
-            // Map-specific events
-            if (gp.currentMapId.equals("harta")) {
-                // Healing pool (only exists on harta map at tile 54,22)
-                if ( hit(54, 22, Entity.DIR_ANY) ) { healingPool( gp.dialogueState ); }
+            // Healing pools (loaded from TMX Events layer)
+            for (Map.Entry<String, int[]> entry : healingPools.entrySet()) {
+                int[] pos = entry.getValue();
+                if ( hit(pos[0], pos[1], Entity.DIR_ANY) ) { healingPool( gp.dialogueState ); }
+            }
+
+            // Damage traps (loaded from TMX Events layer)
+            for (Map.Entry<String, int[]> entry : damageTraps.entrySet()) {
+                int[] data = entry.getValue();
+                if ( hit(data[0], data[1], Entity.DIR_ANY) ) { damageTrap(data[2]); }
             }
 
             // Map transitions: use smooth fade transition when stepping on trigger tile
@@ -83,6 +95,11 @@ public class EventHandler{
         mapTransitions.put(key, new MapTransition(mapId, spawnCol, spawnRow));
     }
 
+    public void registerHealingPool(int col, int row) {
+        String key = col + "," + row;
+        healingPools.put(key, new int[]{col, row});
+    }
+
     /**
      * Register a bidirectional transition: when stepping on (col, row),
      * go to the destination map and spawn at (destCol, destRow).
@@ -98,6 +115,11 @@ public class EventHandler{
 
         // The return transition will be registered when we're on the destination map.
         // See AssetSetter.registerReturnPath() for how this works.
+    }
+
+    void registerDamageTrap(int col, int row, int damage) {
+        String key = col + "," + row;
+        damageTraps.put(key, new int[]{col, row, damage});
     }
 
     static class MapTransition {
@@ -163,4 +185,21 @@ public class EventHandler{
         previousEventY = gp.player.worldY;
 
     }
+
+    public void damageTrap(int damage) {
+        if (gp.player.invincible) return;
+
+        gp.playSE(SFX.PLAYER_HIT);
+        int actualDamage = damage - gp.player.defense;
+        if (actualDamage < 1) actualDamage = 1;
+        gp.player.life -= actualDamage;
+        gp.player.invincible = true;
+        gp.player.hitFlashCounter = 6;
+        gp.screenShake.shakeMedium();
+
+        canTouchEvent = false;
+        previousEventX = gp.player.worldX;
+        previousEventY = gp.player.worldY;
+    }
+
 }
