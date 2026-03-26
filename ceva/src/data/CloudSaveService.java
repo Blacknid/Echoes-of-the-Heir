@@ -45,7 +45,7 @@ import javax.crypto.spec.SecretKeySpec;
 public class CloudSaveService {
 
     // ── Network ──────────────────────────────────────────────────────────
-    private static final String SERVER_HOST = "192.168.1.10";
+    private static final String SERVER_HOST = "192.168.1.13";
     private static final int    SERVER_PORT = 5005;
     private static final int    CONNECT_TIMEOUT_MS = 3000;
     private static final int    SOCKET_TIMEOUT_MS  = 8000;

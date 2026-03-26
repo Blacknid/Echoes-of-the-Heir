@@ -81,19 +81,68 @@ public class SaveLoad {
     // =========================
     public void save() {
 
-<<<<<<< HEAD
-        DataStorage ds = buildDataStorage();
-        GameState gs = buildGameState();
+        try {
+            StringBuilder sb = new StringBuilder();
 
-        // Local save.dat (backward-compatible binary)
-        saveToDisk(ds);
+            // PLAYER STATS
+            sb.append("player.level=").append(gp.player.level).append('\n');
+            sb.append("player.maxLife=").append(gp.player.maxLife).append('\n');
+            sb.append("player.life=").append(gp.player.life).append('\n');
+            sb.append("player.maxMana=").append(gp.player.maxMana).append('\n');
+            sb.append("player.mana=").append(gp.player.mana).append('\n');
+            sb.append("player.strenght=").append(gp.player.strenght).append('\n');
+            sb.append("player.dexterity=").append(gp.player.dexterity).append('\n');
+            sb.append("player.exp=").append(gp.player.exp).append('\n');
+            sb.append("player.nextLevelExp=").append(gp.player.nextLevelExp).append('\n');
+            sb.append("player.coin=").append(gp.player.coin).append('\n');
 
-        // Cloud / encrypted save
-        CloudSaveService.SaveResult result =
-                cloudSaveService.save(gs, Main.LICENSE_KEY, Main.OFFLINE_MODE);
+            // LOCATION
+            sb.append("player.worldX=").append(gp.player.worldX).append('\n');
+            sb.append("player.worldY=").append(gp.player.worldY).append('\n');
 
-        if (!result.ok()) {
-            System.out.println(result.message());
+            // EQUIPMENT SLOTS
+            sb.append("player.weaponSlot=").append(gp.player.getCurrentWeaponSlot()).append('\n');
+            sb.append("player.shieldSlot=").append(gp.player.getCurrentShieldSlot()).append('\n');
+
+            // INVENTORY
+            sb.append("inventory.size=").append(gp.player.inventory.size()).append('\n');
+            for (int i = 0; i < gp.player.inventory.size(); i++) {
+                sb.append("inventory.").append(i).append(".name=").append(gp.player.inventory.get(i).name).append('\n');
+                sb.append("inventory.").append(i).append(".amount=").append(gp.player.inventory.get(i).amount).append('\n');
+            }
+
+            // OBJECTS ON MAP
+            int size = gp.obj.length;
+            sb.append("obj.size=").append(size).append('\n');
+            for (int i = 0; i < size; i++) {
+                if (gp.obj[i] == null) {
+                    sb.append("obj.").append(i).append(".name=NA\n");
+                    continue;
+                }
+                sb.append("obj.").append(i).append(".name=").append(gp.obj[i].name).append('\n');
+                sb.append("obj.").append(i).append(".worldX=").append(gp.obj[i].worldX).append('\n');
+                sb.append("obj.").append(i).append(".worldY=").append(gp.obj[i].worldY).append('\n');
+                sb.append("obj.").append(i).append(".opened=").append(gp.obj[i].opened).append('\n');
+                String lootName = gp.obj[i].loot != null ? gp.obj[i].loot.name : "NA";
+                sb.append("obj.").append(i).append(".loot=").append(lootName).append('\n');
+            }
+
+            byte[] encrypted = encrypt(sb.toString());
+            try (FileOutputStream fos = new FileOutputStream("save.dat")) {
+                fos.write(encrypted);
+            }
+
+            // Cloud save
+            GameState gs = buildGameState();
+            CloudSaveService.SaveResult result =
+                    cloudSaveService.save(gs, Main.LICENSE_KEY, Main.OFFLINE_MODE);
+            if (!result.ok()) {
+                System.out.println(result.message());
+            }
+
+        } catch (Exception e) {
+            e.printStackTrace();
+            System.out.println("Save Exception!");
         }
     }
 
@@ -107,7 +156,7 @@ public class SaveLoad {
         // Position
         gs.playerX = gp.player.worldX;
         gs.playerY = gp.player.worldY;
-        gs.playerZ = 0; // reserved for future layer/elevation support
+        gs.playerZ = 0;
         gs.direction = gp.player.direction;
         gs.mapID = gp.currentMapId;
 
@@ -164,133 +213,8 @@ public class SaveLoad {
         return gs;
     }
 
-    // =========================
-    // DATA STORAGE (legacy)
-    // =========================
-    private DataStorage buildDataStorage() {
-
-        DataStorage ds = new DataStorage();
-
-        // PLAYER STATS
-        ds.level = gp.player.level;
-        ds.maxLife = gp.player.maxLife;
-        ds.life = gp.player.life;
-        ds.maxMana = gp.player.maxMana;
-        ds.mana = gp.player.mana;
-        ds.strenght = gp.player.strenght;
-        ds.dexterity = gp.player.dexterity;
-        ds.exp = gp.player.exp;
-        ds.nextLevelExp = gp.player.nextLevelExp;
-        ds.coin = gp.player.coin;
-
-        // LOCATION
-        ds.playerWorldX = gp.player.worldX;
-        ds.playerWorldY = gp.player.worldY;
-
-        // INVENTORY
-        for (Entity e : gp.player.inventory) {
-            ds.itemNames.add(e.name);
-            ds.itemAmounts.add(e.amount);
-        }
-
-        ds.currentWeaponSlot = gp.player.getCurrentWeaponSlot();
-        ds.currentShieldSlot = gp.player.getCurrentShieldSlot();
-
-        // OBJECTS ON MAP
-        int size = gp.obj.length;
-
-        ds.mapObjectNames = new String[size];
-        ds.mapObjectWorldX = new int[size];
-        ds.mapObjectWorldY = new int[size];
-        ds.mapObjectLootName = new String[size];
-        ds.mapObjectOpened = new boolean[size];
-
-        for (int i = 0; i < size; i++) {
-
-            if (gp.obj[i] == null) {
-                ds.mapObjectNames[i] = "NA";
-                ds.mapObjectLootName[i] = "NA";
-                continue;
-            }
-
-            ds.mapObjectNames[i] = gp.obj[i].name;
-            ds.mapObjectWorldX[i] = gp.obj[i].worldX;
-            ds.mapObjectWorldY[i] = gp.obj[i].worldY;
-            ds.mapObjectOpened[i] = gp.obj[i].opened;
-
-            if (gp.obj[i].loot != null) {
-                ds.mapObjectLootName[i] = gp.obj[i].loot.name;
-            } else {
-                ds.mapObjectLootName[i] = "NA";
-            }
-        }
-
-        return ds;
-    }
-
-    private void saveToDisk(DataStorage ds) {
-
-        try (ObjectOutputStream oos =
-             new ObjectOutputStream(new FileOutputStream("save.dat"))) {
-
-            oos.writeObject(ds);
-=======
-        try {
-            StringBuilder sb = new StringBuilder();
-
-            // PLAYER STATS
-            sb.append("player.level=").append(gp.player.level).append('\n');
-            sb.append("player.maxLife=").append(gp.player.maxLife).append('\n');
-            sb.append("player.life=").append(gp.player.life).append('\n');
-            sb.append("player.maxMana=").append(gp.player.maxMana).append('\n');
-            sb.append("player.mana=").append(gp.player.mana).append('\n');
-            sb.append("player.strenght=").append(gp.player.strenght).append('\n');
-            sb.append("player.dexterity=").append(gp.player.dexterity).append('\n');
-            sb.append("player.exp=").append(gp.player.exp).append('\n');
-            sb.append("player.nextLevelExp=").append(gp.player.nextLevelExp).append('\n');
-            sb.append("player.coin=").append(gp.player.coin).append('\n');
-
-            // LOCATION
-            sb.append("player.worldX=").append(gp.player.worldX).append('\n');
-            sb.append("player.worldY=").append(gp.player.worldY).append('\n');
-
-            // EQUIPMENT SLOTS
-            sb.append("player.weaponSlot=").append(gp.player.getCurrentWeaponSlot()).append('\n');
-            sb.append("player.shieldSlot=").append(gp.player.getCurrentShieldSlot()).append('\n');
-
-            // INVENTORY
-            sb.append("inventory.size=").append(gp.player.inventory.size()).append('\n');
-            for (int i = 0; i < gp.player.inventory.size(); i++) {
-                sb.append("inventory.").append(i).append(".name=").append(gp.player.inventory.get(i).name).append('\n');
-                sb.append("inventory.").append(i).append(".amount=").append(gp.player.inventory.get(i).amount).append('\n');
-            }
-
-            // OBJECTS ON MAP
-            int size = gp.obj.length;
-            sb.append("obj.size=").append(size).append('\n');
-            for (int i = 0; i < size; i++) {
-                if (gp.obj[i] == null) {
-                    sb.append("obj.").append(i).append(".name=NA\n");
-                    continue;
-                }
-                sb.append("obj.").append(i).append(".name=").append(gp.obj[i].name).append('\n');
-                sb.append("obj.").append(i).append(".worldX=").append(gp.obj[i].worldX).append('\n');
-                sb.append("obj.").append(i).append(".worldY=").append(gp.obj[i].worldY).append('\n');
-                sb.append("obj.").append(i).append(".opened=").append(gp.obj[i].opened).append('\n');
-                String lootName = gp.obj[i].loot != null ? gp.obj[i].loot.name : "NA";
-                sb.append("obj.").append(i).append(".loot=").append(lootName).append('\n');
-            }
-
-            byte[] encrypted = encrypt(sb.toString());
-            try (FileOutputStream fos = new FileOutputStream("save.dat")) {
-                fos.write(encrypted);
-            }
->>>>>>> a944663d682f5f70eed833776aed75983dafe00a
-
-        } catch (Exception e) {
-            e.printStackTrace();
-            System.out.println("Save Exception!");
-        }
+    public boolean isServerOnline() {
+        return cloudSaveService.isServerOnline();
     }
 
     // =========================

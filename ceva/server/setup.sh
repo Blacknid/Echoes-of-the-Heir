@@ -1,7 +1,8 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-APP_DIR="/michi-s-adventure/ceva/server"
+# Gets the absolute path of the directory where setup.sh is located
+APP_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 SERVICE_NAME="michi.service"
 SERVICE_PATH="/etc/systemd/system/${SERVICE_NAME}"
 SERVICE_USER="${SUDO_USER:-$(whoami)}"

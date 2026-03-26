@@ -158,6 +158,7 @@ def handle_client(conn: socket.socket, addr: tuple[str, int]) -> None:
         if first_line == "PING":
             send_line(conn, "PONG")
             status = "PING"
+            print(f"[{client_ip}] PING received (heartbeat)")
             return
 
         # ── Authenticated path ──
@@ -166,13 +167,17 @@ def handle_client(conn: socket.socket, addr: tuple[str, int]) -> None:
             license_key = rsa_decrypt(enc_license).decode("utf-8")
         except Exception:
             status = "MALFORMED_DATA"
+            print(f"[{client_ip}] Connection received — could not decrypt license (malformed data)")
             send_line(conn, "AUTH_FAIL")
             return
 
         if not verify_license_key(license_key):
             status = "AUTH_FAIL"
+            print(f"[{client_ip}] Connection received — invalid license: {license_key}")
             send_line(conn, "AUTH_FAIL")
             return
+
+        print(f"[{client_ip}] Client authenticated — license: {license_key}")
 
         # Generate AES-256 session key
         session_key = os.urandom(32)
@@ -216,33 +221,40 @@ def handle_client(conn: socket.socket, addr: tuple[str, int]) -> None:
                     send_line(conn, "SYNC")
                     send_line(conn, base64.b64encode(enc_existing).decode("ascii"))
                     status = "SYNC_SERVER_NEWER"
+                    print(f"[{client_ip}] UPLOAD received from license {license_key} — server has newer save, sent back to client")
                     return
 
             # Save incoming (store raw JSON for future sync comparison)
             persist_payload(license_key, payload_json)
             send_line(conn, "SAVED")
             status = "SAVED"
+            print(f"[{client_ip}] UPLOAD received from license {license_key} — data saved ({len(payload_json)} bytes)")
 
         elif command == "DOWNLOAD":
             existing_raw = load_payload(license_key)
             if existing_raw is None:
                 send_line(conn, "NO_SAVE")
                 status = "NO_SAVE"
+                print(f"[{client_ip}] DOWNLOAD requested by license {license_key} — no save found")
             else:
                 enc_data = aes_encrypt(existing_raw, session_key)
                 send_line(conn, base64.b64encode(enc_data).decode("ascii"))
                 status = "DOWNLOADED"
+                print(f"[{client_ip}] DOWNLOAD requested by license {license_key} — save sent ({len(existing_raw)} bytes)")
         else:
             status = "UNKNOWN_COMMAND"
+            print(f"[{client_ip}] Unknown command from license {license_key}: {command}")
 
     except (UnicodeDecodeError, ValueError) as exc:
         status = f"MALFORMED_DATA:{exc}"
+        print(f"[{client_ip}] Error — malformed data from license {license_key}: {exc}")
         try:
             send_line(conn, "MALFORMED_DATA")
         except OSError:
             pass
     except OSError as exc:
         status = f"ERROR:{exc.__class__.__name__}"
+        print(f"[{client_ip}] Connection error from license {license_key}: {exc}")
     finally:
         log_attempt(client_ip, license_key, status)
         try:

@@ -11,7 +11,7 @@ public class GameState implements Serializable {
     public int playerX;
     public int playerY;
     public int playerZ;
-    public String direction;
+    public int direction;
     public String mapID;
 
     // STATS
