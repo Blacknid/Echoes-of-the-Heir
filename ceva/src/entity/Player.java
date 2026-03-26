@@ -369,7 +369,16 @@ public class Player extends Entity {
             if (monsterIndex != 999 && gp.monster[monsterIndex].collision) collisionOn = true;
             // Check for interactive tile collision
             int iTileIndex = gp.cChecker.checkEntity(this, gp.iTile);
-            if (iTileIndex != 999 && gp.iTile[iTileIndex].collision) collisionOn = true;
+            if (iTileIndex != 999 && gp.iTile[iTileIndex] != null) {
+                if (gp.iTile[iTileIndex].collision) collisionOn = true;
+                if (gp.iTile[iTileIndex] instanceof tiles_interactive.IT_Coins) {
+                    tiles_interactive.IT_Coins coinTile = (tiles_interactive.IT_Coins) gp.iTile[iTileIndex];
+                    coin += coinTile.coinValue;
+                    gp.playSE(SFX.GOT_GEM);
+                    generateParticle(coinTile, coinTile);
+                    gp.iTile[iTileIndex] = null;
+                }
+            }
             // If collision, reset position
             if (collisionOn) {
                 worldX = originalX;

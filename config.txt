@@ -1,11 +1,4 @@
-<<<<<<< HEAD
-Off
-0
-1
-On
-=======
-fullscreen=Off
+fullscreen=On
 musicVolume=0
 seVolume=1
 vsync=Off
->>>>>>> a944663d682f5f70eed833776aed75983dafe00a

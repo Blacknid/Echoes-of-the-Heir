@@ -18,7 +18,7 @@ public class EnvironmentManager {
     public int dayCounter = 0;
     
     public final int dayDuration = 100;      // 3 minutes, time * 60 (FPS) = total frames for day/night cycle
-    public final int transitionDuration = 3600; // 2 minute transition (3600 frames at 60 FPS)
+    public final int transitionDuration = 100; // 2 minute transition (3600 frames at 60 FPS)
 
     // ADD THIS LINE HERE:
     // This calculates exactly how much to fade per frame

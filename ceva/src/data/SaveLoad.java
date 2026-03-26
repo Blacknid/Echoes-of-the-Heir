@@ -45,6 +45,9 @@ public class SaveLoad {
     }
 
     private String decrypt(byte[] data) throws Exception {
+        if (data.length < 17) {
+            throw new Exception("Save file is corrupted or too short");
+        }
         byte[] iv = new byte[16];
         System.arraycopy(data, 0, iv, 0, 16);
         byte[] enc = new byte[data.length - 16];
@@ -81,7 +84,6 @@ public class SaveLoad {
     // =========================
     public void save() {
 
-<<<<<<< HEAD
         DataStorage ds = buildDataStorage();
         GameState gs = buildGameState();
 
@@ -108,7 +110,13 @@ public class SaveLoad {
         gs.playerX = gp.player.worldX;
         gs.playerY = gp.player.worldY;
         gs.playerZ = 0; // reserved for future layer/elevation support
-        gs.direction = gp.player.direction;
+        gs.direction = switch (gp.player.direction) {
+            case Entity.DIR_UP    -> "up";
+            case Entity.DIR_DOWN  -> "down";
+            case Entity.DIR_LEFT  -> "left";
+            case Entity.DIR_RIGHT -> "right";
+            default -> "down";
+        };
         gs.mapID = gp.currentMapId;
 
         // Stats
@@ -230,11 +238,6 @@ public class SaveLoad {
 
     private void saveToDisk(DataStorage ds) {
 
-        try (ObjectOutputStream oos =
-             new ObjectOutputStream(new FileOutputStream("save.dat"))) {
-
-            oos.writeObject(ds);
-=======
         try {
             StringBuilder sb = new StringBuilder();
 
@@ -285,7 +288,6 @@ public class SaveLoad {
             try (FileOutputStream fos = new FileOutputStream("save.dat")) {
                 fos.write(encrypted);
             }
->>>>>>> a944663d682f5f70eed833776aed75983dafe00a
 
         } catch (Exception e) {
             e.printStackTrace();

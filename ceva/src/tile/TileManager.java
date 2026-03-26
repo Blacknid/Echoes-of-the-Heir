@@ -174,7 +174,12 @@ public class TileManager {
                 return;
             }
 
-            BufferedImage tilesetImage = ImageIO.read(imageStream);
+            BufferedImage tilesetImage;
+            try {
+                tilesetImage = ImageIO.read(imageStream);
+            } finally {
+                imageStream.close();
+            }
             int safeColumns = Math.max(1, columns);
             int safeTileCount = Math.max(1, tileCount);
 
@@ -770,7 +775,11 @@ public class TileManager {
                 gidToRenderOrder[gid] = ts.renderOrder;
                 gidToDepthSort[gid]   = ts.depthSort;
                 gidToForeground[gid]  = ts.foreground;
-                if (ts.tiles[i] != null) gidToSortYOffset[gid] = ts.tiles[i].sortYOffset;
+                if (ts.tiles[i] != null) {
+                    if (ts.tiles[i].foreground) gidToForeground[gid] = true;
+                    if (ts.tiles[i].background) { gidToDepthSort[gid] = false; gidToForeground[gid] = false; }
+                    gidToSortYOffset[gid] = ts.tiles[i].sortYOffset;
+                }
             }
         }
 
@@ -916,10 +925,13 @@ public class TileManager {
             if (idStr == null || idStr.isBlank()) continue;
             try {
                 int tileId = Integer.parseInt(idStr.trim());
+                if (tileId < 0 || tileId >= ts.tiles.length || ts.tiles[tileId] == null) continue;
                 int sortYOff = getIntProperty(tileEl, "sortYOffset", 0);
-                if (sortYOff != 0 && tileId >= 0 && tileId < ts.tiles.length && ts.tiles[tileId] != null) {
-                    ts.tiles[tileId].sortYOffset = sortYOff;
-                }
+                if (sortYOff != 0) ts.tiles[tileId].sortYOffset = sortYOff;
+                String fg = getStringProperty(tileEl, "foreground", null);
+                if (fg != null) ts.tiles[tileId].foreground = Boolean.parseBoolean(fg.trim());
+                String bg = getStringProperty(tileEl, "background", null);
+                if (bg != null) ts.tiles[tileId].background = Boolean.parseBoolean(bg.trim());
             } catch (NumberFormatException ignored) {}
         }
     }
@@ -994,9 +1006,13 @@ public class TileManager {
             return null;
         }
 
-        DocumentBuilder builder = DocumentBuilderFactory.newInstance().newDocumentBuilder();
-        Document document = builder.parse(resourceStream);
-        document.getDocumentElement().normalize();
-        return document;
+        try {
+            DocumentBuilder builder = DocumentBuilderFactory.newInstance().newDocumentBuilder();
+            Document document = builder.parse(resourceStream);
+            document.getDocumentElement().normalize();
+            return document;
+        } finally {
+            resourceStream.close();
+        }
     }
 }
