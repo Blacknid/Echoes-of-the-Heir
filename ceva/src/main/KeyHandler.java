@@ -269,10 +269,18 @@ public class KeyHandler implements KeyListener {
     private void handleCharacterState(int code) {
         if (code == KeyEvent.VK_E) gp.gameState = gp.playState;
 
+<<<<<<< HEAD
         if (code == KeyEvent.VK_W && gp.ui.slotRow > 0) { gp.ui.slotRow--; gp.playSE(SFX.MENU_CURSOR); }
         if (code == KeyEvent.VK_A && gp.ui.slotCol > 0) { gp.ui.slotCol--; gp.playSE(SFX.MENU_CURSOR); }
         if (code == KeyEvent.VK_S && gp.ui.slotRow < 3) { gp.ui.slotRow++; gp.playSE(SFX.MENU_CURSOR); }
         if (code == KeyEvent.VK_D && gp.ui.slotCol < 4) { gp.ui.slotCol++; gp.playSE(SFX.MENU_CURSOR); }
+=======
+        if (code == KeyEvent.VK_W && gp.ui.slotRow > 0) { gp.ui.slotRow--; gp.playSE(7); }
+        if (code == KeyEvent.VK_A && gp.ui.slotCol > 0) { gp.ui.slotCol--; gp.playSE(7); }
+        if (code == KeyEvent.VK_S && gp.ui.slotRow < 3) { gp.ui.slotRow++; gp.playSE(7); }
+        if (code == KeyEvent.VK_D && gp.ui.slotCol < 4) { gp.ui.slotCol++; gp.playSE(7); }
+        if(code == KeyEvent.VK_ESCAPE) gp.gameState = gp.playState;
+>>>>>>> 22133a6b796a976bbb8ee0f74d083c0b3d810c6f
 
         if (code == KeyEvent.VK_ENTER) gp.player.selectItem();
 
