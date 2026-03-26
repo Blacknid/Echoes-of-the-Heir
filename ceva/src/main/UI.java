@@ -1700,6 +1700,22 @@ public class UI {
             }
         }
 
+        // ── SERVER STATUS ──
+        int statusY = startY + totalItems * lineH + 10;
+        boolean online = gp.saveLoad.isServerOnline();
+        g2.setFont(g2.getFont().deriveFont(Font.PLAIN, 18F));
+        String statusText = "Server: " + (online ? "Online" : "Offline");
+        int sw = (int) g2.getFontMetrics().getStringBounds(statusText, g2).getWidth();
+        int dotSize = 8;
+        int totalStatusW = dotSize + 6 + sw;
+        int cx = frameX + fw / 2 - totalStatusW / 2;
+        Color dotColor = online ? new Color(60, 200, 60) : new Color(200, 60, 60);
+        g2.setColor(dotColor);
+        g2.fillOval(cx, statusY - dotSize + 2, dotSize, dotSize);
+        g2.setColor(OPT_TEXT_DIM);
+        g2.drawString(statusText, cx + dotSize + 6, statusY);
+        g2.setFont(g2.getFont().deriveFont(Font.PLAIN, 26F));
+
         gp.config.saveConfig();
     }
 

@@ -84,18 +84,73 @@ public class SaveLoad {
     // =========================
     public void save() {
 
+<<<<<<< HEAD
         DataStorage ds = buildDataStorage();
         GameState gs = buildGameState();
+=======
+        try {
+            StringBuilder sb = new StringBuilder();
+>>>>>>> 98f29449ed6bc7bdfbc33042f779fccf4dda4fc3
 
-        // Local save.dat (backward-compatible binary)
-        saveToDisk(ds);
+            // PLAYER STATS
+            sb.append("player.level=").append(gp.player.level).append('\n');
+            sb.append("player.maxLife=").append(gp.player.maxLife).append('\n');
+            sb.append("player.life=").append(gp.player.life).append('\n');
+            sb.append("player.maxMana=").append(gp.player.maxMana).append('\n');
+            sb.append("player.mana=").append(gp.player.mana).append('\n');
+            sb.append("player.strenght=").append(gp.player.strenght).append('\n');
+            sb.append("player.dexterity=").append(gp.player.dexterity).append('\n');
+            sb.append("player.exp=").append(gp.player.exp).append('\n');
+            sb.append("player.nextLevelExp=").append(gp.player.nextLevelExp).append('\n');
+            sb.append("player.coin=").append(gp.player.coin).append('\n');
 
-        // Cloud / encrypted save
-        CloudSaveService.SaveResult result =
-                cloudSaveService.save(gs, Main.LICENSE_KEY, Main.OFFLINE_MODE);
+            // LOCATION
+            sb.append("player.worldX=").append(gp.player.worldX).append('\n');
+            sb.append("player.worldY=").append(gp.player.worldY).append('\n');
 
-        if (!result.ok()) {
-            System.out.println(result.message());
+            // EQUIPMENT SLOTS
+            sb.append("player.weaponSlot=").append(gp.player.getCurrentWeaponSlot()).append('\n');
+            sb.append("player.shieldSlot=").append(gp.player.getCurrentShieldSlot()).append('\n');
+
+            // INVENTORY
+            sb.append("inventory.size=").append(gp.player.inventory.size()).append('\n');
+            for (int i = 0; i < gp.player.inventory.size(); i++) {
+                sb.append("inventory.").append(i).append(".name=").append(gp.player.inventory.get(i).name).append('\n');
+                sb.append("inventory.").append(i).append(".amount=").append(gp.player.inventory.get(i).amount).append('\n');
+            }
+
+            // OBJECTS ON MAP
+            int size = gp.obj.length;
+            sb.append("obj.size=").append(size).append('\n');
+            for (int i = 0; i < size; i++) {
+                if (gp.obj[i] == null) {
+                    sb.append("obj.").append(i).append(".name=NA\n");
+                    continue;
+                }
+                sb.append("obj.").append(i).append(".name=").append(gp.obj[i].name).append('\n');
+                sb.append("obj.").append(i).append(".worldX=").append(gp.obj[i].worldX).append('\n');
+                sb.append("obj.").append(i).append(".worldY=").append(gp.obj[i].worldY).append('\n');
+                sb.append("obj.").append(i).append(".opened=").append(gp.obj[i].opened).append('\n');
+                String lootName = gp.obj[i].loot != null ? gp.obj[i].loot.name : "NA";
+                sb.append("obj.").append(i).append(".loot=").append(lootName).append('\n');
+            }
+
+            byte[] encrypted = encrypt(sb.toString());
+            try (FileOutputStream fos = new FileOutputStream("save.dat")) {
+                fos.write(encrypted);
+            }
+
+            // Cloud save
+            GameState gs = buildGameState();
+            CloudSaveService.SaveResult result =
+                    cloudSaveService.save(gs, Main.LICENSE_KEY, Main.OFFLINE_MODE);
+            if (!result.ok()) {
+                System.out.println(result.message());
+            }
+
+        } catch (Exception e) {
+            e.printStackTrace();
+            System.out.println("Save Exception!");
         }
     }
 
@@ -109,6 +164,7 @@ public class SaveLoad {
         // Position
         gs.playerX = gp.player.worldX;
         gs.playerY = gp.player.worldY;
+<<<<<<< HEAD
         gs.playerZ = 0; // reserved for future layer/elevation support
         gs.direction = switch (gp.player.direction) {
             case Entity.DIR_UP    -> "up";
@@ -117,6 +173,10 @@ public class SaveLoad {
             case Entity.DIR_RIGHT -> "right";
             default -> "down";
         };
+=======
+        gs.playerZ = 0;
+        gs.direction = gp.player.direction;
+>>>>>>> 98f29449ed6bc7bdfbc33042f779fccf4dda4fc3
         gs.mapID = gp.currentMapId;
 
         // Stats
@@ -172,6 +232,7 @@ public class SaveLoad {
         return gs;
     }
 
+<<<<<<< HEAD
     // =========================
     // DATA STORAGE (legacy)
     // =========================
@@ -293,6 +354,10 @@ public class SaveLoad {
             e.printStackTrace();
             System.out.println("Save Exception!");
         }
+=======
+    public boolean isServerOnline() {
+        return cloudSaveService.isServerOnline();
+>>>>>>> 98f29449ed6bc7bdfbc33042f779fccf4dda4fc3
     }
 
     // =========================
