@@ -5,6 +5,7 @@ import java.awt.Color;
 import java.awt.Graphics2D;
 import java.awt.image.BufferedImage;
 import entity.Entity;
+import object.OBJ_Chest;
 
 /**
  * Corner minimap overlay showing the explored world at a glance.
@@ -30,6 +31,7 @@ public class Minimap {
     private static final Color PLAYER_COLOR = Color.WHITE;
     private static final Color MONSTER_COLOR = new Color(220, 60, 60);
     private static final Color NPC_COLOR = new Color(80, 200, 80);
+    private static final Color CHEST_COLOR = new Color(220, 185, 50);
 
     // Pre-baked terrain image (1px per tile)
     private BufferedImage terrainImage;
@@ -110,6 +112,18 @@ public class Minimap {
                 int ny = y + (int)((npc.worldY / (float) gp.tileSize) * scaleY);
                 g2.setColor(NPC_COLOR);
                 g2.fillRect(nx, ny, 2, 2);
+            }
+        }
+
+        // Draw chests as gold dots (only unopened ones)
+        if (gp.obj != null) {
+            for (Entity obj : gp.obj) {
+                if (obj instanceof OBJ_Chest && !obj.opened) {
+                    int cx = x + (int)((obj.worldX / (float) gp.tileSize) * scaleX);
+                    int cy = y + (int)((obj.worldY / (float) gp.tileSize) * scaleY);
+                    g2.setColor(CHEST_COLOR);
+                    g2.fillRect(cx, cy, 3, 3);
+                }
             }
         }
 
