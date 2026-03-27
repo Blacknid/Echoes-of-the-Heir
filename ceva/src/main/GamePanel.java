@@ -789,11 +789,7 @@ public class GamePanel extends JPanel implements Runnable{
                         java.awt.Color lc = (obj[i].lightColor != null) ? obj[i].lightColor : new java.awt.Color(255, 170, 60);
                         eManager.lightning.addLight(
                             obj[i].worldX + tileSize / 2, obj[i].worldY + tileSize / 2,
-<<<<<<< HEAD
-                            obj[i].lightRadius * tileSize, LIGHT_TORCH_ORANGE, flicker);
-=======
                             obj[i].lightRadius * tileSize, lc, flicker);
->>>>>>> 218246a5fffca0f9fe0c07f1eeed555c91e89696
                     }
                 }
             }
