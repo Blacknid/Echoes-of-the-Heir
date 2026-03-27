@@ -6,7 +6,9 @@ import java.awt.Graphics2D;
 import java.awt.Rectangle;
 import java.awt.image.BufferedImage;
 import java.io.IOException;
+
 import javax.imageio.ImageIO;
+
 import main.GamePanel;
 import main.SFX;
 import main.UtilityTool;
@@ -185,6 +187,13 @@ public class Entity {
     public Projectile projectile;
     public boolean lightSource = false;
     public int lightRadius = 0;
+    public java.awt.Color lightColor = null; // custom light tint (null = default orange)
+
+    // TILED / EDITOR METADATA
+    public String objectId = null;      // persistent ID set from Tiled 'id' property
+    public boolean invisible = false;   // set from Tiled 'invisible' property (no draw)
+    public int aggroRange = 160;        // aggro distance in pixels (default ~2.5 tiles)
+    public int wanderRadius = 0;        // max wander pixel offset from spawn (0 = free)
 
 
 

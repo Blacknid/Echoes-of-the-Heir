@@ -1,5 +1,8 @@
 package tile;
 
+import java.awt.AlphaComposite;
+import java.awt.Color;
+import java.awt.Composite;
 import java.awt.Graphics2D;
 import java.awt.Rectangle;
 import java.awt.Shape;
@@ -11,7 +14,9 @@ import java.awt.image.BufferedImage;
 import java.io.InputStream;
 import java.util.ArrayList;
 import java.util.Comparator;
+import java.util.HashMap;
 import java.util.HashSet;
+import java.util.Map;
 import javax.imageio.ImageIO;
 import javax.xml.parsers.DocumentBuilder;
 import javax.xml.parsers.DocumentBuilderFactory;
@@ -24,6 +29,44 @@ import org.w3c.dom.NodeList;
 public class TileManager {
 
     GamePanel gp;
+
+    // ---- Tiled GID flip-flag bitmasks (high 3 bits of a 32-bit GID) ----
+    public static final long GID_FLIP_H  = 0x80000000L; // bit 31
+    public static final long GID_FLIP_V  = 0x40000000L; // bit 30
+    public static final long GID_FLIP_D  = 0x20000000L; // bit 29 (anti-diagonal / transpose)
+    public static final long GID_FLIP_ALL = GID_FLIP_H | GID_FLIP_V | GID_FLIP_D;
+
+    // ---- Animated tile support ----
+    /** Per-tileset-local-id animation descriptor. */
+    public static class TileAnimation {
+        public int[] frameLocalIds;   // local tile ids (0-based within tileset)
+        public int[] frameDurationsMs; // duration of each frame in milliseconds
+        public int currentFrame = 0;
+        public int timerMs = 0;
+    }
+
+    /** GID -> animation (null = not animated). Built alongside gidToTile arrays. */
+    private Map<Integer, TileAnimation> gidToAnimation = new HashMap<>();
+    /** Whether any animated tile is registered (skip animation tick when false). */
+    private boolean hasAnimatedTiles = false;
+
+    // ---- Image layer support ----
+    public static class ImageLayerData {
+        public BufferedImage image;
+        public float worldX, worldY;       // offset from Tiled (already scaled)
+        public float parallaxX = 1f, parallaxY = 1f;
+        public float opacity = 1f;
+        public java.awt.Color tintColor = null; // null = no tint
+        public String name = "";
+    }
+    /** Ordered list of image layers (parsed alongside tile layers, drawn behind background tiles). */
+    public ArrayList<ImageLayerData> imageLayers = new ArrayList<>();
+
+    // ---- Layer opacity / tint ----
+    /** Per-layer opacity (1.0 = fully opaque). Same indexing as mapLayers. */
+    public ArrayList<Float>  layerOpacity = new ArrayList<>();
+    /** Per-layer tint color (null = none). Same indexing as mapLayers. */
+    public ArrayList<Color> layerTint   = new ArrayList<>();
 
     // Tile scaling
     final int originalTileSize = 32;
@@ -62,6 +105,11 @@ public class TileManager {
         int renderOrder;
         int worldRow;
         int sortY;
+        // Flip flags extracted from Tiled GID high bits (0 = no flip)
+        byte flipFlags;
+        // Per-layer rendering extras (composited at draw time)
+        float opacity = 1f;
+        Color tint = null;
     }
 
     private final Comparator<VisibleTileDraw> backgroundTileComparator = new Comparator<VisibleTileDraw>() {
@@ -118,10 +166,12 @@ public class TileManager {
     private final ArrayList<VisibleTileDraw> foregroundVisibleTiles = new ArrayList<>();
 
     // Multi-layer map
-    public ArrayList<int[][]> mapLayers = new ArrayList<>();
+    public ArrayList<int[][]>  mapLayers = new ArrayList<>();
+    public ArrayList<byte[][]> mapFlipLayers = new ArrayList<>();  // parallel flip-flag arrays
     public ArrayList<String> layerNames = new ArrayList<>();
     public ArrayList<Float> layerParallaxX = new ArrayList<>();
     public ArrayList<Float> layerParallaxY = new ArrayList<>();
+    // (layerOpacity and layerTint declared above near ImageLayerData)
 
     // Collision shapes (from Tiled objectgroup layers — rectangles, rotated rects, polygons, ellipses)
     public ArrayList<Shape> collisionShapes = new ArrayList<>();
@@ -174,7 +224,12 @@ public class TileManager {
                 return;
             }
 
-            BufferedImage tilesetImage = ImageIO.read(imageStream);
+            BufferedImage tilesetImage;
+            try {
+                tilesetImage = ImageIO.read(imageStream);
+            } finally {
+                imageStream.close();
+            }
             int safeColumns = Math.max(1, columns);
             int safeTileCount = Math.max(1, tileCount);
 
@@ -218,6 +273,8 @@ public class TileManager {
 
     public void loadTilesets(String mapPath) {
         tilesets.clear();
+        gidToAnimation.clear();
+        hasAnimatedTiles = false;
         try {
             Document doc = parseXmlResource(mapPath);
             if (doc == null) {
@@ -300,7 +357,8 @@ public class TileManager {
         return null;
     }
 
-    // Mask to strip Tiled flip flags (horizontal, vertical, diagonal) from GIDs
+    // Mask to strip Tiled flip flags (horizontal, vertical, diagonal) from GIDs —
+    // used when we only need the clean tile index (lookup). Flip flags are extracted separately.
     private static final long GID_MASK = 0x1FFFFFFFL;
 
     // ---------------- Load tile layers ----------------
@@ -308,9 +366,13 @@ public class TileManager {
         try {
             loadTilesets(path);
             mapLayers.clear();
+            mapFlipLayers.clear();
             layerNames.clear();
             layerParallaxX.clear();
             layerParallaxY.clear();
+            layerOpacity.clear();
+            layerTint.clear();
+            imageLayers.clear();
 
             Document doc = parseXmlResource(path);
             if (doc == null) {
@@ -359,8 +421,11 @@ public class TileManager {
                 Element data = (Element) layer.getElementsByTagName("data").item(0);
                 float parallaxX = getFloatAttribute(layer, "parallaxx", 1.0f);
                 float parallaxY = getFloatAttribute(layer, "parallaxy", 1.0f);
+                float opacity   = getFloatAttribute(layer, "opacity", 1.0f);
+                Color tint      = parseTintColor(layer.getAttribute("tintcolor"));
 
-                int[][] layerMap = new int[gp.maxWorldCol][gp.maxWorldRow];
+                int[][] layerMap  = new int[gp.maxWorldCol][gp.maxWorldRow];
+                byte[][] flipMap  = new byte[gp.maxWorldCol][gp.maxWorldRow];
 
                 NodeList chunks = data.getElementsByTagName("chunk");
                 if (chunks.getLength() > 0) {
@@ -375,11 +440,14 @@ public class TileManager {
                         int col = 0, row = 0;
                         for (String numStr : numbers) {
                             if (numStr.isEmpty()) continue;
-                            int gid = (int) (Long.parseLong(numStr.trim()) & GID_MASK);
+                            long raw = Long.parseLong(numStr.trim());
+                            int gid = (int) (raw & GID_MASK);
+                            byte flip = extractFlipFlags(raw);
                             int mapCol = cx + col;
                             int mapRow = cy + row;
                             if (mapCol >= 0 && mapCol < gp.maxWorldCol && mapRow >= 0 && mapRow < gp.maxWorldRow) {
                                 layerMap[mapCol][mapRow] = gid;
+                                flipMap[mapCol][mapRow]  = flip;
                             }
                             col++;
                             if (col == cw) {
@@ -398,9 +466,12 @@ public class TileManager {
                     int col = 0, row = 0;
                     for (String numStr : numbers) {
                         if (numStr.isEmpty()) continue;
-                        int gid = (int) (Long.parseLong(numStr.trim()) & GID_MASK);
+                        long raw = Long.parseLong(numStr.trim());
+                        int gid  = (int) (raw & GID_MASK);
+                        byte flip = extractFlipFlags(raw);
                         if (col < gp.maxWorldCol && row < gp.maxWorldRow) {
                             layerMap[col][row] = gid;
+                            flipMap[col][row]  = flip;
                         }
                         col++;
                         if (col == layerWidth) {
@@ -412,11 +483,54 @@ public class TileManager {
                 }
 
                 mapLayers.add(layerMap);
+                mapFlipLayers.add(flipMap);
                 layerNames.add(layerName);
                 layerParallaxX.add(parallaxX);
                 layerParallaxY.add(parallaxY);
+                layerOpacity.add(opacity);
+                layerTint.add(tint);
             }
-            System.out.println("Loaded " + mapLayers.size() + " tile layers (mapTileSize=" + mapTileSize + "px)");
+
+            // ---- Parse <imagelayer> elements ----
+            double sf = (double) tileSize / mapTileSize;
+            NodeList imagelayerNodes = doc.getElementsByTagName("imagelayer");
+            for (int i = 0; i < imagelayerNodes.getLength(); i++) {
+                Element ilEl = (Element) imagelayerNodes.item(i);
+                Element imgEl = (Element) ilEl.getElementsByTagName("image").item(0);
+                if (imgEl == null) continue;
+                String srcRaw = imgEl.getAttribute("source");
+                String srcPath = toResourcePath(srcRaw);
+                if (srcPath == null) {
+                    System.out.println("Skipping imagelayer — cannot resolve source: " + srcRaw);
+                    continue;
+                }
+                InputStream imgStream = getClass().getResourceAsStream(srcPath);
+                if (imgStream == null) {
+                    System.out.println("Skipping imagelayer — file not found: " + srcPath);
+                    continue;
+                }
+                BufferedImage img;
+                try { img = ImageIO.read(imgStream); } finally { imgStream.close(); }
+                if (img == null) continue;
+
+                ImageLayerData ild = new ImageLayerData();
+                ild.name      = ilEl.getAttribute("name");
+                ild.worldX    = (float) (getFloatAttribute(ilEl, "offsetx", 0f) * sf + mapOffsetPixelsX);
+                ild.worldY    = (float) (getFloatAttribute(ilEl, "offsety", 0f) * sf + mapOffsetPixelsY);
+                ild.parallaxX = getFloatAttribute(ilEl, "parallaxx", 1f);
+                ild.parallaxY = getFloatAttribute(ilEl, "parallaxy", 1f);
+                ild.opacity   = getFloatAttribute(ilEl, "opacity",   1f);
+                ild.tintColor = parseTintColor(ilEl.getAttribute("tintcolor"));
+                // Scale image to match game tileSize
+                int scaledW = Math.max(1, (int) Math.round(img.getWidth()  * sf));
+                int scaledH = Math.max(1, (int) Math.round(img.getHeight() * sf));
+                ild.image = UtilityTool.scaleImage(img, scaledW, scaledH);
+                imageLayers.add(ild);
+                System.out.println("Loaded imagelayer: " + ild.name + " @ (" + ild.worldX + "," + ild.worldY + ")");
+            }
+
+            System.out.println("Loaded " + mapLayers.size() + " tile layers, "
+                + imageLayers.size() + " image layers (mapTileSize=" + mapTileSize + "px)");
         } catch (Exception e) {
             System.out.println("Failed to load map: " + path);
             e.printStackTrace(System.out);
@@ -652,20 +766,31 @@ public class TileManager {
 
         for (int layerIndex = 0; layerIndex < mapLayers.size(); layerIndex++) {
             int[][] map = mapLayers.get(layerIndex);
-            float px = layerIndex < layerParallaxX.size() ? layerParallaxX.get(layerIndex) : 1.0f;
-            float py = layerIndex < layerParallaxY.size() ? layerParallaxY.get(layerIndex) : 1.0f;
+            byte[][] flipMap = layerIndex < mapFlipLayers.size() ? mapFlipLayers.get(layerIndex) : null;
+            float px      = layerIndex < layerParallaxX.size() ? layerParallaxX.get(layerIndex) : 1.0f;
+            float py      = layerIndex < layerParallaxY.size() ? layerParallaxY.get(layerIndex) : 1.0f;
+            float opacity = layerIndex < layerOpacity.size()   ? layerOpacity.get(layerIndex)   : 1.0f;
+            Color tint    = layerIndex < layerTint.size()      ? layerTint.get(layerIndex)       : null;
 
             for (int worldRow = minRow; worldRow <= maxRow; worldRow++) {
                 for (int worldCol = minCol; worldCol <= maxCol; worldCol++) {
                     int gid = map[worldCol][worldRow];
                     if (gid == 0) continue;
 
+                    // Resolve animation frame — substitute animated GID if present
+                    int drawGid = gid;
+                    TileAnimation anim = gidToAnimation.get(gid);
+                    if (anim != null) {
+                        drawGid = anim.frameLocalIds[anim.currentFrame];
+                        // drawGid here is the absolute GID of the current frame image
+                    }
+
                     // O(1) direct lookup — no linear tileset scan
-                    Tile currentTile = (gidToTile != null && gid < gidToTile.length) ? gidToTile[gid] : null;
+                    Tile currentTile = (gidToTile != null && drawGid < gidToTile.length) ? gidToTile[drawGid] : null;
                     if (currentTile == null || currentTile.image == null) continue;
 
-                    int worldX     = worldCol * tileSize;
-                    int worldY     = worldRow * tileSize;
+                    int worldX      = worldCol * tileSize;
+                    int worldY      = worldRow * tileSize;
                     int screenBaseY = worldY - currentTile.drawOffsetY;
 
                     VisibleTileDraw visibleTile = getPooledTileDraw();
@@ -680,19 +805,22 @@ public class TileManager {
                     visibleTile.layerIndex  = layerIndex;
                     visibleTile.worldCol    = worldCol;
                     visibleTile.worldRow    = worldRow;
-                    visibleTile.renderOrder = (gidToRenderOrder != null && gid < gidToRenderOrder.length)
-                                              ? gidToRenderOrder[gid] : 0;
+                    visibleTile.opacity     = opacity;
+                    visibleTile.tint        = tint;
+                    visibleTile.flipFlags   = (flipMap != null) ? flipMap[worldCol][worldRow] : 0;
+                    visibleTile.renderOrder = (gidToRenderOrder != null && drawGid < gidToRenderOrder.length)
+                                              ? gidToRenderOrder[drawGid] : 0;
 
                     // sortY = bottom edge of this tile + sortYOffset.
                     // For multi-row structures (e.g. 2-tile fence top bar), set
                     // sortYOffset on the TOP-row tiles in Tiled so their sortY
                     // matches the bottom row's sortY — making them sort as one unit.
-                    int sortYOff = (gidToSortYOffset != null && gid < gidToSortYOffset.length) ? gidToSortYOffset[gid] : 0;
+                    int sortYOff = (gidToSortYOffset != null && drawGid < gidToSortYOffset.length) ? gidToSortYOffset[drawGid] : 0;
                     visibleTile.sortY = worldY + tileSize + sortYOff;
 
-                    if (gidToForeground != null && gid < gidToForeground.length && gidToForeground[gid]) {
+                    if (gidToForeground != null && drawGid < gidToForeground.length && gidToForeground[drawGid]) {
                         foregroundVisibleTiles.add(visibleTile);
-                    } else if (gidToDepthSort != null && gid < gidToDepthSort.length && gidToDepthSort[gid]) {
+                    } else if (gidToDepthSort != null && drawGid < gidToDepthSort.length && gidToDepthSort[drawGid]) {
                         depthVisibleTiles.add(visibleTile);
                     } else {
                         backgroundVisibleTiles.add(visibleTile);
@@ -706,9 +834,64 @@ public class TileManager {
         foregroundVisibleTiles.sort(backgroundTileComparator);
     }
 
+    // ---- Tile draw helper: handles flip transforms, layer opacity, and tint ----
+    private void drawTile(Graphics2D g2, VisibleTileDraw vt) {
+        // Apply layer opacity composite
+        Composite origComposite = null;
+        if (vt.opacity < 0.999f) {
+            origComposite = g2.getComposite();
+            g2.setComposite(AlphaComposite.getInstance(AlphaComposite.SRC_OVER, vt.opacity));
+        }
+
+        // Draw the tile (with optional flip transform)
+        if (vt.flipFlags == 0) {
+            g2.drawImage(vt.image, vt.screenX, vt.screenY, null);
+        } else {
+            AffineTransform at = buildFlipTransform(vt.flipFlags, vt.screenX, vt.screenY,
+                    vt.image.getWidth(), vt.image.getHeight());
+            g2.drawImage(vt.image, at, null);
+        }
+
+        // Apply tint overlay (multiply-like, using SRC_OVER with low alpha)
+        if (vt.tint != null) {
+            Composite c = g2.getComposite();
+            g2.setComposite(AlphaComposite.getInstance(AlphaComposite.SRC_OVER, 0.4f * vt.opacity));
+            g2.setColor(vt.tint);
+            g2.fillRect(vt.screenX, vt.screenY, vt.image.getWidth(), vt.image.getHeight());
+            g2.setComposite(c);
+        }
+
+        if (origComposite != null) g2.setComposite(origComposite);
+    }
+
+    /**
+     * Build an AffineTransform for the 7 Tiled flip/rotate combinations.
+     * H  = mirror left/right
+     * V  = mirror top/bottom
+     * D  = anti-diagonal transpose (swap x,y — used combined with H or V to express rotations)
+     * D+H = 90° CW,  D+V = 90° CCW,  H+V = 180°,  D+H+V = 270° (or 90° CCW after flip)
+     */
+    private AffineTransform buildFlipTransform(byte flags, int sx, int sy, int w, int h) {
+        boolean fH = (flags & 1) != 0;
+        boolean fV = (flags & 2) != 0;
+        boolean fD = (flags & 4) != 0;
+        // Matrix elements: [m00 m10 m01 m11 tx ty]  (column-major AffineTransform order)
+        // AffineTransform(m00, m10, m01, m11, tx, ty)
+        if ( fD &&  fH && !fV) return new AffineTransform( 0,  1, -1,  0, sx + w, sy);         // 90° CW
+        if ( fD && !fH &&  fV) return new AffineTransform( 0, -1,  1,  0, sx,     sy + h);      // 90° CCW
+        if (!fD &&  fH &&  fV) return new AffineTransform(-1,  0,  0, -1, sx + w, sy + h);      // 180°
+        if ( fD &&  fH &&  fV) return new AffineTransform( 0, -1, -1,  0, sx + w, sy + h);      // 270° CW / 90° CCW flipped
+        if (!fD &&  fH && !fV) return new AffineTransform(-1,  0,  0,  1, sx + w, sy);          // flip H
+        if (!fD && !fH &&  fV) return new AffineTransform( 1,  0,  0, -1, sx,     sy + h);      // flip V
+        /* fD && !fH && !fV */ return new AffineTransform( 0,  1,  1,  0, sx,     sy);          // transpose / anti-diagonal
+    }
+
     public void drawBackground(Graphics2D g2) {
+        // Draw image layers behind all tile layers
+        drawImageLayers(g2);
+
         for (VisibleTileDraw visibleTile : backgroundVisibleTiles) {
-            g2.drawImage(visibleTile.image, visibleTile.screenX, visibleTile.screenY, null);
+            drawTile(g2, visibleTile);
         }
 
         drawPathOverlay(g2);
@@ -716,7 +899,7 @@ public class TileManager {
 
     public void drawForeground(Graphics2D g2) {
         for (VisibleTileDraw visibleTile : foregroundVisibleTiles) {
-            g2.drawImage(visibleTile.image, visibleTile.screenX, visibleTile.screenY, null);
+            drawTile(g2, visibleTile);
         }
     }
 
@@ -729,8 +912,33 @@ public class TileManager {
     }
 
     public void drawDepthTile(Graphics2D g2, int index) {
-        VisibleTileDraw visibleTile = depthVisibleTiles.get(index);
-        g2.drawImage(visibleTile.image, visibleTile.screenX, visibleTile.screenY, null);
+        drawTile(g2, depthVisibleTiles.get(index));
+    }
+
+    /** Draw all image layers (rendered behind background tile layers). */
+    private void drawImageLayers(Graphics2D g2) {
+        if (imageLayers.isEmpty()) return;
+        int cameraWorldX = gp.player.worldX - gp.player.screenX;
+        int cameraWorldY = gp.player.worldY - gp.player.screenY;
+        for (ImageLayerData ild : imageLayers) {
+            if (ild.image == null) continue;
+            int sx = Math.round(ild.worldX - cameraWorldX * ild.parallaxX);
+            int sy = Math.round(ild.worldY - cameraWorldY * ild.parallaxY);
+            Composite orig = null;
+            if (ild.opacity < 0.999f) {
+                orig = g2.getComposite();
+                g2.setComposite(AlphaComposite.getInstance(AlphaComposite.SRC_OVER, ild.opacity));
+            }
+            g2.drawImage(ild.image, sx, sy, null);
+            if (ild.tintColor != null) {
+                Composite c = g2.getComposite();
+                g2.setComposite(AlphaComposite.getInstance(AlphaComposite.SRC_OVER, 0.4f * ild.opacity));
+                g2.setColor(ild.tintColor);
+                g2.fillRect(sx, sy, ild.image.getWidth(), ild.image.getHeight());
+                g2.setComposite(c);
+            }
+            if (orig != null) g2.setComposite(orig);
+        }
     }
 
     private void drawPathOverlay(Graphics2D g2) {
@@ -746,6 +954,31 @@ public class TileManager {
 
                 g2.fillRect(pathScreenX, pathScreenY, tileSize, tileSize);
             }
+        }
+    }
+
+    /**
+     * Called once per game update tick (60 Hz). Advances animated-tile frame timers
+     * and invalidates the visible-tile cache when any animation changes frame, so the
+     * next prepareVisibleTiles() will substitute the new frame image.
+     */
+    public void update() {
+        if (!hasAnimatedTiles) return;
+        // 60 UPS → each tick ≈ 16.67 ms; we approximate as 17 ms per tick.
+        final int MS_PER_TICK = 17;
+        boolean anyFrameChanged = false;
+        for (TileAnimation anim : gidToAnimation.values()) {
+            anim.timerMs += MS_PER_TICK;
+            int frameDur = anim.frameDurationsMs[anim.currentFrame];
+            if (anim.timerMs >= frameDur) {
+                anim.timerMs -= frameDur;
+                anim.currentFrame = (anim.currentFrame + 1) % anim.frameLocalIds.length;
+                anyFrameChanged = true;
+            }
+        }
+        if (anyFrameChanged) {
+            // Force a full visible-tile rebuild on next prepareVisibleTiles() call
+            lastVisMinCol = -99;
         }
     }
 
@@ -770,7 +1003,11 @@ public class TileManager {
                 gidToRenderOrder[gid] = ts.renderOrder;
                 gidToDepthSort[gid]   = ts.depthSort;
                 gidToForeground[gid]  = ts.foreground;
-                if (ts.tiles[i] != null) gidToSortYOffset[gid] = ts.tiles[i].sortYOffset;
+                if (ts.tiles[i] != null) {
+                    if (ts.tiles[i].foreground) gidToForeground[gid] = true;
+                    if (ts.tiles[i].background) { gidToDepthSort[gid] = false; gidToForeground[gid] = false; }
+                    gidToSortYOffset[gid] = ts.tiles[i].sortYOffset;
+                }
             }
         }
 
@@ -907,7 +1144,7 @@ public class TileManager {
      * Currently supports: sortYOffset (int) — shifts the depth-sort Y for that tile.
      */
     private void applyPerTileProperties(Tileset ts, Element tilesetElement) {
-        org.w3c.dom.NodeList children = tilesetElement.getChildNodes();
+        NodeList children = tilesetElement.getChildNodes();
         for (int i = 0; i < children.getLength(); i++) {
             if (!(children.item(i) instanceof Element)) continue;
             Element tileEl = (Element) children.item(i);
@@ -916,9 +1153,43 @@ public class TileManager {
             if (idStr == null || idStr.isBlank()) continue;
             try {
                 int tileId = Integer.parseInt(idStr.trim());
+                if (tileId < 0 || tileId >= ts.tiles.length || ts.tiles[tileId] == null) continue;
                 int sortYOff = getIntProperty(tileEl, "sortYOffset", 0);
-                if (sortYOff != 0 && tileId >= 0 && tileId < ts.tiles.length && ts.tiles[tileId] != null) {
-                    ts.tiles[tileId].sortYOffset = sortYOff;
+                if (sortYOff != 0) ts.tiles[tileId].sortYOffset = sortYOff;
+                String fg = getStringProperty(tileEl, "foreground", null);
+                if (fg != null) ts.tiles[tileId].foreground = Boolean.parseBoolean(fg.trim());
+                String bg = getStringProperty(tileEl, "background", null);
+                if (bg != null) ts.tiles[tileId].background = Boolean.parseBoolean(bg.trim());
+
+                // ---- Parse <animation> block ----
+                NodeList animNodes = tileEl.getElementsByTagName("animation");
+                if (animNodes.getLength() > 0) {
+                    Element animEl = (Element) animNodes.item(0);
+                    NodeList frameNodes = animEl.getElementsByTagName("frame");
+                    if (frameNodes.getLength() > 0) {
+                        int numFrames = frameNodes.getLength();
+                        int[] frameAbsGids = new int[numFrames];
+                        int[] frameDurs    = new int[numFrames];
+                        boolean valid = true;
+                        for (int f = 0; f < numFrames; f++) {
+                            Element frameEl = (Element) frameNodes.item(f);
+                            String ftid = frameEl.getAttribute("tileid");
+                            String fdur = frameEl.getAttribute("duration");
+                            if (ftid.isBlank() || fdur.isBlank()) { valid = false; break; }
+                            int localFrameId = Integer.parseInt(ftid.trim());
+                            // Convert local tile id to absolute GID for direct lookup in gidToTile
+                            frameAbsGids[f] = ts.firstGID + localFrameId;
+                            frameDurs[f]    = Integer.parseInt(fdur.trim());
+                        }
+                        if (valid) {
+                            TileAnimation anim = new TileAnimation();
+                            anim.frameLocalIds    = frameAbsGids; // stored as abs GIDs for O(1) image lookup
+                            anim.frameDurationsMs = frameDurs;
+                            // Key = absolute GID of the "base" tile (the one stored in the map layer)
+                            gidToAnimation.put(ts.firstGID + tileId, anim);
+                            hasAnimatedTiles = true;
+                        }
+                    }
                 }
             } catch (NumberFormatException ignored) {}
         }
@@ -946,6 +1217,44 @@ public class TileManager {
             }
         }
         return defaultValue;
+    }
+
+    /**
+     * Extract the 3 Tiled flip bits from a raw GID long into a compact byte:
+     *   bit 0 = FlipH (bit 31 of raw GID)
+     *   bit 1 = FlipV (bit 30)
+     *   bit 2 = FlipD / anti-diagonal (bit 29)
+     * Returns 0 when there are no flip flags.
+     */
+    private static byte extractFlipFlags(long rawGid) {
+        byte flags = 0;
+        if ((rawGid & GID_FLIP_H) != 0) flags |= 1;
+        if ((rawGid & GID_FLIP_V) != 0) flags |= 2;
+        if ((rawGid & GID_FLIP_D) != 0) flags |= 4;
+        return flags;
+    }
+
+    /**
+     * Parse a Tiled tintcolor / tint hex string ("#rrggbb" or "#aarrggbb") into a Color.
+     * Returns null when the string is empty or malformed.
+     */
+    private static Color parseTintColor(String hex) {
+        if (hex == null || hex.isBlank()) return null;
+        String clean = hex.startsWith("#") ? hex.substring(1) : hex;
+        try {
+            if (clean.length() == 6) {
+                int rgb = (int) Long.parseLong(clean, 16);
+                return new Color(rgb);
+            } else if (clean.length() == 8) {
+                long argb = Long.parseLong(clean, 16);
+                int a = (int) ((argb >> 24) & 0xFF);
+                int r = (int) ((argb >> 16) & 0xFF);
+                int g = (int) ((argb >>  8) & 0xFF);
+                int b = (int)  (argb        & 0xFF);
+                return new Color(r, g, b, a);
+            }
+        } catch (NumberFormatException ignored) {}
+        return null;
     }
 
     private String toResourcePath(String source) {
@@ -994,9 +1303,13 @@ public class TileManager {
             return null;
         }
 
-        DocumentBuilder builder = DocumentBuilderFactory.newInstance().newDocumentBuilder();
-        Document document = builder.parse(resourceStream);
-        document.getDocumentElement().normalize();
-        return document;
+        try {
+            DocumentBuilder builder = DocumentBuilderFactory.newInstance().newDocumentBuilder();
+            Document document = builder.parse(resourceStream);
+            document.getDocumentElement().normalize();
+            return document;
+        } finally {
+            resourceStream.close();
+        }
     }
 }

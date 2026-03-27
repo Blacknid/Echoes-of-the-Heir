@@ -5,6 +5,9 @@ import main.GamePanel;
 
 public class OBJ_Coins extends Entity {
 
+    /** Coin value awarded when player picks this up. Set from Tiled 'amount' property. */
+    public int coinValue = 1;
+
     public OBJ_Coins(GamePanel gp) {
         super(gp);
 

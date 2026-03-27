@@ -1,6 +1,7 @@
 package environment;
 
 import java.awt.Graphics2D;
+
 import main.GamePanel;
 
 public class EnvironmentManager {
@@ -16,9 +17,15 @@ public class EnvironmentManager {
 
     public float filterAlpha = 0f; 
     public int dayCounter = 0;
+
+    /**
+     * When >= 0, overrides the day/night cycle darkness.
+     * Set from Tiled map 'ambientLight' property. Reset to -1 to re-enable the cycle.
+     */
+    public float pinnedFilterAlpha = -1f;
     
     public final int dayDuration = 100;      // 3 minutes, time * 60 (FPS) = total frames for day/night cycle
-    public final int transitionDuration = 3600; // 2 minute transition (3600 frames at 60 FPS)
+    public final int transitionDuration = 100; // 2 minute transition (3600 frames at 60 FPS)
 
     // ADD THIS LINE HERE:
     // This calculates exactly how much to fade per frame
@@ -51,6 +58,10 @@ public class EnvironmentManager {
     }
 
     public void update() {
+        // If ambient light is pinned from map properties, skip the day/night cycle
+        if (pinnedFilterAlpha >= 0f) {
+            filterAlpha = pinnedFilterAlpha;
+        } else {
         // Day/night cycle
         if (dayState == day) {
             dayCounter++;
@@ -115,6 +126,7 @@ public class EnvironmentManager {
                 setWeather(WEATHER_CLEAR);
             }
         }
+        } // end pinnedFilterAlpha else block
     }
 
     /** Set weather with smooth transition. */
@@ -124,6 +136,34 @@ public class EnvironmentManager {
         } else {
             weatherTarget = type;
         }
+    }
+
+    /**
+     * Set weather by name string (from Tiled map properties).
+     * Accepted values: "CLEAR", "RAIN", "STORM", "SNOW" (case-insensitive).
+     */
+    public void setWeatherByName(String name) {
+        switch (name.trim().toUpperCase()) {
+            case "RAIN"  -> setWeather(WEATHER_RAIN);
+            case "STORM" -> setWeather(WEATHER_STORM);
+            case "SNOW"  -> setWeather(WEATHER_SNOW);
+            default      -> setWeather(WEATHER_CLEAR);
+        }
+    }
+
+    /**
+     * Jump directly to a time-of-day state set from Tiled map properties.
+     * 0 = day, 1 = dusk, 2 = night, 3 = dawn
+     */
+    public void setTimeOfDay(int state) {
+        dayState = Math.max(day, Math.min(dawn, state));
+        switch (dayState) {
+            case day   -> filterAlpha = 0f;
+            case night -> filterAlpha = 0.95f;
+            case dusk  -> filterAlpha = 0.45f;
+            case dawn  -> filterAlpha = 0.45f;
+        }
+        dayCounter = 0;
     }
 
     public void draw(Graphics2D g2) {

@@ -11,4 +11,6 @@ public class Tile {
     // so that the top tiles sort together with the bottom row instead of popping in/out
     // independently. Set to +tileSize on every "top half" tile of a 2-tall structure.
     public int sortYOffset = 0;
+    public boolean foreground = false;
+    public boolean background = false;
 }

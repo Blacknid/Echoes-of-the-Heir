@@ -13,6 +13,11 @@ public class OBJ_Door extends Entity {
     public int spawnCol = 1;
     public int spawnRow = 1;
 
+    /** Direction the player faces after entering through this door (default: DIR_DOWN). */
+    public int spawnDirection = DIR_DOWN;
+    /** Named spawn point on the target map — resolved after the map loads. */
+    public String spawnId = "";
+
     public OBJ_Door(GamePanel gp) {
         super(gp);
         this.gp = gp;
@@ -56,6 +61,8 @@ public class OBJ_Door extends Entity {
                 // Save this door's tile position so the return path can lead back here
                 gp.doorEntryCol = worldX / gp.tileSize;    // convert pixel position to tile
                 gp.doorEntryRow = worldY / gp.tileSize;    // convert pixel position to tile
+                // Named spawn point: resolved on the target map after it loads
+                gp.nextSpawnId = (spawnId != null) ? spawnId : "";
                 gp.startTransition(location, spawnCol, spawnRow);
             }
         } else {
@@ -81,15 +88,17 @@ public class OBJ_Door extends Entity {
      * Backwards-compatible: non-portal map destination using explicit spawn coords.
      */
     public void setDestination(String mapId, int col, int row, boolean needKey) {
+        setDestination(mapId, col, row, needKey, "");
+    }
+
+    /** Full destination: named spawn point overrides col/row when available. */
+    public void setDestination(String mapId, int col, int row, boolean needKey, String namedSpawnId) {
         this.portal = true;
-        if (mapId != null && (mapId.contains(".tmx") || mapId.startsWith("/res/maps/"))) {
-            this.location = mapId; // path
-        } else {
-            this.location = mapId; // map id
-        }
+        this.location = mapId;
         this.requiresKey = needKey;
         this.spawnCol = col;
         this.spawnRow = row;
+        this.spawnId = (namedSpawnId != null) ? namedSpawnId : "";
     }
 
 }

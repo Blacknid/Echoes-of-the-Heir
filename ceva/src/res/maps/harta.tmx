@@ -1,5 +1,9 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<map version="1.10" tiledversion="1.11.2" orientation="orthogonal" renderorder="right-down" width="100" height="100" tilewidth="32" tileheight="32" infinite="0" nextlayerid="13" nextobjectid="61">
+<map version="1.10" tiledversion="1.12.1" orientation="orthogonal" renderorder="right-down" width="100" height="100" tilewidth="32" tileheight="32" infinite="0" nextlayerid="13" nextobjectid="69">
+ <properties>
+  <property name="music" value="0"/>
+  <property name="weather" value="RAIN"/>
+ </properties>
  <tileset firstgid="1" name="grass" tilewidth="32" tileheight="32" tilecount="12" columns="6">
   <image source="../tiles/Grass_sheet.png" width="192" height="64"/>
   <tile id="1" probability="0.5"/>
@@ -51,6 +55,52 @@
   <tile id="8">
    <properties>
     <property name="renderOrder" type="int" value="25"/>
+   </properties>
+  </tile>
+  <tile id="16">
+   <properties>
+    <property name="background" type="bool" value="true"/>
+   </properties>
+  </tile>
+  <tile id="21">
+   <properties>
+    <property name="background" type="bool" value="true"/>
+   </properties>
+  </tile>
+  <tile id="24">
+   <properties>
+    <property name="background" type="bool" value="true"/>
+   </properties>
+  </tile>
+  <tile id="27">
+   <animation>
+    <frame tileid="63" duration="120"/>
+    <frame tileid="27" duration="120"/>
+   </animation>
+  </tile>
+  <tile id="29">
+   <properties>
+    <property name="background" type="bool" value="true"/>
+   </properties>
+  </tile>
+  <tile id="32">
+   <properties>
+    <property name="sortYOffset" type="int" value="64"/>
+   </properties>
+  </tile>
+  <tile id="35">
+   <properties>
+    <property name="foreground" type="bool" value="true"/>
+   </properties>
+  </tile>
+  <tile id="36">
+   <properties>
+    <property name="foreground" type="bool" value="true"/>
+   </properties>
+  </tile>
+  <tile id="37">
+   <properties>
+    <property name="sortYOffset" type="int" value="64"/>
    </properties>
   </tile>
  </tileset>
@@ -591,6 +641,36 @@
   </object>
   <object id="3" x="1728" y="576" width="128" height="128"/>
   <object id="4" x="1749" y="816" width="25" height="15"/>
+  <object id="61" x="1601" y="944" width="190" height="5">
+   <properties>
+    <property name="collision" type="bool" value="true"/>
+   </properties>
+  </object>
+  <object id="62" x="1600" y="1201" width="352" height="5">
+   <properties>
+    <property name="collision" type="bool" value="true"/>
+   </properties>
+  </object>
+  <object id="63" x="2016" y="1200" width="32" height="5">
+   <properties>
+    <property name="collision" type="bool" value="true"/>
+   </properties>
+  </object>
+  <object id="64" x="2016" y="1200" width="32" height="5">
+   <properties>
+    <property name="collision" type="bool" value="true"/>
+   </properties>
+  </object>
+  <object id="65" x="2046" y="944" width="261" height="17" rotation="90">
+   <properties>
+    <property name="collision" type="bool" value="true"/>
+   </properties>
+  </object>
+  <object id="67" x="1620" y="944" width="256" height="17" rotation="90">
+   <properties>
+    <property name="collision" type="bool" value="true"/>
+   </properties>
+  </object>
  </objectgroup>
  <objectgroup id="8" name="Objects">
   <object id="5" name="Chest" x="1376" y="1152">
