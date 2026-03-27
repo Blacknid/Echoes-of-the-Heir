@@ -1,25 +1,103 @@
 package main;
 
-import entity.Entity;
-import entity.NPC_Alucard;
-import monster.MON_SkeletonArcher;
-import monster.MON_monster;
-import object.*;
-import tiles_interactive.IT_Coins;
-import tiles_interactive.IT_Pot;
-
 import java.io.InputStream;
+import java.util.HashMap;
+import java.util.Map;
+
 import javax.xml.parsers.DocumentBuilder;
 import javax.xml.parsers.DocumentBuilderFactory;
+
 import org.w3c.dom.Document;
 import org.w3c.dom.Element;
 import org.w3c.dom.NodeList;
 
+import entity.Entity;
+import entity.NPC_Alucard;
+import monster.MON_SkeletonArcher;
+import monster.MON_monster;
+import object.OBJ_Arrow;
+import object.OBJ_Book;
+import object.OBJ_Boots;
+import object.OBJ_Chest;
+import object.OBJ_Coins;
+import object.OBJ_Compas;
+import object.OBJ_Door;
+import object.OBJ_Gem;
+import object.OBJ_Heart;
+import object.OBJ_Key;
+import object.OBJ_ManaCrystal;
+import object.OBJ_Potion;
+import object.OBJ_Shield_Wood;
+import object.OBJ_Sword_Normal;
+import object.OBJ_Tent;
+import object.OBJ_Torch;
+import object.OBJ_Tower;
+import tiles_interactive.IT_Coins;
+import tiles_interactive.IT_Pot;
+
 /**
- * Loads objects, monsters, NPCs, interactive tiles, and events from TMX object layers.
- * Replaces hardcoded entity placement — edit maps in Tiled instead of Java code.
+ * Full Tiled-to-Game pipeline: loads objects, monsters, NPCs, interactive tiles,
+ * events, and map-level properties from TMX files.
+ *
+ * MAP-LEVEL PROPERTIES (set in Tiled: Map - Properties):
+ *   mapName       (String)  display name shown in UI
+ *   music         (String)  "theme" | integer SFX index
+ *   weather       (String)  CLEAR | RAIN | STORM | SNOW
+ *   ambientLight  (float)   0.0 (bright) to 0.95 (very dark)
+ *   lightLevel    (int)     0=day 1=dusk 2=night 3=dawn
+ *   spawnCol/Row  (int)     default map spawn tile
+ *   bgColor       (String)  "#rrggbb" background clear color
+ *
+ * ENTITY PROPERTIES (custom Tiled properties on any object):
+ *   facing        (String)  up|down|left|right
+ *   id            (String)  persistent object ID for save state
+ *   invisible     (bool)    skip draw (for hidden triggers)
+ *
+ * MONSTER PROPERTIES:
+ *   level         (int)     scales HP (+50%/level) and ATK (+25%/level)
+ *   aggroRange    (int)     aggro detection radius in pixels
+ *   wanderRadius  (int)     max idle-wander offset in pixels
+ *
+ * NPC PROPERTIES:
+ *   dialogue0-4   (String)  override first dialogue line per set (use \n for newline)
+ *   wanderRadius  (int)     max idle-wander offset in pixels
+ *
+ * OBJECT PROPERTIES:
+ *   amount        (int)     stack count for Potion/Key/Arrow/Coins
+ *   opened        (bool)    Chest starts opened
+ *   lightRadius   (int)     Torch custom light radius
+ *   lightColor    (String)  Torch "#rrggbb" light tint
+ *   spawnId       (String)  Door: named spawn point id on target map
+ *   spawnDirection(String)  Door: direction player faces on arrival
+ *
+ * EVENT TYPES (Events objectgroup):
+ *   MapTransition   targetMap, targetCol, targetRow, spawnId
+ *   HealingPool     (no extra properties)
+ *   DamageTrap      damage (int), repeatable (bool, default true)
+ *   DialogueTrigger message (String), speaker (String), oneShot (bool)
+ *   LevelGate       minLevel (int), message (String),
+ *                   targetMap/targetCol/targetRow (optional, if passable above minLevel)
+ *   Checkpoint      silent (bool)
+ *   QuestTrigger    questId (String), progress (int), oneShot (bool)
+ *   SpawnPoint      id (String) named spawn location referenced by door spawnId
+ *   CameraShake     intensity: "light"|"medium"|"heavy"
+ *
+ * MONSTER AREA (Monsters layer, rectangle object):
+ *   monster (String)  entity type to spawn (e.g. "MON_monster")
+ *   count   (int)     how many to spawn randomly in the area
+ *
+ * TYPE DETECTION: reads Tiled 1.8 "type" attribute AND Tiled 1.9+ "class" attribute.
+ * AREA EVENTS: MapTransition/HealingPool/DamageTrap on rectangles cover every tile.
  */
 public class MapObjectLoader {
+
+    // Music name to SFX index (extend when adding new music tracks to SFX.java)
+    private static final Map<String, Integer> MUSIC_MAP = new HashMap<>();
+    static {
+        MUSIC_MAP.put("theme",   SFX.MUSIC_THEME);
+        MUSIC_MAP.put("dungeon", SFX.MUSIC_THEME);
+        MUSIC_MAP.put("boss",    SFX.MUSIC_THEME);
+    }
 
     private final GamePanel gp;
 
@@ -27,20 +105,35 @@ public class MapObjectLoader {
         this.gp = gp;
     }
 
+    // ---- Public API -----------------------------------------------------------
+
     /**
-     * Parse entity objectgroups (Objects, Monsters, NPCs, InteractiveTiles) from a TMX file.
-     * Does NOT load Events — use loadEvents() for that.
+     * Read the map-level properties block and apply music, weather, ambient light,
+     * map name, default spawn, and background colour.
+     * Called automatically from GamePanel.changeMap() after loading tile layers.
      */
+    public void loadMapProperties(String tmxPath) {
+        try {
+            Document doc = parseXmlResource(tmxPath);
+            if (doc == null) return;
+            applyMapProperties(doc.getDocumentElement());
+        } catch (Exception e) {
+            System.out.println("MapObjectLoader: Failed to load map properties: " + tmxPath);
+            e.printStackTrace(System.out);
+        }
+    }
+
+    /** Parse entity objectgroups (Objects, Monsters, NPCs, InteractiveTiles). */
     public void loadEntities(String tmxPath) {
         load(tmxPath, true, false);
     }
 
-    /**
-     * Parse only the Events objectgroup (MapTransitions, HealingPools) from a TMX file.
-     */
+    /** Parse only the Events objectgroup (MapTransitions, HealingPools, etc.). */
     public void loadEvents(String tmxPath) {
         load(tmxPath, false, true);
     }
+
+    // ---- Core Loader ----------------------------------------------------------
 
     private void load(String tmxPath, boolean entities, boolean events) {
         try {
@@ -50,23 +143,17 @@ public class MapObjectLoader {
                 return;
             }
 
-            // Read map tile size for coordinate conversion
             Element mapEl = doc.getDocumentElement();
-            int mapTileSize = 32; // default
+            int mapTileSize = 32;
             String tw = mapEl.getAttribute("tilewidth");
-            if (tw != null && !tw.isEmpty()) {
-                mapTileSize = Integer.parseInt(tw);
-            }
-
+            if (tw != null && !tw.isEmpty()) mapTileSize = Integer.parseInt(tw);
             double sf = (double) gp.tileSize / mapTileSize;
 
-            // Check for infinite map offsets (chunks shift coordinates)
+            // Infinite map chunk offset
             int offsetX = 0, offsetY = 0;
-            String infinite = mapEl.getAttribute("infinite");
-            if ("1".equals(infinite)) {
-                // Find minimum chunk offsets across all layers
-                NodeList chunks = doc.getElementsByTagName("chunk");
+            if ("1".equals(mapEl.getAttribute("infinite"))) {
                 int minCX = 0, minCY = 0;
+                NodeList chunks = doc.getElementsByTagName("chunk");
                 for (int i = 0; i < chunks.getLength(); i++) {
                     Element chunk = (Element) chunks.item(i);
                     int cx = Integer.parseInt(chunk.getAttribute("x"));
@@ -78,52 +165,45 @@ public class MapObjectLoader {
                 offsetY = -minCY * gp.tileSize;
             }
 
-            // Track array indices
-            int objIdx = 0, monIdx = 0, npcIdx = 0, iTileIdx = 0;
-
-            // Count existing entities (don't overwrite non-null slots)
-            for (int i = 0; i < gp.obj.length; i++) { if (gp.obj[i] != null) objIdx = i + 1; }
-            for (int i = 0; i < gp.monster.length; i++) { if (gp.monster[i] != null) monIdx = i + 1; }
-            for (int i = 0; i < gp.npc.length; i++) { if (gp.npc[i] != null) npcIdx = i + 1; }
-            for (int i = 0; i < gp.iTile.length; i++) { if (gp.iTile[i] != null) iTileIdx = i + 1; }
+            int objIdx   = firstFreeSlot(gp.obj);
+            int monIdx   = firstFreeSlot(gp.monster);
+            int npcIdx   = firstFreeSlot(gp.npc);
+            int iTileIdx = firstFreeSlot(gp.iTile);
 
             NodeList objectGroups = doc.getElementsByTagName("objectgroup");
             for (int g = 0; g < objectGroups.getLength(); g++) {
                 Element og = (Element) objectGroups.item(g);
                 String layerName = og.getAttribute("name");
-
-                // Skip collision — TileManager handles that
                 if ("Collision".equals(layerName)) continue;
 
                 NodeList objects = og.getElementsByTagName("object");
                 for (int j = 0; j < objects.getLength(); j++) {
                     Element obj = (Element) objects.item(j);
 
-                    // Read type from custom property, fall back to object name attribute
-                    String type = getStringProperty(obj, "type", "");
-                    if (type.isEmpty()) {
-                        type = obj.getAttribute("name");
-                    }
-                    if (type == null || type.isEmpty()) {
-                        System.out.println("MapObjectLoader: Skipping unnamed object in layer '" + layerName + "'");
-                        continue;
-                    }
+                    // Tiled 1.9+ uses "class"; older versions use "type"
+                    String type = obj.getAttribute("class");
+                    if (type == null || type.isEmpty()) type = obj.getAttribute("type");
+                    if (type == null || type.isEmpty()) type = getStringProperty(obj, "type", "");
+                    if (type == null || type.isEmpty()) type = obj.getAttribute("name");
+                    if (type == null || type.isEmpty()) continue;
 
-                    // Parse pixel position from TMX
                     String xAttr = obj.getAttribute("x");
                     String yAttr = obj.getAttribute("y");
                     if (xAttr.isEmpty() || yAttr.isEmpty()) continue;
 
                     double pixelX = Double.parseDouble(xAttr);
                     double pixelY = Double.parseDouble(yAttr);
+                    String wAttr = obj.getAttribute("width");
+                    String hAttr = obj.getAttribute("height");
+                    double objW = wAttr.isEmpty() ? 0 : Double.parseDouble(wAttr);
+                    double objH = hAttr.isEmpty() ? 0 : Double.parseDouble(hAttr);
 
-                    // Convert to tile coordinates
-                    int col = (int)(pixelX / mapTileSize);
-                    int row = (int)(pixelY / mapTileSize);
-
-                    // Convert to world coordinates
+                    int col    = (int)(pixelX / mapTileSize);
+                    int row    = (int)(pixelY / mapTileSize);
                     int worldX = (int)(pixelX * sf) + offsetX;
                     int worldY = (int)(pixelY * sf) + offsetY;
+                    int areaW  = (int)(objW * sf);
+                    int areaH  = (int)(objH * sf);
 
                     switch (layerName) {
                         case "Objects" -> {
@@ -136,18 +216,25 @@ public class MapObjectLoader {
                             if (entity != null) {
                                 entity.worldX = worldX;
                                 entity.worldY = worldY;
+                                applyCommonProperties(entity, obj);
                                 gp.obj[objIdx++] = entity;
                             }
                         }
                         case "Monsters" -> {
                             if (!entities) continue;
-                            if (monIdx >= gp.monster.length) {
-                                System.out.println("MapObjectLoader WARNING: monster[] full, skipping " + type);
-                                continue;
-                            }
-                            Entity monster = createMonster(type, col, row);
-                            if (monster != null) {
-                                gp.monster[monIdx++] = monster;
+                            if ("MonsterArea".equals(type)) {
+                                spawnMonsterArea(obj, col, row, areaW, areaH, monIdx);
+                                monIdx = firstFreeSlot(gp.monster);
+                            } else {
+                                if (monIdx >= gp.monster.length) {
+                                    System.out.println("MapObjectLoader WARNING: monster[] full, skipping " + type);
+                                    continue;
+                                }
+                                Entity monster = createMonster(type, col, row, obj);
+                                if (monster != null) {
+                                    applyCommonProperties(monster, obj);
+                                    gp.monster[monIdx++] = monster;
+                                }
                             }
                         }
                         case "NPCs" -> {
@@ -156,10 +243,11 @@ public class MapObjectLoader {
                                 System.out.println("MapObjectLoader WARNING: npc[] full, skipping " + type);
                                 continue;
                             }
-                            Entity npc = createNPC(type);
+                            Entity npc = createNPC(type, obj);
                             if (npc != null) {
                                 npc.worldX = worldX;
                                 npc.worldY = worldY;
+                                applyCommonProperties(npc, obj);
                                 gp.npc[npcIdx++] = npc;
                             }
                         }
@@ -169,23 +257,24 @@ public class MapObjectLoader {
                                 System.out.println("MapObjectLoader WARNING: iTile[] full, skipping " + type);
                                 continue;
                             }
-                            tiles_interactive.interactiveTile tile = createInteractiveTile(type, col, row);
+                            tiles_interactive.interactiveTile tile =
+                                createInteractiveTile(type, col, row, obj);
                             if (tile != null) {
+                                applyCommonProperties(tile, obj);
                                 gp.iTile[iTileIdx++] = tile;
                             }
                         }
                         case "Events" -> {
-                            loadEvent(type, obj, col, row);
+                            if (!events) continue;
+                            loadEvent(type, obj, col, row, worldX, worldY, areaW, areaH);
                         }
                     }
                 }
             }
 
-            // After all objects are loaded, spawn tower eyes
             spawnTowerEyes();
-
-            System.out.println("MapObjectLoader: Loaded from " + tmxPath
-                + " — obj:" + objIdx + " mon:" + monIdx
+            System.out.println("MapObjectLoader: Loaded " + tmxPath
+                + " obj:" + objIdx + " mon:" + monIdx
                 + " npc:" + npcIdx + " iTile:" + iTileIdx);
 
         } catch (Exception e) {
@@ -194,7 +283,75 @@ public class MapObjectLoader {
         }
     }
 
-    // ── Entity Factories ──────────────────────────────────────────────
+    // ---- Map Properties -------------------------------------------------------
+
+    private void applyMapProperties(Element mapEl) {
+        // Reset per-map overrides each time a map loads
+        gp.eManager.pinnedFilterAlpha = -1f;
+        gp.defaultSpawnCol = -1;
+        gp.defaultSpawnRow = -1;
+        gp.mapBackgroundColor = java.awt.Color.BLACK;
+
+        String mapName = getStringProperty(mapEl, "mapName", null);
+        if (mapName != null && !mapName.isBlank()) {
+            gp.currentMapDisplayName = mapName;
+            System.out.println("MapObjectLoader: mapName='" + mapName + "'");
+        }
+
+        String music = getStringProperty(mapEl, "music", null);
+        if (music != null && !music.isBlank()) applyMapMusic(music.trim());
+
+        String weather = getStringProperty(mapEl, "weather", null);
+        if (weather != null && !weather.isBlank()) {
+            gp.eManager.setWeatherByName(weather.trim());
+            System.out.println("MapObjectLoader: weather=" + weather.trim().toUpperCase());
+        }
+
+        String ambStr = getStringProperty(mapEl, "ambientLight", null);
+        if (ambStr != null && !ambStr.isBlank()) {
+            try {
+                float al = Math.max(0f, Math.min(0.99f, Float.parseFloat(ambStr.trim())));
+                gp.eManager.pinnedFilterAlpha = al;
+                gp.eManager.filterAlpha = al;
+                System.out.println("MapObjectLoader: ambientLight=" + al);
+            } catch (NumberFormatException ignored) {}
+        }
+
+        String llStr = getStringProperty(mapEl, "lightLevel", null);
+        if (llStr != null && !llStr.isBlank()) {
+            try {
+                gp.eManager.setTimeOfDay(Integer.parseInt(llStr.trim()));
+                System.out.println("MapObjectLoader: lightLevel=" + llStr.trim());
+            } catch (NumberFormatException ignored) {}
+        }
+
+        int sc = getIntProperty(mapEl, "spawnCol", -1);
+        int sr = getIntProperty(mapEl, "spawnRow", -1);
+        if (sc >= 0 && sr >= 0) { gp.defaultSpawnCol = sc; gp.defaultSpawnRow = sr; }
+
+        String bgColor = getStringProperty(mapEl, "bgColor", null);
+        if (bgColor != null && !bgColor.isBlank()) {
+            try { gp.mapBackgroundColor = java.awt.Color.decode(bgColor.trim()); }
+            catch (NumberFormatException ignored) {}
+        }
+    }
+
+    private void applyMapMusic(String value) {
+        try {
+            gp.audio.playMusic(Integer.parseInt(value));
+            System.out.println("MapObjectLoader: music track " + value);
+            return;
+        } catch (NumberFormatException ignored) {}
+        Integer idx = MUSIC_MAP.get(value.toLowerCase());
+        if (idx != null) {
+            gp.audio.playMusic(idx);
+            System.out.println("MapObjectLoader: music '" + value + "' -> track " + idx);
+        } else {
+            System.out.println("MapObjectLoader: Unknown music '" + value + "'. Add to MUSIC_MAP.");
+        }
+    }
+
+    // ---- Entity Factories -----------------------------------------------------
 
     private Entity createObject(String type, Element obj) {
         switch (type) {
@@ -202,68 +359,123 @@ public class MapObjectLoader {
                 OBJ_Chest chest = new OBJ_Chest(gp);
                 String loot = getStringProperty(obj, "loot", "");
                 if (!loot.isEmpty()) {
-                    chest.setLoot(createLootByName(loot));
+                    Entity le = createEntityByName(loot);
+                    if (le != null) chest.setLoot(le);
                 }
+                if (getBoolProperty(obj, "opened", false)) chest.opened = true;
                 return chest;
             }
             case "Door" -> {
                 OBJ_Door door = new OBJ_Door(gp);
                 String dest = getStringProperty(obj, "destination", "");
                 if (!dest.isEmpty()) {
-                    int destCol = getIntProperty(obj, "destCol", 5);
-                    int destRow = getIntProperty(obj, "destRow", 7);
-                    boolean locked = getBoolProperty(obj, "isLocked", false);
-                    door.setDestination(dest, destCol, destRow, locked);
+                    int dCol   = getIntProperty(obj, "destCol", 5);
+                    int dRow   = getIntProperty(obj, "destRow", 7);
+                    boolean lk = getBoolProperty(obj, "isLocked", false);
+                    String sid = getStringProperty(obj, "spawnId", "");
+                    door.setDestination(dest, dCol, dRow, lk, sid);
+                    String sd = getStringProperty(obj, "spawnDirection", "");
+                    if (!sd.isEmpty()) door.spawnDirection = parseDirection(sd);
                 }
                 return door;
             }
-            case "Tent"    -> { return new OBJ_Tent(gp); }
-            case "Boots"   -> { return new OBJ_Boots(gp); }
-            case "Potion"  -> { return new OBJ_Potion(gp); }
-            case "Torch"   -> { return new OBJ_Torch(gp); }
-            case "Key"     -> { return new OBJ_Key(gp); }
-            case "Gem"     -> { return new OBJ_Gem(gp); }
-            case "Book"    -> { return new OBJ_Book(gp); }
-            case "Tower"   -> { return new OBJ_Tower(gp); }
-            case "Sword"   -> { return new OBJ_Sword_Normal(gp); }
-            case "Shield"  -> { return new OBJ_Shield_Wood(gp); }
-            case "Coins"   -> { return new OBJ_Coins(gp); }
-            case "Heart"   -> { return new OBJ_Heart(gp); }
-            case "Mana"    -> { return new OBJ_ManaCrystal(gp); }
-            case "Arrow"   -> { return new OBJ_Arrow(gp); }
-            case "Compas"  -> { return new OBJ_Compas(gp); }
+            case "Torch" -> {
+                OBJ_Torch torch = new OBJ_Torch(gp);
+                torch.lightRadius = getIntProperty(obj, "lightRadius", 6);
+                String lc = getStringProperty(obj, "lightColor", null);
+                if (lc != null && !lc.isBlank()) {
+                    try { torch.lightColor = java.awt.Color.decode(lc.trim()); }
+                    catch (NumberFormatException ignored) {}
+                }
+                return torch;
+            }
+            case "Coins"  -> { OBJ_Coins  c = new OBJ_Coins(gp);  c.coinValue = getIntProperty(obj, "amount", 1); return c; }
+            case "Potion" -> { OBJ_Potion p = new OBJ_Potion(gp); p.amount = getIntProperty(obj, "amount", 1); return p; }
+            case "Key"    -> { OBJ_Key    k = new OBJ_Key(gp);    k.amount = getIntProperty(obj, "amount", 1); return k; }
+            case "Arrow"  -> { OBJ_Arrow  a = new OBJ_Arrow(gp);  a.amount = getIntProperty(obj, "amount", 1); return a; }
+            case "Tent"   -> { return new OBJ_Tent(gp); }
+            case "Boots"  -> { return new OBJ_Boots(gp); }
+            case "Gem"    -> { return new OBJ_Gem(gp); }
+            case "Book"   -> { return new OBJ_Book(gp); }
+            case "Tower"  -> { return new OBJ_Tower(gp); }
+            case "Sword"  -> { return new OBJ_Sword_Normal(gp); }
+            case "Shield" -> { return new OBJ_Shield_Wood(gp); }
+            case "Heart"  -> { return new OBJ_Heart(gp); }
+            case "Mana"   -> { return new OBJ_ManaCrystal(gp); }
+            case "Compas" -> { return new OBJ_Compas(gp); }
             default -> {
+                Entity e = createEntityByName(type);
+                if (e != null) return e;
                 System.out.println("MapObjectLoader: Unknown object type '" + type + "'");
                 return null;
             }
         }
     }
 
-    private Entity createMonster(String type, int col, int row) {
-        switch (type) {
-            case "MON_monster"        -> { return new MON_monster(gp, col, row); }
-            case "MON_SkeletonArcher" -> { return new MON_SkeletonArcher(gp, col, row); }
+    private Entity createMonster(String type, int col, int row, Element obj) {
+        Entity m = switch (type) {
+            case "MON_monster"        -> new MON_monster(gp, col, row);
+            case "MON_SkeletonArcher" -> new MON_SkeletonArcher(gp, col, row);
             default -> {
                 System.out.println("MapObjectLoader: Unknown monster type '" + type + "'");
-                return null;
+                yield null;
             }
+        };
+        if (m == null) return null;
+
+        // Level scaling: +50% HP and +25% ATK per level above 1
+        int level = getIntProperty(obj, "level", 1);
+        if (level > 1) {
+            double e = level - 1;
+            m.maxLife = (int)(m.maxLife * (1 + 0.5 * e));
+            m.life    = m.maxLife;
+            m.attack  = (int)(m.attack  * (1 + 0.25 * e));
+            System.out.println("MapObjectLoader: Monster level " + level
+                + " HP=" + m.maxLife + " ATK=" + m.attack);
         }
+
+        int aggroRange   = getIntProperty(obj, "aggroRange", -1);
+        int wanderRadius = getIntProperty(obj, "wanderRadius", -1);
+        if (aggroRange   > 0) m.aggroRange   = aggroRange;
+        if (wanderRadius > 0) m.wanderRadius = wanderRadius;
+
+        return m;
     }
 
-    private Entity createNPC(String type) {
-        switch (type) {
-            case "NPC_Alucard" -> { return new NPC_Alucard(gp); }
+    private Entity createNPC(String type, Element obj) {
+        Entity npc = switch (type) {
+            case "NPC_Alucard" -> new NPC_Alucard(gp);
             default -> {
                 System.out.println("MapObjectLoader: Unknown NPC type '" + type + "'");
-                return null;
+                yield null;
+            }
+        };
+        if (npc == null) return null;
+
+        // dialogue0..dialogue4 properties override first line of each dialogue set
+        String[][] dialogues = npc.ensureDialogues();
+        for (int i = 0; i < 5; i++) {
+            String d = getStringProperty(obj, "dialogue" + i, null);
+            if (d != null && !d.isBlank() && i < dialogues.length
+                    && dialogues[i] != null && dialogues[i].length > 0) {
+                dialogues[i][0] = d.replace("\\n", "\n");
             }
         }
+
+        int wanderRadius = getIntProperty(obj, "wanderRadius", -1);
+        if (wanderRadius > 0) npc.wanderRadius = wanderRadius;
+        return npc;
     }
 
-    private tiles_interactive.interactiveTile createInteractiveTile(String type, int col, int row) {
+    private tiles_interactive.interactiveTile createInteractiveTile(String type, int col, int row,
+                                                                     Element obj) {
         switch (type) {
             case "IT_Pot"   -> { return new IT_Pot(gp, col, row); }
-            case "IT_Coins" -> { return new IT_Coins(gp, col, row); }
+            case "IT_Coins" -> {
+                IT_Coins ic = new IT_Coins(gp, col, row);
+                ic.coinValue = getIntProperty(obj, "amount", 1);
+                return ic;
+            }
             default -> {
                 System.out.println("MapObjectLoader: Unknown interactive tile type '" + type + "'");
                 return null;
@@ -271,58 +483,174 @@ public class MapObjectLoader {
         }
     }
 
-    private void loadEvent(String type, Element obj, int col, int row) {
+    // ---- Common Entity Properties ---------------------------------------------
+
+    private void applyCommonProperties(Entity entity, Element obj) {
+        String facing = getStringProperty(obj, "facing", null);
+        if (facing != null && !facing.isBlank()) entity.direction = parseDirection(facing);
+        String id = getStringProperty(obj, "id", null);
+        if (id != null && !id.isBlank()) entity.objectId = id;
+        if (getBoolProperty(obj, "invisible", false)) entity.invisible = true;
+    }
+
+    // ---- Event Types ----------------------------------------------------------
+
+    private void loadEvent(String type, Element obj, int col, int row,
+                           int worldX, int worldY, int areaW, int areaH) {
         switch (type) {
             case "MapTransition" -> {
-                String targetMap = getStringProperty(obj, "targetMap", "");
-                int targetCol = getIntProperty(obj, "targetCol", 5);
-                int targetRow = getIntProperty(obj, "targetRow", 5);
-                if (!targetMap.isEmpty()) {
-                    gp.eHandler.registerMapTransition(col, row, targetMap, targetCol, targetRow);
+                String tMap   = getStringProperty(obj, "targetMap", "");
+                int    tCol   = getIntProperty(obj, "targetCol", 5);
+                int    tRow   = getIntProperty(obj, "targetRow", 5);
+                String spawnId = getStringProperty(obj, "spawnId", "");
+                if (!tMap.isEmpty()) {
+                    forEachTile(col, row, worldX, worldY, areaW, areaH, (tc, tr) ->
+                        gp.eHandler.registerMapTransition(tc, tr, tMap, tCol, tRow, spawnId));
                 }
             }
             case "HealingPool" -> {
-                gp.eHandler.registerHealingPool(col, row);
+                forEachTile(col, row, worldX, worldY, areaW, areaH, (tc, tr) ->
+                    gp.eHandler.registerHealingPool(tc, tr));
             }
             case "DamageTrap" -> {
-                int damage = getIntProperty(obj, "damage", 1);
-                gp.eHandler.registerDamageTrap(col, row, damage);
+                int     damage     = getIntProperty(obj, "damage", 1);
+                boolean repeatable = getBoolProperty(obj, "repeatable", true);
+                forEachTile(col, row, worldX, worldY, areaW, areaH, (tc, tr) ->
+                    gp.eHandler.registerDamageTrap(tc, tr, damage, repeatable));
             }
-            default -> {
-                System.out.println("MapObjectLoader: Unknown event type '" + type + "'");
+            case "DialogueTrigger" -> {
+                String msg    = getStringProperty(obj, "message", "...").replace("\\n", "\n");
+                String speaker = getStringProperty(obj, "speaker", "");
+                boolean one   = getBoolProperty(obj, "oneShot", true);
+                gp.eHandler.registerDialogueTrigger(col, row, msg, speaker, one);
             }
+            case "LevelGate" -> {
+                int    min   = getIntProperty(obj, "minLevel", 2);
+                String msg   = getStringProperty(obj, "message",
+                    "You are not strong enough to pass here.").replace("\\n", "\n");
+                String tMap  = getStringProperty(obj, "targetMap", "");
+                int    tCol  = getIntProperty(obj, "targetCol", 5);
+                int    tRow  = getIntProperty(obj, "targetRow", 5);
+                String sid   = getStringProperty(obj, "spawnId", "");
+                gp.eHandler.registerLevelGate(col, row, min, msg, tMap, tCol, tRow, sid);
+            }
+            case "Checkpoint" -> {
+                boolean silent = getBoolProperty(obj, "silent", false);
+                gp.eHandler.registerCheckpoint(col, row, silent);
+            }
+            case "QuestTrigger" -> {
+                String  qId   = getStringProperty(obj, "questId", "");
+                int     prog  = getIntProperty(obj, "progress", 1);
+                boolean one   = getBoolProperty(obj, "oneShot", true);
+                if (!qId.isEmpty()) gp.eHandler.registerQuestTrigger(col, row, qId, prog, one);
+            }
+            case "SpawnPoint" -> {
+                String sid = getStringProperty(obj, "id", "");
+                if (!sid.isEmpty()) {
+                    gp.eHandler.registerNamedSpawnPoint(sid, col, row);
+                    System.out.println("MapObjectLoader: SpawnPoint '" + sid
+                        + "' at (" + col + "," + row + ")");
+                }
+            }
+            case "CameraShake" -> {
+                String intensity = getStringProperty(obj, "intensity", "medium");
+                gp.eHandler.registerCameraShake(col, row, intensity);
+            }
+            default -> System.out.println("MapObjectLoader: Unknown event '" + type + "'");
         }
     }
 
-    // ── Loot name → Entity mapping ──────────────────────────────────
+    // ---- MonsterArea ----------------------------------------------------------
 
-    private Entity createLootByName(String name) {
-        switch (name) {
-            case "Compas"  -> { return new OBJ_Compas(gp); }
-            case "Key"     -> { return new OBJ_Key(gp); }
-            case "Potion"  -> { return new OBJ_Potion(gp); }
-            case "Boots"   -> { return new OBJ_Boots(gp); }
-            case "Gem"     -> { return new OBJ_Gem(gp); }
-            case "Sword"   -> { return new OBJ_Sword_Normal(gp); }
-            case "Shield"  -> { return new OBJ_Shield_Wood(gp); }
-            default -> {
-                System.out.println("MapObjectLoader: Unknown loot '" + name + "'");
-                return null;
+    private void spawnMonsterArea(Element obj, int startCol, int startRow,
+                                  int areaW, int areaH, int startIdx) {
+        String monType = getStringProperty(obj, "monster", "MON_monster");
+        int    count   = getIntProperty(obj, "count", 3);
+        int    cols    = Math.max(1, areaW / gp.tileSize);
+        int    rows    = Math.max(1, areaH / gp.tileSize);
+        java.util.Random rng = new java.util.Random();
+        int placed = 0;
+        for (int i = 0; i < count && startIdx + placed < gp.monster.length; i++) {
+            int c = startCol + rng.nextInt(cols);
+            int r = startRow + rng.nextInt(rows);
+            Entity m = createMonster(monType, c, r, obj);
+            if (m != null) {
+                applyCommonProperties(m, obj);
+                gp.monster[startIdx + placed++] = m;
             }
         }
+        System.out.println("MapObjectLoader: MonsterArea -> " + placed + " x " + monType);
     }
 
-    // ── Tower eye spawning (after all objects loaded) ───────────────
+    // ---- Generic Entity Lookup (chest loot + fallback) ------------------------
+
+    /**
+     * Creates any game entity by name string.
+     * Used for chest loot, generic object fallback, and MonsterArea monster type.
+     */
+    public Entity createEntityByName(String name) {
+        return switch (name) {
+            case "Compas"  -> new OBJ_Compas(gp);
+            case "Key"     -> new OBJ_Key(gp);
+            case "Potion"  -> new OBJ_Potion(gp);
+            case "Boots"   -> new OBJ_Boots(gp);
+            case "Gem"     -> new OBJ_Gem(gp);
+            case "Sword"   -> new OBJ_Sword_Normal(gp);
+            case "Shield"  -> new OBJ_Shield_Wood(gp);
+            case "Heart"   -> new OBJ_Heart(gp);
+            case "Mana"    -> new OBJ_ManaCrystal(gp);
+            case "Arrow"   -> new OBJ_Arrow(gp);
+            case "Torch"   -> new OBJ_Torch(gp);
+            case "Book"    -> new OBJ_Book(gp);
+            case "Coins"   -> new OBJ_Coins(gp);
+            case "Tower"   -> new OBJ_Tower(gp);
+            case "Tent"    -> new OBJ_Tent(gp);
+            default        -> null;
+        };
+    }
+
+    // ---- Tower Eye Spawning ---------------------------------------------------
 
     private void spawnTowerEyes() {
         for (Entity entity : gp.obj) {
-            if (entity instanceof OBJ_Tower tower) {
-                tower.spawnEye();
-            }
+            if (entity instanceof OBJ_Tower tower) tower.spawnEye();
         }
     }
 
-    // ── XML Helpers (duplicated from TileManager for encapsulation) ──
+    // ---- Utilities ------------------------------------------------------------
+
+    @FunctionalInterface interface TileAction { void accept(int col, int row); }
+
+    /** Calls action for every tile covered by a Tiled object (point or rectangle). */
+    private void forEachTile(int col, int row, int worldX, int worldY,
+                             int areaW, int areaH, TileAction action) {
+        if (areaW <= 0 || areaH <= 0) { action.accept(col, row); return; }
+        int ts = gp.tileSize;
+        for (int dx = 0; dx < areaW; dx += ts)
+            for (int dy = 0; dy < areaH; dy += ts)
+                action.accept((worldX + dx) / ts, (worldY + dy) / ts);
+    }
+
+    private int firstFreeSlot(Entity[] arr) {
+        for (int i = 0; i < arr.length; i++) if (arr[i] == null) return i;
+        return arr.length;
+    }
+
+    private int firstFreeSlot(tiles_interactive.interactiveTile[] arr) {
+        for (int i = 0; i < arr.length; i++) if (arr[i] == null) return i;
+        return arr.length;
+    }
+
+    private int parseDirection(String dir) {
+        return switch (dir.trim().toLowerCase()) {
+            case "up"    -> Entity.DIR_UP;
+            case "left"  -> Entity.DIR_LEFT;
+            case "right" -> Entity.DIR_RIGHT;
+            default      -> Entity.DIR_DOWN;
+        };
+    }
+
+    // ---- XML Helpers ----------------------------------------------------------
 
     private Document parseXmlResource(String path) throws Exception {
         InputStream stream = getClass().getResourceAsStream(path);
@@ -336,31 +664,34 @@ public class MapObjectLoader {
         return doc;
     }
 
-    private String getStringProperty(Element element, String propertyName, String defaultValue) {
-        NodeList properties = element.getElementsByTagName("property");
-        for (int i = 0; i < properties.getLength(); i++) {
-            Element property = (Element) properties.item(i);
-            if (!propertyName.equals(property.getAttribute("name"))) continue;
-            String value = property.getAttribute("value");
-            if (value == null || value.isBlank()) value = property.getTextContent();
-            return value;
+    /** Reads a named property from the direct {@code <properties>} child of {@code element}. */
+    private String getStringProperty(Element element, String name, String defaultValue) {
+        org.w3c.dom.NodeList children = element.getChildNodes();
+        for (int c = 0; c < children.getLength(); c++) {
+            if (!(children.item(c) instanceof Element child)) continue;
+            if (!"properties".equals(child.getTagName())) continue;
+            org.w3c.dom.NodeList props = child.getChildNodes();
+            for (int p = 0; p < props.getLength(); p++) {
+                if (!(props.item(p) instanceof Element property)) continue;
+                if (!"property".equals(property.getTagName())) continue;
+                if (!name.equals(property.getAttribute("name"))) continue;
+                String value = property.getAttribute("value");
+                if (value == null || value.isBlank()) value = property.getTextContent();
+                return value;
+            }
         }
         return defaultValue;
     }
 
-    private int getIntProperty(Element element, String propertyName, int defaultValue) {
-        String value = getStringProperty(element, propertyName, null);
-        if (value == null || value.isBlank()) return defaultValue;
-        try {
-            return Integer.parseInt(value.trim());
-        } catch (NumberFormatException e) {
-            return defaultValue;
-        }
+    private int getIntProperty(Element element, String name, int defaultValue) {
+        String v = getStringProperty(element, name, null);
+        if (v == null || v.isBlank()) return defaultValue;
+        try { return Integer.parseInt(v.trim()); } catch (NumberFormatException e) { return defaultValue; }
     }
 
-    private boolean getBoolProperty(Element element, String propertyName, boolean defaultValue) {
-        String value = getStringProperty(element, propertyName, null);
-        if (value == null || value.isBlank()) return defaultValue;
-        return Boolean.parseBoolean(value.trim());
+    private boolean getBoolProperty(Element element, String name, boolean defaultValue) {
+        String v = getStringProperty(element, name, null);
+        if (v == null || v.isBlank()) return defaultValue;
+        return Boolean.parseBoolean(v.trim());
     }
 }

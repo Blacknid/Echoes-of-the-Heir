@@ -1,13 +1,5 @@
 package main;
 
-import ai.PathFinder;
-import data.SaveLoad;
-import entity.Entity;
-import entity.Particle;
-import entity.Player;
-import entity.Projectile;
-import environment.EnvironmentManager;
-import environment.MapShaderManager;
 import java.awt.Color;
 import java.awt.Dimension;
 import java.awt.Font;
@@ -25,9 +17,18 @@ import java.util.Collections;
 import java.util.Comparator;
 import java.util.HashMap;
 import java.util.Map;
+
 import javax.swing.JFrame;
 import javax.swing.JPanel;
 import javax.swing.SwingUtilities;
+
+import ai.PathFinder;
+import entity.Entity;
+import entity.Particle;
+import entity.Player;
+import entity.Projectile;
+import environment.EnvironmentManager;
+import environment.MapShaderManager;
 import tile.TileManager;
 import tiles_interactive.interactiveTile;
 
@@ -91,7 +92,7 @@ public class GamePanel extends JPanel implements Runnable{
     public environment.TileParticleEmitter tileParticleEmitter;
     public ScreenShake screenShake = new ScreenShake();
     public MobSpawner mobSpawner;
-    SaveLoad saveLoad = new SaveLoad(this);
+    public SaveLoad saveLoad = new SaveLoad(this);
 
     // SMOOTH CAMERA
     public float cameraX, cameraY;          // smooth world-space camera top-left
@@ -179,6 +180,14 @@ public class GamePanel extends JPanel implements Runnable{
     // DOOR ENTRY TRACKING: Remember which door was used to enter the map
     public int doorEntryCol = -1;         // door tile column (-1 = no door entry)
     public int doorEntryRow = -1;         // door tile row (-1 = no door entry)
+
+    // MAP PROPERTIES (loaded from Tiled map-level <properties> block)
+    public String currentMapDisplayName = "";  // display name (set via 'mapName' property)
+    public int    defaultSpawnCol = -1;         // map default spawn column
+    public int    defaultSpawnRow = -1;         // map default spawn row
+    public java.awt.Color mapBackgroundColor = java.awt.Color.BLACK; // background clear color
+    /** Named spawn point to resolve after map loads. Set by doors/events before startTransition(). */
+    public String nextSpawnId = "";
 
     public GamePanel() {
 
@@ -334,6 +343,9 @@ public class GamePanel extends JPanel implements Runnable{
         tileM.loadMapFromTMX(path);
         tileM.loadCollisionLayer(path);
 
+        // Apply map-level properties from Tiled (music, weather, ambient light, etc.)
+        mapObjectLoader.loadMapProperties(path);
+
         // Update collision cache used by CollisionChecker
         cChecker.updateCollisionRectsCache();
 
@@ -369,6 +381,19 @@ public class GamePanel extends JPanel implements Runnable{
         
         // Always register events (transitions, healing pools) from TMX
         aSetter.loadEventsFromTMX();
+
+        // Resolve named spawn point AFTER events are loaded (SpawnPoint objects registered there)
+        if (nextSpawnId != null && !nextSpawnId.isEmpty()) {
+            int[] sp = eHandler.getNamedSpawnPoint(nextSpawnId);
+            if (sp != null) {
+                spawnCol = sp[0];
+                spawnRow = sp[1];
+                System.out.println("GamePanel: Resolved spawnId '" + nextSpawnId + "' -> (" + spawnCol + "," + spawnRow + ")");
+            } else {
+                System.out.println("GamePanel: SpawnId '" + nextSpawnId + "' not found on target map, using col/row fallback");
+            }
+            nextSpawnId = "";
+        }
 
         // Place player at spawn position (centered on tile)
         player.worldX = spawnCol * tileSize;
@@ -735,6 +760,8 @@ public class GamePanel extends JPanel implements Runnable{
             }
             eManager.update();
             mobSpawner.update();
+            // ANIMATED TILES: advance tile animation frames
+            tileM.update();
 
             // COLORED LIGHTS: Register dynamic light sources each frame
             if (eManager.lightning != null) {
@@ -747,9 +774,10 @@ public class GamePanel extends JPanel implements Runnable{
                 for (int i = 0; i < obj.length; i++) {
                     if (obj[i] != null && obj[i].lightSource && obj[i].lightRadius > 0) {
                         float flicker = 0.22f + 0.06f * (float) Math.sin(System.nanoTime() * 0.000000003 + i * 1.7);
+                        java.awt.Color lc = (obj[i].lightColor != null) ? obj[i].lightColor : new java.awt.Color(255, 170, 60);
                         eManager.lightning.addLight(
                             obj[i].worldX + tileSize / 2, obj[i].worldY + tileSize / 2,
-                            obj[i].lightRadius * tileSize, new java.awt.Color(255, 170, 60), flicker);
+                            obj[i].lightRadius * tileSize, lc, flicker);
                     }
                 }
             }
