@@ -15,5 +15,6 @@ public enum GameState {
     CUTSCENE,
     TRANSITION,
     LEVEL_UP,
-    SKILL_TREE;
+    SKILL_TREE,
+    MULTIPLAYER_PLAY;
 }

@@ -89,7 +89,15 @@ public class KeyHandler implements KeyListener {
 
     @Override
     public void keyTyped(KeyEvent e) {
-        // Not used, but required by KeyListener interface
+        // Text input for multiplayer server input screen
+        if (gp.gameState == gp.titleState && gp.ui.titleScreenState == 4) {
+            char c = e.getKeyChar();
+            int fieldCount = gp.ui.mpAddMode ? 3 : 2;
+            if (gp.ui.mpInputField < fieldCount && c != KeyEvent.CHAR_UNDEFINED
+                    && c != '\b' && c != '\n' && c != '\r' && c != '\t') {
+                typeCharToField(c);
+            }
+        }
     }
 
     // ============================
@@ -99,11 +107,11 @@ public class KeyHandler implements KeyListener {
     private void handleTitleState(int code) {
         if (gp.ui.titleScreenState == 0) {
             if (code == KeyEvent.VK_W) {
-                gp.ui.commandNum = (gp.ui.commandNum - 1 + 3) % 3;
+                gp.ui.commandNum = (gp.ui.commandNum - 1 + 4) % 4;
                 gp.playSE(SFX.MENU_SELECT);
             }
             if (code == KeyEvent.VK_S) {
-                gp.ui.commandNum = (gp.ui.commandNum + 1) % 3;
+                gp.ui.commandNum = (gp.ui.commandNum + 1) % 4;
                 gp.playSE(SFX.MENU_SELECT);
             }
             if (code == KeyEvent.VK_I) {
@@ -114,7 +122,14 @@ public class KeyHandler implements KeyListener {
             if (code == KeyEvent.VK_ENTER) {
                 if (gp.ui.commandNum == 0) { gp.ui.titleScreenState = 1; }
                 if (gp.ui.commandNum == 1) { gp.saveLoad.load(); startGame(); }
-                if (gp.ui.commandNum == 2) { System.exit(0); }
+                if (gp.ui.commandNum == 2) {
+                    // MULTIPLAYER
+                    gp.ui.titleScreenState = 3;
+                    gp.ui.mpServerSelection = 0;
+                    gp.ui.commandNum = 0;
+                    gp.playSE(SFX.MENU_SELECT);
+                }
+                if (gp.ui.commandNum == 3) { System.exit(0); }
             }
         } else if (gp.ui.titleScreenState == 1) {
             int maxCommand = 3;
@@ -141,6 +156,14 @@ public class KeyHandler implements KeyListener {
                 gp.playSE(SFX.MENU_SELECT);
             }
         }
+        // ── MULTIPLAYER BROWSER (titleScreenState 3) ──
+        else if (gp.ui.titleScreenState == 3) {
+            handleMultiplayerBrowser(code);
+        }
+        // ── MULTIPLAYER INPUT (titleScreenState 4) ──
+        else if (gp.ui.titleScreenState == 4) {
+            handleMultiplayerInput(code);
+        }
     }
 
     private void startGame() {
@@ -148,7 +171,271 @@ public class KeyHandler implements KeyListener {
         gp.playMusic(SFX.MUSIC_THEME);
     }
 
+    // ── MULTIPLAYER BROWSER ──
+    private void handleMultiplayerBrowser(int code) {
+        int serverCount = gp.serverList.getServers().size();
+        int totalItems = serverCount + 3; // servers + Add Server + Direct Connect + Back
+
+        if (code == KeyEvent.VK_W) {
+            gp.ui.mpServerSelection = (gp.ui.mpServerSelection - 1 + totalItems) % totalItems;
+            gp.playSE(SFX.MENU_SELECT);
+        }
+        if (code == KeyEvent.VK_S) {
+            gp.ui.mpServerSelection = (gp.ui.mpServerSelection + 1) % totalItems;
+            gp.playSE(SFX.MENU_SELECT);
+        }
+        if (code == KeyEvent.VK_ESCAPE) {
+            gp.ui.titleScreenState = 0;
+            gp.ui.commandNum = 2; // highlight Multiplayer on return
+            gp.playSE(SFX.MENU_SELECT);
+        }
+        if (code == KeyEvent.VK_DELETE) {
+            // Remove selected server
+            if (gp.ui.mpServerSelection < serverCount) {
+                gp.serverList.removeServer(gp.ui.mpServerSelection);
+                if (gp.ui.mpServerSelection >= gp.serverList.getServers().size()) {
+                    gp.ui.mpServerSelection = Math.max(0, gp.serverList.getServers().size() - 1);
+                }
+                gp.playSE(SFX.MENU_SELECT);
+            }
+        }
+        if (code == KeyEvent.VK_ENTER) {
+            if (gp.ui.mpServerSelection < serverCount) {
+                // Connect to selected server
+                String[] srv = gp.serverList.getServers().get(gp.ui.mpServerSelection);
+                connectToServer(srv[1], srv[2]);
+            } else {
+                int menuIdx = gp.ui.mpServerSelection - serverCount;
+                if (menuIdx == 0) {
+                    // Add Server
+                    gp.ui.titleScreenState = 4;
+                    gp.ui.mpAddMode = true;
+                    gp.ui.mpInputField = 0;
+                    gp.ui.mpServerName = "";
+                    gp.ui.mpServerIP = "";
+                    gp.ui.mpServerPort = "7777";
+                    gp.playSE(SFX.MENU_SELECT);
+                } else if (menuIdx == 1) {
+                    // Direct Connect
+                    gp.ui.titleScreenState = 4;
+                    gp.ui.mpAddMode = false;
+                    gp.ui.mpInputField = 0; // start at IP field (field 0 in direct mode)
+                    gp.ui.mpServerIP = "";
+                    gp.ui.mpServerPort = "7777";
+                    gp.playSE(SFX.MENU_SELECT);
+                } else if (menuIdx == 2) {
+                    // Back
+                    gp.ui.titleScreenState = 0;
+                    gp.ui.commandNum = 2;
+                    gp.playSE(SFX.MENU_SELECT);
+                }
+            }
+        }
+    }
+
+    // ── MULTIPLAYER INPUT SCREEN ──
+    private void handleMultiplayerInput(int code) {
+        // Fields: add mode = 0(name),1(ip),2(port); direct mode = 0(ip),1(port)
+        int fieldCount = gp.ui.mpAddMode ? 3 : 2;
+        int buttonCount = gp.ui.mpAddMode ? 3 : 2;
+        int totalItems = fieldCount + buttonCount;
+        boolean inTextField = gp.ui.mpInputField < fieldCount;
+
+        if (code == KeyEvent.VK_TAB) {
+            gp.ui.mpInputField = (gp.ui.mpInputField + 1) % totalItems;
+            gp.playSE(SFX.MENU_SELECT);
+        }
+        if (code == KeyEvent.VK_ESCAPE) {
+            gp.ui.titleScreenState = 3;
+            gp.playSE(SFX.MENU_SELECT);
+        }
+        // Arrow key navigation for buttons only; W/S are used for typing in fields
+        if (!inTextField) {
+            if (code == KeyEvent.VK_UP || code == KeyEvent.VK_W) {
+                gp.ui.mpInputField--;
+                if (gp.ui.mpInputField < fieldCount) gp.ui.mpInputField = totalItems - 1;
+                gp.playSE(SFX.MENU_SELECT);
+            }
+            if (code == KeyEvent.VK_DOWN || code == KeyEvent.VK_S) {
+                gp.ui.mpInputField++;
+                if (gp.ui.mpInputField >= totalItems) gp.ui.mpInputField = fieldCount;
+                gp.playSE(SFX.MENU_SELECT);
+            }
+        } else {
+            // Arrow keys navigate between text fields
+            if (code == KeyEvent.VK_UP) {
+                int newField = gp.ui.mpInputField - 1;
+                // For direct connect mode, skip field 0 (name)
+                if (!gp.ui.mpAddMode && newField == 0) newField = fieldCount - 1;
+                if (newField >= 0 && newField < fieldCount) {
+                    gp.ui.mpInputField = newField;
+                    gp.playSE(SFX.MENU_SELECT);
+                }
+            }
+            if (code == KeyEvent.VK_DOWN) {
+                int newField = gp.ui.mpInputField + 1;
+                if (newField < fieldCount) {
+                    gp.ui.mpInputField = newField;
+                    gp.playSE(SFX.MENU_SELECT);
+                }
+            }
+        }
+
+        // Backspace for text fields
+        if (code == KeyEvent.VK_BACK_SPACE && inTextField) {
+            deleteCharFromField();
+        }
+
+        // Enter on buttons or move past text fields
+        if (code == KeyEvent.VK_ENTER) {
+            if (inTextField) {
+                // Move to next field or first button
+                gp.ui.mpInputField++;
+                if (gp.ui.mpInputField >= fieldCount) {
+                    // Stay on first button
+                }
+                gp.playSE(SFX.MENU_SELECT);
+            } else {
+                int btnIdx = gp.ui.mpInputField - fieldCount;
+                handleMultiplayerInputButton(btnIdx);
+            }
+        }
+    }
+
+    private void handleMultiplayerInputButton(int btnIdx) {
+        if (gp.ui.mpAddMode) {
+            // Buttons: Save & Connect, Save, Cancel
+            if (btnIdx == 0) {
+                // Save & Connect
+                if (!gp.ui.mpServerIP.isEmpty()) {
+                    String name = gp.ui.mpServerName.isEmpty() ? gp.ui.mpServerIP : gp.ui.mpServerName;
+                    gp.serverList.addServer(name, gp.ui.mpServerIP, gp.ui.mpServerPort);
+                    connectToServer(gp.ui.mpServerIP, gp.ui.mpServerPort);
+                }
+            } else if (btnIdx == 1) {
+                // Save only
+                if (!gp.ui.mpServerIP.isEmpty()) {
+                    String name = gp.ui.mpServerName.isEmpty() ? gp.ui.mpServerIP : gp.ui.mpServerName;
+                    gp.serverList.addServer(name, gp.ui.mpServerIP, gp.ui.mpServerPort);
+                    gp.ui.titleScreenState = 3;
+                    gp.playSE(SFX.MENU_SELECT);
+                }
+            } else {
+                // Cancel
+                gp.ui.titleScreenState = 3;
+                gp.playSE(SFX.MENU_SELECT);
+            }
+        } else {
+            // Buttons: Connect, Cancel
+            if (btnIdx == 0) {
+                // Connect
+                if (!gp.ui.mpServerIP.isEmpty()) {
+                    connectToServer(gp.ui.mpServerIP, gp.ui.mpServerPort);
+                }
+            } else {
+                // Cancel
+                gp.ui.titleScreenState = 3;
+                gp.playSE(SFX.MENU_SELECT);
+            }
+        }
+    }
+
+    private void connectToServer(String ip, String portStr) {
+        int port;
+        try {
+            port = Integer.parseInt(portStr.trim());
+        } catch (NumberFormatException e) {
+            gp.mpClient.connectionStatus = "Invalid port number!";
+            return;
+        }
+        // Start connection attempt
+        gp.mpClient.connect(ip.trim(), port, "Player", "Fighter");
+        // Start game in multiplayer mode
+        gp.multiplayerMode = true;
+        // We'll check connection status and transition to play state
+        // Start a watcher thread that transitions to play state on connection success
+        new Thread(() -> {
+            long start = System.currentTimeMillis();
+            while (System.currentTimeMillis() - start < 6000) {
+                if (gp.mpClient.isConnected()) {
+                    gp.gameState = gp.playState;
+                    gp.playMusic(SFX.MUSIC_THEME);
+                    return;
+                }
+                if (!gp.mpClient.isConnecting()) {
+                    // Connection failed
+                    gp.multiplayerMode = false;
+                    return;
+                }
+                try { Thread.sleep(100); } catch (InterruptedException ex) { break; }
+            }
+            // Timeout
+            if (!gp.mpClient.isConnected()) {
+                gp.mpClient.connectionStatus = "Connection timed out.";
+                gp.mpClient.disconnect();
+                gp.multiplayerMode = false;
+            }
+        }, "MP-Watcher").start();
+    }
+
+    private void deleteCharFromField() {
+        int field = gp.ui.mpInputField;
+        if (gp.ui.mpAddMode) {
+            switch (field) {
+                case 0 -> { if (!gp.ui.mpServerName.isEmpty()) gp.ui.mpServerName = gp.ui.mpServerName.substring(0, gp.ui.mpServerName.length() - 1); }
+                case 1 -> { if (!gp.ui.mpServerIP.isEmpty()) gp.ui.mpServerIP = gp.ui.mpServerIP.substring(0, gp.ui.mpServerIP.length() - 1); }
+                case 2 -> { if (!gp.ui.mpServerPort.isEmpty()) gp.ui.mpServerPort = gp.ui.mpServerPort.substring(0, gp.ui.mpServerPort.length() - 1); }
+            }
+        } else {
+            switch (field) {
+                case 0 -> { if (!gp.ui.mpServerIP.isEmpty()) gp.ui.mpServerIP = gp.ui.mpServerIP.substring(0, gp.ui.mpServerIP.length() - 1); }
+                case 1 -> { if (!gp.ui.mpServerPort.isEmpty()) gp.ui.mpServerPort = gp.ui.mpServerPort.substring(0, gp.ui.mpServerPort.length() - 1); }
+            }
+        }
+    }
+
+    private void typeCharToField(char c) {
+        if (c < 32 || c > 126) return;
+
+        int field = gp.ui.mpInputField;
+        int maxLen = 40;
+
+        if (gp.ui.mpAddMode) {
+            switch (field) {
+                case 0 -> { if (gp.ui.mpServerName.length() < maxLen) gp.ui.mpServerName += c; }
+                case 1 -> { if (gp.ui.mpServerIP.length() < maxLen) gp.ui.mpServerIP += c; }
+                case 2 -> { if (gp.ui.mpServerPort.length() < 5 && Character.isDigit(c)) gp.ui.mpServerPort += c; }
+            }
+        } else {
+            switch (field) {
+                case 0 -> { if (gp.ui.mpServerIP.length() < maxLen) gp.ui.mpServerIP += c; }
+                case 1 -> { if (gp.ui.mpServerPort.length() < 5 && Character.isDigit(c)) gp.ui.mpServerPort += c; }
+            }
+        }
+    }
+
     private void handlePlayState(int code) {
+        // World map overlay control (open/close)
+        if (code == KeyEvent.VK_M && gp.minimap != null && !isOverlayOpen()) {
+            gp.minimap.toggleWorldMap();
+            if (gp.minimap.isWorldMapOpen()) {
+                // Prevent movement carry-over when entering map mode
+                upPressed = false;
+                downPressed = false;
+                leftPressed = false;
+                rightPressed = false;
+            }
+            return;
+        }
+
+        // Close map first if it's open
+        if (gp.minimap != null && gp.minimap.isWorldMapOpen()) {
+            if (code == KeyEvent.VK_ESCAPE || code == KeyEvent.VK_M) {
+                gp.minimap.toggleWorldMap();
+            }
+            return;
+        }
+
         // Movement
         if (code == KeyEvent.VK_W) {upPressed = true;}
         if (code == KeyEvent.VK_S) {downPressed = true;}
@@ -182,9 +469,6 @@ public class KeyHandler implements KeyListener {
         // Path toggle
         if (code == KeyEvent.VK_Y) { gp.drawPath = !gp.drawPath; } 
 
-        // Minimap toggle
-        if (code == KeyEvent.VK_M && gp.minimap != null && !isOverlayOpen()) { gp.minimap.toggle(); }
-
         // Quest log toggle - close if open, only open if no other overlay is active
         if (code == KeyEvent.VK_Q && gp.questManager != null) {
             if (gp.questManager.isLogOpen()) {
@@ -206,7 +490,8 @@ public class KeyHandler implements KeyListener {
 
     /** Returns true if any overlay (quest log, minimap) is currently open */
     private boolean isOverlayOpen() {
-        return (gp.questManager != null && gp.questManager.isLogOpen());
+        return (gp.questManager != null && gp.questManager.isLogOpen()) ||
+               (gp.minimap != null && gp.minimap.isWorldMapOpen());
     }
 
     private void handleTeleport() {

@@ -98,6 +98,10 @@ public class GamePanel extends JPanel implements Runnable{
     private static final float CAM_LERP = 0.12f;
     private static final int CAM_DEADZONE = 32; // pixels before camera starts catching up
 
+    // Pre-allocated Color constants for lights (avoid per-frame GC pressure)
+    private static final java.awt.Color LIGHT_PLAYER_GLOW = new java.awt.Color(255, 240, 220);
+    private static final java.awt.Color LIGHT_TORCH_ORANGE = new java.awt.Color(255, 170, 60);
+
     // MINIMAP
     public Minimap minimap;
 
@@ -159,8 +163,12 @@ public class GamePanel extends JPanel implements Runnable{
     public static final int transitionState = 8;
     public static final int levelUpState = 9;
     public static final int skillTreeState = 10;
+    public static final int multiplayerPlayState = 11;
 
-    //ABILITY
+    // MULTIPLAYER
+    public MultiplayerClient mpClient;
+    public ServerListManager serverList;
+    public boolean multiplayerMode = false;
     public boolean teleportation = false;
     public boolean bootsUnlocked = false;
     public boolean deathSoundPlayed = false;
@@ -212,6 +220,10 @@ public class GamePanel extends JPanel implements Runnable{
     aSetter.loadEventsFromTMX();
     mobSpawner = new MobSpawner(this);
     gameState = titleState;
+
+    // MULTIPLAYER: initialize client and server list
+    mpClient = new MultiplayerClient(this);
+    serverList = new ServerListManager();
 
     // OPTIMIZATION: Initialize collision cache
     cChecker.updateCollisionRectsCache();
@@ -530,7 +542,7 @@ public class GamePanel extends JPanel implements Runnable{
             System.out.println("[V-SYNC] Enabled - Game synced to monitor refresh rate");
         } else {
             System.setProperty("sun.java2d.vsync", "False");
-            FPS = 240;
+            FPS = 60;
             System.out.println("[V-SYNC] Disabled - Render target set to " + FPS + " FPS");
         }
     }
@@ -742,14 +754,14 @@ public class GamePanel extends JPanel implements Runnable{
                 // Player warm glow
                 eManager.lightning.addLight(
                     player.worldX + tileSize / 2, player.worldY + tileSize / 2,
-                    tileSize * 4, new java.awt.Color(255, 240, 220), 0.25f);
+                    tileSize * 4, LIGHT_PLAYER_GLOW, 0.25f);
                 // Torch objects: warm orange with subtle flicker
                 for (int i = 0; i < obj.length; i++) {
                     if (obj[i] != null && obj[i].lightSource && obj[i].lightRadius > 0) {
                         float flicker = 0.22f + 0.06f * (float) Math.sin(System.nanoTime() * 0.000000003 + i * 1.7);
                         eManager.lightning.addLight(
                             obj[i].worldX + tileSize / 2, obj[i].worldY + tileSize / 2,
-                            obj[i].lightRadius * tileSize, new java.awt.Color(255, 170, 60), flicker);
+                            obj[i].lightRadius * tileSize, LIGHT_TORCH_ORANGE, flicker);
                     }
                 }
             }
@@ -788,6 +800,11 @@ public class GamePanel extends JPanel implements Runnable{
                 }
             }
         }
+            // MULTIPLAYER: send position data to server
+            if (multiplayerMode && mpClient != null && mpClient.isConnected()) {
+                mpClient.update();
+            }
+
             if (player.life <= 0) {
             player.life = 0; // safety clamp
 
@@ -973,15 +990,20 @@ public class GamePanel extends JPanel implements Runnable{
         }
         g2.setComposite(savedComp);
 
+        // MULTIPLAYER: draw remote players
+        if (multiplayerMode && mpClient != null && mpClient.isConnected()) {
+            drawRemotePlayers(g2);
+        }
+
         // FOREGROUND TILES — drawn on top of all entities and depth-sorted tiles (e.g. building roofs/upper walls)
         tileM.drawForeground(g2);
 
         clearRenderableEntities();
 
-        // DAMAGE NUMBERS (draw above entities, below UI)
+        // DAMAGE NUMBERS (draw above entities, below UI) — skip off-screen
         for (int i = 0; i < damageNumbers.size(); i++) {
             entity.DamageNumber dn = damageNumbers.get(i);
-            if (dn.alive) dn.draw(g2);
+            if (dn.alive && isEntityInViewport(dn, tileSize)) dn.draw(g2);
         }
 
         // CUTSCENE
@@ -1025,6 +1047,11 @@ public class GamePanel extends JPanel implements Runnable{
         // QUEST LOG OVERLAY
         if (questManager != null && questManager.isLogOpen()) {
             questManager.drawLog(g2);
+        }
+
+        // WORLD MAP OVERLAY (large map on top of world/UI)
+        if (minimap != null) {
+            minimap.drawWorldMap(g2);
         }
 
         if (HitBoxes) {
@@ -1221,5 +1248,76 @@ public class GamePanel extends JPanel implements Runnable{
     }
     public void playSE(int i) {
         audio.playSE(i);
+    }
+
+    /**
+     * Draw all remote players from the multiplayer client.
+     * Renders a simple colored rectangle with nametag.
+     * Uses the local player's sprite frames when available.
+     */
+    private void drawRemotePlayers(Graphics2D g2) {
+        for (var entry : mpClient.remotePlayers.entrySet()) {
+            MultiplayerClient.RemotePlayerState rp = entry.getValue();
+            int screenPosX = rp.worldX - (int) cameraX;
+            int screenPosY = rp.worldY - (int) cameraY;
+
+            // Skip if off-screen
+            if (screenPosX + tileSize < -tileSize || screenPosX > screenWidth + tileSize) continue;
+            if (screenPosY + tileSize < -tileSize || screenPosY > screenHeight + tileSize) continue;
+
+            // Try to use player's walk frames for the remote player sprite
+            BufferedImage sprite = null;
+            if (player.walkFrames != null && rp.direction >= 0 && rp.direction < player.walkFrames.length) {
+                BufferedImage[] dirFrames = player.walkFrames[rp.direction];
+                if (dirFrames != null && dirFrames.length > 0) {
+                    int frame = Math.max(0, Math.min(rp.spriteNum - 1, dirFrames.length - 1));
+                    sprite = dirFrames[frame];
+                }
+            }
+
+            if (sprite != null) {
+                // Tint the sprite slightly to distinguish from local player
+                java.awt.Composite old = g2.getComposite();
+                g2.drawImage(sprite, screenPosX, screenPosY, tileSize, tileSize, null);
+                // Draw a subtle colored overlay
+                g2.setComposite(java.awt.AlphaComposite.getInstance(java.awt.AlphaComposite.SRC_OVER, 0.15f));
+                g2.setColor(new Color(100, 180, 255));
+                g2.fillRect(screenPosX, screenPosY, tileSize, tileSize);
+                g2.setComposite(old);
+            } else {
+                // Fallback: colored rectangle
+                g2.setColor(new Color(80, 160, 240, 200));
+                g2.fillRoundRect(screenPosX + 8, screenPosY + 8, tileSize - 16, tileSize - 16, 8, 8);
+                g2.setColor(new Color(50, 120, 200));
+                g2.setStroke(new java.awt.BasicStroke(2f));
+                g2.drawRoundRect(screenPosX + 8, screenPosY + 8, tileSize - 16, tileSize - 16, 8, 8);
+            }
+
+            // Nametag above the sprite
+            g2.setFont(g2.getFont().deriveFont(Font.BOLD, 12f));
+            java.awt.FontMetrics fm = g2.getFontMetrics();
+            int nameW = fm.stringWidth(rp.name);
+            int nameX = screenPosX + tileSize / 2 - nameW / 2;
+            int nameY = screenPosY - 6;
+
+            // Name shadow
+            g2.setColor(new Color(0, 0, 0, 160));
+            g2.drawString(rp.name, nameX + 1, nameY + 1);
+            g2.setColor(new Color(180, 220, 255));
+            g2.drawString(rp.name, nameX, nameY);
+
+            // HP bar below nametag
+            if (rp.maxLife > 0) {
+                int barW = 40;
+                int barH = 4;
+                int barX = screenPosX + tileSize / 2 - barW / 2;
+                int barY = screenPosY - 12;
+                g2.setColor(new Color(40, 40, 40, 180));
+                g2.fillRoundRect(barX, barY, barW, barH, 3, 3);
+                float ratio = (float) rp.life / rp.maxLife;
+                g2.setColor(ratio > 0.3f ? new Color(60, 200, 80) : new Color(220, 60, 60));
+                g2.fillRoundRect(barX, barY, (int) (barW * ratio), barH, 3, 3);
+            }
+        }
     }
 }

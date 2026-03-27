@@ -16,6 +16,33 @@ import java.awt.AlphaComposite;
 
 public class Player extends Entity {
 
+    // Pre-allocated Color constants (avoid per-frame GC pressure)
+    private static final Color COLOR_OVERDRIVE_AURA = new Color(255, 160, 90);
+    private static final Color COLOR_COMBO_GOLDEN = new Color(255, 200, 80);
+    private static final Color COLOR_COMBO_FIERY = new Color(255, 120, 50);
+    private static final Color COLOR_COMBO_PALE = new Color(255, 220, 100);
+    private static final Color COLOR_SHOCKWAVE_SPARK = new Color(255, 190, 90);
+    private static final Color COLOR_VOID_SNARE = new Color(140, 110, 220);
+    private static final Color COLOR_FROST_NOVA = new Color(150, 210, 255);
+    private static final Color COLOR_OVERDRIVE_MSG = new Color(255, 185, 100);
+    private static final Color COLOR_BLOOD_A = new Color(220, 35, 45);
+    private static final Color COLOR_BLOOD_B = new Color(150, 20, 30);
+    private static final Color COLOR_TELEPORT = new Color(100, 180, 255);
+    private static final Color COLOR_DUST_LIGHT = new Color(165, 140, 105);
+    private static final Color COLOR_DUST_DARK = new Color(140, 120, 90);
+    private static final Color COLOR_DUST_WARM = new Color(180, 155, 120);
+    private static final Color COLOR_DUST_PUFF = new Color(155, 135, 105);
+    private static final Color COLOR_DUST_LAND = new Color(150, 130, 100);
+    private static final Color COLOR_DMG_RED = new Color(255, 80, 60);
+    private static final Color COLOR_DMG_GRAY = new Color(180, 180, 180);
+    private static final Color COLOR_EVADE_FLASH = new Color(255, 245, 220);
+    private static final Color COLOR_LEVELUP_MSG = new Color(255, 220, 110);
+    private static final Color COLOR_LEVELUP_RING = new Color(160, 200, 255);
+
+    // Dash afterimage arrays (avoid per-frame allocation)
+    private static final float[] DASH_ALPHAS = {0.28f, 0.16f, 0.07f};
+    private static final int[] DASH_OFFSETS = {5, 10, 15};
+
     // Constants
     public final int maxInventorySize = 20;
 
@@ -317,7 +344,7 @@ public class Player extends Entity {
             }
             if (overdriveTimer % 20 == 0) {
                 Particle aura = gp.particlePool.get();
-                aura.setWithPosition(this, this, new Color(255, 160, 90), 4, 2, 14, 0, -1, Particle.STYLE_SPARK);
+                aura.setWithPosition(this, this, COLOR_OVERDRIVE_AURA, 4, 2, 14, 0, -1, Particle.STYLE_SPARK);
                 gp.particleList.add(aura);
             }
         } else if (!dashing) {
@@ -734,9 +761,9 @@ public class Player extends Entity {
 
                 // Escalating spark colors per combo step
                 Color sparkColor = switch (comboStep) {
-                    case 1  -> new Color(255, 200, 80);  // golden
-                    case 2  -> new Color(255, 120, 50);  // fiery orange
-                    default -> new Color(255, 220, 100); // pale yellow
+                    case 1  -> COLOR_COMBO_GOLDEN;  // golden
+                    case 2  -> COLOR_COMBO_FIERY;  // fiery orange
+                    default -> COLOR_COMBO_PALE; // pale yellow
                 };
                 generateComboSparks(gp.monster[i], sparkColor, comboStep);
                 spawnDamageNumber(gp.monster[i], damage, isHeavy);
@@ -852,7 +879,7 @@ public class Player extends Entity {
             int dx = (int)Math.round(Math.cos(angle) * 2);
             int dy = (int)Math.round(Math.sin(angle) * 2);
             Particle p = gp.particlePool.get();
-            p.setWithPosition(this, this, new Color(255, 190, 90), 6, 3, 20, dx, dy, Particle.STYLE_SPARK);
+            p.setWithPosition(this, this, COLOR_SHOCKWAVE_SPARK, 6, 3, 20, dx, dy, Particle.STYLE_SPARK);
             gp.particleList.add(p);
         }
     }
@@ -880,7 +907,7 @@ public class Player extends Entity {
             m.applyCrowdControl(30);
 
             Particle p = gp.particlePool.get();
-            p.setWithPosition(this, m, new Color(140, 110, 220), 5, 2, 18, pullX == 0 ? 0 : pullX / Math.abs(pullX), pullY == 0 ? 0 : pullY / Math.abs(pullY), Particle.STYLE_SPARK);
+            p.setWithPosition(this, m, COLOR_VOID_SNARE, 5, 2, 18, pullX == 0 ? 0 : pullX / Math.abs(pullX), pullY == 0 ? 0 : pullY / Math.abs(pullY), Particle.STYLE_SPARK);
             gp.particleList.add(p);
         }
     }
@@ -913,7 +940,7 @@ public class Player extends Entity {
             }
 
             Particle p = gp.particlePool.get();
-            p.setWithPosition(this, m, new Color(150, 210, 255), 6, 2, 22, 0, -1, Particle.STYLE_HIT);
+            p.setWithPosition(this, m, COLOR_FROST_NOVA, 6, 2, 22, 0, -1, Particle.STYLE_HIT);
             gp.particleList.add(p);
         }
     }
@@ -923,7 +950,7 @@ public class Player extends Entity {
         overdriveCooldown = getOverdriveCooldownMax();
         overdriveTimer = OVERDRIVE_DURATION;
         gp.playSE(SFX.LEVEL_UP);
-        gp.ui.addMessage("OVERDRIVE engaged!", new Color(255, 185, 100));
+        gp.ui.addMessage("OVERDRIVE engaged!", COLOR_OVERDRIVE_MSG);
     }
 
     private void applyRadialKnockback(Entity target, int power) {
@@ -1017,8 +1044,8 @@ public class Player extends Entity {
      * Generate extra blood particles when player takes damage
      */
     public void bleed() {
-        Color bloodColorA = new Color(220, 35, 45);
-        Color bloodColorB = new Color(150, 20, 30);
+        Color bloodColorA = COLOR_BLOOD_A;
+        Color bloodColorB = COLOR_BLOOD_B;
         
         Particle p1 = gp.particlePool.get();
         p1.setWithPosition(this, this, bloodColorA, 9, 2, 24, -1, -2, Particle.STYLE_BLOOD);
@@ -1039,7 +1066,7 @@ public class Player extends Entity {
 
     /** Emit directional spark particles at the target hit point. */
     private void generateSparks(Entity target) {
-        Color sparkColor = new Color(255, 220, 100);
+        Color sparkColor = COLOR_COMBO_PALE;
         // Determine spark direction based on player facing
         int baseX = 0, baseY = 0;
         switch (direction) {
@@ -1060,7 +1087,7 @@ public class Player extends Entity {
 
     /** Spawn teleport particles — called from KeyHandler. */
     public void spawnTeleportParticles(boolean implode) {
-        Color tpColor = new Color(100, 180, 255);
+        Color tpColor = COLOR_TELEPORT;
         int count = 10;
         int half = gp.tileSize / 2;
         for (int i = 0; i < count; i++) {
@@ -1098,7 +1125,7 @@ public class Player extends Entity {
             int sideX = (int)((Math.random() - 0.5) * 3.0);
             int sideY = (int)((Math.random() - 0.5) * 3.0);
             // Earthy brown
-            Color dustColor = (i == 0) ? new Color(165, 140, 105) : new Color(140, 120, 90);
+            Color dustColor = (i == 0) ? COLOR_DUST_LIGHT : COLOR_DUST_DARK;
             trail.setWithPosition(this, this, dustColor, 3 + i, 1, 10,
                     -dirX + sideX, -dirY + sideY, Particle.STYLE_DUST);
             gp.particleList.add(trail);
@@ -1108,7 +1135,7 @@ public class Player extends Entity {
     private void spawnDashBurst(boolean start) {
         if (start) {
             // Ground dust cloud on evade start — earthy burst from feet
-            Color dustColor = new Color(180, 155, 120);  // warm stone
+            Color dustColor = COLOR_DUST_WARM;  // warm stone
             for (int i = 0; i < 6; i++) {
                 double angle = (Math.PI * 2.0 * i) / 6;
                 int dx = (int)Math.round(Math.cos(angle));
@@ -1122,13 +1149,13 @@ public class Player extends Entity {
             for (int i = 0; i < 2; i++) {
                 Particle puff = gp.particlePool.get();
                 int sx = (int)((Math.random() - 0.5) * 2);
-                puff.setWithPosition(this, this, new Color(155, 135, 105), 6, 1, 16,
+                puff.setWithPosition(this, this, COLOR_DUST_PUFF, 6, 1, 16,
                         sx, -1, Particle.STYLE_DUST);
                 gp.particleList.add(puff);
             }
         } else {
             // Landing dirt scatter — small stones/dust on arrival
-            Color landColor = new Color(150, 130, 100);  // darker earth
+            Color landColor = COLOR_DUST_LAND;  // darker earth
             for (int i = 0; i < 4; i++) {
                 double angle = (Math.PI * 2.0 * i) / 4 + Math.random() * 0.5;
                 int dx = (int)Math.round(Math.cos(angle));
@@ -1146,7 +1173,7 @@ public class Player extends Entity {
         DamageNumber dn = gp.damageNumberPool.get();
         int x = target.worldX + gp.tileSize / 4;
         int y = target.worldY - 8;
-        Color color = damage > 0 ? new Color(255, 80, 60) : new Color(180, 180, 180);
+        Color color = damage > 0 ? COLOR_DMG_RED : COLOR_DMG_GRAY;
         dn.set(x, y, String.valueOf(damage), color, critical);
         gp.damageNumbers.add(dn);
     }
@@ -1456,12 +1483,10 @@ public class Player extends Entity {
                 case DIR_RIGHT -> dirX = 1;
             }
             java.awt.Composite saved = g2.getComposite();
-            float[] alphas = {0.28f, 0.16f, 0.07f};
-            int[] offsets = {5, 10, 15};
             for (int i = 0; i < 3; i++) {
-                g2.setComposite(AlphaComposite.getInstance(AlphaComposite.SRC_OVER, alphas[i]));
+                g2.setComposite(AlphaComposite.getInstance(AlphaComposite.SRC_OVER, DASH_ALPHAS[i]));
                 g2.drawImage(image,
-                    drawX - dirX * offsets[i], drawY - dirY * offsets[i],
+                    drawX - dirX * DASH_OFFSETS[i], drawY - dirY * DASH_OFFSETS[i],
                     drawW, drawH, null);
             }
             g2.setComposite(saved);
@@ -1472,7 +1497,7 @@ public class Player extends Entity {
             float flashAlpha = evadeFlashTimer / 3f * 0.35f;
             java.awt.Composite saved = g2.getComposite();
             g2.setComposite(AlphaComposite.getInstance(AlphaComposite.SRC_OVER, flashAlpha));
-            g2.setColor(new Color(255, 245, 220));
+            g2.setColor(COLOR_EVADE_FLASH);
             g2.fillRect(drawX + 8, drawY + 8, drawW - 16, drawH - 16);
             g2.setComposite(saved);
         }
@@ -1567,7 +1592,7 @@ public class Player extends Entity {
 
         levelUpBannerText = getLevelUpFlavorText(level);
         levelUpBannerTimer = 180;
-        gp.ui.addMessage("Level " + level + "! +1 Skill Point  Choose a stat!", new Color(255, 220, 110));
+        gp.ui.addMessage("Level " + level + "! +1 Skill Point  Choose a stat!", COLOR_LEVELUP_MSG);
     }
 
     private String getLevelUpFlavorText(int newLevel) {
@@ -1586,7 +1611,7 @@ public class Player extends Entity {
             int dx = (int)Math.round(Math.cos(a) * 3);
             int dy = (int)Math.round(Math.sin(a) * 3);
             Particle p = gp.particlePool.get();
-            p.setWithPosition(this, this, new Color(255, 220, 100), 8, 2, 28, dx, dy, Particle.STYLE_SPARK);
+            p.setWithPosition(this, this, COLOR_COMBO_PALE, 8, 2, 28, dx, dy, Particle.STYLE_SPARK);
             gp.particleList.add(p);
         }
 
@@ -1596,7 +1621,7 @@ public class Player extends Entity {
             int dx = (int)Math.round(Math.cos(a) * 2);
             int dy = (int)Math.round(Math.sin(a) * 2);
             Particle p = gp.particlePool.get();
-            p.setWithPosition(this, this, new Color(160, 200, 255), 6, 2, 20, dx, dy, Particle.STYLE_HIT);
+            p.setWithPosition(this, this, COLOR_LEVELUP_RING, 6, 2, 20, dx, dy, Particle.STYLE_HIT);
             gp.particleList.add(p);
         }
     }
