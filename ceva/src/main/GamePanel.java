@@ -711,11 +711,6 @@ public class GamePanel extends JPanel implements Runnable{
     }
 
     public void drawToTempScreen() {
-    //DEBUG
-    long drawStart = 0;
-    if(keyH.showDebugText) {
-        drawStart = System.nanoTime();
-    }
 
     // Reset the Graphics2D transform to identity each frame — prevents AffineTransform
     // accumulation if any drawing code forgets to undo a translate/rotate.
@@ -787,6 +782,7 @@ public class GamePanel extends JPanel implements Runnable{
      * Renders a simple colored rectangle with nametag.
      * Uses the local player's sprite frames when available.
      */
+    @SuppressWarnings("unused")
     private void drawRemotePlayers(Graphics2D g2) {
         for (var entry : mpClient.remotePlayers.entrySet()) {
             MultiplayerClient.RemotePlayerState rp = entry.getValue();

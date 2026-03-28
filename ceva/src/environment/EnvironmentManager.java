@@ -46,8 +46,8 @@ public class EnvironmentManager {
 
     // Auto-weather cycle
     private int weatherTimer = 0;
-    private static final int WEATHER_CYCLE_MIN = 18000; // 5 min
-    private static final int WEATHER_CYCLE_MAX = 28800; // 8 min
+    private static final int WEATHER_CYCLE_MIN = 3600;  // 1 min
+    private static final int WEATHER_CYCLE_MAX = 7200;  // 2 min
     private int nextWeatherChange;
 
     public EnvironmentManager(GamePanel gp) {

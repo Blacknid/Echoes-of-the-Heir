@@ -329,7 +329,7 @@ public class Entity {
     public void damageReaction() {}
     public boolean use(Entity entity) { return false; }
     public void startDialogue(Entity entity, int setNum) {
-        gp.gameState = gp.dialogueState;
+        gp.gameState = GamePanel.dialogueState;
         gp.ui.npc = entity;
         dialogueSet = setNum;
         // Auto-progress a quest when the player starts talking to this NPC

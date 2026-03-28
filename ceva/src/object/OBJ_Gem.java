@@ -48,7 +48,7 @@ public class OBJ_Gem extends Entity {
             gp.player.hasGem = 1;
             gp.playSE(SFX.EQUIP);
             startDialogue(this, 0);
-            gp.gameState = gp.cutsceneState;
+            gp.gameState = GamePanel.cutsceneState;
             gp.csManager.sceneNum = gp.csManager.ending;
             gp.csManager.scenePhase = 0;
             return true;

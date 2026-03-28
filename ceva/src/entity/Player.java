@@ -287,7 +287,7 @@ public class Player extends Entity {
         }
 
         // Cancel attack if in dialogue or cutscene
-        if (gp.gameState == gp.dialogueState || gp.gameState == gp.cutsceneState) {
+        if (gp.gameState == GamePanel.dialogueState || gp.gameState == GamePanel.cutsceneState) {
             attacking = false;
             spriteCounter = 0;
             spriteNum = 1;
@@ -1571,7 +1571,7 @@ public class Player extends Entity {
 
             triggerLevelUpEffects();
             generateLevelUpChoices();
-            gp.gameState = gp.levelUpState;
+            gp.gameState = GamePanel.levelUpState;
         }
     }
 
@@ -1760,7 +1760,7 @@ public class Player extends Entity {
             gp.particleList.add(p);
         }
         gp.screenShake.shakeLight();
-        gp.gameState = gp.playState;
+        gp.gameState = GamePanel.playState;
     }
 
     // Particle methods
