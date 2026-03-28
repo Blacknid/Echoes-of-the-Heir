@@ -217,11 +217,18 @@ public class CollisionChecker {
     }
 
     // OPTIMIZATION: Reduce redundant coordinate modifications
+    private static final int COLLISION_RANGE_SQ = 320 * 320; // ~5 tiles range squared
+
     public int checkObject(Entity entity, boolean player) {
         int index = 999;
 
         for (int i = 0; i < gp.obj.length; i++) {
             if (gp.obj[i] != null) {
+                // Quick distance pre-filter: skip objects far away
+                int dx = entity.worldX - gp.obj[i].worldX;
+                int dy = entity.worldY - gp.obj[i].worldY;
+                if (dx * dx + dy * dy > COLLISION_RANGE_SQ) continue;
+
                 // Setup entity bounds
                 int entityX = entity.worldX + entity.solidArea.x;
                 int entityY = entity.worldY + entity.solidArea.y;
@@ -263,6 +270,11 @@ public class CollisionChecker {
                     (target[i].dying || !target[i].alive)) {
                     continue;
                 }
+
+                // Quick distance pre-filter: skip entities far away
+                int dx = entity.worldX - target[i].worldX;
+                int dy = entity.worldY - target[i].worldY;
+                if (dx * dx + dy * dy > COLLISION_RANGE_SQ) continue;
 
                 // Setup entity bounds
                 int entityX = entity.worldX + entity.solidArea.x;

@@ -49,6 +49,16 @@ public class UI {
     public float transitionAlpha = 0f;
     String combinedText = "";
 
+    // ── MULTIPLAYER MENU STATE ──
+    public int mpInputField = 0;          // 0=name, 1=ip, 2=port
+    public String mpServerName = "";
+    public String mpServerIP = "";
+    public String mpServerPort = "7777";
+    public int mpServerSelection = 0;     // selected index in server list + menu
+    public boolean mpInputMode = false;   // true when in text input screen (titleScreenState 4)
+    public boolean mpAddMode = false;     // true=add server, false=direct connect
+    public String mpStatusMessage = "";   // connection status text
+
     // ── ANIMATION STATE ──
     private int animTick = 0;          // global UI animation ticker
     private float smoothLife = -1f;    // for smooth health bar interpolation
@@ -771,7 +781,7 @@ public class UI {
             g2.drawImage(gp.player.down1, sx, sy, spriteSize, spriteSize, null);
 
             // ── MENU BUTTONS ──
-            String[] menuItems = {"NEW GAME", "LOAD GAME", "QUIT"};
+            String[] menuItems = {"NEW GAME", "LOAD GAME", "MULTIPLAYER", "QUIT"};
             int btnW = (int)(gp.screenWidth * 0.25);
             int btnH = 50;
             int btnX = (gp.screenWidth - btnW) / 2;
@@ -1014,7 +1024,281 @@ public class UI {
             g2.setColor(backSel ? cachedColor(120, 180, 255) : cachedColor(100, 95, 85));
             g2.drawString(text, px + (panelW - tw) / 2, py + panelH - 18);
         }
+        else if (titleScreenState == 3) {
+            drawMultiplayerBrowser();
+        }
+        else if (titleScreenState == 4) {
+            drawMultiplayerInput();
+        }
     }
+    // ═══════════════════════════════════════════════════════════════
+    // MULTIPLAYER BROWSER (titleScreenState 3)
+    // ═══════════════════════════════════════════════════════════════
+    private void drawMultiplayerBrowser() {
+        int panelW = 560, panelH = 480;
+        int px = (gp.screenWidth - panelW) / 2;
+        int py = (gp.screenHeight - panelH) / 2;
+
+        // Dark panel
+        g2.setColor(new Color(12, 14, 24, 235));
+        g2.fillRoundRect(px, py, panelW, panelH, 16, 16);
+        g2.setColor(new Color(80, 140, 200, 90));
+        g2.setStroke(new BasicStroke(2f));
+        g2.drawRoundRect(px + 2, py + 2, panelW - 4, panelH - 4, 14, 14);
+
+        // Title
+        g2.setFont(g2.getFont().deriveFont(Font.BOLD, 32F));
+        g2.setColor(new Color(100, 180, 255));
+        String text = "\u2630  MULTIPLAYER";
+        int tw = (int) g2.getFontMetrics().getStringBounds(text, g2).getWidth();
+        g2.drawString(text, px + (panelW - tw) / 2, py + 44);
+
+        // Divider
+        g2.setColor(new Color(80, 120, 180, 80));
+        g2.drawLine(px + 30, py + 58, px + panelW - 30, py + 58);
+
+        // ── Server List ──
+        ArrayList<String[]> servers = gp.serverList.getServers();
+        int listStartY = py + 78;
+        int entryH = 48;
+        int entryW = panelW - 60;
+        int entryX = px + 30;
+        int maxVisible = 5;
+        int scrollOffset = Math.max(0, mpServerSelection - maxVisible + 1);
+        if (mpServerSelection >= servers.size()) scrollOffset = 0; // cursor on menu items
+
+        if (servers.isEmpty()) {
+            g2.setFont(g2.getFont().deriveFont(Font.ITALIC, 16F));
+            g2.setColor(new Color(120, 115, 105));
+            String empty = "No saved servers. Add one below!";
+            int ew = (int) g2.getFontMetrics().getStringBounds(empty, g2).getWidth();
+            g2.drawString(empty, px + (panelW - ew) / 2, listStartY + 30);
+        } else {
+            g2.setFont(g2.getFont().deriveFont(Font.BOLD, 12F));
+            g2.setColor(new Color(100, 95, 85));
+            g2.drawString("SAVED SERVERS", entryX, listStartY - 6);
+
+            for (int i = scrollOffset; i < Math.min(servers.size(), scrollOffset + maxVisible); i++) {
+                String[] srv = servers.get(i);
+                int ey = listStartY + (i - scrollOffset) * (entryH + 6);
+                boolean sel = (mpServerSelection == i);
+
+                if (sel) {
+                    g2.setColor(new Color(60, 100, 160, 50));
+                    g2.fillRoundRect(entryX - 4, ey - 4, entryW + 8, entryH + 8, 12, 12);
+                    g2.setColor(new Color(80, 150, 220, 80));
+                    g2.fillRoundRect(entryX, ey, entryW, entryH, 10, 10);
+                    g2.setColor(new Color(100, 180, 255));
+                    g2.setStroke(new BasicStroke(2f));
+                    g2.drawRoundRect(entryX, ey, entryW, entryH, 10, 10);
+                    g2.fillRoundRect(entryX, ey + 8, 3, entryH - 16, 2, 2);
+                } else {
+                    g2.setColor(new Color(25, 28, 40, 160));
+                    g2.fillRoundRect(entryX, ey, entryW, entryH, 10, 10);
+                    g2.setColor(new Color(50, 55, 70, 60));
+                    g2.setStroke(new BasicStroke(1f));
+                    g2.drawRoundRect(entryX, ey, entryW, entryH, 10, 10);
+                }
+
+                // Server name
+                g2.setFont(g2.getFont().deriveFont(sel ? Font.BOLD : Font.PLAIN, 18F));
+                g2.setColor(sel ? Color.WHITE : new Color(180, 175, 160));
+                g2.drawString(srv[0], entryX + 16, ey + 22);
+
+                // IP:port
+                g2.setFont(g2.getFont().deriveFont(Font.PLAIN, 13F));
+                g2.setColor(sel ? new Color(160, 200, 240) : new Color(110, 105, 95));
+                g2.drawString(srv[1] + ":" + srv[2], entryX + 16, ey + 40);
+
+                // Online indicator dot
+                g2.setColor(new Color(80, 200, 100, sel ? 200 : 100));
+                g2.fillOval(entryX + entryW - 20, ey + entryH / 2 - 4, 8, 8);
+            }
+        }
+
+        // ── Menu Options ──
+        int menuStartY = listStartY + Math.min(servers.size(), maxVisible) * (entryH + 6) + 20;
+        if (servers.isEmpty()) menuStartY = listStartY + 60;
+
+        String[] options = {"ADD SERVER", "DIRECT CONNECT", "BACK"};
+        Color[] optColors = {
+            new Color(80, 200, 120),
+            new Color(100, 180, 255),
+            new Color(180, 160, 120)
+        };
+        int optH = 38;
+        int optW = panelW - 100;
+        int optX = px + 50;
+
+        for (int i = 0; i < options.length; i++) {
+            int idx = servers.size() + i;
+            int oy = menuStartY + i * (optH + 8);
+            boolean sel = (mpServerSelection == idx);
+
+            if (sel) {
+                g2.setColor(new Color(optColors[i].getRed(), optColors[i].getGreen(), optColors[i].getBlue(), 20));
+                g2.fillRoundRect(optX - 4, oy - 3, optW + 8, optH + 6, 12, 12);
+                g2.setColor(new Color(optColors[i].getRed(), optColors[i].getGreen(), optColors[i].getBlue(), 50));
+                g2.fillRoundRect(optX, oy, optW, optH, 10, 10);
+                g2.setColor(optColors[i]);
+                g2.setStroke(new BasicStroke(2f));
+                g2.drawRoundRect(optX, oy, optW, optH, 10, 10);
+            } else {
+                g2.setColor(new Color(20, 22, 35, 140));
+                g2.fillRoundRect(optX, oy, optW, optH, 10, 10);
+                g2.setColor(new Color(50, 50, 65, 60));
+                g2.setStroke(new BasicStroke(1f));
+                g2.drawRoundRect(optX, oy, optW, optH, 10, 10);
+            }
+
+            g2.setFont(g2.getFont().deriveFont(Font.BOLD, 18F));
+            text = options[i];
+            tw = (int) g2.getFontMetrics().getStringBounds(text, g2).getWidth();
+            g2.setColor(sel ? optColors[i] : new Color(140, 135, 120));
+            g2.drawString(text, optX + (optW - tw) / 2, oy + optH / 2 + 6);
+        }
+
+        // ── Status message ──
+        if (gp.mpClient != null && !gp.mpClient.connectionStatus.isEmpty()) {
+            g2.setFont(g2.getFont().deriveFont(Font.ITALIC, 14F));
+            g2.setColor(new Color(255, 200, 80, 200));
+            String status = gp.mpClient.connectionStatus;
+            int sw = (int) g2.getFontMetrics().getStringBounds(status, g2).getWidth();
+            g2.drawString(status, px + (panelW - sw) / 2, py + panelH - 42);
+        }
+
+        // ── Hint bar ──
+        g2.setFont(g2.getFont().deriveFont(Font.PLAIN, 12F));
+        g2.setColor(new Color(90, 85, 75));
+        String hint = "[W/S] Navigate   [Enter] Select/Connect   [Delete] Remove Server";
+        int hw = (int) g2.getFontMetrics().getStringBounds(hint, g2).getWidth();
+        g2.drawString(hint, px + (panelW - hw) / 2, py + panelH - 16);
+    }
+
+    // ═══════════════════════════════════════════════════════════════
+    // MULTIPLAYER INPUT SCREEN (titleScreenState 4)
+    // ═══════════════════════════════════════════════════════════════
+    private void drawMultiplayerInput() {
+        int panelW = 480, panelH = 350;
+        int px = (gp.screenWidth - panelW) / 2;
+        int py = (gp.screenHeight - panelH) / 2;
+
+        // Dark panel
+        g2.setColor(new Color(12, 14, 24, 240));
+        g2.fillRoundRect(px, py, panelW, panelH, 16, 16);
+        g2.setColor(new Color(80, 160, 220, 80));
+        g2.setStroke(new BasicStroke(2f));
+        g2.drawRoundRect(px + 2, py + 2, panelW - 4, panelH - 4, 14, 14);
+
+        // Title
+        g2.setFont(g2.getFont().deriveFont(Font.BOLD, 28F));
+        g2.setColor(new Color(100, 200, 140));
+        String title = mpAddMode ? "ADD SERVER" : "DIRECT CONNECT";
+        int ttw = (int) g2.getFontMetrics().getStringBounds(title, g2).getWidth();
+        g2.drawString(title, px + (panelW - ttw) / 2, py + 40);
+
+        // Divider
+        g2.setColor(new Color(80, 160, 120, 60));
+        g2.drawLine(px + 30, py + 52, px + panelW - 30, py + 52);
+
+        // ── Input Fields ──
+        String[] labels;
+        String[] values;
+        if (mpAddMode) {
+            labels = new String[]{"Name:", "IP Address:", "Port:"};
+            values = new String[]{mpServerName, mpServerIP, mpServerPort};
+        } else {
+            labels = new String[]{"IP Address:", "Port:"};
+            values = new String[]{mpServerIP, mpServerPort};
+        }
+
+        int fieldX = px + 40;
+        int fieldW = panelW - 80;
+        int fieldH = 36;
+        int fieldStartY = py + 72;
+
+        for (int i = 0; i < labels.length; i++) {
+            int fy = fieldStartY + i * (fieldH + 28);
+            boolean active = (mpInputField == i);
+
+            // Label
+            g2.setFont(g2.getFont().deriveFont(Font.BOLD, 14F));
+            g2.setColor(active ? new Color(120, 200, 160) : new Color(150, 145, 130));
+            g2.drawString(labels[i], fieldX, fy - 6);
+
+            // Field background
+            if (active) {
+                g2.setColor(new Color(30, 50, 60, 200));
+                g2.fillRoundRect(fieldX, fy, fieldW, fieldH, 8, 8);
+                g2.setColor(new Color(80, 200, 160));
+                g2.setStroke(new BasicStroke(2f));
+                g2.drawRoundRect(fieldX, fy, fieldW, fieldH, 8, 8);
+            } else {
+                g2.setColor(new Color(20, 24, 35, 180));
+                g2.fillRoundRect(fieldX, fy, fieldW, fieldH, 8, 8);
+                g2.setColor(new Color(60, 60, 75, 80));
+                g2.setStroke(new BasicStroke(1f));
+                g2.drawRoundRect(fieldX, fy, fieldW, fieldH, 8, 8);
+            }
+
+            // Field text + cursor
+            g2.setFont(g2.getFont().deriveFont(Font.PLAIN, 18F));
+            g2.setColor(Color.WHITE);
+            String displayText = values[i];
+            if (active) {
+                // Blinking cursor
+                boolean cursorVisible = (animTick / 20) % 2 == 0;
+                displayText = values[i] + (cursorVisible ? "|" : "");
+            }
+            g2.drawString(displayText, fieldX + 10, fy + fieldH / 2 + 6);
+        }
+
+        // ── Action buttons ──
+        int btnY = fieldStartY + labels.length * (fieldH + 28) + 10;
+        String[] buttons;
+        if (mpAddMode) {
+            buttons = new String[]{"SAVE & CONNECT", "SAVE", "CANCEL"};
+        } else {
+            buttons = new String[]{"CONNECT", "CANCEL"};
+        }
+
+        int btnH = 36;
+        int btnW = (panelW - 80 - (buttons.length - 1) * 12) / buttons.length;
+
+        for (int i = 0; i < buttons.length; i++) {
+            int bx = fieldX + i * (btnW + 12);
+            int fieldCount = mpAddMode ? 3 : 2;
+            boolean sel = (mpInputField == fieldCount + i);
+
+            if (sel) {
+                g2.setColor(new Color(60, 140, 100, 60));
+                g2.fillRoundRect(bx, btnY, btnW, btnH, 10, 10);
+                g2.setColor(new Color(80, 200, 140));
+                g2.setStroke(new BasicStroke(2f));
+                g2.drawRoundRect(bx, btnY, btnW, btnH, 10, 10);
+            } else {
+                g2.setColor(new Color(25, 30, 40, 140));
+                g2.fillRoundRect(bx, btnY, btnW, btnH, 10, 10);
+                g2.setColor(new Color(60, 60, 70, 80));
+                g2.setStroke(new BasicStroke(1f));
+                g2.drawRoundRect(bx, btnY, btnW, btnH, 10, 10);
+            }
+
+            g2.setFont(g2.getFont().deriveFont(Font.BOLD, 14F));
+            String bText = buttons[i];
+            int btw = (int) g2.getFontMetrics().getStringBounds(bText, g2).getWidth();
+            g2.setColor(sel ? new Color(100, 220, 160) : new Color(140, 135, 120));
+            g2.drawString(bText, bx + (btnW - btw) / 2, btnY + btnH / 2 + 5);
+        }
+
+        // ── Hint ──
+        g2.setFont(g2.getFont().deriveFont(Font.PLAIN, 12F));
+        g2.setColor(new Color(90, 85, 75));
+        String hint = "[Tab] Next field   [Enter] Select   [Esc] Back";
+        int hw = (int) g2.getFontMetrics().getStringBounds(hint, g2).getWidth();
+        g2.drawString(hint, px + (panelW - hw) / 2, py + panelH - 16);
+    }
+
     public void drawPauseScreen() {
 
         // Fade in overlay

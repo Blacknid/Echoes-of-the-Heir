@@ -17,15 +17,19 @@ public class Entity implements ICombatable, IAnimated, IPathable {
 
     protected GamePanel gp;
 
-    // PATHFINDING
+    // PATHFINDING...nu este ideal sa le avem aici, dar e mai bine decat sa aruncam cu 10000000 de parametri incolo si incoace
     int pathUpdateCounter = 0;
     int pathUpdateInterval = 10;
 
+<<<<<<< HEAD
     // PER-ENTITY PATH CACHE — recalculate only when the goal tile changes
     private final java.util.ArrayList<int[]> cachedWaypoints = new java.util.ArrayList<>();
     private int waypointIdx      = 0;
     private int pathCacheGoalCol = -1;
     private int pathCacheGoalRow = -1;
+=======
+    
+>>>>>>> b10782fa01686bccc1d862f2542e9cf6daf13dfc
 
     // DIRECTION CONSTANTS
     public static final int DIR_DOWN  = 0;
@@ -34,11 +38,15 @@ public class Entity implements ICombatable, IAnimated, IPathable {
     public static final int DIR_UP    = 3;
     public static final int DIR_ANY   = -1; // for event checks (any facing)
 
+
+
     // POSITION & STATE
     public int worldX, worldY;
     public boolean alive = true;
     public boolean dying = false;
     boolean hpBarOn = false;
+
+
 
     // SPRITES - legacy named fields (still used by object/item classes)
     public BufferedImage up1, up2, up3, up4, up5, up6, up7,
@@ -46,6 +54,8 @@ public class Entity implements ICombatable, IAnimated, IPathable {
         left1, left2, left3, left4, left5, left6, left7, left8,
         right1, right2, right3, right4, right5, right6, right7, right8;
     // (idle/chest legacy sprite fields removed — use idleFrames[][] array instead)
+
+
 
     // SPRITES - array-based storage: [dirIndex][frameIndex], dir = DIR_DOWN/LEFT/RIGHT/UP
     public BufferedImage[][] walkFrames;   // walk animation per direction
@@ -55,6 +65,8 @@ public class Entity implements ICombatable, IAnimated, IPathable {
     // (attack legacy sprite fields removed — use attackFrames[][] array instead)
     
     public int direction = DIR_DOWN;
+
+
 
     // COUNTERS
     public int spriteCounter = 0;
@@ -74,6 +86,8 @@ public class Entity implements ICombatable, IAnimated, IPathable {
     public int deathRewardQuestKills = 0;
     public int deathRewardCoins = 0;
 
+
+
     // HIT FLASH: white overlay on damage
     public int hitFlashCounter = 0;
     private static final int HIT_FLASH_DURATION = 6;
@@ -87,13 +101,19 @@ public class Entity implements ICombatable, IAnimated, IPathable {
     private BufferedImage hitFlashBuffer;
     private int hitFlashBufferW, hitFlashBufferH;
 
+
+
     // TILE PARTICLES: throttle counter for footstep particle emission
     public int footstepParticleCounter = 0;
+
+
     
     // DIALOGUE (lazy-initialized to avoid wasting memory on entities that don't talk)
     public String dialogues[][];
     public int dialogueIndex = 0;
     public int dialogueSet = 0;
+
+
     
     // OPTIMIZATION: Lazy dialogue access - only allocates when first written
     public String[][] ensureDialogues() {
@@ -102,11 +122,15 @@ public class Entity implements ICombatable, IAnimated, IPathable {
         }
         return dialogues;
     }
+
+
     
     // IMAGES
     // Renamed class level 'image' to 'activeImage' to avoid confusion, 
     // though usually you draw specific sprites (up1, etc)
     public BufferedImage image, image1, image2, image3, compas_image;
+
+
 
     // COLLISION & AREAS
     public Rectangle solidArea = new Rectangle(0, 0, 48, 48);
@@ -131,6 +155,8 @@ public class Entity implements ICombatable, IAnimated, IPathable {
     public Entity loot;
     public boolean opened = false;
 
+
+
     // TYPE CONSTANTS
     public int type;
     public final int type_player = 0;
@@ -144,19 +170,22 @@ public class Entity implements ICombatable, IAnimated, IPathable {
     public final int type_obstacle = 8;
     public final int type_buffs = 9;
     public final int type_ending = 10;
+    public final int type_utility = 11;
+
+
 
     // CHARACTER ATTRIBUTES
     public String name;
     public int defaultSpeed = 1;
     public int speed;
-    public int maxLife;
-    public int life;
-    public int maxMana;
-    public int mana;
+    public int maxLife; //maximul teoretic de viata
+    public int life; //viata curenta
+    public int maxMana; //maximul teoretic de mana
+    public int mana; //mana curenta
     public int level;
     public int strenght;
     public int dexterity;
-    public int attack;
+    public int attack; //cat atac se da asupra entitatilor
     public int defense;
     public int exp;
     public int nextLevelExp;
@@ -177,19 +206,25 @@ public class Entity implements ICombatable, IAnimated, IPathable {
     public String onSpeakQuestId = null;   // quest id to progress when player talks to this NPC
     public int    onSpeakQuestAmount = 1;  // how much to add to that quest on each speak
 
+
+
     // ITEM ATTRIBUTES
-    public int attackValue;
-    public int defenseValue;
+    public int attackValue; //pentru arme: cat adauga la atac cand e echipata
+    public int defenseValue; //pentru scuturi: cat adauga la aparare cand e echipat
     public String description = "";
-    public int useCost;
-    public boolean stackable = false;
-    public int amount = 1;
+    public int useCost; //DOAR pentru consumabile: cat mana consuma cand e folosita
+    public boolean stackable = false; //daca un item poate fi adunat intr-un stack de n iteme
+    public int amount = 1; //stack-ul incepe initial de la 1, fie ca e stackable sau nu
+    public float working_power; //cat ia din durabilitatea obiectului (toporul ia mai mult din durabilitatea lemnului decat o sabie)
+    public String tool_type; //pentru ce e folosita unealta (topor pentru lemn)
 
     public Entity(GamePanel gp) {
         this.gp = gp;
     }
 
-    // GETTERS
+
+
+    // GETTERS, sau cum ii numesti...
     public int getLeftX() { return worldX + solidArea.x; }
     public int getRightX() { return worldX + solidArea.x + solidArea.width; }
     public int getTopY() { return worldY + solidArea.y; }

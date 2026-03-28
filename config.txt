@@ -1,4 +1,15 @@
 fullscreen=Off
+<<<<<<< HEAD
 musicVolume=0
 seVolume=3
 vsync=On
+=======
+<<<<<<< HEAD
+musicVolume=1
+=======
+>>>>>>> 98f29449ed6bc7bdfbc33042f779fccf4dda4fc3
+musicVolume=0
+>>>>>>> 218246a5fffca0f9fe0c07f1eeed555c91e89696
+seVolume=1
+vsync=Off
+>>>>>>> b10782fa01686bccc1d862f2542e9cf6daf13dfc
