@@ -417,7 +417,18 @@ public class EventHandler {
                 gp.startTransition(gate.targetMap, gate.targetCol, gate.targetRow);
             }
         } else {
-            // Player is too low — show blocked message
+            // Snap player back 2 tiles, reset walk frame, then show dialogue
+            switch (gp.player.direction) {
+                case Entity.DIR_UP    -> gp.player.worldY += gp.tileSize * 2;
+                case Entity.DIR_DOWN  -> gp.player.worldY -= gp.tileSize * 2;
+                case Entity.DIR_LEFT  -> gp.player.worldX += gp.tileSize * 2;
+                case Entity.DIR_RIGHT -> gp.player.worldX -= gp.tileSize * 2;
+            }
+            gp.screenShake.shakeLight();
+            gp.player.hitFlashCounter = 10;
+
+            gp.player.spriteNum = 1;
+            gp.player.spriteCounter = 0;
             String[][] d = eventMaster.ensureDialogues();
             if (d[0] == null) d[0] = new String[1];
             d[0][0] = gate.blockedMessage;
@@ -499,6 +510,18 @@ public class EventHandler {
     }
 
     private static String key(int col, int row) { return col + "," + row; }
+
+    /** Returns true if the player's solid area overlaps the given tile's full bounds. */
+    private boolean playerOverlapsTile(int col, int row) {
+        int px = gp.player.worldX + gp.player.solidArea.x;
+        int py = gp.player.worldY + gp.player.solidArea.y;
+        int pw = gp.player.solidArea.width;
+        int ph = gp.player.solidArea.height;
+        int tx = col * gp.tileSize;
+        int ty = row * gp.tileSize;
+        return px < tx + gp.tileSize && px + pw > tx
+            && py < ty + gp.tileSize && py + ph > ty;
+    }
 
     private EventRect getEventRect(int col, int row) {
         long k = ((long) col << 32) | (row & 0xFFFFFFFFL);

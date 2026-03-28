@@ -8,7 +8,6 @@ import java.util.HashMap;
 import java.util.Map;
 
 import entity.Entity;
-import entity.Projectile;
 import main.GamePanel;
 
 /**
@@ -65,7 +64,7 @@ public class MonsterFactory {
 
     private static Entity buildMonster(GamePanel gp, Map<String, String> def, int col, int row) {
         Entity m = new Entity(gp);
-        m.type = m.type_monster;
+        m.type = Entity.type_monster;
         m.collision = true;
         m.worldX = col * gp.tileSize;
         m.worldY = row * gp.tileSize;

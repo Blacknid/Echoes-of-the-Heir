@@ -120,7 +120,7 @@ Place **Point** objects. All monsters also accept the common entity properties.
 
 | Property | Tiled Type | Default | Description |
 |---|---|---|---|
-| `monsterType` | String | — | Same `type` values as above (`MON_monster`, etc.) |
+| `monster` | String | `MON_monster` | Same `type` values as above (`MON_monster`, etc.) |
 | `count` | int | `3` | How many to spawn |
 | `level` | int | `1` | Level for all spawned monsters |
 
@@ -141,11 +141,20 @@ Place **Point** objects. All NPCs also accept the common entity properties (`fac
 | `dialogue0`–`dialogue4` | String | *(built-in)* | Override the **first line** of dialogue set 0–4. Use `\n` for line breaks. Does not replace later lines in that set. |
 | `wanderRadius` | int | `0` (free) | Max pixel distance the NPC may wander from its spawn point. `0` = unlimited wander. |
 | `staticNPC` | bool | `false` | `true` = NPC stands still forever — no wander, no pathfinding. Ideal for town signs, stationary quest-givers. |
+| `guardMode` | bool | `false` | Like `staticNPC` but the NPC also turns to face the player every tick. Stays locked until `onPath = true` is set in code (e.g. after a speak/quest trigger). Use for guards, sentinels, or immobile watchers. |
+| `walkToCol` | int | `-1` | After the player interacts with this NPC, it walks to this tile column. On arrival it re-enters `guardMode` automatically. Requires `guardMode = true` and the NPC's `speak()` to set `onPath = true`. |
+| `walkToRow` | int | `-1` | Tile row partner of `walkToCol`. Both must be set for the walk to trigger. |
+| `walkToDialogueSet` | int | `-1` | Dialogue set index (0-based) to use permanently after the NPC arrives at `walkTo` destination. Leave at `-1` to keep the existing conditional logic. |
+| `step<N>_dialogue` | int | *N* | **Step chain** — dialogue set to play when the player talks at step N. **Optional** — defaults to `N`, so step 0 plays set 0, step 1 plays set 1, etc. (from the NPC class's `setDialogue()`). Only set this if you want a different set than the step index. |
+| `step<N>_walkToCol` | int | `-1` | Tile column the NPC walks to after speaking at step N. Omit (or `-1`) = NPC stays put (final stop). |
+| `step<N>_walkToRow` | int | `-1` | Tile row partner of `step<N>_walkToCol`. |
 | `speed` | int | `1` | Movement speed in pixels per tick. `1` = slow walk. `2` = brisk walk. |
 | `collision` | bool | `true` | `true` = player cannot walk through the NPC. `false` = NPC is passable (ghosts, decorative NPCs). |
 | `name` | String | *(type name)* | Display name shown in the dialogue UI header. |
 | `onSpeakQuestId` | String | — | Quest ID to auto-progress when the player talks to this NPC. Must match a quest added via `QuestManager.addQuest()`. |
 | `onSpeakQuestAmount` | int | `1` | How much to add to the quest counter each time the player talks to this NPC. Requires `onSpeakQuestId` to be set. |
+| `requiredItem` | String | — | Item name the player must have in inventory to trigger the alternate dialogue set (e.g. `Dark Heart`, `Key`). |
+| `requiredItemDialogueSet` | int | `0` | Which dialogue set to use when the player has the required item. Requires `requiredItem` to be set. |
 
 **Example — a static village elder who advances a quest on first talk:**
 ```
@@ -158,12 +167,46 @@ onSpeakQuestId    = find_relics
 onSpeakQuestAmount = 1
 ```
 
+**Example — NPC changes dialogue when the player has a specific item:**
+```
+type                    = NPC_Alucard
+staticNPC               = true
+name                    = Sage
+dialogue0               = You are not yet ready. Bring me the Dark Heart.
+dialogue3               = You have obtained the Dark Heart! Well done.
+requiredItem            = Dark Heart
+requiredItemDialogueSet = 3
+```
+*When the player talks to Sage without the item → dialogue set 0. After obtaining "Dark Heart" → dialogue set 3.*
+
 **Example — a ghost NPC you can walk through:**
 ```
 type       = NPC_Alucard
 collision  = false
 staticNPC  = true
 name       = Wandering Spirit
+```
+
+**Example — guard with a 3-step chain (minimal — dialogue sets come from class code):**
+```
+type              = NPC_Alucard
+guardMode         = true
+name              = Gate Guard
+step0_walkToCol   = 48
+step0_walkToRow   = 30
+step1_walkToCol   = 55
+step1_walkToRow   = 25
+step2_walkToCol   = -1
+```
+Step 0 plays dialogue set 0 from `NPC_Alucard.setDialogue()`, walks to (48,30), re-enters guardMode.
+Step 1 plays set 1, walks to (55,25), re-enters guardMode.
+Step 2 plays set 2, stays put (no walk coords — `-1` or just omit).
+
+**If you want to override which dialogue set plays at a specific step**, add `step<N>_dialogue`:
+```
+step1_dialogue    = 3
+step1_walkToCol   = 55
+step1_walkToRow   = 25
 ```
 
 ---
@@ -186,12 +229,15 @@ Events can be **Point** objects OR **Rectangle** objects. Rectangles define an a
 | `MapTransition` | Point or Rect | Teleports player to another map | `targetMap`, `targetCol`, `targetRow`, `spawnId` |
 | `HealingPool` | Point or Rect | Restores HP/MP fully | — |
 | `DamageTrap` | Point or Rect | Hurts player each tick | `damage` (int), `repeatable` (bool) |
-| `DialogueTrigger` | Point or Rect | Shows a custom message | `message` (String), `oneShot` (bool) |
-| `LevelGate` | Point or Rect | Blocks player below min level | `minLevel` (int), `targetMap` (String), `targetCol` (int), `targetRow` (int) |
+| `DialogueTrigger` | Point or Rect | Shows a custom message box | `message` (String), `speaker` (String, optional — name shown above box), `oneShot` (bool) |
+| `LevelGate` | Point or Rect | Blocks player below min level; optionally teleports if above | `minLevel` (int), `message` (String, optional), `targetMap` (String), `targetCol` (int), `targetRow` (int), `spawnId` (String) |
 | `Checkpoint` | Point or Rect | Save + restore | `silent` (bool) |
-| `QuestTrigger` | Point or Rect | Advances a quest | `questId` (String), `amount` (int) |
-| `SpawnPoint` | Point | Player spawn position | `spawnId` (String, optional) — if set, also works as a named arrival target for Doors; if omitted, sets the **default player spawn** for the entire map |
+| `QuestTrigger` | Point or Rect | Advances a quest counter | `questId` (String), `progress` (int — amount to add), `oneShot` (bool) |
+| `QuestDefinition` | Point or Rect | Registers a new quest at map load time | `questId` (String), `questName` (String), `questDesc` (String), `target` (int — completion threshold) |
+| `SpawnPoint` | Point | Player spawn / named door arrival | `id` (String, optional) — registers as a named arrival target for Doors; omit to set the **default player spawn** for the entire map |
 | `CameraShake` | Point or Rect | Screen shake on enter | `intensity` (String: `light`/`medium`/`heavy`) |
+| `SpawnZone` | Rect | Continuously spawns enemies inside the area up to a live cap | `monster` (String, default `MON_monster`), `maxAmount` (int, default `5`), `interval` (int frames, default `300` = 5 s at 60 fps) |
+| `MobSpawnerZone` | Rect | Registers an area for the time-of-day MobSpawner | *(no extra properties — rectangle bounds = spawn area)* |
 
 ### MapTransition Properties
 
@@ -216,7 +262,7 @@ Use named spawn points to control exactly where the player arrives when going th
 
 1. **On the target map** — add a **Point** in the `Events` layer:
    - `type` = `SpawnPoint`
-   - `spawnId` = `entrance_north`
+   - `id` = `entrance_north`
 
 2. **On the source map** — add a **Door** object:
    - `destination` = `Dungeon1`
@@ -225,7 +271,7 @@ Use named spawn points to control exactly where the player arrives when going th
 
 The player will arrive at the named SpawnPoint's exact tile, facing the given direction.
 
-> **Tip:** A SpawnPoint with both `spawnId` set AND placed as the default arrival location does both jobs at once.
+> **Tip:** A SpawnPoint with `id` set AND placed at the default arrival location does both jobs at once.
 
 ---
 
@@ -237,9 +283,9 @@ Named spawn points let you have **multiple entrances** on a single map without n
 Map: Dungeon1
 
 SpawnPoint (Events layer):
-  spawnId = front_entrance   → at tile (5, 8)
-  spawnId = back_entrance    → at tile (18, 2)
-  spawnId = boss_room        → at tile (10, 15)
+  id = front_entrance   → at tile (5, 8)
+  id = back_entrance    → at tile (18, 2)
+  id = boss_room        → at tile (10, 15)
 
 Map: Overworld
 
@@ -458,20 +504,28 @@ Monsters (point)     MON_monster                level, aggroRange, wanderRadius
 Monsters (rect)      MonsterArea                monsterType, count, level
 
 NPCs (point)         NPC_Alucard                dialogue0-4, wanderRadius, staticNPC,
+                                                guardMode, walkToCol, walkToRow,
+                                                walkToDialogueSet, step<N>_dialogue,
+                                                step<N>_walkToCol, step<N>_walkToRow,
                                                 speed, collision, name,
-                                                onSpeakQuestId, onSpeakQuestAmount
+                                                onSpeakQuestId, onSpeakQuestAmount,
+                                                requiredItem, requiredItemDialogueSet
 
 InteractiveTiles     IT_Pot / IT_Coins          (none extra)
 
 Events (point/rect)  MapTransition              targetMap, targetCol, targetRow, spawnId
                      HealingPool                (none)
                      DamageTrap                 damage, repeatable
-                     DialogueTrigger            message, oneShot
-                     LevelGate                  minLevel, targetMap, targetCol, targetRow
+                     DialogueTrigger            message, speaker, oneShot
+                     LevelGate                  minLevel, message, targetMap, targetCol,
+                                                targetRow, spawnId
                      Checkpoint                 silent
-                     QuestTrigger               questId, amount
+                     QuestTrigger               questId, progress, oneShot
+                     QuestDefinition            questId, questName, questDesc, target
                      CameraShake                intensity (light/medium/heavy)
-Events (point only)  SpawnPoint                 spawnId (optional — omit to set default map spawn)
+                     SpawnZone (rect)           monster, maxAmount, interval
+                     MobSpawnerZone (rect)      (none extra)
+Events (point only)  SpawnPoint                 id (optional — omit to set default map spawn)
 
 Collision (any)      (unnamed shapes)           auto-solid
 Collision (polygon)  isCollisionTemplate=true   defines a reusable shape template
@@ -494,4 +548,4 @@ Tiled stores object positions in pixels at the map's native tile size.
 
 ---
 
-*Guide version: 2.4 — covers animated tiles, flip flags, image layers, layer opacity/tint, area events, named spawn points, default SpawnPoint, map properties, MonsterArea, CameraShake, LevelGate, DialogueTrigger, Checkpoint, QuestTrigger, per-tile depthSort (campfire/animated objects), per-tile foreground/background/sortYOffset, animated tile depth-sort fix. NPC extended properties: speed, staticNPC, collision, name, onSpeakQuestId/Amount. Collision templates (reusable polygon stamps via isCollisionTemplate + collisionTemplate properties).*
+*Guide version: 3.0 — covers animated tiles, flip flags, image layers, layer opacity/tint, area events, named spawn points, default SpawnPoint, map properties, MonsterArea, CameraShake, LevelGate, DialogueTrigger, Checkpoint, QuestTrigger, QuestDefinition, SpawnZone, MobSpawnerZone, per-tile depthSort/foreground/background/sortYOffset, NPC extended properties: speed, staticNPC, guardMode, walkToCol/Row/walkToDialogueSet, step chains (step\<N\>_dialogue optional — defaults to N), collision, name, onSpeakQuestId/Amount. Collision templates. MapObjectLoader header comment fully synced with all implemented properties.*

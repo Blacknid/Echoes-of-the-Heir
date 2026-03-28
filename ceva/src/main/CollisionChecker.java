@@ -266,7 +266,7 @@ public class CollisionChecker {
         for (int i = 0; i < target.length; i++) {
             if (target[i] != null && target[i] != entity) {
                 // skip dead/dying monsters so player can walk through
-                if (target[i].type == target[i].type_monster &&
+                if (target[i].type == Entity.type_monster &&
                     (target[i].dying || !target[i].alive)) {
                     continue;
                 }

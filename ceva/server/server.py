@@ -154,8 +154,18 @@ def save_path(license_key: str) -> Path:
 
 
 def persist_payload(license_key: str, payload: bytes) -> None:
-    # Write .bin file (backwards compat)
-    save_path(license_key).write_bytes(payload)
+    # Keep exactly one filesystem save per license: canonical <license>.bin.
+    canonical_path = save_path(license_key)
+    safe = canonical_path.stem
+    for old_file in SAVE_DIR.glob(f"{safe}*.bin"):
+        if old_file != canonical_path:
+            try:
+                old_file.unlink()
+            except OSError:
+                pass
+
+    # Write canonical .bin file (backwards compatibility with file-based tools)
+    canonical_path.write_bytes(payload)
 
     # Parse game timestamp from JSON
     game_ts = 0

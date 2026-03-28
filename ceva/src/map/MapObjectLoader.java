@@ -60,8 +60,24 @@ import tiles_interactive.IT_Pot;
  *   wanderRadius  (int)     max idle-wander offset in pixels
  *
  * NPC PROPERTIES:
- *   dialogue0-4   (String)  override first dialogue line per set (use \n for newline)
- *   wanderRadius  (int)     max idle-wander offset in pixels
+ *   dialogue0-4        (String)  override first line of each built-in dialogue set (use \n for newline)
+ *   wanderRadius       (int)     max idle-wander pixel offset from spawn
+ *   staticNPC          (bool)    stand still forever, no wander or pathfinding
+ *   guardMode          (bool)    stand still AND face the player every tick;
+ *                                start walking when onPath is set to true (e.g. via speak())
+ *   walkToCol/Row      (int)     single-destination: walk here after interact, re-enter guardMode on arrival
+ *   walkToDialogueSet  (int)     dialogue set to use permanently once walkTo destination is reached
+ *   step<N>_walkToCol  (int)     STEP CHAIN step N: walk to this column after speaking (omit = final stop)
+ *   step<N>_walkToRow  (int)     step N: row partner of walkToCol
+ *   step<N>_dialogue   (int)     step N: dialogue set to play (optional, defaults to N itself)
+ *                                Step chain auto-advances on each arrival; re-enters guardMode between steps.
+ *   speed              (int)     movement speed override in pixels per tick (default 1)
+ *   collision          (bool)    whether NPC blocks player movement (default true)
+ *   name               (String)  display name in the dialogue UI header
+ *   onSpeakQuestId     (String)  quest ID to progress every time player talks to this NPC
+ *   onSpeakQuestAmount (int)     how much to add to the quest per speak event (default 1)
+ *   requiredItem       (String)  item name the player must have to trigger the alternate dialogue
+ *   requiredItemDialogueSet (int) which dialogue set to use when the player has the item (default 0)
  *
  * OBJECT PROPERTIES:
  *   amount        (int)     stack count for Potion/Key/Arrow/Coins
@@ -109,9 +125,9 @@ public class MapObjectLoader {
     // Music name to SFX index (extend when adding new music tracks to SFX.java)
     private static final Map<String, Integer> MUSIC_MAP = new HashMap<>();
     static {
-        MUSIC_MAP.put("theme",   SFX.MUSIC_THEME);
-        MUSIC_MAP.put("dungeon", SFX.MUSIC_THEME);
-        MUSIC_MAP.put("boss",    SFX.MUSIC_THEME);
+        MUSIC_MAP.put("theme",   SFX.MAIN_THEME);
+        MUSIC_MAP.put("dungeon", SFX.MAIN_THEME);
+        MUSIC_MAP.put("boss",    SFX.MAIN_THEME);
     }
 
     private final GamePanel gp;
@@ -489,6 +505,42 @@ public class MapObjectLoader {
         // staticNPC: stand still, never wander or path-follow
         if (getBoolProperty(obj, "staticNPC", false)) npc.staticNPC = true;
 
+        // guardMode: static from spawn AND faces the player every tick; unlocked by setting onPath=true
+        if (getBoolProperty(obj, "guardMode", false)) npc.guardMode = true;
+
+        // walkToCol / walkToRow: after the player interacts, NPC walks to this tile then re-enters guardMode
+        int wCol = getIntProperty(obj, "walkToCol", -1);
+        int wRow = getIntProperty(obj, "walkToRow", -1);
+        if (wCol >= 0) npc.walkToCol = wCol;
+        if (wRow >= 0) npc.walkToRow = wRow;
+
+        // walkToDialogueSet: dialogue set index to use permanently after the NPC arrives at walkTo destination
+        int wDlg = getIntProperty(obj, "walkToDialogueSet", -1);
+        if (wDlg >= 0) npc.walkToDialogueSet = wDlg;
+
+        // ── NPC STEP CHAIN: step0_walkToCol, step0_walkToRow [, step0_dialogue] ... ──
+        // step<N>_dialogue is optional — defaults to N so steps 0/1/2 automatically play
+        // dialogue sets 0/1/2 from the NPC class's setDialogue() without any Tiled config.
+        for (int si = 0; si < 20; si++) {
+            int sCol = getIntProperty(obj, "step" + si + "_walkToCol", -2);
+            int sRow = getIntProperty(obj, "step" + si + "_walkToRow", -2);
+            int sDlg = getIntProperty(obj, "step" + si + "_dialogue",  -2);
+            // stop when none of the three properties exist for this step index
+            if (sCol == -2 && sRow == -2 && sDlg == -2) break;
+            // default dialogue set to the step index itself
+            if (sDlg < 0) sDlg = si;
+            // -1 for col/row means "no walk" (final stop)
+            npc.npcSteps.add(new int[]{ sDlg, (sCol == -2 ? -1 : sCol), (sRow == -2 ? -1 : sRow) });
+        }
+        // If steps were defined, load the first step into the active walkTo fields
+        if (!npc.npcSteps.isEmpty()) {
+            int[] first = npc.npcSteps.get(0);
+            npc.walkToDialogueSet = first[0];
+            npc.walkToCol = first[1];
+            npc.walkToRow = first[2];
+            npc.npcStepIndex = 1; // next step to load on arrival
+        }
+
         // collision: whether this NPC blocks the player (default true for NPC_Alucard)
         String collisionProp = getStringProperty(obj, "collision", null);
         if (collisionProp != null && !collisionProp.isBlank()) {
@@ -504,6 +556,13 @@ public class MapObjectLoader {
         if (qid != null && !qid.isBlank()) {
             npc.onSpeakQuestId     = qid;
             npc.onSpeakQuestAmount = getIntProperty(obj, "onSpeakQuestAmount", 1);
+        }
+
+        // requiredItem / requiredItemDialogueSet: switch to a different dialogue when the player has a specific item
+        String reqItem = getStringProperty(obj, "requiredItem", null);
+        if (reqItem != null && !reqItem.isBlank()) {
+            npc.requiredItem = reqItem;
+            npc.requiredItemDialogueSet = getIntProperty(obj, "requiredItemDialogueSet", 0);
         }
 
         int wanderRadius = getIntProperty(obj, "wanderRadius", -1);
@@ -576,7 +635,8 @@ public class MapObjectLoader {
                 int    tCol  = getIntProperty(obj, "targetCol", 5);
                 int    tRow  = getIntProperty(obj, "targetRow", 5);
                 String sid   = getStringProperty(obj, "spawnId", "");
-                gp.eHandler.registerLevelGate(col, row, min, msg, tMap, tCol, tRow, sid);
+                forEachTile(col, row, worldX, worldY, areaW, areaH, (tc, tr) ->
+                    gp.eHandler.registerLevelGate(tc, tr, min, msg, tMap, tCol, tRow, sid));
             }
             case "Checkpoint" -> {
                 boolean silent = getBoolProperty(obj, "silent", false);

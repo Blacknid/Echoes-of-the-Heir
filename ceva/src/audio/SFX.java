@@ -7,7 +7,7 @@ package audio;
 public final class SFX {
     private SFX() {}
 
-    public static final int MUSIC_THEME    = 0;
+    public static final int MAIN_THEME    = 0;
     public static final int DOOR           = 1;
     public static final int EQUIP          = 2;
     public static final int MENU_SELECT    = 3;
