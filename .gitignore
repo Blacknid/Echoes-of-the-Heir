@@ -1,4 +1,8 @@
 __pycache__/
 *.pyc
 config.txt
+<<<<<<< HEAD
 save.dat
+=======
+ceva/server/saves.db
+>>>>>>> 265ba43c022150d8f0df3d001a67754b6cf2decb
