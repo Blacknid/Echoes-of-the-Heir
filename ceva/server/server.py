@@ -27,6 +27,7 @@ import json
 import logging
 import os
 import socket
+import sqlite3
 import struct
 import threading
 import time
@@ -46,17 +47,25 @@ BASE_DIR = Path(__file__).resolve().parent
 SAVE_DIR = BASE_DIR / "saves"
 LOG_PATH = BASE_DIR / "server.log"
 PRIVATE_KEY_PATH = BASE_DIR / "server_private_key.pem"
+DB_PATH = BASE_DIR / "saves.db"
 
 
 # ── Logging ───────────────────────────────────────────────────────────────────
 def configure_logging() -> None:
     BASE_DIR.mkdir(parents=True, exist_ok=True)
     SAVE_DIR.mkdir(parents=True, exist_ok=True)
-    logging.basicConfig(
-        filename=str(LOG_PATH),
-        level=logging.INFO,
-        format="%(asctime)s %(levelname)s %(message)s",
-    )
+    fmt = logging.Formatter("%(asctime)s %(levelname)s %(message)s")
+
+    file_handler = logging.FileHandler(str(LOG_PATH))
+    file_handler.setFormatter(fmt)
+
+    stream_handler = logging.StreamHandler()
+    stream_handler.setFormatter(fmt)
+
+    root = logging.getLogger()
+    root.setLevel(logging.INFO)
+    root.addHandler(file_handler)
+    root.addHandler(stream_handler)
 
 
 # ── RSA key loading ──────────────────────────────────────────────────────────
@@ -108,6 +117,36 @@ def verify_license_key(license_key: str) -> bool:
     return hmac.compare_digest(expected, suffix.upper())
 
 
+# ── Database ─────────────────────────────────────────────────────────────────
+_db_lock = threading.Lock()
+
+
+def init_db() -> None:
+    with _db_lock:
+        con = sqlite3.connect(str(DB_PATH))
+        con.execute("PRAGMA journal_mode=WAL")
+        con.execute("""
+            CREATE TABLE IF NOT EXISTS saves (
+                license_key  TEXT    PRIMARY KEY,
+                save_data    BLOB    NOT NULL,
+                game_timestamp INTEGER NOT NULL DEFAULT 0,
+                size_bytes   INTEGER NOT NULL DEFAULT 0,
+                updated_at   TEXT    NOT NULL
+            )
+        """)
+        con.execute("""
+            CREATE TABLE IF NOT EXISTS events (
+                id          INTEGER PRIMARY KEY AUTOINCREMENT,
+                ts          TEXT    NOT NULL,
+                client_ip   TEXT    NOT NULL,
+                license_key TEXT    NOT NULL,
+                status      TEXT    NOT NULL
+            )
+        """)
+        con.commit()
+        con.close()
+
+
 # ── Persistence ─────────────────────────────────────────────────────────────
 def save_path(license_key: str) -> Path:
     safe = "".join(c for c in license_key if c.isalnum() or c == "-")
@@ -115,16 +154,70 @@ def save_path(license_key: str) -> Path:
 
 
 def persist_payload(license_key: str, payload: bytes) -> None:
+    # Write .bin file (backwards compat)
     save_path(license_key).write_bytes(payload)
+
+    # Parse game timestamp from JSON
+    game_ts = 0
+    try:
+        game_ts = json.loads(payload).get("timestamp", 0)
+    except (json.JSONDecodeError, AttributeError):
+        pass
+
+    now = time.strftime("%Y-%m-%d %H:%M:%S", time.gmtime())
+    with _db_lock:
+        con = sqlite3.connect(str(DB_PATH))
+        con.execute("PRAGMA journal_mode=WAL")
+        con.execute(
+            """
+            INSERT INTO saves (license_key, save_data, game_timestamp, size_bytes, updated_at)
+            VALUES (?, ?, ?, ?, ?)
+            ON CONFLICT(license_key) DO UPDATE SET
+                save_data      = excluded.save_data,
+                game_timestamp = excluded.game_timestamp,
+                size_bytes     = excluded.size_bytes,
+                updated_at     = excluded.updated_at
+            """,
+            (license_key, payload, game_ts, len(payload), now),
+        )
+        con.commit()
+        con.close()
 
 
 def load_payload(license_key: str) -> bytes | None:
+    with _db_lock:
+        con = sqlite3.connect(str(DB_PATH))
+        con.execute("PRAGMA journal_mode=WAL")
+        row = con.execute(
+            "SELECT save_data FROM saves WHERE license_key = ?", (license_key,)
+        ).fetchone()
+        con.close()
+    if row:
+        return bytes(row[0])
+    # Fallback: check legacy .bin file
     p = save_path(license_key)
-    return p.read_bytes() if p.exists() else None
+    if p.exists():
+        data = p.read_bytes()
+        persist_payload(license_key, data)  # migrate into DB
+        return data
+    return None
 
 
 def log_attempt(client_ip: str, license_key: str, status: str) -> None:
+    now = time.strftime("%Y-%m-%d %H:%M:%S", time.gmtime())
     logging.info("ip=%s license=%s status=%s", client_ip, license_key, status)
+    try:
+        with _db_lock:
+            con = sqlite3.connect(str(DB_PATH))
+            con.execute("PRAGMA journal_mode=WAL")
+            con.execute(
+                "INSERT INTO events (ts, client_ip, license_key, status) VALUES (?, ?, ?, ?)",
+                (now, client_ip, license_key, status),
+            )
+            con.commit()
+            con.close()
+    except Exception:
+        pass
 
 
 # ── Network helpers ──────────────────────────────────────────────────────────
@@ -266,14 +359,14 @@ def handle_client(conn: socket.socket, addr: tuple[str, int]) -> None:
 # ── Server main loop ────────────────────────────────────────────────────────
 def serve_forever() -> None:
     configure_logging()
+    init_db()
     load_private_key()
 
     with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as srv:
         srv.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
         srv.bind((HOST, PORT))
         srv.listen()
-        logging.info("Server listening on %s:%s", HOST, PORT)
-        print(f"[michi-server] Listening on {HOST}:{PORT}")
+        logging.info("Server started — listening on %s:%s  (DB: %s)", HOST, PORT, DB_PATH)
 
         while True:
             conn, addr = srv.accept()
