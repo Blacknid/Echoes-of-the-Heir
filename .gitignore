@@ -3,3 +3,4 @@ __pycache__/
 config.txt
 save.dat
 ceva/server/saves.db
+ceva/bin/*
