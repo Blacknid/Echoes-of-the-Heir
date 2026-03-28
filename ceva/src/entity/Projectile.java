@@ -2,9 +2,10 @@ package entity;
 
 import java.awt.Graphics2D;
 import java.awt.image.BufferedImage;
+
+import audio.SFX;
 import main.GamePanel;
-import main.ObjectPool.Poolable;
-import main.SFX;
+import util.ObjectPool.Poolable;
 
 public class Projectile extends Entity implements Poolable {
 

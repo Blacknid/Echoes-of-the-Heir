@@ -1,0 +1,231 @@
+package data;
+
+import java.util.Random;
+import entity.Entity;
+import entity.Projectile;
+import main.GamePanel;
+
+/**
+ * A monster entity whose stats and AI behavior are configured from JSON data.
+ * Supports melee_chase and ranged_archer AI profiles.
+ */
+public class DataDrivenMonster extends Entity {
+
+    private static final Random random = new Random();
+    private static final int[] DIRECTIONS = {DIR_DOWN, DIR_LEFT, DIR_RIGHT, DIR_UP};
+
+    private final String aiBehavior;
+    private final float fleeThreshold;
+    private final int shootCooldownMax;
+    private final int preferredDist;
+    private final int fleeDist;
+    private int shootCooldown = 0;
+
+    /**
+     * Construct from a pre-configured template entity.
+     * Copies all stats/sprites from the template, then adds AI behavior.
+     */
+    public DataDrivenMonster(GamePanel gp, Entity template, String aiBehavior,
+                             float fleeThreshold, int shootCooldownMax, int preferredDist, int fleeDist) {
+        super(gp);
+        this.aiBehavior = aiBehavior;
+        this.fleeThreshold = fleeThreshold;
+        this.shootCooldownMax = shootCooldownMax;
+        this.preferredDist = preferredDist;
+        this.fleeDist = fleeDist;
+
+        // Copy all stats from template
+        this.type = template.type;
+        this.name = template.name;
+        this.collision = template.collision;
+        this.worldX = template.worldX;
+        this.worldY = template.worldY;
+        this.defaultSpeed = template.defaultSpeed;
+        this.speed = template.speed;
+        this.walkFrameCount = template.walkFrameCount;
+        this.maxLife = template.maxLife;
+        this.life = template.life;
+        this.attack = template.attack;
+        this.defense = template.defense;
+        this.exp = template.exp;
+        this.aggroRange = template.aggroRange;
+        this.fleeDuration = template.fleeDuration;
+        this.solidArea.x = template.solidArea.x;
+        this.solidArea.y = template.solidArea.y;
+        this.solidArea.width = template.solidArea.width;
+        this.solidArea.height = template.solidArea.height;
+        this.solidAreaDefaultX = template.solidAreaDefaultX;
+        this.solidAreaDefaultY = template.solidAreaDefaultY;
+        this.walkFrames = template.walkFrames;
+        this.projectile = template.projectile;
+    }
+
+    @Override
+    public void setAction() {
+        switch (aiBehavior) {
+            case "ranged_archer" -> setActionRanged();
+            default -> setActionMelee();  // melee_chase
+        }
+    }
+
+    @Override
+    public void damageReaction() {
+        actionLockCounter = 0;
+        switch (aiBehavior) {
+            case "ranged_archer" -> {
+                if (life <= maxLife * fleeThreshold) {
+                    fleeing = true;
+                    onPath = false;
+                    fleeCounter = 0;
+                    speed = defaultSpeed + 1;
+                }
+            }
+            default -> {
+                onPath = true;
+                if (life <= maxLife * fleeThreshold) {
+                    fleeing = true;
+                    onPath = false;
+                    fleeCounter = 0;
+                    speed = defaultSpeed + 1;
+                }
+            }
+        }
+    }
+
+    // ---------- Melee Chase AI ----------
+    private void setActionMelee() {
+        if (fleeing) {
+            fleeCounter++;
+            int dx = worldX - gp.player.worldX;
+            int dy = worldY - gp.player.worldY;
+            direction = (Math.abs(dx) > Math.abs(dy))
+                ? (dx > 0 ? DIR_RIGHT : DIR_LEFT)
+                : (dy > 0 ? DIR_DOWN : DIR_UP);
+            if (fleeCounter > fleeDuration) {
+                fleeing = false;
+                fleeCounter = 0;
+                speed = defaultSpeed;
+            }
+            return;
+        }
+
+        if (onPath) {
+            int loseRange = gp.tileSize * 8;
+            if (!isPlayerInRange(loseRange)) {
+                onPath = false;
+            } else {
+                int goalCol = gp.player.getTileCol();
+                int goalRow = gp.player.getTileRow();
+                int closeDist = gp.tileSize * 2;
+                int absDx = Math.abs(getCenterX() - gp.player.getCenterX());
+                int absDy = Math.abs(getCenterY() - gp.player.getCenterY());
+                if (absDx < closeDist && absDy < closeDist) {
+                    directChase(goalCol, goalRow);
+                } else {
+                    searchPath(goalCol, goalRow);
+                }
+            }
+        } else {
+            if (isPlayerInRange(aggroRange)) {
+                onPath = true;
+            } else {
+                randomMovement();
+            }
+        }
+    }
+
+    // ---------- Ranged Archer AI ----------
+    private void setActionRanged() {
+        if (shootCooldown > 0) shootCooldown--;
+
+        int dx = worldX - gp.player.worldX;
+        int dy = worldY - gp.player.worldY;
+        double dist = Math.sqrt((double)dx * dx + (double)dy * dy) / gp.tileSize;
+
+        if (fleeing) {
+            fleeCounter++;
+            setFleeDirection(dx, dy);
+            if (fleeCounter > fleeDuration) {
+                fleeing = false;
+                fleeCounter = 0;
+                speed = defaultSpeed;
+            }
+            return;
+        }
+
+        int aggroTiles = aggroRange / gp.tileSize;
+        if (dist < aggroTiles) {
+            if (dist < fleeDist) {
+                speed = defaultSpeed + 1;
+                setStrafeDirection(dx, dy);
+            } else if (dist < preferredDist) {
+                speed = 0;
+                facePlayer(dx, dy);
+                tryShoot();
+            } else {
+                speed = defaultSpeed;
+                facePlayer(dx, dy);
+                onPath = true;
+                searchPath(gp.player.getTileCol(), gp.player.getTileRow());
+            }
+        } else {
+            onPath = false;
+            speed = defaultSpeed;
+            randomMovement();
+        }
+    }
+
+    private void tryShoot() {
+        if (shootCooldown <= 0 && projectile != null) {
+            Projectile p = gp.projectilePool.get();
+            p.name = projectile.name;
+            p.speed = projectile.speed;
+            p.maxLife = projectile.maxLife;
+            p.attack = projectile.attack;
+            p.solidArea.x = projectile.solidArea.x;
+            p.solidArea.y = projectile.solidArea.y;
+            p.solidArea.width = projectile.solidArea.width;
+            p.solidArea.height = projectile.solidArea.height;
+            p.walkFrames = projectile.walkFrames;
+            p.up1 = projectile.up1; p.up2 = projectile.up2;
+            p.down1 = projectile.down1; p.down2 = projectile.down2;
+            p.left1 = projectile.left1; p.left2 = projectile.left2;
+            p.right1 = projectile.right1; p.right2 = projectile.right2;
+            p.set(worldX, worldY, direction, true, this);
+            gp.projectilesList.add(p);
+            shootCooldown = shootCooldownMax;
+        }
+    }
+
+    private void facePlayer(int dx, int dy) {
+        if (Math.abs(dx) > Math.abs(dy)) {
+            direction = dx > 0 ? DIR_LEFT : DIR_RIGHT;
+        } else {
+            direction = dy > 0 ? DIR_UP : DIR_DOWN;
+        }
+    }
+
+    private void setFleeDirection(int dx, int dy) {
+        if (Math.abs(dx) > Math.abs(dy)) {
+            direction = dx > 0 ? DIR_RIGHT : DIR_LEFT;
+        } else {
+            direction = dy > 0 ? DIR_DOWN : DIR_UP;
+        }
+    }
+
+    private void setStrafeDirection(int dx, int dy) {
+        if (Math.abs(dx) > Math.abs(dy)) {
+            direction = random.nextBoolean() ? DIR_UP : DIR_DOWN;
+        } else {
+            direction = random.nextBoolean() ? DIR_LEFT : DIR_RIGHT;
+        }
+    }
+
+    private void randomMovement() {
+        actionLockCounter++;
+        if (actionLockCounter >= 120) {
+            direction = DIRECTIONS[random.nextInt(4)];
+            actionLockCounter = 0;
+        }
+    }
+}

@@ -8,14 +8,9 @@ import java.awt.Graphics2D;
 import java.awt.GraphicsDevice;
 import java.awt.GraphicsEnvironment;
 import java.awt.Rectangle;
-import java.awt.Shape;
 import java.awt.Toolkit;
-import java.awt.geom.AffineTransform;
 import java.awt.image.BufferedImage;
 import java.util.ArrayList;
-import java.util.Collections;
-import java.util.Comparator;
-import java.util.HashMap;
 import java.util.Map;
 
 import javax.swing.JFrame;
@@ -23,6 +18,11 @@ import javax.swing.JPanel;
 import javax.swing.SwingUtilities;
 
 import ai.PathFinder;
+<<<<<<< HEAD
+=======
+import audio.AudioManager;
+import audio.Sound;
+>>>>>>> 64e48ffe7ab7410d3e10f2b7e9112387fcf9d11b
 import data.SaveLoad;
 import entity.Entity;
 import entity.Particle;
@@ -30,8 +30,19 @@ import entity.Player;
 import entity.Projectile;
 import environment.EnvironmentManager;
 import environment.MapShaderManager;
+import map.AssetSetter;
+import map.EventHandler;
+import map.MapManager;
+import map.MapObjectLoader;
+import map.MobSpawner;
 import tile.TileManager;
 import tiles_interactive.interactiveTile;
+import ui.CutsceneManager;
+import ui.Minimap;
+import ui.RenderPipeline;
+import ui.ScreenShake;
+import ui.UI;
+import util.ObjectPool;
 
 public class GamePanel extends JPanel implements Runnable{
 
@@ -71,6 +82,7 @@ public class GamePanel extends JPanel implements Runnable{
     private static final int TARGET_UPS = 60; // Fixed simulation rate (game speed)
     int FPS = 60;  // Render target FPS (independent from game speed)
     public int currentFPS = 0;
+    public int maxFPS = 0;      // Session peak FPS
     int monitorRefreshRate = 60; // Detected at startup
 
     // SYSTEM
@@ -85,7 +97,7 @@ public class GamePanel extends JPanel implements Runnable{
     public MapObjectLoader mapObjectLoader = new MapObjectLoader(this);
     public UI ui = new UI(this);
     public EventHandler eHandler = new EventHandler(this);
-    Config config = new Config(this);
+    public Config config = new Config(this);
     public CutsceneManager csManager = new CutsceneManager(this);
     public PathFinder pFinder = new PathFinder(this);
     public EnvironmentManager eManager = new EnvironmentManager(this);
@@ -100,15 +112,39 @@ public class GamePanel extends JPanel implements Runnable{
     private static final float CAM_LERP = 0.12f;
     private static final int CAM_DEADZONE = 32; // pixels before camera starts catching up
 
-    // Pre-allocated Color constants for lights (avoid per-frame GC pressure)
-    private static final java.awt.Color LIGHT_PLAYER_GLOW = new java.awt.Color(255, 240, 220);
-    private static final java.awt.Color LIGHT_TORCH_ORANGE = new java.awt.Color(255, 170, 60);
+    // PRE-ALLOCATED COLORS (avoid per-frame allocation)
+    private static final java.awt.Color PLAYER_GLOW_COLOR = new java.awt.Color(255, 240, 220);
+    private static final java.awt.Color DEFAULT_TORCH_COLOR = new java.awt.Color(255, 170, 60);
+
+    // PRE-ALLOCATED DEBUG OVERLAY OBJECTS (avoid per-frame allocation)
+    private static final java.awt.Font DEBUG_FONT = new java.awt.Font("Consolas", java.awt.Font.PLAIN, 13);
+    private static final java.awt.Color DEBUG_BG_COLOR = new java.awt.Color(0, 0, 0, 160);
+    private static final java.awt.Color DEBUG_FPS_GREEN = new java.awt.Color(80, 255, 80);
+    private static final java.awt.Color DEBUG_FPS_YELLOW = new java.awt.Color(255, 220, 60);
+    private static final java.awt.Color DEBUG_FPS_RED = new java.awt.Color(255, 80, 80);
+    private static final java.awt.Color DEBUG_INFO_BLUE = new java.awt.Color(120, 200, 255);
+    private static final java.awt.Color MP_TINT_COLOR  = new java.awt.Color(100, 180, 255);
+    private static final java.awt.Color MP_FILL_COLOR  = new java.awt.Color(80, 160, 240, 200);
+    private static final java.awt.Color MP_BORDER_CLR  = new java.awt.Color(50, 120, 200);
+    private static final java.awt.Color MP_NAME_SHADOW = new java.awt.Color(0, 0, 0, 160);
+    private static final java.awt.Color MP_NAME_COLOR  = new java.awt.Color(180, 220, 255);
+    private static final java.awt.Color MP_BAR_BG      = new java.awt.Color(40, 40, 40, 180);
+    private static final java.awt.Color MP_BAR_GREEN   = new java.awt.Color(60, 200, 80);
+    private static final java.awt.Color MP_BAR_RED     = new java.awt.Color(220, 60, 60);
+    private static final java.awt.BasicStroke MP_STROKE_2 = new java.awt.BasicStroke(2f);
+    private java.awt.Font mpNametagFont; // lazily derived
 
     // MINIMAP
     public Minimap minimap;
 
+    // RENDER PIPELINE (extracted from GamePanel)
+    public RenderPipeline renderPipeline;
+
     // QUEST SYSTEM
     public QuestManager questManager;
+
+    // MAP MANAGEMENT (extracted from GamePanel)
+    public MapManager mapManager;
 
     // GLOBAL HIT-STOP: freezes all entities for impactful hits
     public int globalHitstopTimer = 0;
@@ -116,12 +152,7 @@ public class GamePanel extends JPanel implements Runnable{
     // DAMAGE NUMBERS
     public ObjectPool<entity.DamageNumber> damageNumberPool;
     public java.util.ArrayList<entity.DamageNumber> damageNumbers = new java.util.ArrayList<>();
-    // Map registry: id -> tmx path
-    public Map<String, String> mapRegistry = new HashMap<>();
-    // Track which map is currently active (matches a key in mapRegistry)
-    public String currentMapId = "harta";
-    Thread gameThread;
-    public boolean loadingGame = false;
+    public Thread gameThread;
 
     //ENTITY AND OBJECT
     public Player player = new Player(this,keyH);
@@ -130,26 +161,10 @@ public class GamePanel extends JPanel implements Runnable{
     public Entity monster[] = new Entity[20];
     public interactiveTile iTile[] = new interactiveTile[30]; // expanded for breakable pots
     public ArrayList<Entity> projectilesList = new ArrayList<>();
-    public ArrayList<Entity> particleList = new ArrayList<>();    
-    // MAP ENTITY STORAGE: Preserve entity states when switching between maps
-    private Map<String, Entity[]> savedObjects = new HashMap<>();
-    private Map<String, Entity[]> savedNPCs = new HashMap<>();
-    private Map<String, Entity[]> savedMonsters = new HashMap<>();
-    private Map<String, interactiveTile[]> savedITiles = new HashMap<>();    
+    public ArrayList<Entity> particleList = new ArrayList<>();
     // OPTIMIZATION: Object pools for reusable projectiles and particles
     public ObjectPool<Projectile> projectilePool;
     public ObjectPool<Particle> particlePool;
-    
-    // OPTIMIZATION: Pre-allocate entityList with estimated capacity to reduce resizing
-    ArrayList<Entity> entityList = new ArrayList<>(150);
-    int entityListIndex = 0; // Track insertion point for efficient reuse
-    
-    // OPTIMIZATION: Define Comparator once to avoid garbage collection lag
-    Comparator<Entity> renderSorter = (e1, e2) -> {
-        int feet1 = e1.worldY + e1.solidArea.y + e1.solidArea.height;
-        int feet2 = e2.worldY + e2.solidArea.y + e2.solidArea.height;
-        return Integer.compare(feet1, feet2);
-    };
 
     // GAME STATE — integer constants kept for backward compatibility
     // New code should use GameState enum where possible.
@@ -175,28 +190,11 @@ public class GamePanel extends JPanel implements Runnable{
     public boolean bootsUnlocked = false;
     public boolean deathSoundPlayed = false;
 
-    // TRANSITION
-    public String nextMapId;
-    public int nextCol;
-    public int nextRow;
-
-    // ENTRY POINT TRACKING: Remember where we came from when switching maps
-    // When entering a new map, these store the source map and trigger position (the tile we stepped on)
-    public String previousMapId = "harta";
-    public int previousTriggerCol = 24;   // tile column of the entry trigger
-    public int previousTriggerRow = 15;   // tile row of the entry trigger
-
-    // DOOR ENTRY TRACKING: Remember which door was used to enter the map
-    public int doorEntryCol = -1;         // door tile column (-1 = no door entry)
-    public int doorEntryRow = -1;         // door tile row (-1 = no door entry)
-
-    // MAP PROPERTIES (loaded from Tiled map-level <properties> block)
-    public String currentMapDisplayName = "";  // display name (set via 'mapName' property)
-    public int    defaultSpawnCol = -1;         // map default spawn column
-    public int    defaultSpawnRow = -1;         // map default spawn row
-    public java.awt.Color mapBackgroundColor = java.awt.Color.BLACK; // background clear color
-    /** Named spawn point to resolve after map loads. Set by doors/events before startTransition(). */
-    public String nextSpawnId = "";
+    // BACKWARD-COMPATIBLE DELEGATION: Map fields now live in MapManager.
+    // These accessors keep old code compiling while we migrate callers.
+    // Use gp.mapManager.fieldName directly in new code.
+    public Map<String, String> getMapRegistry() { return mapManager.mapRegistry; }
+    public String getCurrentMapId() { return mapManager.currentMapId; }
 
     public GamePanel() {
 
@@ -209,13 +207,19 @@ public class GamePanel extends JPanel implements Runnable{
 
     public void setupGame() {
 
-    // Register all maps once at startup
-    registerMap("harta", "/res/maps/harta.tmx");
-    registerMap("test", "/res/maps/test.tmx");
-    registerMap("Dungeon1", "/res/maps/Dungeon1.tmx");
+    // Validate critical assets
+    new AssetValidator().validate();
 
-    if (!loadingGame) {
-        currentMapId = "harta";
+    // Initialize map manager
+    mapManager = new MapManager(this);
+
+    // Register all maps once at startup
+    mapManager.registerMap("harta", "/res/maps/harta.tmx");
+    mapManager.registerMap("test", "/res/maps/test.tmx");
+    mapManager.registerMap("Dungeon1", "/res/maps/Dungeon1.tmx");
+
+    if (!mapManager.loadingGame) {
+        mapManager.currentMapId = "harta";
         aSetter.setObject();
         eManager.setup();
         aSetter.setInteractiveTile();
@@ -224,10 +228,14 @@ public class GamePanel extends JPanel implements Runnable{
     aSetter.setNPC();
     aSetter.setMonster();
 
-    if (!loadingGame) {
+    if (!mapManager.loadingGame) {
         aSetter.loadEntitiesFromTMX();
     }
     aSetter.loadEventsFromTMX();
+    // Apply the TMX-defined spawn point now that events are loaded
+    if (!mapManager.loadingGame) {
+        player.setDefaultPositions();
+    }
     mobSpawner = new MobSpawner(this);
     gameState = titleState;
 
@@ -283,8 +291,13 @@ public class GamePanel extends JPanel implements Runnable{
     questManager.addQuest("find_keys", "Find the Keys", "Collect 3 keys to open the gate", 3);
     questManager.addQuest("slay_monsters", "Monster Slayer", "Defeat 5 monsters", 5);
 
-    // OPTIMIZATION: Use TYPE_INT_ARGB_PRE for faster alpha blending in Java2D
-    tempScreen = new BufferedImage(screenWidth, screenHeight, BufferedImage.TYPE_INT_ARGB_PRE);
+    // RENDER PIPELINE
+    renderPipeline = new RenderPipeline(this);
+
+    // OPTIMIZATION: Hardware-compatible back buffer — stored in VRAM when possible
+    java.awt.GraphicsConfiguration gc = java.awt.GraphicsEnvironment
+        .getLocalGraphicsEnvironment().getDefaultScreenDevice().getDefaultConfiguration();
+    tempScreen = gc.createCompatibleImage(screenWidth, screenHeight, java.awt.Transparency.OPAQUE);
     g2 = (Graphics2D) tempScreen.getGraphics();
     
     // OPTIMIZATION: Set rendering hints once at setup instead of per-frame
@@ -300,202 +313,13 @@ public class GamePanel extends JPanel implements Runnable{
     }
     }
 
-    public void registerMap(String id, String tmxPath) {
-        mapRegistry.put(id, tmxPath);
-    }
+    // --- MAP MANAGEMENT DELEGATION (methods now in MapManager) ---
+    public void registerMap(String id, String tmxPath) { mapManager.registerMap(id, tmxPath); }
+    public void startTransition(String mapId, int spawnCol, int spawnRow) { mapManager.startTransition(mapId, spawnCol, spawnRow); }
+    public void changeMap() { mapManager.changeMap(); }
+    public void changeMap(String mapIdOrPath, int spawnCol, int spawnRow) { mapManager.changeMap(mapIdOrPath, spawnCol, spawnRow); }
+    public void resetGame(boolean restart) { mapManager.resetGame(restart); }
 
-    /**
-     * Begin a smooth fade-to-black → map load → fade-from-black transition.
-     * Call this from doors/events instead of changeMap() directly.
-     *
-     * @param mapId    registered map id or TMX path
-     * @param spawnCol tile column where the player appears on the new map
-     * @param spawnRow tile row where the player appears on the new map
-     */
-    public void startTransition(String mapId, int spawnCol, int spawnRow) {
-        nextMapId = mapId;
-        nextCol = spawnCol;
-        nextRow = spawnRow;
-        // Reset transition state so the fade always starts from fully transparent
-        ui.transitionAlpha = 0f;
-        ui.subState = 0;
-        gameState = transitionState;
-    }
-
-    /** Called by UI.drawTransition() at peak darkness — do NOT call directly. */
-    public void changeMap() {
-        changeMap(nextMapId, nextCol, nextRow);
-    }
-
-    public void changeMap(String mapIdOrPath, int spawnCol, int spawnRow) {
-        String path = mapRegistry.getOrDefault(mapIdOrPath, mapIdOrPath);
-
-        // Save the current map. The trigger position (entry point) is stored by EventHandler
-        // before transition is triggered, so it's already in eHandler.lastTriggerCol/Row
-        previousMapId = currentMapId;
-        previousTriggerCol = eHandler.lastTriggerCol;
-        previousTriggerRow = eHandler.lastTriggerRow;
-
-        // Update which map is now active
-        // If mapIdOrPath is a registered id, use it; otherwise derive from path
-        if (mapRegistry.containsKey(mapIdOrPath)) {
-            currentMapId = mapIdOrPath;
-        } else {
-            // Try to find the id from path, fallback to the raw string
-            currentMapId = mapIdOrPath;
-            for (Map.Entry<String, String> entry : mapRegistry.entrySet()) {
-                if (entry.getValue().equals(mapIdOrPath)) {
-                    currentMapId = entry.getKey();
-                    break;
-                }
-            }
-        }
-
-        // Load new map layers and collision layer
-        tileM.mapLayers.clear();
-        tileM.loadMapFromTMX(path);
-        tileM.loadCollisionLayer(path);
-
-        // Apply map-level properties from Tiled (music, weather, ambient light, etc.)
-        mapObjectLoader.loadMapProperties(path);
-
-        // Update collision cache used by CollisionChecker
-        cChecker.updateCollisionRectsCache();
-
-        // Rebake minimap for new map
-        if (minimap != null) minimap.bakeTerrainImage();
-
-        // --- Save current map's entities before switching ---
-        saveMapEntities(previousMapId);
-
-        // --- Clear ALL existing entities so nothing leaks from the previous map ---
-        for (int i = 0; i < obj.length; i++) obj[i] = null;
-        for (int i = 0; i < npc.length; i++) npc[i] = null;
-        for (int i = 0; i < monster.length; i++) monster[i] = null;
-        for (int i = 0; i < iTile.length; i++) iTile[i] = null;
-        projectilesList.clear();
-        particleList.clear();
-
-        // Reset event handler FULLY (rects + transitions) before registering new ones
-        eHandler.reset();
-
-        // Restore or create entities for the new map
-        if (savedObjects.containsKey(currentMapId)) {
-            // Returning to a previously visited map - restore saved entities
-            restoreMapEntities(currentMapId);
-        } else {
-            // First visit to this map - create fresh entities from TMX
-            aSetter.setObject();
-            aSetter.setInteractiveTile();
-            aSetter.setNPC();
-            aSetter.setMonster();
-            aSetter.loadEntitiesFromTMX();
-        }
-        
-        // Always register events (transitions, healing pools) from TMX
-        aSetter.loadEventsFromTMX();
-
-        // Resolve named spawn point AFTER events are loaded (SpawnPoint objects registered there)
-        if (nextSpawnId != null && !nextSpawnId.isEmpty()) {
-            int[] sp = eHandler.getNamedSpawnPoint(nextSpawnId);
-            if (sp != null) {
-                spawnCol = sp[0];
-                spawnRow = sp[1];
-                System.out.println("GamePanel: Resolved spawnId '" + nextSpawnId + "' -> (" + spawnCol + "," + spawnRow + ")");
-            } else {
-                System.out.println("GamePanel: SpawnId '" + nextSpawnId + "' not found on target map, using col/row fallback");
-            }
-            nextSpawnId = "";
-        }
-
-        // Place player at spawn position (centered on tile)
-        player.worldX = spawnCol * tileSize;
-        player.worldY = spawnRow * tileSize;
-
-        // Reset door entry tracking for the next transition
-        doorEntryCol = -1;
-        doorEntryRow = -1;
-
-        // NOTE: do NOT set gameState here — the transition fade-out in
-        // UI.drawTransition() will set playState once the screen fades back in.
-    }
-
-    private void saveMapEntities(String mapId) {
-        // Create copies of the entity arrays to preserve their state
-        Entity[] objCopy = new Entity[obj.length];
-        Entity[] npcCopy = new Entity[npc.length];
-        Entity[] monsterCopy = new Entity[monster.length];
-        interactiveTile[] iTileCopy = new interactiveTile[iTile.length];
-        
-        System.arraycopy(obj, 0, objCopy, 0, obj.length);
-        System.arraycopy(npc, 0, npcCopy, 0, npc.length);
-        System.arraycopy(monster, 0, monsterCopy, 0, monster.length);
-        System.arraycopy(iTile, 0, iTileCopy, 0, iTile.length);
-        
-        savedObjects.put(mapId, objCopy);
-        savedNPCs.put(mapId, npcCopy);
-        savedMonsters.put(mapId, monsterCopy);
-        savedITiles.put(mapId, iTileCopy);
-    }
-
-    private void restoreMapEntities(String mapId) {
-        // Restore the saved entity arrays for this map
-        Entity[] objCopy = savedObjects.get(mapId);
-        Entity[] npcCopy = savedNPCs.get(mapId);
-        Entity[] monsterCopy = savedMonsters.get(mapId);
-        interactiveTile[] iTileCopy = savedITiles.get(mapId);
-        
-        if (objCopy != null) System.arraycopy(objCopy, 0, obj, 0, obj.length);
-        if (npcCopy != null) System.arraycopy(npcCopy, 0, npc, 0, npc.length);
-        if (monsterCopy != null) System.arraycopy(monsterCopy, 0, monster, 0, monster.length);
-        if (iTileCopy != null) System.arraycopy(iTileCopy, 0, iTile, 0, iTile.length);
-    }
-
-    public void resetGame(boolean restart) {
-
-        deathSoundPlayed = false;
-
-        if ( restart ) {
-            // Full restart — reload the main map from scratch
-            currentMapId = "harta";
-            String path = mapRegistry.getOrDefault(currentMapId, "/res/maps/harta.tmx");
-            tileM.mapLayers.clear();
-            tileM.loadMapFromTMX(path);
-            tileM.loadCollisionLayer(path);
-            cChecker.updateCollisionRectsCache();
-
-            // Rebake minimap for new map
-            if (minimap != null) minimap.bakeTerrainImage();
-
-            // Clear all saved map states
-            savedObjects.clear();
-            savedNPCs.clear();
-            savedMonsters.clear();
-            savedITiles.clear();
-
-            for (int i = 0; i < obj.length; i++) obj[i] = null;
-            for (int i = 0; i < npc.length; i++) npc[i] = null;
-            for (int i = 0; i < monster.length; i++) monster[i] = null;
-            for (int i = 0; i < iTile.length; i++) iTile[i] = null;
-            projectilesList.clear();
-            particleList.clear();
-            eHandler.reset();
-
-            player.setDefaultValues();
-            aSetter.setObject();
-            aSetter.setInteractiveTile();
-        }
-
-        player.setDefaultPositions();
-        player.restoreLifeAndMana();
-        aSetter.setNPC();
-        aSetter.setMonster();
-
-        if (restart) {
-            aSetter.loadEntitiesFromTMX();
-        }
-        aSetter.loadEventsFromTMX();
-    }
     public void setFullScreen() {
 
         applyWindowMode(true);
@@ -647,21 +471,31 @@ public class GamePanel extends JPanel implements Runnable{
                 }
                 repaint();
                 frameCount++;
-                renderDelta = 0;
+                renderDelta -= 1;
+                if (renderDelta > 1) renderDelta = 1; // cap to prevent frame debt spiral
             }
 
             if(timer >= 1_000_000_000) {
                 currentFPS = frameCount;
+                if (currentFPS > maxFPS) maxFPS = currentFPS;
                 frameCount = 0;
                 timer = 0;
             }
 
-            // Reduce CPU usage: sleep instead of spin-waiting
-            try {
-                Thread.sleep(1);
-            } catch (InterruptedException e) {
-                Thread.currentThread().interrupt();
-                break;
+            // Smart sleep: only Thread.sleep when there's enough headroom,
+            // otherwise spin-wait to avoid Windows ~15 ms sleep granularity.
+            long now = System.nanoTime();
+            long nextFrame = lastTime + (long) drawInterval;
+            long remaining = nextFrame - now;
+            if (remaining > 2_000_000) { // >2 ms headroom → safe to sleep 1 ms
+                try {
+                    Thread.sleep(1);
+                } catch (InterruptedException e) {
+                    Thread.currentThread().interrupt();
+                    break;
+                }
+            } else if (remaining > 0) {
+                Thread.onSpinWait(); // CPU-friendly busy-wait hint
             }
 
         }
@@ -773,6 +607,7 @@ public class GamePanel extends JPanel implements Runnable{
             }
             eManager.update();
             mobSpawner.update();
+            eHandler.updateSpawnZones();
             // ANIMATED TILES: advance tile animation frames
             tileM.update();
 
@@ -782,12 +617,13 @@ public class GamePanel extends JPanel implements Runnable{
                 // Player warm glow
                 eManager.lightning.addLight(
                     player.worldX + tileSize / 2, player.worldY + tileSize / 2,
-                    tileSize * 4, LIGHT_PLAYER_GLOW, 0.25f);
+                    tileSize * 4, PLAYER_GLOW_COLOR, 0.25f);
                 // Torch objects: warm orange with subtle flicker
+                float flickerBase = System.nanoTime() * 0.000000003f;
                 for (int i = 0; i < obj.length; i++) {
                     if (obj[i] != null && obj[i].lightSource && obj[i].lightRadius > 0) {
-                        float flicker = 0.22f + 0.06f * (float) Math.sin(System.nanoTime() * 0.000000003 + i * 1.7);
-                        java.awt.Color lc = (obj[i].lightColor != null) ? obj[i].lightColor : new java.awt.Color(255, 170, 60);
+                        float flicker = 0.22f + 0.06f * MapShaderManager.fastSin(flickerBase + i * 1.7);
+                        java.awt.Color lc = (obj[i].lightColor != null) ? obj[i].lightColor : DEFAULT_TORCH_COLOR;
                         eManager.lightning.addLight(
                             obj[i].worldX + tileSize / 2, obj[i].worldY + tileSize / 2,
                             obj[i].lightRadius * tileSize, lc, flicker);
@@ -892,378 +728,48 @@ public class GamePanel extends JPanel implements Runnable{
     g2.setBackground(Color.BLACK);
     g2.clearRect(0, 0, screenWidth, screenHeight);
 
-    drawCurrentState();
+    renderPipeline.drawCurrentState(g2);
 
     // DEBUG TEXT
     if(keyH.showDebugText) {
-        g2.setFont(new Font("Arial",Font.PLAIN, 20));
-        g2.setColor(Color.WHITE);
-        int x = 10;
+        final int x = 10;
         int y = 400;
-        int lineHeigh = 20;
+        final int lineHeight = 20;
+        final int padX = 8, padY = 6;
+        final int lines = 9 + (tileParticleEmitter != null ? 1 : 0);
+        final int boxW = 230, boxH = lines * lineHeight + padY * 2;
 
-        g2.drawString("FPS: " + currentFPS, x, y); y += lineHeigh;
-        g2.drawString("Map: " + currentMapId, x, y); y += lineHeigh;
-        g2.drawString("WorldX: " + player.worldX, x, y); y += lineHeigh;
-        g2.drawString("WorldY: " + player.worldY, x, y); y += lineHeigh;
-        g2.drawString("Col: " + (player.worldX + player.solidArea.x) / tileSize, x, y); y += lineHeigh;
-        g2.drawString("Row: " + (player.worldY + player.solidArea.y) / tileSize, x, y); y += lineHeigh;
+        // Semi-transparent background panel
+        g2.setColor(DEBUG_BG_COLOR);
+        g2.fillRoundRect(x - padX, y - lineHeight - padY, boxW, boxH, 8, 8);
+
+        g2.setFont(DEBUG_FONT);
+        final int safeFPS = currentFPS > 0 ? currentFPS : 1;
+        final String frameTimeStr = String.format("%.2f", 1000.0 / safeFPS);
+        final String minFrameTimeStr = maxFPS > 0 ? String.format("%.2f", 1000.0 / maxFPS) : "--";
+
+        // FPS line — colour-coded: green >= target, yellow >= half, red below
+        if (currentFPS >= FPS)                   g2.setColor(DEBUG_FPS_GREEN);
+        else if (currentFPS >= FPS / 2)          g2.setColor(DEBUG_FPS_YELLOW);
+        else                                     g2.setColor(DEBUG_FPS_RED);
+        g2.drawString("FPS: " + currentFPS + " / " + FPS, x, y); y += lineHeight;
+
+        g2.setColor(DEBUG_INFO_BLUE);
+        g2.drawString("Max FPS: " + maxFPS, x, y); y += lineHeight;
+        g2.drawString("Frame time: " + frameTimeStr + " ms", x, y); y += lineHeight;
+        g2.drawString("Best frame: " + minFrameTimeStr + " ms", x, y); y += lineHeight;
+
+        g2.setColor(Color.WHITE);
+        g2.drawString("Map: " + mapManager.currentMapId, x, y); y += lineHeight;
+        g2.drawString("WorldX: " + player.worldX, x, y); y += lineHeight;
+        g2.drawString("WorldY: " + player.worldY, x, y); y += lineHeight;
+        g2.drawString("Col: " + (player.worldX + player.solidArea.x) / tileSize, x, y); y += lineHeight;
+        g2.drawString("Row: " + (player.worldY + player.solidArea.y) / tileSize, x, y); y += lineHeight;
         if (tileParticleEmitter != null) {
-            g2.drawString("TileParticles: " + tileParticleEmitter.getActiveCount(), x, y); y += lineHeigh;
+            g2.drawString("TileParticles: " + tileParticleEmitter.getActiveCount(), x, y); y += lineHeight;
         }
     }
-}
-
-    private void drawCurrentState() {
-        switch (gameState) {
-            case titleState:
-                ui.draw(g2);
-                break;
-            case transitionState:
-                // Draw the world underneath, then UI draws the fade overlay on top
-                drawWorldState();
-                break;
-            case playState:
-            case pauseState:
-            case dialogueState:
-            case characterState:
-            case optionsState:
-            case gameOverState:
-            case cutsceneState:
-            case skillTreeState:
-            default:
-                drawWorldState();
-                break;
-        }
     }
-
-    private void drawWorldState() {
-
-        // OPTIMIZATION: Ensure anti-aliasing is OFF during world rendering (tiles, entities)
-        // AA is expensive for fillRect/drawImage and not needed for pixel art
-        g2.setRenderingHint(java.awt.RenderingHints.KEY_ANTIALIASING, java.awt.RenderingHints.VALUE_ANTIALIAS_OFF);
-        g2.setRenderingHint(java.awt.RenderingHints.KEY_TEXT_ANTIALIASING, java.awt.RenderingHints.VALUE_TEXT_ANTIALIAS_OFF);
-
-        // SMOOTH CAMERA + SCREEN SHAKE: offset the entire world
-        int camOffX = Math.round(cameraX - (player.worldX - player.screenX));
-        int camOffY = Math.round(cameraY - (player.worldY - player.screenY));
-        int shakeX = screenShake.getOffsetX();
-        int shakeY = screenShake.getOffsetY();
-        int totalOffX = camOffX + shakeX;
-        int totalOffY = camOffY + shakeY;
-        if (totalOffX != 0 || totalOffY != 0) {
-            g2.translate(totalOffX, totalOffY);
-        }
-
-        tileM.prepareVisibleTiles();
-        tileM.drawBackground(g2);
-
-        collectRenderableEntities();
-
-        // SORT (only sort the active portion of the list)
-        Collections.sort(entityList.subList(0, entityListIndex), renderSorter);
-
-        // TILE PARTICLES: prepare Y-sorted particle indices for interleaved drawing
-        int tpCount = 0;
-        if (tileParticleEmitter != null) {
-            tpCount = tileParticleEmitter.prepareSortedIndices();
-        }
-        int tpIdx = 0;
-        int depthTileCount = tileM.getDepthTileCount();
-        int depthTileIdx = 0;
-
-        // DRAW ENTITIES + TILE PARTICLES interleaved by Y (depth-correct)
-        // Compare against entity feet (bottom of solidArea) so the crossover fires when
-        // the player visually steps past a structure's base row, not when their sprite top does.
-        java.awt.Composite savedComp = g2.getComposite();
-        for (int i = 0; i < entityListIndex; i++) {
-            entity.Entity e = entityList.get(i);
-            int entityY = e.worldY + e.solidArea.y + e.solidArea.height;
-
-            while (true) {
-                float nextDepthTileY = depthTileIdx < depthTileCount ? tileM.getDepthTileSortY(depthTileIdx) : Float.MAX_VALUE;
-                float nextParticleY = tpIdx < tpCount ? tileParticleEmitter.getSortY(tpIdx) : Float.MAX_VALUE;
-                float nextY = Math.min(nextDepthTileY, nextParticleY);
-
-                if (nextY > entityY) {
-                    break;
-                }
-
-                if (nextDepthTileY <= nextParticleY) {
-                    g2.setComposite(savedComp);
-                    tileM.drawDepthTile(g2, depthTileIdx);
-                    depthTileIdx++;
-                } else {
-                    tileParticleEmitter.drawSingle(g2, tpIdx);
-                    tpIdx++;
-                }
-            }
-
-            // Restore composite in case a particle changed it
-            g2.setComposite(savedComp);
-            e.draw(g2);
-        }
-
-        while (depthTileIdx < depthTileCount || tpIdx < tpCount) {
-            float nextDepthTileY = depthTileIdx < depthTileCount ? tileM.getDepthTileSortY(depthTileIdx) : Float.MAX_VALUE;
-            float nextParticleY = tpIdx < tpCount ? tileParticleEmitter.getSortY(tpIdx) : Float.MAX_VALUE;
-
-            if (nextDepthTileY <= nextParticleY) {
-                g2.setComposite(savedComp);
-                tileM.drawDepthTile(g2, depthTileIdx);
-                depthTileIdx++;
-            } else {
-                tileParticleEmitter.drawSingle(g2, tpIdx);
-                tpIdx++;
-            }
-        }
-        g2.setComposite(savedComp);
-
-        // MULTIPLAYER: draw remote players
-        if (multiplayerMode && mpClient != null && mpClient.isConnected()) {
-            drawRemotePlayers(g2);
-        }
-
-        // FOREGROUND TILES — drawn on top of all entities and depth-sorted tiles (e.g. building roofs/upper walls)
-        tileM.drawForeground(g2);
-
-        clearRenderableEntities();
-
-        // DAMAGE NUMBERS (draw above entities, below UI) — skip off-screen
-        for (int i = 0; i < damageNumbers.size(); i++) {
-            entity.DamageNumber dn = damageNumbers.get(i);
-            if (dn.alive && isEntityInViewport(dn, tileSize)) dn.draw(g2);
-        }
-
-        // CUTSCENE
-        csManager.draw(g2);
-
-        // DEBUG HITBOXES — drawn in world-space (camera transform still active)
-        if (HitBoxes) {
-            drawHitboxDebug(g2);
-        }
-
-        // UNDO CAMERA + SHAKE before drawing screen-space effects and UI
-        if (totalOffX != 0 || totalOffY != 0) {
-            g2.translate(-totalOffX, -totalOffY);
-        }
-
-        // ENVIRONMENT — drawn in screen-space after camera undo so the overlay is always
-        // anchored at (0,0) and covers the full screen regardless of camera movement or dash
-        eManager.draw(g2);
-
-        // SHADER: screen-space effects (drawn after camera undo so they stay fixed on screen)
-        if (mapShader != null) {
-            mapShader.drawAmbientParticles(g2);
-            mapShader.drawWeather(g2);
-            mapShader.drawColorGrading(g2);
-            mapShader.drawVignette(g2);
-        }
-
-        // UI
-        ui.draw(g2);
-
-        // MINIMAP (drawn on top of UI, under debug)
-        if (minimap != null && gameState == playState) {
-            minimap.draw(g2);
-        }
-
-        // QUEST TRACKER (below minimap)
-        if (questManager != null && gameState == playState) {
-            questManager.drawTracker(g2);
-        }
-
-        // QUEST LOG OVERLAY
-        if (questManager != null && questManager.isLogOpen()) {
-            questManager.drawLog(g2);
-        }
-
-        // WORLD MAP OVERLAY (large map on top of world/UI)
-        if (minimap != null) {
-            minimap.drawWorldMap(g2);
-        }
-
-        if (HitBoxes) {
-            // Hitboxes are now drawn in drawHitboxDebug() inside camera transform
-        }
-    }
-
-    private void drawHitboxDebug(Graphics2D g2) {
-        g2.setColor(new Color(255, 0, 0, 128)); // red semi-transparent
-
-        // PLAYER
-        Rectangle r = player.solidArea;
-        int px = player.screenX + r.x;
-        int py = player.screenY + r.y;
-        g2.fillRect(px, py, r.width, r.height);
-        if (player.knockBack) {
-            g2.setColor(new Color(255, 0, 255, 128));
-            g2.fillRect(px, py, r.width, r.height);
-            g2.setColor(Color.WHITE);
-            g2.setFont(new Font("Arial", Font.PLAIN, 12));
-            g2.drawString(String.valueOf(player.knockBackPower), px, py - 4);
-            int cx = px + r.width/2;
-            int cy = py + r.height/2;
-            int vx = player.knockBackVectorX * 2;
-            int vy = player.knockBackVectorY * 2;
-            g2.drawLine(cx, cy, cx + vx, cy + vy);
-            g2.fillOval(cx + vx - 2, cy + vy - 2, 4, 4);
-            g2.setColor(new Color(255, 0, 0, 128));
-        }
-
-        // PLAYER ATTACK HITBOX
-        if (player.attacking) {
-            g2.setColor(new Color(255, 100, 0, 128));
-            int ts = tileSize;
-            int attackWorldX = player.worldX;
-            int attackWorldY = player.worldY;
-            int aw = 0, ah = 0;
-            switch(player.direction) {
-                case Entity.DIR_UP:    aw = ts - 16; ah = ts + 16; attackWorldX += 8; attackWorldY -= ts + 16; break;
-                case Entity.DIR_DOWN:  aw = ts - 16; ah = ts + 16; attackWorldX += 8; attackWorldY += ts; break;
-                case Entity.DIR_LEFT:  aw = ts + 16; ah = ts - 16; attackWorldX -= ts + 16; attackWorldY += 8; break;
-                case Entity.DIR_RIGHT: aw = ts + 16; ah = ts - 16; attackWorldX += ts; attackWorldY += 8; break;
-            }
-            int screenX = attackWorldX - player.worldX + player.screenX;
-            int screenY = attackWorldY - player.worldY + player.screenY;
-            g2.fillRect(screenX, screenY, aw, ah);
-        }
-
-        // NPC
-        g2.setColor(new Color(255, 0, 0, 128));
-        for(Entity n : npc) {
-            if(n != null) {
-                r = n.solidArea;
-                int nx = n.worldX - player.worldX + player.screenX + r.x;
-                int ny = n.worldY - player.worldY + player.screenY + r.y;
-                g2.fillRect(nx, ny, r.width, r.height);
-            }
-        }
-
-        // MONSTERS
-        g2.setColor(new Color(255, 255, 0, 128));
-        for(Entity m : monster) {
-            if(m != null) {
-                r = m.solidArea;
-                int mx = m.worldX - player.worldX + player.screenX + r.x;
-                int my = m.worldY - player.worldY + player.screenY + r.y;
-                g2.fillRect(mx, my, r.width, r.height);
-                if (m.knockBack) {
-                    g2.setColor(new Color(255, 0, 255, 128));
-                    g2.fillRect(mx, my, r.width, r.height);
-                    g2.setColor(Color.WHITE);
-                    g2.setFont(new Font("Arial", Font.PLAIN, 12));
-                    g2.drawString(String.valueOf(m.knockBackPower), mx, my - 4);
-                    int cx = mx + r.width/2;
-                    int cy = my + r.height/2;
-                    int vx = m.knockBackVectorX * 2;
-                    int vy = m.knockBackVectorY * 2;
-                    g2.drawLine(cx, cy, cx + vx, cy + vy);
-                    g2.fillOval(cx + vx - 2, cy + vy - 2, 4, 4);
-                    g2.setColor(new Color(255, 255, 0, 128));
-                }
-            }
-        }
-
-        // OBJECTS
-        g2.setColor(new Color(255, 0, 0, 128));
-        for(Entity o : obj) {
-            if(o != null) {
-                r = o.solidArea;
-                int ox = o.worldX - player.worldX + player.screenX + r.x;
-                int oy = o.worldY - player.worldY + player.screenY + r.y;
-                g2.fillRect(ox, oy, r.width, r.height);
-            }
-        }
-
-        // INTERACTIVE TILES
-        g2.setColor(new Color(0, 255, 255, 128));
-        for(int i = 0; i < iTile.length; i++) {
-            if(iTile[i] != null) {
-                r = iTile[i].solidArea;
-                int ix = iTile[i].worldX - player.worldX + player.screenX + r.x;
-                int iy = iTile[i].worldY - player.worldY + player.screenY + r.y;
-                g2.fillRect(ix, iy, r.width, r.height);
-            }
-        }
-
-        // COLLISION SHAPES (rectangles, rotated rects, polygons, ellipses)
-        if(tileM.collisionShapes != null && !tileM.collisionShapes.isEmpty()) {
-            g2.setColor(new Color(0, 0, 255, 128));
-            AffineTransform oldTransform = g2.getTransform();
-            g2.translate(-player.worldX + player.screenX, -player.worldY + player.screenY);
-            for(Shape shape : tileM.collisionShapes) {
-                g2.fill(shape);
-            }
-            g2.setTransform(oldTransform);
-        }
-    }
-
-    private void collectRenderableEntities() {
-        // OPTIMIZATION: Reuse entityList by tracking index instead of add/clear
-        entityListIndex = 0;
-
-        addToRenderList(player);
-
-        for (int i = 0; i < npc.length; i++) {
-            if (npc[i] != null) {
-                addToRenderList(npc[i]);
-            }
-        }
-
-        for (int i = 0; i < obj.length; i++) {
-            if (obj[i] != null) {
-                addToRenderList(obj[i]);
-            }
-        }
-
-        for (int i = 0; i < monster.length; i++) {
-            if (monster[i] != null) {
-                addToRenderList(monster[i]);
-            }
-        }
-
-        int projSize = projectilesList.size();
-        for (int i = 0; i < projSize; i++) {
-            Entity proj = projectilesList.get(i);
-            if (proj != null) {
-                addToRenderList(proj);
-            }
-        }
-
-        int partSize = particleList.size();
-        for (int i = 0; i < partSize; i++) {
-            Entity particle = particleList.get(i);
-            if (particle != null) {
-                addToRenderList(particle);
-            }
-        }
-
-        for (int i = 0; i < iTile.length; i++) {
-            if (iTile[i] != null) {
-                addToRenderList(iTile[i]);
-            }
-        }
-    }
-
-    private void addToRenderList(Entity entity) {
-        // OPTIMIZATION: Skip entities outside viewport (no need to sort/draw them)
-        if (!isEntityInViewport(entity, tileSize)) return;
-        if (entityListIndex < entityList.size()) {
-            entityList.set(entityListIndex, entity);
-        } else {
-            entityList.add(entity);
-        }
-        entityListIndex++;
-    }
-
-    private void clearRenderableEntities() {
-        // Clear only the used portion of the list for next frame
-        for (int i = 0; i < entityListIndex; i++) {
-            entityList.set(i, null);
-        }
-    }
-
 
     public void drawToScreen() {
         repaint();
@@ -1310,29 +816,30 @@ public class GamePanel extends JPanel implements Runnable{
                 g2.drawImage(sprite, screenPosX, screenPosY, tileSize, tileSize, null);
                 // Draw a subtle colored overlay
                 g2.setComposite(java.awt.AlphaComposite.getInstance(java.awt.AlphaComposite.SRC_OVER, 0.15f));
-                g2.setColor(new Color(100, 180, 255));
+                g2.setColor(MP_TINT_COLOR);
                 g2.fillRect(screenPosX, screenPosY, tileSize, tileSize);
                 g2.setComposite(old);
             } else {
                 // Fallback: colored rectangle
-                g2.setColor(new Color(80, 160, 240, 200));
+                g2.setColor(MP_FILL_COLOR);
                 g2.fillRoundRect(screenPosX + 8, screenPosY + 8, tileSize - 16, tileSize - 16, 8, 8);
-                g2.setColor(new Color(50, 120, 200));
-                g2.setStroke(new java.awt.BasicStroke(2f));
+                g2.setColor(MP_BORDER_CLR);
+                g2.setStroke(MP_STROKE_2);
                 g2.drawRoundRect(screenPosX + 8, screenPosY + 8, tileSize - 16, tileSize - 16, 8, 8);
             }
 
             // Nametag above the sprite
-            g2.setFont(g2.getFont().deriveFont(Font.BOLD, 12f));
+            if (mpNametagFont == null) mpNametagFont = g2.getFont().deriveFont(Font.BOLD, 12f);
+            g2.setFont(mpNametagFont);
             java.awt.FontMetrics fm = g2.getFontMetrics();
             int nameW = fm.stringWidth(rp.name);
             int nameX = screenPosX + tileSize / 2 - nameW / 2;
             int nameY = screenPosY - 6;
 
             // Name shadow
-            g2.setColor(new Color(0, 0, 0, 160));
+            g2.setColor(MP_NAME_SHADOW);
             g2.drawString(rp.name, nameX + 1, nameY + 1);
-            g2.setColor(new Color(180, 220, 255));
+            g2.setColor(MP_NAME_COLOR);
             g2.drawString(rp.name, nameX, nameY);
 
             // HP bar below nametag
@@ -1341,10 +848,10 @@ public class GamePanel extends JPanel implements Runnable{
                 int barH = 4;
                 int barX = screenPosX + tileSize / 2 - barW / 2;
                 int barY = screenPosY - 12;
-                g2.setColor(new Color(40, 40, 40, 180));
+                g2.setColor(MP_BAR_BG);
                 g2.fillRoundRect(barX, barY, barW, barH, 3, 3);
                 float ratio = (float) rp.life / rp.maxLife;
-                g2.setColor(ratio > 0.3f ? new Color(60, 200, 80) : new Color(220, 60, 60));
+                g2.setColor(ratio > 0.3f ? MP_BAR_GREEN : MP_BAR_RED);
                 g2.fillRoundRect(barX, barY, (int) (barW * ratio), barH, 3, 3);
             }
         }

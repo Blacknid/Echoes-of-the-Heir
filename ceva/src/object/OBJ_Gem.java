@@ -1,8 +1,8 @@
 package object;
 
+import audio.SFX;
 import entity.Entity;
 import main.GamePanel;
-import main.SFX;
 
 public class OBJ_Gem extends Entity {
 

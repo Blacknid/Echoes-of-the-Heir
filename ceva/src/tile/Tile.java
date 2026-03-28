@@ -13,4 +13,11 @@ public class Tile {
     public int sortYOffset = 0;
     public boolean foreground = false;
     public boolean background = false;
+    /**
+     * Per-tile depth-sort override.
+     * Set <property name="depthSort" type="bool" value="true"/> on the tile in Tiled
+     * to make ONLY this tile (e.g. a campfire animation) depth-sort against entities,
+     * without forcing the entire tileset into depth-sort mode.
+     */
+    public boolean depthSort = false;
 }

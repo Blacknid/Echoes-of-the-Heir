@@ -24,8 +24,13 @@ public class EnvironmentManager {
      */
     public float pinnedFilterAlpha = -1f;
     
+<<<<<<< HEAD
     public final int dayDuration = 2700;      // 45 sec phase → full cycle (day+dusk+night+dawn) = 7200 frames = 2 min
     public final int transitionDuration = 900; // 15 sec dusk/dawn transition
+=======
+    public final int dayDuration = 10800;      // 3 minutes, time * 60 (FPS) = total frames for day/night cycle
+    public final int transitionDuration = 3600; // 2 minute transition (3600 frames at 60 FPS)
+>>>>>>> 64e48ffe7ab7410d3e10f2b7e9112387fcf9d11b
 
     // ADD THIS LINE HERE:
     // This calculates exactly how much to fade per frame
@@ -41,6 +46,8 @@ public class EnvironmentManager {
     private int weatherTarget = WEATHER_CLEAR; // For smooth transitions
     public float weatherIntensity = 1f;        // 0→1 smooth fade
     private static final float WEATHER_FADE_SPEED = 0.008f; // ~2 sec to full
+    /** When >= 0 the weather is pinned by Tiled and the auto-cycle is suppressed. */
+    public int pinnedWeather = -1;
 
     // Auto-weather cycle
     private int weatherTimer = 0;
@@ -111,19 +118,21 @@ public class EnvironmentManager {
             }
         }
 
-        // Auto-weather cycle
-        weatherTimer++;
-        if (weatherTimer >= nextWeatherChange) {
-            weatherTimer = 0;
-            nextWeatherChange = WEATHER_CYCLE_MIN + (int)(Math.random() * (WEATHER_CYCLE_MAX - WEATHER_CYCLE_MIN));
-            if (weatherTarget == WEATHER_CLEAR) {
-                double roll = Math.random();
-                if (roll < 0.45) setWeather(WEATHER_RAIN);
-                else if (roll < 0.65) setWeather(WEATHER_STORM);
-                else if (roll < 0.85) setWeather(WEATHER_SNOW);
-                // 15% chance stays clear
-            } else {
-                setWeather(WEATHER_CLEAR);
+        // Auto-weather cycle — suppressed when map has a pinned weather from Tiled
+        if (pinnedWeather < 0) {
+            weatherTimer++;
+            if (weatherTimer >= nextWeatherChange) {
+                weatherTimer = 0;
+                nextWeatherChange = WEATHER_CYCLE_MIN + (int)(Math.random() * (WEATHER_CYCLE_MAX - WEATHER_CYCLE_MIN));
+                if (weatherTarget == WEATHER_CLEAR) {
+                    double roll = Math.random();
+                    if (roll < 0.45) setWeather(WEATHER_RAIN);
+                    else if (roll < 0.65) setWeather(WEATHER_STORM);
+                    else if (roll < 0.85) setWeather(WEATHER_SNOW);
+                    // 15% chance stays clear
+                } else {
+                    setWeather(WEATHER_CLEAR);
+                }
             }
         }
         } // end pinnedFilterAlpha else block
@@ -144,10 +153,10 @@ public class EnvironmentManager {
      */
     public void setWeatherByName(String name) {
         switch (name.trim().toUpperCase()) {
-            case "RAIN"  -> setWeather(WEATHER_RAIN);
-            case "STORM" -> setWeather(WEATHER_STORM);
-            case "SNOW"  -> setWeather(WEATHER_SNOW);
-            default      -> setWeather(WEATHER_CLEAR);
+            case "RAIN"  -> { pinnedWeather = WEATHER_RAIN;  setWeather(WEATHER_RAIN); }
+            case "STORM" -> { pinnedWeather = WEATHER_STORM; setWeather(WEATHER_STORM); }
+            case "SNOW"  -> { pinnedWeather = WEATHER_SNOW;  setWeather(WEATHER_SNOW); }
+            default      -> { pinnedWeather = WEATHER_CLEAR; setWeather(WEATHER_CLEAR); }
         }
     }
 

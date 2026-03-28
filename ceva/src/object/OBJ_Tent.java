@@ -1,9 +1,10 @@
 package object;
 
-import entity.Entity;
 import java.awt.Color;
+
+import audio.SFX;
+import entity.Entity;
 import main.GamePanel;
-import main.SFX;
 
 public class OBJ_Tent extends Entity {
 

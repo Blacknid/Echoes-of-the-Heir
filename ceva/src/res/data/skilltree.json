@@ -1,0 +1,16 @@
+[
+  { "id": "VITALITY_CORE",  "name": "Vitality Core",  "description": "+2 max HP, full heal",           "cost": 1, "col": 0, "row": 0, "requires": null },
+  { "id": "BLADE_MASTERY",  "name": "Blade Mastery",  "description": "+15% melee damage",              "cost": 1, "col": 1, "row": 0, "requires": "VITALITY_CORE" },
+  { "id": "IRON_WILL",      "name": "Iron Will",      "description": "Take 15% less damage",           "cost": 2, "col": 2, "row": 0, "requires": "BLADE_MASTERY" },
+  { "id": "VOID_SNARE",     "name": "Void Snare",     "description": "Pull nearby enemies toward you", "cost": 2, "col": 3, "row": 0, "requires": "IRON_WILL" },
+
+  { "id": "WINDSTEP",       "name": "Windstep",       "description": "Unlock Dodge Roll",              "cost": 1, "col": 0, "row": 1, "requires": null },
+  { "id": "PHASE_TUNING",   "name": "Phase Tuning",   "description": "Blink cooldown reduced",         "cost": 1, "col": 1, "row": 1, "requires": "WINDSTEP" },
+  { "id": "OVERDRIVE",      "name": "Overdrive",      "description": "Buff: speed and melee damage",   "cost": 2, "col": 2, "row": 1, "requires": "PHASE_TUNING" },
+  { "id": "QUICK_RECOVERY", "name": "Quick Recovery",  "description": "Halve dodge cooldown, +1 speed","cost": 2, "col": 3, "row": 1, "requires": "OVERDRIVE" },
+
+  { "id": "AETHER_RESERVE", "name": "Aether Reserve", "description": "+2 max mana, full mana",         "cost": 1, "col": 0, "row": 2, "requires": null },
+  { "id": "SHOCKWAVE",      "name": "Shockwave",      "description": "Unleash a melee burst around you","cost": 1, "col": 1, "row": 2, "requires": "AETHER_RESERVE" },
+  { "id": "FROST_NOVA",     "name": "Frost Nova",     "description": "Freeze nearby enemies briefly",  "cost": 2, "col": 2, "row": 2, "requires": "SHOCKWAVE" },
+  { "id": "ARCANE_MASTERY", "name": "Arcane Mastery",  "description": "+3 max mana, full mana restore", "cost": 2, "col": 3, "row": 2, "requires": "FROST_NOVA" }
+]

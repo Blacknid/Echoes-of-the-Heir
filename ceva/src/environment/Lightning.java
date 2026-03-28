@@ -10,6 +10,7 @@ import java.awt.image.BufferedImage;
 import java.awt.image.DataBufferInt;
 import java.util.Arrays;
 import java.util.HashMap;
+
 import main.GamePanel;
 
 public class Lightning {
@@ -45,6 +46,20 @@ public class Lightning {
 
     // Gradient image cache keyed by (r << 48 | g << 40 | b << 32 | radiusPx)
     private final HashMap<Long, BufferedImage> gradientCache = new HashMap<>();
+
+    // OPTIMIZATION: AlphaComposite cache — avoids per-light allocation each frame
+    private static final int ALPHA_CACHE_SIZE = 101; // 0..100 → alpha 0.00..1.00
+    private static final AlphaComposite[] alphaCache = new AlphaComposite[ALPHA_CACHE_SIZE];
+    static {
+        for (int i = 0; i < ALPHA_CACHE_SIZE; i++) {
+            alphaCache[i] = AlphaComposite.getInstance(AlphaComposite.SRC_OVER, i / 100f);
+        }
+    }
+    private static AlphaComposite cachedAlpha(float alpha) {
+        int idx = Math.round(alpha * 100f);
+        if (idx < 0) idx = 0; else if (idx >= ALPHA_CACHE_SIZE) idx = ALPHA_CACHE_SIZE - 1;
+        return alphaCache[idx];
+    }
 
     /** Allocate (or re-allocate on resize) the darkness overlay image. */
     private void ensureOverlay(int w, int h) {
@@ -223,7 +238,7 @@ public class Lightning {
                 float alpha = lightIntensity[i] * currentMaxDarkness;
                 if (alpha > 1f) alpha = 1f;
                 if (alpha < 0.01f) continue;
-                g2.setComposite(AlphaComposite.getInstance(AlphaComposite.SRC_OVER, alpha));
+                g2.setComposite(cachedAlpha(alpha));
                 g2.drawImage(grad, lx - rad, ly - rad, null);
             }
             g2.setComposite(saved);

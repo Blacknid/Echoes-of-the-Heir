@@ -1,10 +1,11 @@
 package ai;
 
-import entity.Entity;
 import java.awt.Rectangle;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.PriorityQueue;
+
+import entity.Entity;
 import main.GamePanel;
 
 public class PathFinder {
@@ -110,12 +111,9 @@ public class PathFinder {
                 hitboxHeight
         );
 
-        // Check collision layer rectangles
-        ArrayList<Rectangle> rects = gp.tileM.collisionBounds;
-        for (int i = 0, size = rects.size(); i < size; i++) {
-            if (futureHitbox.intersects(rects.get(i))) {
-                return true;
-            }
+        // Check collision shapes via spatial grid (O(k) instead of O(n))
+        if (gp.cChecker.rectHitsCollision(futureHitbox)) {
+            return true;
         }
 
         // Check player as obstacle ONLY if not chasing the player

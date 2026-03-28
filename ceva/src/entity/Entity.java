@@ -9,9 +9,9 @@ import java.io.IOException;
 
 import javax.imageio.ImageIO;
 
+import audio.SFX;
 import main.GamePanel;
-import main.SFX;
-import main.UtilityTool;
+import util.UtilityTool;
 
 public class Entity {
 
@@ -21,7 +21,11 @@ public class Entity {
     int pathUpdateCounter = 0;
     int pathUpdateInterval = 10;
 
-    
+    // PER-ENTITY PATH CACHE — recalculate only when the goal tile changes
+    private final java.util.ArrayList<int[]> cachedWaypoints = new java.util.ArrayList<>();
+    private int waypointIdx      = 0;
+    private int pathCacheGoalCol = -1;
+    private int pathCacheGoalRow = -1;
 
     // DIRECTION CONSTANTS
     public static final int DIR_DOWN  = 0;
@@ -151,18 +155,18 @@ public class Entity {
 
     // TYPE CONSTANTS
     public int type;
-    public final int type_player = 0;
-    public final int type_npc = 1;
-    public final int type_monster = 2;
-    public final int type_sword = 3;
-    public final int type_book = 4;
-    public final int type_shield = 5;
-    public final int type_consumable = 6;
-    public final int type_pickupOnly = 7;
-    public final int type_obstacle = 8;
-    public final int type_buffs = 9;
-    public final int type_ending = 10;
-    public final int type_utility = 11;
+    public static final int type_player = 0;
+    public static final int type_npc = 1;
+    public static final int type_monster = 2;
+    public static final int type_sword = 3;
+    public static final int type_book = 4;
+    public static final int type_shield = 5;
+    public static final int type_consumable = 6;
+    public static final int type_pickupOnly = 7;
+    public static final int type_obstacle = 8;
+    public static final int type_buffs = 9;
+    public static final int type_ending = 10;
+    public static final int type_utility = 11;
 
 
 
@@ -194,6 +198,9 @@ public class Entity {
     public boolean invisible = false;   // set from Tiled 'invisible' property (no draw)
     public int aggroRange = 160;        // aggro distance in pixels (default ~2.5 tiles)
     public int wanderRadius = 0;        // max wander pixel offset from spawn (0 = free)
+    public boolean staticNPC = false;   // NPC never wanders or follows paths — stays in place
+    public String onSpeakQuestId = null;   // quest id to progress when player talks to this NPC
+    public int    onSpeakQuestAmount = 1;  // how much to add to that quest on each speak
 
 
 
@@ -224,6 +231,26 @@ public class Entity {
     public int getCenterY() { return worldY + solidArea.y + solidArea.height / 2; }    
     public int getTileCol() { return getCenterX() / gp.tileSize; }    
     public int getTileRow() { return getCenterY() / gp.tileSize; } 
+
+    // --- Combat methods ---
+    public int getMaxLife() { return maxLife; }
+    public int getLife() { return life; }
+    public void setLife(int life) { this.life = life; }
+    public int getAttack() { return attack; }
+    public int getDefense() { return defense; }
+    public boolean isInvincible() { return invincible; }
+    public boolean isDying() { return dying; }
+
+    // --- Animation methods ---
+    public BufferedImage getWalkFrame(int direction, int frameIndex) { return getWalkFrameImage(direction, frameIndex); }
+    public int getSpriteNum() { return spriteNum; }
+    public int getDirection() { return direction; }
+
+    // --- Pathfinding methods ---
+    public boolean isOnPath() { return onPath; }
+    public void setOnPath(boolean onPath) { this.onPath = onPath; }
+    public int getSpeed() { return speed; }
+    public void setSpeed(int speed) { this.speed = speed; }
     
     public void resetCounter() {
         spriteCounter = 0;
@@ -252,6 +279,10 @@ public class Entity {
         gp.gameState = gp.dialogueState;
         gp.ui.npc = entity;
         dialogueSet = setNum;
+        // Auto-progress a quest when the player starts talking to this NPC
+        if (entity.onSpeakQuestId != null && gp.questManager != null) {
+            gp.questManager.progress(entity.onSpeakQuestId, entity.onSpeakQuestAmount);
+        }
     }
     public void checkCollision() {
         
@@ -358,7 +389,7 @@ public class Entity {
         int previousWorldX = worldX;
         int previousWorldY = worldY;
 
-        setAction();
+        if (!staticNPC) setAction();
         checkCollision();
 
         // ------------------------------------------------------------------
@@ -562,6 +593,31 @@ public class Entity {
             default -> null;
         };
     }
+
+    /**
+     * Unified sprite access: returns a sprite for the given animation type, direction, and frame.
+     * New entities should use this instead of legacy named fields.
+     * @param type "walk", "idle", or "attack"
+     * @param dir direction constant (DIR_DOWN, DIR_LEFT, DIR_RIGHT, DIR_UP)
+     * @param frame 0-based frame index
+     * @return the sprite image, or null if not available
+     */
+    public BufferedImage getSprite(String type, int dir, int frame) {
+        BufferedImage[][] frames = switch (type) {
+            case "walk" -> walkFrames;
+            case "idle" -> idleFrames;
+            case "attack" -> attackFrames;
+            default -> null;
+        };
+        if (frames != null && dir >= 0 && dir < frames.length && frames[dir] != null) {
+            if (frame >= 0 && frame < frames[dir].length) return frames[dir][frame];
+        }
+        // Walk fallback: try legacy named fields (1-based)
+        if ("walk".equals(type)) {
+            return getWalkFrameImage(dir, frame + 1);
+        }
+        return null;
+    }
     
     public void dyingAnimation(Graphics2D g2) {
         dyingCounter++;
@@ -692,76 +748,93 @@ public class Entity {
     }
     
     // -----------------------------------------------------------------
-    // FIXED SEARCH PATH
+    // FIXED SEARCH PATH (with per-entity result caching)
     // -----------------------------------------------------------------
     public void searchPath(int goalCol, int goalRow) {
-        
+
         int startCol = (worldX + solidArea.x) / gp.tileSize;
         int startRow = (worldY + solidArea.y) / gp.tileSize;
 
-        // If already on the goal tile, stop pathfinding
+        // Already standing on the goal — nothing to do
         if (startCol == goalCol && startRow == goalRow) {
             onPath = false;
+            cachedWaypoints.clear();
+            waypointIdx = 0;
             return;
         }
 
+        // Reuse cached path while the goal tile hasn't changed
+        if (goalCol == pathCacheGoalCol && goalRow == pathCacheGoalRow
+                && waypointIdx < cachedWaypoints.size()) {
+            followWaypoints();
+            return;
+        }
+
+        // Goal changed — run A* and cache the result
+        pathCacheGoalCol = goalCol;
+        pathCacheGoalRow = goalRow;
+        cachedWaypoints.clear();
+        waypointIdx = 0;
+
         gp.pFinder.setNodes(startCol, startRow, goalCol, goalRow, this);
-
-        // If path found
         if (gp.pFinder.search()) {
-            if (gp.pFinder.pathList.isEmpty()) {
-                onPath = false;
-                return;
+            for (int i = 0; i < gp.pFinder.pathList.size(); i++) {
+                cachedWaypoints.add(new int[]{
+                    gp.pFinder.pathList.get(i).col,
+                    gp.pFinder.pathList.get(i).row
+                });
             }
-
-            // Next WorldX and WorldY
-            int nextX = gp.pFinder.pathList.get(0).col * gp.tileSize;
-            int nextY = gp.pFinder.pathList.get(0).row * gp.tileSize;
-
-            // Entity's solidArea position
-            int enLeftX = worldX + solidArea.x;
-            int enTopY = worldY + solidArea.y;
-            int enCenterX = enLeftX + solidArea.width / 2;
-            int enCenterY = enTopY + solidArea.height / 2;
-
-            // Calculate distance to next waypoint center
-            int nextCenterX = nextX + gp.tileSize / 2;
-            int nextCenterY = nextY + gp.tileSize / 2;
-            int dx = Math.abs(nextCenterX - enCenterX);
-            int dy = Math.abs(nextCenterY - enCenterY);
-
-            // Check if we've reached the current waypoint (within speed threshold)
-            if (dx <= speed + 1 && dy <= speed + 1) {
-                // Snap and move to next waypoint
-                gp.pFinder.pathList.remove(0);
-                if (gp.pFinder.pathList.isEmpty()) {
-                    onPath = false;
-                }
-                return;
-            }
-
-            // PREVENT DIAGONAL MOVEMENT: Move in one direction per frame
-            // Prioritize the axis with greater distance
-            boolean moved = false;
-
-            if (dy > dx) {
-                // Try vertical first
-                moved = tryMoveVertical(enTopY, nextY);
-                // If blocked vertically, fallback to horizontal
-                if (!moved) {
-                    moved = tryMoveHorizontal(enLeftX, nextX);
-                }
+            if (!cachedWaypoints.isEmpty()) {
+                followWaypoints();
             } else {
-                // Try horizontal first
-                moved = tryMoveHorizontal(enLeftX, nextX);
-                // If blocked horizontally, fallback to vertical
-                if (!moved) {
-                    moved = tryMoveVertical(enTopY, nextY);
-                }
+                onPath = false;
             }
         } else {
-            // A* failed to find a path — use direct chase as fallback
             directChase(goalCol, goalRow);
+        }
+    }
+
+    private void followWaypoints() {
+        if (waypointIdx >= cachedWaypoints.size()) {
+            onPath = false;
+            cachedWaypoints.clear();
+            waypointIdx = 0;
+            return;
+        }
+
+        int[] next  = cachedWaypoints.get(waypointIdx);
+        int nextX   = next[0] * gp.tileSize;
+        int nextY   = next[1] * gp.tileSize;
+
+        int enLeftX   = worldX + solidArea.x;
+        int enTopY    = worldY + solidArea.y;
+        int enCenterX = enLeftX + solidArea.width  / 2;
+        int enCenterY = enTopY  + solidArea.height / 2;
+
+        int nextCenterX = nextX + gp.tileSize / 2;
+        int nextCenterY = nextY + gp.tileSize / 2;
+        int dx = Math.abs(nextCenterX - enCenterX);
+        int dy = Math.abs(nextCenterY - enCenterY);
+
+        // Reached current waypoint — advance to next
+        if (dx <= speed + 1 && dy <= speed + 1) {
+            waypointIdx++;
+            if (waypointIdx >= cachedWaypoints.size()) {
+                onPath = false;
+                cachedWaypoints.clear();
+                waypointIdx = 0;
+            }
+            return;
+        }
+
+        // Move toward the current waypoint (one axis per frame)
+        boolean moved;
+        if (dy > dx) {
+            moved = tryMoveVertical(enTopY, nextY);
+            if (!moved) tryMoveHorizontal(enLeftX, nextX);
+        } else {
+            moved = tryMoveHorizontal(enLeftX, nextX);
+            if (!moved) tryMoveVertical(enTopY, nextY);
         }
     }
 

@@ -1,0 +1,21 @@
+{
+    "version": "0.2.0",
+    "configurations": [
+        {
+            "type": "java",
+            "name": "Main",
+            "request": "launch",
+            "mainClass": "main.Main",
+            "classPaths": [
+                "${workspaceFolder}/ceva/bin",
+                "${workspaceFolder}/ceva/src"
+            ],
+            "sourcePaths": [
+                "${workspaceFolder}/ceva/src"
+            ],
+            "cwd": "${workspaceFolder}",
+            "preLaunchTask": "Compile",
+            "vmArgs": "-Dsun.java2d.opengl=True"
+        }
+    ]
+}
