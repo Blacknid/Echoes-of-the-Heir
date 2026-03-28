@@ -22,11 +22,13 @@ public class Main {
         // Enable OpenGL Java2D pipeline for smoother rendering.
         // V-Sync on/off is controlled from in-game settings.
         System.setProperty("sun.java2d.opengl", "True");
+        // Force immediate hardware acceleration (skip default warmup)
+        System.setProperty("sun.java2d.accthreshold", "0");
 
         window = new JFrame();
         window.setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
         window.setResizable(true);
-        window.setTitle("Type Shit !");
+        window.setTitle("Michi's Adventure " + Config.getVersionString());
         new Main().setIcon();
 
         GamePanel gamePanel = new GamePanel();

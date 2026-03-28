@@ -1,9 +1,10 @@
 package main;
 
-import entity.Entity;
 import java.awt.Rectangle;
 import java.awt.Shape;
 import java.util.ArrayList;
+
+import entity.Entity;
 
 public class CollisionChecker {
 
@@ -52,6 +53,38 @@ public class CollisionChecker {
                 }
             }
         }
+    }
+
+    /**
+     * Checks whether a Rectangle hits any collision shape using the spatial grid.
+     * O(k) where k = shapes in nearby cells, vs the previous O(n) full scan.
+     * Used by PathFinder to avoid iterating all collision bounds per A* node.
+     */
+    public boolean rectHitsCollision(Rectangle r) {
+        if (spatialGrid != null && gridCols > 0) {
+            int minCX = Math.max(0, r.x / GRID_CELL_SIZE);
+            int minCY = Math.max(0, r.y / GRID_CELL_SIZE);
+            int maxCX = Math.min(gridCols - 1, (r.x + r.width)  / GRID_CELL_SIZE);
+            int maxCY = Math.min(gridRows - 1, (r.y + r.height) / GRID_CELL_SIZE);
+            for (int cy = minCY; cy <= maxCY; cy++) {
+                for (int cx = minCX; cx <= maxCX; cx++) {
+                    int idx = cy * gridCols + cx;
+                    if (idx >= 0 && idx < spatialGrid.length && spatialGrid[idx] != null) {
+                        ArrayList<Integer> cell = spatialGrid[idx];
+                        for (int j = 0, n = cell.size(); j < n; j++) {
+                            if (gp.tileM.collisionShapes.get(cell.get(j)).intersects(r)) return true;
+                        }
+                    }
+                }
+            }
+            return false;
+        }
+        // Fallback: linear scan of bounds rectangles
+        ArrayList<Rectangle> rects = gp.tileM.collisionBounds;
+        for (int i = 0, size = rects.size(); i < size; i++) {
+            if (r.intersects(rects.get(i))) return true;
+        }
+        return false;
     }
 
     // OPTIMIZATION: Use spatial grid for tile collision checks

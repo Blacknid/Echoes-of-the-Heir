@@ -40,6 +40,10 @@ public class SaveLoad {
         cloudSaveService.startHeartbeat();
     }
 
+    public boolean isServerOnline() {
+        return cloudSaveService.isServerOnline();
+    }
+
     // =========================
     // CRYPTO HELPERS
     // =========================
@@ -91,6 +95,8 @@ public class SaveLoad {
         return null;
     }
 
+    public boolean isServerOnline() { return cloudSaveService.isServerOnline(); }
+
     // =========================
     // SAVE
     // =========================
@@ -123,7 +129,7 @@ public class SaveLoad {
         gs.playerY = gp.player.worldY;
         gs.playerZ = 0;
         gs.direction = gp.player.direction;
-        gs.mapID = gp.currentMapId;
+        gs.mapID = gp.mapManager.currentMapId;
 
         // Stats
         gs.level = gp.player.level;

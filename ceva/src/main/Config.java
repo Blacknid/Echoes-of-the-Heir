@@ -5,12 +5,41 @@ import java.io.BufferedWriter;
 import java.io.FileReader;
 import java.io.FileWriter;
 import java.io.IOException;
+import java.io.InputStream;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.Properties;
 
 public class Config {
 
     GamePanel gp;
+
+    // Version info loaded from res/build.properties
+    public static String gameVersion = "2.0";
+    public static int buildNumber = 0;
+
+    static {
+        loadBuildProperties();
+    }
+
+    private static void loadBuildProperties() {
+        try (InputStream is = Config.class.getResourceAsStream("/res/build.properties")) {
+            if (is != null) {
+                Properties props = new Properties();
+                props.load(is);
+                gameVersion = props.getProperty("version", "2.0");
+                try { buildNumber = Integer.parseInt(props.getProperty("build", "0")); }
+                catch (NumberFormatException ignored) {}
+                System.out.println("[Config] Version " + gameVersion + " build " + buildNumber);
+            }
+        } catch (Exception e) {
+            System.out.println("[Config] Could not load build.properties");
+        }
+    }
+
+    public static String getVersionString() {
+        return "v" + gameVersion + "." + buildNumber;
+    }
 
     public Config ( GamePanel gp ) {
         this.gp = gp;

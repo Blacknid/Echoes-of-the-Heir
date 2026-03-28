@@ -1,0 +1,51 @@
+[
+  {
+    "id": "sword_normal",
+    "name": "Normal Sword",
+    "type": "sword",
+    "attackValue": 1,
+    "knockBackPower": 2,
+    "attackAreaW": 36,
+    "attackAreaH": 36,
+    "description": "A basic sword.\nReliable and light.",
+    "sprite": "/res/objects/sword_normal",
+    "solidArea": { "x": 16, "y": 16, "w": 32, "h": 32 }
+  },
+  {
+    "id": "spell_book",
+    "name": "Spell book",
+    "type": "book",
+    "attackValue": 2,
+    "knockBackPower": 3,
+    "attackAreaW": 30,
+    "attackAreaH": 30,
+    "description": "Spellbook.\nContains Fireball.",
+    "sprite": "/res/objects/Book",
+    "solidArea": { "x": 16, "y": 16, "w": 32, "h": 32 }
+  },
+  {
+    "id": "shield_wood",
+    "name": "Wood_Shield",
+    "type": "shield",
+    "defenseValue": 1,
+    "description": "Wooden shield.\nMinor protection.",
+    "sprite": "/res/objects/shield_wood",
+    "solidArea": { "x": 16, "y": 16, "w": 32, "h": 32 }
+  },
+  {
+    "id": "boots",
+    "name": "Boots",
+    "type": "buffs",
+    "description": "Light boots.\n+1 Speed.",
+    "sprite": "/res/objects/Boots",
+    "solidArea": { "x": 16, "y": 16, "w": 32, "h": 32 }
+  },
+  {
+    "id": "compas",
+    "name": "Compas",
+    "type": "buffs",
+    "description": "Ancient compass.\nTeleports you to a save point.",
+    "sprite": "/res/objects/Compas",
+    "solidArea": { "x": 18, "y": 18, "w": 28, "h": 28 }
+  }
+]

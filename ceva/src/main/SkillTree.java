@@ -1,5 +1,12 @@
 package main;
 
+import java.io.BufferedReader;
+import java.io.InputStream;
+import java.io.InputStreamReader;
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.Map;
+
 import entity.Player;
 
 public class SkillTree {
@@ -30,27 +37,83 @@ public class SkillTree {
     public int selectedIndex = 0;
 
     public SkillTree() {
-        // 3 branches × 4 tiers = 12 nodes
-        // Column = depth (tier), Row = branch (0=Warrior, 1=Rogue, 2=Arcane)
-        nodes = new SkillNode[] {
-            // ── WARRIOR BRANCH (Row 0) ──
-            /* 0 */ new SkillNode("VITALITY_CORE",  "Vitality Core",  "+2 max HP, full heal",                1, 0, 0, null),
-            /* 1 */ new SkillNode("BLADE_MASTERY",  "Blade Mastery",  "+15% melee damage",                   1, 1, 0, "VITALITY_CORE"),
-            /* 2 */ new SkillNode("IRON_WILL",      "Iron Will",      "Take 15% less damage",                2, 2, 0, "BLADE_MASTERY"),
-            /* 3 */ new SkillNode("VOID_SNARE",     "Void Snare",     "Pull nearby enemies toward you",      2, 3, 0, "IRON_WILL"),
+        nodes = loadFromJson();
+    }
 
-            // ── ROGUE BRANCH (Row 1) ──
-            /* 4 */ new SkillNode("WINDSTEP",       "Windstep",       "Unlock Dodge Roll",                   1, 0, 1, null),
-            /* 5 */ new SkillNode("PHASE_TUNING",   "Phase Tuning",   "Blink cooldown reduced",              1, 1, 1, "WINDSTEP"),
-            /* 6 */ new SkillNode("OVERDRIVE",      "Overdrive",      "Buff: speed and melee damage",        2, 2, 1, "PHASE_TUNING"),
-            /* 7 */ new SkillNode("QUICK_RECOVERY", "Quick Recovery", "Halve dodge cooldown, +1 speed",      2, 3, 1, "OVERDRIVE"),
+    /** Load skill nodes from res/data/skilltree.json. */
+    private SkillNode[] loadFromJson() {
+        try (InputStream is = getClass().getResourceAsStream("/res/data/skilltree.json")) {
+            if (is == null) throw new RuntimeException("skilltree.json not found in resources");
+            BufferedReader br = new BufferedReader(new InputStreamReader(is, "UTF-8"));
+            StringBuilder sb = new StringBuilder();
+            String line;
+            while ((line = br.readLine()) != null) sb.append(line);
 
-            // ── ARCANE BRANCH (Row 2) ──
-            /* 8 */  new SkillNode("AETHER_RESERVE","Aether Reserve", "+2 max mana, full mana",              1, 0, 2, null),
-            /* 9 */  new SkillNode("SHOCKWAVE",     "Shockwave",      "Unleash a melee burst around you",    1, 1, 2, "AETHER_RESERVE"),
-            /* 10 */ new SkillNode("FROST_NOVA",    "Frost Nova",     "Freeze nearby enemies briefly",       2, 2, 2, "SHOCKWAVE"),
-            /* 11 */ new SkillNode("ARCANE_MASTERY", "Arcane Mastery","+3 max mana, full mana restore",      2, 3, 2, "FROST_NOVA"),
-        };
+            ArrayList<SkillNode> list = parseSkillArray(sb.toString());
+            if (list.isEmpty()) throw new RuntimeException("skilltree.json parsed 0 nodes");
+            System.out.println("[SkillTree] Loaded " + list.size() + " nodes from JSON");
+            return list.toArray(new SkillNode[0]);
+        } catch (Exception e) {
+            throw new RuntimeException("[SkillTree] Failed to load skilltree.json: " + e.getMessage(), e);
+        }
+    }
+
+    private ArrayList<SkillNode> parseSkillArray(String json) {
+        ArrayList<SkillNode> result = new ArrayList<>();
+        json = json.trim();
+        if (!json.startsWith("[") || !json.endsWith("]")) return result;
+        json = json.substring(1, json.length() - 1).trim();
+
+        int depth = 0; int start = -1;
+        for (int i = 0; i < json.length(); i++) {
+            char c = json.charAt(i);
+            if (c == '{') { if (depth == 0) start = i; depth++; }
+            else if (c == '}') { depth--; if (depth == 0 && start >= 0) {
+                SkillNode n = parseNode(json.substring(start + 1, i));
+                if (n != null) result.add(n);
+                start = -1;
+            }}
+        }
+        return result;
+    }
+
+    private SkillNode parseNode(String obj) {
+        Map<String, String> m = new HashMap<>();
+        int i = 0;
+        while (i < obj.length()) {
+            int ks = obj.indexOf('"', i); if (ks < 0) break;
+            int ke = obj.indexOf('"', ks + 1); if (ke < 0) break;
+            String key = obj.substring(ks + 1, ke);
+            int colon = obj.indexOf(':', ke); if (colon < 0) break;
+            int vs = colon + 1;
+            while (vs < obj.length() && obj.charAt(vs) == ' ') vs++;
+            String val;
+            if (vs < obj.length() && obj.charAt(vs) == '"') {
+                int ve = obj.indexOf('"', vs + 1); if (ve < 0) break;
+                val = obj.substring(vs + 1, ve); i = ve + 1;
+            } else if (vs < obj.length() && obj.substring(vs).startsWith("null")) {
+                val = null; i = vs + 4;
+            } else {
+                int ve = vs;
+                while (ve < obj.length() && obj.charAt(ve) != ',' && obj.charAt(ve) != '}') ve++;
+                val = obj.substring(vs, ve).trim(); i = ve + 1;
+            }
+            m.put(key, val);
+        }
+        String id = m.get("id");
+        if (id == null) return null;
+        String name = m.getOrDefault("name", id);
+        String desc = m.getOrDefault("description", "");
+        int cost = intVal(m, "cost", 1);
+        int col = intVal(m, "col", 0);
+        int row = intVal(m, "row", 0);
+        String req = m.get("requires");
+        return new SkillNode(id, name, desc, cost, col, row, req);
+    }
+
+    private static int intVal(Map<String, String> m, String key, int fallback) {
+        String v = m.get(key); if (v == null) return fallback;
+        try { return Integer.parseInt(v.trim()); } catch (NumberFormatException e) { return fallback; }
     }
 
     public SkillNode[] getNodes() {

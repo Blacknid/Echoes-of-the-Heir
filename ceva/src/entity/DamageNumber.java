@@ -3,8 +3,9 @@ package entity;
 import java.awt.Color;
 import java.awt.Font;
 import java.awt.Graphics2D;
+
 import main.GamePanel;
-import main.ObjectPool.Poolable;
+import util.ObjectPool.Poolable;
 
 /**
  * Lightweight floating damage/heal number that rises and fades out.

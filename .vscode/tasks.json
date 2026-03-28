@@ -1,0 +1,19 @@
+{
+    "version": "2.0.0",
+    "tasks": [
+        {
+            "label": "Compile",
+            "type": "shell",
+            "command": "javac -d \"${workspaceFolder}/ceva/bin\" -sourcepath \"${workspaceFolder}/ceva/src\" \"${workspaceFolder}/ceva/src/main/Main.java\"",
+            "group": {
+                "kind": "build",
+                "isDefault": true
+            },
+            "presentation": {
+                "reveal": "silent",
+                "close": true
+            },
+            "problemMatcher": "$javac"
+        }
+    ]
+}

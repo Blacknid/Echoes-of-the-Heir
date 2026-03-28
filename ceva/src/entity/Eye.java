@@ -3,8 +3,9 @@ package entity;
 import java.awt.Graphics2D;
 import java.awt.image.BufferedImage;
 import java.util.concurrent.ThreadLocalRandom;
+
 import main.GamePanel;
-import main.UtilityTool;
+import util.UtilityTool;
 
 public class Eye extends Entity {
 

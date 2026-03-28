@@ -23,6 +23,24 @@ public class QuestManager {
     private static final Color COMPLETE = new Color(80, 200, 80);
     private static final Color INCOMPLETE = new Color(200, 180, 100);
 
+    // Cached fonts and colors to avoid per-frame allocations
+    private static final java.awt.BasicStroke STROKE_2 = new java.awt.BasicStroke(2f);
+    private static final Color CHECKBOX_GRAY = new Color(100, 100, 100);
+    private static final Color DESC_COLOR = new Color(160, 155, 145);
+    private static final Color HINT_COLOR = new Color(150, 150, 150);
+    private Font fontPlain14, fontBold28, fontPlain20, fontPlain16, fontPlain14b;
+
+    private void ensureFonts(Graphics2D g2) {
+        if (fontPlain14 == null) {
+            Font base = g2.getFont();
+            fontPlain14 = base.deriveFont(Font.PLAIN, 14f);
+            fontBold28  = base.deriveFont(Font.BOLD, 28f);
+            fontPlain20 = base.deriveFont(Font.PLAIN, 20f);
+            fontPlain16 = base.deriveFont(16f);
+            fontPlain14b = base.deriveFont(14f);
+        }
+    }
+
     public QuestManager(GamePanel gp) {
         this.gp = gp;
     }
@@ -83,7 +101,8 @@ public class QuestManager {
         g2.fillRoundRect(x, y, 168, 36, 8, 8);
         g2.setComposite(AlphaComposite.getInstance(AlphaComposite.SRC_OVER, 1f));
 
-        g2.setFont(g2.getFont().deriveFont(Font.PLAIN, 14f));
+        ensureFonts(g2);
+        g2.setFont(fontPlain14);
         g2.setColor(INCOMPLETE);
         String tracker = active.name + "  (" + active.current + "/" + active.target + ")";
         g2.drawString(tracker, x + 8, y + 23);
@@ -101,21 +120,22 @@ public class QuestManager {
         g2.setColor(BG);
         g2.fillRoundRect(x, y, w, h, 16, 16);
         g2.setColor(BORDER);
-        g2.setStroke(new java.awt.BasicStroke(2f));
+        g2.setStroke(STROKE_2);
         g2.drawRoundRect(x + 3, y + 3, w - 6, h - 6, 12, 12);
 
         // Title
-        g2.setFont(g2.getFont().deriveFont(Font.BOLD, 28f));
+        ensureFonts(g2);
+        g2.setFont(fontBold28);
         g2.setColor(TEXT);
         g2.drawString("Quest Log", x + 20, y + 35);
 
         // Quests
-        g2.setFont(g2.getFont().deriveFont(Font.PLAIN, 20f));
+        g2.setFont(fontPlain20);
         int qy = y + 65;
         for (Quest q : quests) {
             boolean done = q.isComplete();
             // Checkbox
-            g2.setColor(done ? COMPLETE : new Color(100, 100, 100));
+            g2.setColor(done ? COMPLETE : CHECKBOX_GRAY);
             g2.drawRect(x + 20, qy - 14, 16, 16);
             if (done) {
                 g2.drawLine(x + 22, qy - 6, x + 28, qy);
@@ -127,23 +147,23 @@ public class QuestManager {
             // Progress
             String prog = q.current + "/" + q.target;
             g2.setColor(done ? COMPLETE : INCOMPLETE);
-            g2.setFont(g2.getFont().deriveFont(16f));
+            g2.setFont(fontPlain16);
             g2.drawString(prog, x + w - 60, qy);
-            g2.setFont(g2.getFont().deriveFont(20f));
+            g2.setFont(fontPlain20);
 
             // Description
-            g2.setColor(new Color(160, 155, 145));
-            g2.setFont(g2.getFont().deriveFont(14f));
+            g2.setColor(DESC_COLOR);
+            g2.setFont(fontPlain14b);
             g2.drawString(q.description, x + 44, qy + 18);
-            g2.setFont(g2.getFont().deriveFont(20f));
+            g2.setFont(fontPlain20);
 
             qy += 50;
             if (qy > y + h - 30) break;
         }
 
         // Close hint
-        g2.setFont(g2.getFont().deriveFont(14f));
-        g2.setColor(new Color(150, 150, 150));
+        g2.setFont(fontPlain14b);
+        g2.setColor(HINT_COLOR);
         g2.drawString("Press Q to close", x + w / 2 - 40, y + h - 12);
     }
 
