@@ -1,15 +1,9 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<<<<<<< HEAD
 <map version="1.10" tiledversion="1.12.1" orientation="orthogonal" renderorder="right-down" width="100" height="100" tilewidth="32" tileheight="32" infinite="0" nextlayerid="16" nextobjectid="132">
  <properties>
+  <property name="ambientLight" type="float" value="0.15"/>
   <property name="music" value="0"/>
   <property name="weather" value="SNOW"/>
-=======
-<map version="1.10" tiledversion="1.12.1" orientation="orthogonal" renderorder="right-down" width="100" height="100" tilewidth="32" tileheight="32" infinite="0" nextlayerid="16" nextobjectid="131">
- <properties>
-  <property name="music" value="13"/>
-  <property name="weather" value="CLEAR"/>
->>>>>>> 906347bf7bcb907797c1cd81dcc3616b73d8b7ab
  </properties>
  <tileset firstgid="1" name="grass" tilewidth="32" tileheight="32" tilecount="12" columns="6">
   <image source="../tiles/Grass_sheet.png" width="192" height="64"/>
@@ -1177,7 +1171,6 @@
  <objectgroup id="8" name="Objects"/>
  <objectgroup id="9" name="Monsters"/>
  <objectgroup id="10" name="NPCs">
-<<<<<<< HEAD
   <object id="83" name="Alucard" type="NPC_Alucard" x="1664" y="2784">
    <properties>
     <property name="collision" type="bool" value="true"/>
@@ -1189,25 +1182,13 @@
     <property name="step1_dialogue" type="int" value="3"/>
     <property name="step1_walkToCol" type="int" value="51"/>
     <property name="step1_walkToRow" type="int" value="70"/>
-=======
-  <object id="83" name="Alucard" type="NPC_Alucard" x="1456" y="1397.5">
-   <properties>
-    <property name="collision" type="bool" value="true"/>
-    <property name="dialogue0" value="What's good?"/>
-    <property name="name" value="Alucard"/>
-    <property name="staticNPC" type="bool" value="false"/>
->>>>>>> 906347bf7bcb907797c1cd81dcc3616b73d8b7ab
    </properties>
    <point/>
   </object>
  </objectgroup>
  <objectgroup id="11" name="InteractiveTiles"/>
  <objectgroup id="12" name="Events">
-<<<<<<< HEAD
   <object id="69" name="SpawnPoint" x="1600" y="2880">
-=======
-  <object id="69" name="SpawnPoint" x="1600" y="1600">
->>>>>>> 906347bf7bcb907797c1cd81dcc3616b73d8b7ab
    <properties>
     <property name="type" value="SpawnPoint"/>
    </properties>
@@ -1218,7 +1199,6 @@
     <property name="type" value="HealingPool"/>
    </properties>
   </object>
-<<<<<<< HEAD
   <object id="84" name="MobSpawner" type="SpawnZone" x="1472" y="1568">
    <properties>
     <property name="interval" type="int" value="180"/>
@@ -1232,15 +1212,6 @@
     <property name="message" value="You pass though here, you're too weak."/>
     <property name="minLevel" type="int" value="4"/>
    </properties>
-=======
-  <object id="84" name="MobSpawner" type="SpawnZone" x="1568" y="1248">
-   <properties>
-    <property name="interval" type="int" value="300"/>
-    <property name="maxAmount" type="int" value="4"/>
-    <property name="monster" value="MON_monster"/>
-   </properties>
-   <polygon points="0,0 19,77 151.5,77.5 154.5,16.5"/>
->>>>>>> 906347bf7bcb907797c1cd81dcc3616b73d8b7ab
   </object>
  </objectgroup>
 </map>

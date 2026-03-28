@@ -1,6 +1,7 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <map version="1.10" tiledversion="1.12.1" orientation="orthogonal" renderorder="right-down" width="100" height="100" tilewidth="32" tileheight="32" infinite="0" nextlayerid="16" nextobjectid="132">
  <properties>
+  <property name="ambientLight" type="float" value="0.15"/>
   <property name="music" value="0"/>
   <property name="weather" value="SNOW"/>
  </properties>

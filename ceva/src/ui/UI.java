@@ -164,7 +164,7 @@ public class UI {
 
         // LOAD TITLE BACKGROUND
         try {
-            titleBackground = ImageIO.read(getClass().getResourceAsStream("/res/background.png"));
+            titleBackground = ImageIO.read(getClass().getResourceAsStream("/res/background_royal.png"));
             if (titleBackground != null) {
                 titleBackground = UtilityTool.scaleImage(titleBackground, gp.screenWidth, gp.screenHeight);
                 System.out.println("Title background loaded successfully!");
