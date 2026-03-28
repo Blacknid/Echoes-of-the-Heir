@@ -18,11 +18,8 @@ import javax.swing.JPanel;
 import javax.swing.SwingUtilities;
 
 import ai.PathFinder;
-<<<<<<< HEAD
-=======
 import audio.AudioManager;
 import audio.Sound;
->>>>>>> 64e48ffe7ab7410d3e10f2b7e9112387fcf9d11b
 import data.SaveLoad;
 import entity.Entity;
 import entity.Particle;

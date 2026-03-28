@@ -1,8 +1,4 @@
-<<<<<<< HEAD:ceva/src/main/EventHandler.java
-package main;
-=======
 package map;
->>>>>>> 64e48ffe7ab7410d3e10f2b7e9112387fcf9d11b:ceva/src/map/EventHandler.java
 
 import java.util.ArrayList;
 import java.util.HashMap;

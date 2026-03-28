@@ -24,13 +24,8 @@ public class EnvironmentManager {
      */
     public float pinnedFilterAlpha = -1f;
     
-<<<<<<< HEAD
-    public final int dayDuration = 2700;      // 45 sec phase → full cycle (day+dusk+night+dawn) = 7200 frames = 2 min
-    public final int transitionDuration = 900; // 15 sec dusk/dawn transition
-=======
     public final int dayDuration = 10800;      // 3 minutes, time * 60 (FPS) = total frames for day/night cycle
     public final int transitionDuration = 3600; // 2 minute transition (3600 frames at 60 FPS)
->>>>>>> 64e48ffe7ab7410d3e10f2b7e9112387fcf9d11b
 
     // ADD THIS LINE HERE:
     // This calculates exactly how much to fade per frame
