@@ -59,10 +59,10 @@ public class OBJ_Door extends Entity {
             } else {
                 // Map change — use smooth fade transition via the safe entry point
                 // Save this door's tile position so the return path can lead back here
-                gp.doorEntryCol = worldX / gp.tileSize;    // convert pixel position to tile
-                gp.doorEntryRow = worldY / gp.tileSize;    // convert pixel position to tile
+                gp.mapManager.doorEntryCol = worldX / gp.tileSize;    // convert pixel position to tile
+                gp.mapManager.doorEntryRow = worldY / gp.tileSize;    // convert pixel position to tile
                 // Named spawn point: resolved on the target map after it loads
-                gp.nextSpawnId = (spawnId != null) ? spawnId : "";
+                gp.mapManager.nextSpawnId = (spawnId != null) ? spawnId : "";
                 gp.startTransition(location, spawnCol, spawnRow);
             }
         } else {

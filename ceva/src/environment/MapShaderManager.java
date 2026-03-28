@@ -7,6 +7,7 @@ import java.awt.Graphics2D;
 import java.awt.RadialGradientPaint;
 import java.awt.image.BufferedImage;
 import java.util.Random;
+
 import main.GamePanel;
 
 /**
@@ -28,13 +29,25 @@ public class MapShaderManager {
     private static final int SIN_TABLE_SIZE = 1024;
     private static final float SIN_TABLE_SCALE = SIN_TABLE_SIZE / (float)(2 * Math.PI);
     private static final float[] SIN_TABLE = new float[SIN_TABLE_SIZE];
+
+    // OPTIMIZATION: AlphaComposite cache — avoids per-frame allocation in weather effects
+    private static final int ALPHA_CACHE_SIZE = 101;
+    private static final AlphaComposite[] alphaCache = new AlphaComposite[ALPHA_CACHE_SIZE];
     static {
         for (int i = 0; i < SIN_TABLE_SIZE; i++) {
             SIN_TABLE[i] = (float) Math.sin(2 * Math.PI * i / SIN_TABLE_SIZE);
         }
+        for (int i = 0; i < ALPHA_CACHE_SIZE; i++) {
+            alphaCache[i] = AlphaComposite.getInstance(AlphaComposite.SRC_OVER, i / 100f);
+        }
+    }
+    private static AlphaComposite cachedAlpha(float a) {
+        int idx = Math.round(a * 100f);
+        if (idx < 0) idx = 0; else if (idx >= ALPHA_CACHE_SIZE) idx = ALPHA_CACHE_SIZE - 1;
+        return alphaCache[idx];
     }
     
-    private static float fastSin(double angle) {
+    public static float fastSin(double angle) {
         int idx = (int)(angle * SIN_TABLE_SCALE) % SIN_TABLE_SIZE;
         if (idx < 0) idx += SIN_TABLE_SIZE;
         return SIN_TABLE[idx];
@@ -360,7 +373,7 @@ public class MapShaderManager {
         // Storm lightning flash (bright white overlay)
         if (ws == EnvironmentManager.WEATHER_STORM && stormFlashTimer > 0) {
             float flashA = Math.min(1f, stormFlashTimer / 4f * 0.15f * intensity);
-            g2.setComposite(AlphaComposite.getInstance(AlphaComposite.SRC_OVER, flashA));
+            g2.setComposite(cachedAlpha(flashA));
             g2.setColor(Color.WHITE);
             g2.fillRect(0, 0, gp.screenWidth, gp.screenHeight);
         }
@@ -371,7 +384,7 @@ public class MapShaderManager {
             if (gp.currentFPS > 0 && gp.currentFPS < 48) active = active / 2;
             // Set composite + color ONCE before the loop — was 250 setComposite calls, now 1
             float rainA = Math.min(1f, 0.4f * intensity);
-            g2.setComposite(AlphaComposite.getInstance(AlphaComposite.SRC_OVER, rainA));
+            g2.setComposite(cachedAlpha(rainA));
             g2.setColor(RAIN_DROP_COLOR);
             for (int i = 0; i < active; i++) {
                 int x1 = (int) rainX[i];
@@ -381,7 +394,7 @@ public class MapShaderManager {
 
             // Overlay tint
             Color tint = (ws == EnvironmentManager.WEATHER_STORM) ? STORM_TINT : RAIN_TINT;
-            g2.setComposite(AlphaComposite.getInstance(AlphaComposite.SRC_OVER, Math.min(1f, intensity)));
+            g2.setComposite(cachedAlpha(Math.min(1f, intensity)));
             g2.setColor(tint);
             g2.fillRect(0, 0, gp.screenWidth, gp.screenHeight);
         }
@@ -391,7 +404,7 @@ public class MapShaderManager {
             if (gp.currentFPS > 0 && gp.currentFPS < 48) active = active / 2;
             // Set composite + color ONCE before the loop — was 120 setComposite calls, now 1
             float snowA = Math.min(1f, 0.5f * intensity);
-            g2.setComposite(AlphaComposite.getInstance(AlphaComposite.SRC_OVER, snowA));
+            g2.setComposite(cachedAlpha(snowA));
             g2.setColor(SNOW_FLAKE_COLOR);
             for (int i = 0; i < active; i++) {
                 int sz = (int) snowSize[i];
@@ -399,7 +412,7 @@ public class MapShaderManager {
             }
 
             // Overlay tint
-            g2.setComposite(AlphaComposite.getInstance(AlphaComposite.SRC_OVER, Math.min(1f, intensity)));
+            g2.setComposite(cachedAlpha(Math.min(1f, intensity)));
             g2.setColor(SNOW_TINT);
             g2.fillRect(0, 0, gp.screenWidth, gp.screenHeight);
         }

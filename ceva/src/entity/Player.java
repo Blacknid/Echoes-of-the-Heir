@@ -6,9 +6,10 @@ import java.awt.AlphaComposite;
  import java.awt.Rectangle;
  import java.awt.image.BufferedImage;
  import java.util.ArrayList;
+
+ import audio.SFX;
  import main.GamePanel;
  import main.KeyHandler;
- import main.SFX;
  import main.SkillTree;
  import object.OBJ_Arrow;
  import object.OBJ_Shield_Wood;
@@ -120,8 +121,10 @@ public class Player extends Entity {
 
     // Initialization methods
     public void setDefaultValues() {
-        worldX = (int)(gp.tileSize * 71.5);
-        worldY = (int)(gp.tileSize * 21.5);
+        // Spawn position is determined by the TMX SpawnPoint object in the Events layer.
+        // setDefaultPositions() will apply it once events are loaded.
+        worldX = 0;
+        worldY = 0;
         defaultSpeed = 4;
         speed = defaultSpeed;
         direction = DIR_DOWN;
@@ -174,8 +177,13 @@ public class Player extends Entity {
     }
 
     public void setDefaultPositions() {
-        worldX = (int)(gp.tileSize * 24.5);
-        worldY = (int)(gp.tileSize * 15.5);
+        if (gp.mapManager.defaultSpawnCol >= 0 && gp.mapManager.defaultSpawnRow >= 0) {
+            worldX = gp.mapManager.defaultSpawnCol * gp.tileSize;
+            worldY = gp.mapManager.defaultSpawnRow * gp.tileSize;
+        } else {
+            worldX = (int)(gp.tileSize * 24.5);
+            worldY = (int)(gp.tileSize * 15.5);
+        }
         direction = DIR_DOWN;
     }
 
@@ -721,7 +729,7 @@ public class Player extends Entity {
     public void damageMonster(int i, int attack) {
         if (i != 999) {
             if (!gp.monster[i].invincible) {
-                gp.playSE(SFX.GOT_GEM); // TODO: likely should be SFX.MONSTER_HIT (index 9)
+                gp.playSE(SFX.MONSTER_HIT); // TODO: likely should be SFX.MONSTER_HIT (index 9)
                 // Combo damage escalation: step 0 = 1x, step 1 = 1.15x, step 2 = 1.6x
                 boolean isHeavy = (comboStep == 2);
                 float comboMultiplier = switch (comboStep) {

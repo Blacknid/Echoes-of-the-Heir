@@ -2,8 +2,9 @@ package entity;
 
 import java.awt.Color;
 import java.awt.Graphics2D;
+
 import main.GamePanel;
-import main.ObjectPool.Poolable;
+import util.ObjectPool.Poolable;
 
 public class Particle extends Entity implements Poolable {
 

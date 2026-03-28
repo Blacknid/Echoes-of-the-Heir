@@ -21,7 +21,7 @@ import javax.imageio.ImageIO;
 import javax.xml.parsers.DocumentBuilder;
 import javax.xml.parsers.DocumentBuilderFactory;
 import main.GamePanel;
-import main.UtilityTool;
+import util.UtilityTool;
 import org.w3c.dom.Document;
 import org.w3c.dom.Element;
 import org.w3c.dom.NodeList;
@@ -78,6 +78,17 @@ public class TileManager {
     // Pixel offset for infinite maps (after shifting chunks to start at 0,0)
     int mapOffsetPixelsX = 0;
     int mapOffsetPixelsY = 0;
+
+    // ── OPTIMIZATION: AlphaComposite cache — eliminates ~880 allocations/frame ──
+    private static final HashMap<Float, AlphaComposite> alphaCompositeCache = new HashMap<>();
+    static {
+        // Pre-populate common alpha values
+        alphaCompositeCache.put(1f, AlphaComposite.SrcOver);
+    }
+    private static AlphaComposite cachedAlpha(float alpha) {
+        return alphaCompositeCache.computeIfAbsent(alpha,
+            a -> AlphaComposite.getInstance(AlphaComposite.SRC_OVER, a));
+    }
 
     // Tilesets
     public class Tileset {
@@ -141,14 +152,14 @@ public class TileManager {
     private final Comparator<VisibleTileDraw> depthTileComparator = new Comparator<VisibleTileDraw>() {
         @Override
         public int compare(VisibleTileDraw first, VisibleTileDraw second) {
-            int byRenderOrder = Integer.compare(first.renderOrder, second.renderOrder);
-            if (byRenderOrder != 0) {
-                return byRenderOrder;
-            }
-
             int bySortY = Integer.compare(first.sortY, second.sortY);
             if (bySortY != 0) {
                 return bySortY;
+            }
+
+            int byRenderOrder = Integer.compare(first.renderOrder, second.renderOrder);
+            if (byRenderOrder != 0) {
+                return byRenderOrder;
             }
 
             int byLayer = Integer.compare(first.layerIndex, second.layerIndex);
@@ -171,6 +182,7 @@ public class TileManager {
     public ArrayList<String> layerNames = new ArrayList<>();
     public ArrayList<Float> layerParallaxX = new ArrayList<>();
     public ArrayList<Float> layerParallaxY = new ArrayList<>();
+    public ArrayList<Boolean> layerBackground = new ArrayList<>();
     // (layerOpacity and layerTint declared above near ImageLayerData)
 
     // Collision shapes (from Tiled objectgroup layers — rectangles, rotated rects, polygons, ellipses)
@@ -370,6 +382,7 @@ public class TileManager {
             layerNames.clear();
             layerParallaxX.clear();
             layerParallaxY.clear();
+            layerBackground.clear();
             layerOpacity.clear();
             layerTint.clear();
             imageLayers.clear();
@@ -423,6 +436,23 @@ public class TileManager {
                 float parallaxY = getFloatAttribute(layer, "parallaxy", 1.0f);
                 float opacity   = getFloatAttribute(layer, "opacity", 1.0f);
                 Color tint      = parseTintColor(layer.getAttribute("tintcolor"));
+
+                boolean isBackground = false;
+                NodeList layerProps = layer.getChildNodes();
+                for (int lp = 0; lp < layerProps.getLength(); lp++) {
+                    if (layerProps.item(lp) instanceof Element) {
+                        Element child = (Element) layerProps.item(lp);
+                        if ("properties".equals(child.getTagName())) {
+                            NodeList propList = child.getElementsByTagName("property");
+                            for (int pp = 0; pp < propList.getLength(); pp++) {
+                                Element prop = (Element) propList.item(pp);
+                                if ("background".equals(prop.getAttribute("name"))) {
+                                    isBackground = "true".equalsIgnoreCase(prop.getAttribute("value"));
+                                }
+                            }
+                        }
+                    }
+                }
 
                 int[][] layerMap  = new int[gp.maxWorldCol][gp.maxWorldRow];
                 byte[][] flipMap  = new byte[gp.maxWorldCol][gp.maxWorldRow];
@@ -487,6 +517,7 @@ public class TileManager {
                 layerNames.add(layerName);
                 layerParallaxX.add(parallaxX);
                 layerParallaxY.add(parallaxY);
+                layerBackground.add(isBackground);
                 layerOpacity.add(opacity);
                 layerTint.add(tint);
             }
@@ -559,13 +590,50 @@ public class TileManager {
                 System.out.println("Loading collision shapes from objectgroup: '" + layerName + "'");
 
                 NodeList objects = og.getElementsByTagName("object");
+
+                // --- Pass 1: collect named collision templates ---
+                // Any object with property isCollisionTemplate=true acts as a shape template
+                // and is NOT added as a real collision shape itself.
+                java.util.HashMap<String, Element> templateMap = new java.util.HashMap<>();
+                for (int j = 0; j < objects.getLength(); j++) {
+                    Element obj = (Element) objects.item(j);
+                    if ("true".equalsIgnoreCase(getObjectProperty(obj, "isCollisionTemplate"))) {
+                        String name = obj.getAttribute("name");
+                        if (!name.isEmpty()) {
+                            templateMap.put(name, obj);
+                            System.out.println("  Registered collision template: '" + name + "'");
+                        }
+                    }
+                }
+
+                // --- Pass 2: build shapes ---
                 for (int j = 0; j < objects.getLength(); j++) {
                     try {
                         Element obj = (Element) objects.item(j);
-                        Shape shape = parseCollisionObject(obj);
-                        if (shape != null) {
-                            collisionShapes.add(shape);
-                            collisionBounds.add(shape.getBounds());
+                        // Skip template definitions — they are not real collision shapes
+                        if ("true".equalsIgnoreCase(getObjectProperty(obj, "isCollisionTemplate"))) continue;
+
+                        String tmplName = getObjectProperty(obj, "collisionTemplate");
+                        if (tmplName != null && !tmplName.isEmpty()) {
+                            // Template instance — clone template shape at this object's position
+                            Element tmpl = templateMap.get(tmplName);
+                            if (tmpl != null) {
+                                Shape shape = parseCollisionObjectAtPosition(tmpl, obj);
+                                if (shape != null) {
+                                    collisionShapes.add(shape);
+                                    collisionBounds.add(shape.getBounds());
+                                }
+                            } else {
+                                System.out.println("WARNING: collisionTemplate '" + tmplName
+                                        + "' not found for object #" + obj.getAttribute("id")
+                                        + " (is the template in the same Collision layer?)");
+                            }
+                        } else {
+                            Shape shape = parseCollisionObject(obj);
+                            if (shape != null) {
+                                collisionShapes.add(shape);
+                                collisionBounds.add(shape.getBounds());
+                            }
                         }
                     } catch (Exception objEx) {
                         System.out.println("Skipping bad collision object: " + objEx.getMessage());
@@ -643,6 +711,61 @@ public class TileManager {
         return buildRectShape(x, y, w, h, rotation);
     }
 
+    /**
+     * Read a custom Tiled property value from an object element.
+     * Returns null if the property is not present.
+     */
+    private String getObjectProperty(Element obj, String propName) {
+        NodeList propsList = obj.getElementsByTagName("properties");
+        if (propsList.getLength() == 0) return null;
+        NodeList props = ((Element) propsList.item(0)).getElementsByTagName("property");
+        for (int i = 0; i < props.getLength(); i++) {
+            Element prop = (Element) props.item(i);
+            if (propName.equals(prop.getAttribute("name"))) {
+                String val = prop.getAttribute("value");
+                return val.isEmpty() ? prop.getTextContent() : val;
+            }
+        }
+        return null;
+    }
+
+    /**
+     * Build a collision shape using the SHAPE from {@code template} but placed at
+     * the world position of {@code posObj}. Supports polygon and rectangle templates.
+     * This is used by the collisionTemplate property system.
+     */
+    private Shape parseCollisionObjectAtPosition(Element template, Element posObj) {
+        double sf = (double) tileSize / mapTileSize;
+
+        String xAttr = posObj.getAttribute("x");
+        String yAttr = posObj.getAttribute("y");
+        if (xAttr.isEmpty() || yAttr.isEmpty()) return null;
+        double x = Double.parseDouble(xAttr) * sf + mapOffsetPixelsX;
+        double y = Double.parseDouble(yAttr) * sf + mapOffsetPixelsY;
+
+        double rotation = 0;
+        String rotAttr = template.getAttribute("rotation");
+        if (!rotAttr.isEmpty()) rotation = Double.parseDouble(rotAttr);
+
+        // Polygon template
+        NodeList polygonNodes = template.getElementsByTagName("polygon");
+        if (polygonNodes.getLength() > 0) {
+            String pointsStr = ((Element) polygonNodes.item(0)).getAttribute("points");
+            return buildPolygonShape(x, y, rotation, pointsStr, sf);
+        }
+
+        // Rectangle template
+        String wAttr = template.getAttribute("width");
+        String hAttr = template.getAttribute("height");
+        if (!wAttr.isEmpty() && !hAttr.isEmpty()) {
+            double w = Double.parseDouble(wAttr) * sf;
+            double h = Double.parseDouble(hAttr) * sf;
+            return buildRectShape(x, y, w, h, rotation);
+        }
+
+        return null;
+    }
+
     private Shape buildRectShape(double x, double y, double w, double h, double rotation) {
         if (rotation == 0) {
             return new Rectangle2D.Double(x, y, w, h);
@@ -715,7 +838,7 @@ public class TileManager {
         int cameraWorldY = gp.player.worldY - gp.player.screenY;
 
         // Compute visible tile range
-        int extraMargin = tileSize * 2;
+        int extraMargin = tileSize * 3; // load a few extra tiles off-screen to prevent pop-in when moving
         int minCol = Math.max(0, (cameraWorldX - extraMargin) / tileSize);
         int maxCol = Math.min(gp.maxWorldCol - 1, (cameraWorldX + gp.screenWidth  + extraMargin) / tileSize);
         int minRow = Math.max(0, (cameraWorldY - extraMargin) / tileSize);
@@ -771,6 +894,7 @@ public class TileManager {
             float py      = layerIndex < layerParallaxY.size() ? layerParallaxY.get(layerIndex) : 1.0f;
             float opacity = layerIndex < layerOpacity.size()   ? layerOpacity.get(layerIndex)   : 1.0f;
             Color tint    = layerIndex < layerTint.size()      ? layerTint.get(layerIndex)       : null;
+            boolean forceBackground = layerIndex < layerBackground.size() && layerBackground.get(layerIndex);
 
             for (int worldRow = minRow; worldRow <= maxRow; worldRow++) {
                 for (int worldCol = minCol; worldCol <= maxCol; worldCol++) {
@@ -808,19 +932,24 @@ public class TileManager {
                     visibleTile.opacity     = opacity;
                     visibleTile.tint        = tint;
                     visibleTile.flipFlags   = (flipMap != null) ? flipMap[worldCol][worldRow] : 0;
-                    visibleTile.renderOrder = (gidToRenderOrder != null && drawGid < gidToRenderOrder.length)
-                                              ? gidToRenderOrder[drawGid] : 0;
+                    // IMPORTANT: rendering properties (depthSort, sortYOffset, renderOrder, foreground)
+                    // must be read from the BASE GID (the tile placed in the map), not the animation
+                    // frame GID — only the image is taken from the current animation frame.
+                    visibleTile.renderOrder = (gidToRenderOrder != null && gid < gidToRenderOrder.length)
+                                              ? gidToRenderOrder[gid] : 0;
 
                     // sortY = bottom edge of this tile + sortYOffset.
                     // For multi-row structures (e.g. 2-tile fence top bar), set
                     // sortYOffset on the TOP-row tiles in Tiled so their sortY
                     // matches the bottom row's sortY — making them sort as one unit.
-                    int sortYOff = (gidToSortYOffset != null && drawGid < gidToSortYOffset.length) ? gidToSortYOffset[drawGid] : 0;
+                    int sortYOff = (gidToSortYOffset != null && gid < gidToSortYOffset.length) ? gidToSortYOffset[gid] : 0;
                     visibleTile.sortY = worldY + tileSize + sortYOff;
 
-                    if (gidToForeground != null && drawGid < gidToForeground.length && gidToForeground[drawGid]) {
+                    if (forceBackground) {
+                        backgroundVisibleTiles.add(visibleTile);
+                    } else if (gidToForeground != null && gid < gidToForeground.length && gidToForeground[gid]) {
                         foregroundVisibleTiles.add(visibleTile);
-                    } else if (gidToDepthSort != null && drawGid < gidToDepthSort.length && gidToDepthSort[drawGid]) {
+                    } else if (gidToDepthSort != null && gid < gidToDepthSort.length && gidToDepthSort[gid]) {
                         depthVisibleTiles.add(visibleTile);
                     } else {
                         backgroundVisibleTiles.add(visibleTile);
@@ -840,7 +969,7 @@ public class TileManager {
         Composite origComposite = null;
         if (vt.opacity < 0.999f) {
             origComposite = g2.getComposite();
-            g2.setComposite(AlphaComposite.getInstance(AlphaComposite.SRC_OVER, vt.opacity));
+            g2.setComposite(cachedAlpha(vt.opacity));
         }
 
         // Draw the tile (with optional flip transform)
@@ -855,7 +984,7 @@ public class TileManager {
         // Apply tint overlay (multiply-like, using SRC_OVER with low alpha)
         if (vt.tint != null) {
             Composite c = g2.getComposite();
-            g2.setComposite(AlphaComposite.getInstance(AlphaComposite.SRC_OVER, 0.4f * vt.opacity));
+            g2.setComposite(cachedAlpha(0.4f * vt.opacity));
             g2.setColor(vt.tint);
             g2.fillRect(vt.screenX, vt.screenY, vt.image.getWidth(), vt.image.getHeight());
             g2.setComposite(c);
@@ -927,12 +1056,12 @@ public class TileManager {
             Composite orig = null;
             if (ild.opacity < 0.999f) {
                 orig = g2.getComposite();
-                g2.setComposite(AlphaComposite.getInstance(AlphaComposite.SRC_OVER, ild.opacity));
+                g2.setComposite(cachedAlpha(ild.opacity));
             }
             g2.drawImage(ild.image, sx, sy, null);
             if (ild.tintColor != null) {
                 Composite c = g2.getComposite();
-                g2.setComposite(AlphaComposite.getInstance(AlphaComposite.SRC_OVER, 0.4f * ild.opacity));
+                g2.setComposite(cachedAlpha(0.4f * ild.opacity));
                 g2.setColor(ild.tintColor);
                 g2.fillRect(sx, sy, ild.image.getWidth(), ild.image.getHeight());
                 g2.setComposite(c);
@@ -1004,6 +1133,7 @@ public class TileManager {
                 gidToDepthSort[gid]   = ts.depthSort;
                 gidToForeground[gid]  = ts.foreground;
                 if (ts.tiles[i] != null) {
+                    if (ts.tiles[i].depthSort) gidToDepthSort[gid] = true;
                     if (ts.tiles[i].foreground) gidToForeground[gid] = true;
                     if (ts.tiles[i].background) { gidToDepthSort[gid] = false; gidToForeground[gid] = false; }
                     gidToSortYOffset[gid] = ts.tiles[i].sortYOffset;
@@ -1095,10 +1225,20 @@ public class TileManager {
         if (normalized.contains("shadow")) {
             return 15;
         }
+        // Ground / base layer tilesets must render BELOW shadows (15).
+        // Any tileset whose name suggests it is a ground fill goes here.
+        if (normalized.contains("grass") || normalized.contains("ground")
+                || normalized.contains("field") || normalized.contains("dirt")
+                || normalized.contains("sand") || normalized.contains("soil")) {
+            return 5;
+        }
         if (normalized.contains("water")) {
             return 5;
         }
-        return 0;
+        // Unknown/new tilesets default to 16 — just above shadows (15).
+        // To draw BELOW shadows, set renderOrder = 10 (or lower) on the tileset in Tiled.
+        // To draw even higher (above trees/fences), set renderOrder = 30 or higher.
+        return 16;
     }
 
     private int getIntProperty(Element element, String propertyName, int defaultValue) {
@@ -1160,6 +1300,8 @@ public class TileManager {
                 if (fg != null) ts.tiles[tileId].foreground = Boolean.parseBoolean(fg.trim());
                 String bg = getStringProperty(tileEl, "background", null);
                 if (bg != null) ts.tiles[tileId].background = Boolean.parseBoolean(bg.trim());
+                String ds = getStringProperty(tileEl, "depthSort", null);
+                if (ds != null) ts.tiles[tileId].depthSort = Boolean.parseBoolean(ds.trim());
 
                 // ---- Parse <animation> block ----
                 NodeList animNodes = tileEl.getElementsByTagName("animation");

@@ -1,8 +1,10 @@
 package main;
 
-import entity.Entity;
 import java.awt.event.KeyEvent;
 import java.awt.event.KeyListener;
+
+import audio.SFX;
+import entity.Entity;
 
 public class KeyHandler implements KeyListener {
 
@@ -145,7 +147,9 @@ public class KeyHandler implements KeyListener {
 
     private void startGame() {
         gp.gameState = gp.playState;
-        gp.playMusic(SFX.MUSIC_THEME);
+        // Apply music and weather from the TMX map's properties
+        String path = gp.mapManager.mapRegistry.getOrDefault(gp.mapManager.currentMapId, "/res/maps/harta.tmx");
+        gp.mapObjectLoader.loadMapProperties(path);
     }
 
     private void handlePlayState(int code) {
