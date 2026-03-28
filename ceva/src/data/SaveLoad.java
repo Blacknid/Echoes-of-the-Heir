@@ -91,6 +91,8 @@ public class SaveLoad {
         return null;
     }
 
+    public boolean isServerOnline() { return cloudSaveService.isServerOnline(); }
+
     // =========================
     // SAVE
     // =========================

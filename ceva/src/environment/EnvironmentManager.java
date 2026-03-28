@@ -24,8 +24,8 @@ public class EnvironmentManager {
      */
     public float pinnedFilterAlpha = -1f;
     
-    public final int dayDuration = 100;      // 3 minutes, time * 60 (FPS) = total frames for day/night cycle
-    public final int transitionDuration = 100; // 2 minute transition (3600 frames at 60 FPS)
+    public final int dayDuration = 2700;      // 45 sec phase → full cycle (day+dusk+night+dawn) = 7200 frames = 2 min
+    public final int transitionDuration = 900; // 15 sec dusk/dawn transition
 
     // ADD THIS LINE HERE:
     // This calculates exactly how much to fade per frame
@@ -44,8 +44,8 @@ public class EnvironmentManager {
 
     // Auto-weather cycle
     private int weatherTimer = 0;
-    private static final int WEATHER_CYCLE_MIN = 18000; // 5 min
-    private static final int WEATHER_CYCLE_MAX = 28800; // 8 min
+    private static final int WEATHER_CYCLE_MIN = 3600;  // 1 min
+    private static final int WEATHER_CYCLE_MAX = 7200;  // 2 min
     private int nextWeatherChange;
 
     public EnvironmentManager(GamePanel gp) {
