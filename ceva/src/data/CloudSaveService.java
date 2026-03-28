@@ -25,7 +25,6 @@ import java.util.Arrays;
 import java.util.Base64;
 import java.util.Comparator;
 import java.util.IdentityHashMap;
-import java.util.Iterator;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicBoolean;
 import javax.crypto.Cipher;
@@ -45,8 +44,9 @@ import javax.crypto.spec.SecretKeySpec;
 public class CloudSaveService {
 
     // ── Network ──────────────────────────────────────────────────────────
-    private static final String SERVER_HOST = "192.168.1.13";
+    private static final String[] SERVER_HOSTS = { "192.168.1.13", "192.168.100.235" };
     private static final int    SERVER_PORT = 5005;
+    private volatile String activeHost = SERVER_HOSTS[0];
     private static final int    CONNECT_TIMEOUT_MS = 3000;
     private static final int    SOCKET_TIMEOUT_MS  = 8000;
 
@@ -137,12 +137,13 @@ public class CloudSaveService {
      */
     public DownloadResult download(String licenseKey) {
 
-        if (!serverOnline.get()) {
+        if (!serverOnline.get() && !ping()) {
             return DownloadResult.fail("Download failed: Server offline (heartbeat).");
         }
+        serverOnline.set(true);
 
         try (Socket socket = new Socket()) {
-            socket.connect(new InetSocketAddress(SERVER_HOST, SERVER_PORT), CONNECT_TIMEOUT_MS);
+            socket.connect(new InetSocketAddress(activeHost, SERVER_PORT), CONNECT_TIMEOUT_MS);
             socket.setSoTimeout(SOCKET_TIMEOUT_MS);
 
             BufferedWriter writer = writer(socket);
@@ -181,7 +182,7 @@ public class CloudSaveService {
             byte[] jsonBytes = serializeToJsonBytes(state);
 
             try (Socket socket = new Socket()) {
-                socket.connect(new InetSocketAddress(SERVER_HOST, SERVER_PORT), CONNECT_TIMEOUT_MS);
+                socket.connect(new InetSocketAddress(activeHost, SERVER_PORT), CONNECT_TIMEOUT_MS);
                 socket.setSoTimeout(SOCKET_TIMEOUT_MS);
 
                 BufferedWriter writer = writer(socket);
@@ -304,19 +305,25 @@ public class CloudSaveService {
     // =====================================================================
 
     private boolean ping() {
-        try (Socket socket = new Socket()) {
-            socket.connect(new InetSocketAddress(SERVER_HOST, SERVER_PORT), CONNECT_TIMEOUT_MS);
-            socket.setSoTimeout(3000);
-            BufferedWriter w = writer(socket);
-            BufferedReader r = reader(socket);
-            w.write("PING");
-            w.newLine();
-            w.flush();
-            String resp = r.readLine();
-            return "PONG".equals(resp);
-        } catch (Exception e) {
-            return false;
+        for (String host : SERVER_HOSTS) {
+            try (Socket socket = new Socket()) {
+                socket.connect(new InetSocketAddress(host, SERVER_PORT), CONNECT_TIMEOUT_MS);
+                socket.setSoTimeout(3000);
+                BufferedWriter w = writer(socket);
+                BufferedReader r = reader(socket);
+                w.write("PING");
+                w.newLine();
+                w.flush();
+                String resp = r.readLine();
+                if ("PONG".equals(resp)) {
+                    activeHost = host;
+                    return true;
+                }
+            } catch (Exception e) {
+                // try next host
+            }
         }
+        return false;
     }
 
     // =====================================================================

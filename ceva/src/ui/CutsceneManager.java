@@ -76,7 +76,7 @@ public class CutsceneManager {
         if ( scenePhase == 2 ) {
 
             // PLAY THE FANFARE while staying in cutscene mode
-            gp.gameState = gp.cutsceneState;
+            gp.gameState = GamePanel.cutsceneState;
             gp.playSE(SFX.VICTORY);
             scenePhase++;
         } 
@@ -166,7 +166,7 @@ public class CutsceneManager {
         }
         if ( scenePhase == 10 ) {
             gp.ui.titleScreenState = 0;
-            gp.gameState = gp.titleState;
+            gp.gameState = GamePanel.titleState;
         }
 
     }

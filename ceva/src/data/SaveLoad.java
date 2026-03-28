@@ -3,6 +3,7 @@ package data;
 import java.io.FileInputStream;
 import java.io.FileOutputStream;
 import java.security.SecureRandom;
+import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.Map;
 
@@ -94,8 +95,6 @@ public class SaveLoad {
         }
         return null;
     }
-
-    public boolean isServerOnline() { return cloudSaveService.isServerOnline(); }
 
     // =========================
     // SAVE
@@ -248,6 +247,28 @@ public class SaveLoad {
     // =========================
     public void load() {
 
+        // Cloud-first load path: if server has a save, apply it and refresh local cache.
+        try {
+            CloudSaveService.DownloadResult result = cloudSaveService.download(Main.LICENSE_KEY);
+            if (result.ok() && result.json() != null && !result.json().isBlank()) {
+                GameState state = parseGameStateJson(result.json());
+                if (state != null) {
+                    applyGameState(state);
+                    saveToDisk();
+                    return;
+                }
+            } else if (!result.ok()) {
+                System.out.println(result.message());
+            }
+        } catch (Exception e) {
+            System.out.println("Cloud load failed, falling back to local save: " + e.getMessage());
+        }
+
+        loadFromDisk();
+    }
+
+    private void loadFromDisk() {
+
         try {
             byte[] raw;
             try (FileInputStream fis = new FileInputStream("save.dat")) {
@@ -328,5 +349,456 @@ public class SaveLoad {
             e.printStackTrace();
             System.out.println("Load Exception!");
         }
+    }
+
+    private void applyGameState(GameState state) {
+
+        if (state == null) return;
+
+        // PLAYER STATS
+        gp.player.level = Math.max(1, state.level);
+        gp.player.maxLife = Math.max(1, state.maxHealth);
+        gp.player.life = Math.max(0, Math.min(state.health, gp.player.maxLife));
+        gp.player.maxMana = Math.max(0, state.maxMana);
+        gp.player.mana = Math.max(0, Math.min(state.mana, gp.player.maxMana));
+        gp.player.strenght = Math.max(1, state.strength);
+        gp.player.dexterity = Math.max(1, state.dexterity);
+        gp.player.exp = Math.max(0, state.exp);
+        gp.player.nextLevelExp = Math.max(1, state.nextLevelExp);
+        gp.player.coin = Math.max(0, state.coin);
+
+        // LOCATION
+        gp.player.worldX = state.playerX;
+        gp.player.worldY = state.playerY;
+        if (state.mapID != null && !state.mapID.isBlank() && gp.mapManager != null
+                && gp.mapManager.mapRegistry.containsKey(state.mapID)) {
+            gp.mapManager.currentMapId = state.mapID;
+        }
+
+        // SKILLS
+        gp.player.skillPoints = Math.max(0, state.skillPoints);
+        gp.player.dashUnlocked = state.dashUnlocked;
+        gp.player.shockwaveUnlocked = state.shockwaveUnlocked;
+        gp.player.voidSnareUnlocked = state.voidSnareUnlocked;
+        gp.player.frostNovaUnlocked = state.frostNovaUnlocked;
+        gp.player.overdriveUnlocked = state.overdriveUnlocked;
+
+        // INVENTORY
+        gp.player.inventory.clear();
+        int invSize = Math.min(state.itemNames.size(), state.itemAmounts.size());
+        for (int i = 0; i < invSize; i++) {
+            Entity item = getObject(state.itemNames.get(i));
+            if (item == null) continue;
+            item.amount = Math.max(1, state.itemAmounts.get(i));
+            gp.player.inventory.add(item);
+        }
+
+        // CURRENT EQUIPMENT
+        if (!gp.player.inventory.isEmpty()) {
+            int weaponSlot = Math.max(0, Math.min(state.currentWeaponSlot, gp.player.inventory.size() - 1));
+            int shieldSlot = Math.max(0, Math.min(state.currentShieldSlot, gp.player.inventory.size() - 1));
+            gp.player.currentWeapon = gp.player.inventory.get(weaponSlot);
+            gp.player.currentShield = gp.player.inventory.get(shieldSlot);
+        }
+
+        gp.player.getAttack();
+        gp.player.getDefense();
+        gp.player.getPlayerAttackImages();
+
+        // OBJECTS ON MAP
+        for (int i = 0; i < gp.obj.length; i++) {
+            String name = getAt(state.mapObjectNames, i, "NA");
+            if (name == null || name.equals("NA")) {
+                gp.obj[i] = null;
+                continue;
+            }
+
+            gp.obj[i] = getObject(name);
+            if (gp.obj[i] == null) continue;
+
+            gp.obj[i].worldX = getAt(state.mapObjectWorldX, i, 0);
+            gp.obj[i].worldY = getAt(state.mapObjectWorldY, i, 0);
+            gp.obj[i].opened = getAt(state.mapObjectOpened, i, false);
+
+            String lootName = getAt(state.mapObjectLootName, i, "NA");
+            if (gp.obj[i].opened || lootName == null || lootName.equals("NA")) {
+                gp.obj[i].loot = null;
+            } else {
+                gp.obj[i].loot = getObject(lootName);
+            }
+            if (gp.obj[i].opened) {
+                gp.obj[i].down1 = gp.obj[i].image1;
+            }
+        }
+    }
+
+    private static String getAt(String[] arr, int index, String fallback) {
+        if (arr == null || index < 0 || index >= arr.length) return fallback;
+        return arr[index];
+    }
+
+    private static int getAt(int[] arr, int index, int fallback) {
+        if (arr == null || index < 0 || index >= arr.length) return fallback;
+        return arr[index];
+    }
+
+    private static boolean getAt(boolean[] arr, int index, boolean fallback) {
+        if (arr == null || index < 0 || index >= arr.length) return fallback;
+        return arr[index];
+    }
+
+    private GameState parseGameStateJson(String json) {
+        if (json == null || json.isBlank()) return null;
+
+        GameState state = tryParseGameStateWithGson(json);
+        if (state != null) return state;
+
+        state = tryParseGameStateWithJackson(json);
+        if (state != null) return state;
+
+        return parseGameStateJsonFallback(json);
+    }
+
+    private GameState tryParseGameStateWithGson(String json) {
+        try {
+            Class<?> gsonClass = Class.forName("com.google.gson.Gson");
+            Object gson = gsonClass.getDeclaredConstructor().newInstance();
+            Object parsed = gsonClass
+                    .getMethod("fromJson", String.class, Class.class)
+                    .invoke(gson, json, GameState.class);
+            return parsed instanceof GameState gs ? gs : null;
+        } catch (ClassNotFoundException e) {
+            return null;
+        } catch (Exception e) {
+            System.out.println("Cloud JSON parse (Gson) failed: " + e.getMessage());
+            return null;
+        }
+    }
+
+    private GameState tryParseGameStateWithJackson(String json) {
+        try {
+            Class<?> mapperClass = Class.forName("com.fasterxml.jackson.databind.ObjectMapper");
+            Object mapper = mapperClass.getDeclaredConstructor().newInstance();
+            Object parsed = mapperClass
+                    .getMethod("readValue", String.class, Class.class)
+                    .invoke(mapper, json, GameState.class);
+            return parsed instanceof GameState gs ? gs : null;
+        } catch (ClassNotFoundException e) {
+            return null;
+        } catch (Exception e) {
+            System.out.println("Cloud JSON parse (Jackson) failed: " + e.getMessage());
+            return null;
+        }
+    }
+
+    private GameState parseGameStateJsonFallback(String json) {
+        try {
+            GameState gs = new GameState();
+
+            // POSITION
+            gs.playerX = extractJsonInt(json, "playerX", 0);
+            gs.playerY = extractJsonInt(json, "playerY", 0);
+            gs.playerZ = extractJsonInt(json, "playerZ", 0);
+            gs.direction = extractJsonInt(json, "direction", 0);
+            gs.mapID = extractJsonString(json, "mapID", null);
+
+            // STATS
+            gs.level = extractJsonInt(json, "level", 1);
+            gs.maxHealth = extractJsonInt(json, "maxHealth", 6);
+            gs.health = extractJsonInt(json, "health", gs.maxHealth);
+            gs.maxMana = extractJsonInt(json, "maxMana", 4);
+            gs.mana = extractJsonInt(json, "mana", gs.maxMana);
+            gs.strength = extractJsonInt(json, "strength", 1);
+            gs.dexterity = extractJsonInt(json, "dexterity", 1);
+            gs.exp = extractJsonInt(json, "exp", 0);
+            gs.nextLevelExp = extractJsonInt(json, "nextLevelExp", 5);
+            gs.coin = extractJsonInt(json, "coin", 0);
+
+            // SKILLS
+            gs.skillPoints = extractJsonInt(json, "skillPoints", 0);
+            gs.dashUnlocked = extractJsonBoolean(json, "dashUnlocked", false);
+            gs.shockwaveUnlocked = extractJsonBoolean(json, "shockwaveUnlocked", false);
+            gs.voidSnareUnlocked = extractJsonBoolean(json, "voidSnareUnlocked", false);
+            gs.frostNovaUnlocked = extractJsonBoolean(json, "frostNovaUnlocked", false);
+            gs.overdriveUnlocked = extractJsonBoolean(json, "overdriveUnlocked", false);
+
+            // INVENTORY
+            gs.itemNames = extractJsonStringArray(json, "itemNames");
+            gs.itemAmounts = extractJsonIntArray(json, "itemAmounts");
+            gs.currentWeaponSlot = extractJsonInt(json, "currentWeaponSlot", 0);
+            gs.currentShieldSlot = extractJsonInt(json, "currentShieldSlot", 1);
+
+            // OBJECTS ON MAP
+            gs.mapObjectNames = extractJsonStringArray(json, "mapObjectNames").toArray(new String[0]);
+            gs.mapObjectWorldX = toIntArray(extractJsonIntArray(json, "mapObjectWorldX"));
+            gs.mapObjectWorldY = toIntArray(extractJsonIntArray(json, "mapObjectWorldY"));
+            gs.mapObjectLootName = extractJsonStringArray(json, "mapObjectLootName").toArray(new String[0]);
+            gs.mapObjectOpened = toBooleanArray(extractJsonBooleanArray(json, "mapObjectOpened"));
+
+            gs.timestamp = extractJsonLong(json, "timestamp", 0L);
+            return gs;
+
+        } catch (Exception e) {
+            System.out.println("Cloud JSON parse (fallback) failed: " + e.getMessage());
+            return null;
+        }
+    }
+
+    private static int[] toIntArray(ArrayList<Integer> values) {
+        int[] out = new int[values.size()];
+        for (int i = 0; i < values.size(); i++) out[i] = values.get(i);
+        return out;
+    }
+
+    private static boolean[] toBooleanArray(ArrayList<Boolean> values) {
+        boolean[] out = new boolean[values.size()];
+        for (int i = 0; i < values.size(); i++) out[i] = values.get(i);
+        return out;
+    }
+
+    private static String extractJsonValue(String json, String key) {
+        String search = "\"" + key + "\"";
+        int keyPos = json.indexOf(search);
+        if (keyPos < 0) return null;
+
+        int colon = json.indexOf(':', keyPos + search.length());
+        if (colon < 0) return null;
+
+        int start = colon + 1;
+        while (start < json.length() && Character.isWhitespace(json.charAt(start))) start++;
+        if (start >= json.length()) return null;
+
+        int end = findJsonValueEnd(json, start);
+        if (end <= start) return null;
+
+        return json.substring(start, end).trim();
+    }
+
+    private static int findJsonValueEnd(String json, int start) {
+        char first = json.charAt(start);
+
+        if (first == '"') {
+            boolean escaped = false;
+            for (int i = start + 1; i < json.length(); i++) {
+                char c = json.charAt(i);
+                if (escaped) {
+                    escaped = false;
+                    continue;
+                }
+                if (c == '\\') {
+                    escaped = true;
+                    continue;
+                }
+                if (c == '"') return i + 1;
+            }
+            return json.length();
+        }
+
+        if (first == '[' || first == '{') {
+            char open = first;
+            char close = (first == '[') ? ']' : '}';
+            int depth = 0;
+            boolean inString = false;
+            boolean escaped = false;
+
+            for (int i = start; i < json.length(); i++) {
+                char c = json.charAt(i);
+
+                if (inString) {
+                    if (escaped) {
+                        escaped = false;
+                    } else if (c == '\\') {
+                        escaped = true;
+                    } else if (c == '"') {
+                        inString = false;
+                    }
+                    continue;
+                }
+
+                if (c == '"') {
+                    inString = true;
+                    continue;
+                }
+                if (c == open) depth++;
+                if (c == close) {
+                    depth--;
+                    if (depth == 0) return i + 1;
+                }
+            }
+            return json.length();
+        }
+
+        int i = start;
+        while (i < json.length()) {
+            char c = json.charAt(i);
+            if (c == ',' || c == '}' || c == ']') break;
+            i++;
+        }
+        return i;
+    }
+
+    private static int extractJsonInt(String json, String key, int fallback) {
+        String raw = extractJsonValue(json, key);
+        if (raw == null) return fallback;
+        try {
+            return Integer.parseInt(raw);
+        } catch (Exception e) {
+            return fallback;
+        }
+    }
+
+    private static long extractJsonLong(String json, String key, long fallback) {
+        String raw = extractJsonValue(json, key);
+        if (raw == null) return fallback;
+        try {
+            return Long.parseLong(raw);
+        } catch (Exception e) {
+            return fallback;
+        }
+    }
+
+    private static boolean extractJsonBoolean(String json, String key, boolean fallback) {
+        String raw = extractJsonValue(json, key);
+        if (raw == null) return fallback;
+        if ("true".equalsIgnoreCase(raw)) return true;
+        if ("false".equalsIgnoreCase(raw)) return false;
+        return fallback;
+    }
+
+    private static String extractJsonString(String json, String key, String fallback) {
+        String raw = extractJsonValue(json, key);
+        if (raw == null || "null".equals(raw)) return fallback;
+        if (raw.length() >= 2 && raw.charAt(0) == '"' && raw.charAt(raw.length() - 1) == '"') {
+            return unescapeJsonString(raw.substring(1, raw.length() - 1));
+        }
+        return fallback;
+    }
+
+    private static ArrayList<String> extractJsonStringArray(String json, String key) {
+        ArrayList<String> out = new ArrayList<>();
+        String raw = extractJsonValue(json, key);
+        if (raw == null) return out;
+
+        ArrayList<String> tokens = splitJsonArray(raw);
+        for (String token : tokens) {
+            String t = token.trim();
+            if ("null".equals(t)) {
+                out.add(null);
+            } else if (t.length() >= 2 && t.charAt(0) == '"' && t.charAt(t.length() - 1) == '"') {
+                out.add(unescapeJsonString(t.substring(1, t.length() - 1)));
+            }
+        }
+        return out;
+    }
+
+    private static ArrayList<Integer> extractJsonIntArray(String json, String key) {
+        ArrayList<Integer> out = new ArrayList<>();
+        String raw = extractJsonValue(json, key);
+        if (raw == null) return out;
+
+        ArrayList<String> tokens = splitJsonArray(raw);
+        for (String token : tokens) {
+            try {
+                out.add(Integer.parseInt(token.trim()));
+            } catch (Exception ignored) {}
+        }
+        return out;
+    }
+
+    private static ArrayList<Boolean> extractJsonBooleanArray(String json, String key) {
+        ArrayList<Boolean> out = new ArrayList<>();
+        String raw = extractJsonValue(json, key);
+        if (raw == null) return out;
+
+        ArrayList<String> tokens = splitJsonArray(raw);
+        for (String token : tokens) {
+            String t = token.trim();
+            if ("true".equalsIgnoreCase(t)) out.add(true);
+            else if ("false".equalsIgnoreCase(t)) out.add(false);
+        }
+        return out;
+    }
+
+    private static ArrayList<String> splitJsonArray(String rawArray) {
+        ArrayList<String> out = new ArrayList<>();
+        if (rawArray == null) return out;
+        String raw = rawArray.trim();
+        if (raw.length() < 2 || raw.charAt(0) != '[' || raw.charAt(raw.length() - 1) != ']') return out;
+
+        String body = raw.substring(1, raw.length() - 1).trim();
+        if (body.isEmpty()) return out;
+
+        int tokenStart = 0;
+        int depth = 0;
+        boolean inString = false;
+        boolean escaped = false;
+
+        for (int i = 0; i < body.length(); i++) {
+            char c = body.charAt(i);
+
+            if (inString) {
+                if (escaped) {
+                    escaped = false;
+                } else if (c == '\\') {
+                    escaped = true;
+                } else if (c == '"') {
+                    inString = false;
+                }
+                continue;
+            }
+
+            if (c == '"') {
+                inString = true;
+                continue;
+            }
+            if (c == '[' || c == '{') depth++;
+            if (c == ']' || c == '}') depth--;
+
+            if (c == ',' && depth == 0) {
+                out.add(body.substring(tokenStart, i));
+                tokenStart = i + 1;
+            }
+        }
+
+        out.add(body.substring(tokenStart));
+        return out;
+    }
+
+    private static String unescapeJsonString(String value) {
+        StringBuilder out = new StringBuilder(value.length());
+        for (int i = 0; i < value.length(); i++) {
+            char c = value.charAt(i);
+            if (c != '\\' || i + 1 >= value.length()) {
+                out.append(c);
+                continue;
+            }
+
+            char n = value.charAt(++i);
+            switch (n) {
+                case '"' -> out.append('"');
+                case '\\' -> out.append('\\');
+                case '/' -> out.append('/');
+                case 'b' -> out.append('\b');
+                case 'f' -> out.append('\f');
+                case 'n' -> out.append('\n');
+                case 'r' -> out.append('\r');
+                case 't' -> out.append('\t');
+                case 'u' -> {
+                    if (i + 4 < value.length()) {
+                        String hex = value.substring(i + 1, i + 5);
+                        try {
+                            out.append((char) Integer.parseInt(hex, 16));
+                            i += 4;
+                        } catch (NumberFormatException e) {
+                            out.append('u');
+                        }
+                    } else {
+                        out.append('u');
+                    }
+                }
+                default -> out.append(n);
+            }
+        }
+        return out.toString();
     }
 }

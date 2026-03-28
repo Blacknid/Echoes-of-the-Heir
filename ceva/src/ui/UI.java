@@ -80,7 +80,6 @@ public class UI {
     private static final Color COIN_GOLD      = new Color(255, 220, 60);
     private static final Color LVL_BADGE      = new Color(255, 200, 70);
     private static final Color DIALOGUE_NAME  = new Color(255, 215, 100);
-    private static final Color DIALOGUE_CONT  = new Color(200, 200, 200, 180);
 
     // ── CACHED HUD FONTS — derived once, not per frame ──
     private Font hudFont_bold15, hudFont_bold8, hudFont_bold13;
@@ -227,66 +226,66 @@ public class UI {
         g2.setColor(Color.white);
 
         // Reset animation state when leaving certain screens
-        if (gp.gameState != gp.gameOverState) gameOverAlpha = 0f;
-        if (gp.gameState != gp.pauseState) pauseAlpha = 0f;
+        if (gp.gameState != GamePanel.gameOverState) gameOverAlpha = 0f;
+        if (gp.gameState != GamePanel.pauseState) pauseAlpha = 0f;
 
         //TITLE STATE
-        if(gp.gameState == gp.titleState) {
+        if(gp.gameState == GamePanel.titleState) {
             drawTitleScreen();
         }
 
         //PLAY STATE
-        if(gp.gameState == gp.playState) {
+        if(gp.gameState == GamePanel.playState) {
             drawPlayerLife();
             drawMessage();
             drawLevelUpBanner();
         }
 
         // PAUSE STATE
-        if(gp.gameState == gp.pauseState) {
+        if(gp.gameState == GamePanel.pauseState) {
             drawPlayerLife();
             drawPauseScreen();
         }
 
         //DIALOGUE STATE
-        if(gp.gameState == gp.dialogueState){
+        if(gp.gameState == GamePanel.dialogueState){
             drawPlayerLife();
             drawDialogueScreen();
         }
 
         // CHARACHTER STATE
-        if ( gp.gameState == gp.characterState ) {
+        if ( gp.gameState == GamePanel.characterState ) {
             drawCharacterScreen();
             drawInventory();
         }
 
         // OPTIONS STATE
-        if(gp.gameState == gp.optionsState){
+        if(gp.gameState == GamePanel.optionsState){
             drawOptionsScreen();
         }
 
         // GAME OVER STATE
-        if(gp.gameState == gp.gameOverState){
+        if(gp.gameState == GamePanel.gameOverState){
             drawGameOverScreen();
         }
         // TRANSITION STATE
-        if (gp.gameState == gp.transitionState) {
+        if (gp.gameState == GamePanel.transitionState) {
             drawTransition(g2);
         }
 
         // LEVEL UP STATE
-        if (gp.gameState == gp.levelUpState) {
+        if (gp.gameState == GamePanel.levelUpState) {
             drawPlayerLife();
             drawLevelUpScreen();
         }
 
         // SKILL TREE STATE
-        if (gp.gameState == gp.skillTreeState) {
+        if (gp.gameState == GamePanel.skillTreeState) {
             drawPlayerLife();
             drawSkillTreeScreen();
         }
 
-        if ( gp.gameState == gp.cutsceneState ) {
+        if ( gp.gameState == GamePanel.cutsceneState ) {
             drawDialogueScreen();
         }
 
@@ -319,7 +318,7 @@ public class UI {
         else {
 
             // AFISEAZA CATE CHEI ARE PLAYER UL
-            if(gp.gameState == gp.characterState) {
+            if(gp.gameState == GamePanel.characterState) {
 
                 g2.setFont(arial_40);
                 g2.setColor(Color.white);
@@ -1433,7 +1432,7 @@ public class UI {
                 charIndex = 0;
                 combinedText = "";
 
-                if ( gp.gameState == gp.dialogueState || gp.gameState == gp.cutsceneState ) {
+                if ( gp.gameState == GamePanel.dialogueState || gp.gameState == GamePanel.cutsceneState ) {
 
                         npc.dialogueIndex++;
                         gp.keyH.enterPressed = false;               
@@ -1443,10 +1442,10 @@ public class UI {
         else { // IF NO TEXT IS IN THE ARRAY
             npc.dialogueIndex = 0;
 
-            if ( gp.gameState == gp.dialogueState ) {
-                gp.gameState = gp.playState;
+            if ( gp.gameState == GamePanel.dialogueState ) {
+                gp.gameState = GamePanel.playState;
             }
-            if ( gp.gameState == gp.cutsceneState ) {
+            if ( gp.gameState == GamePanel.cutsceneState ) {
                 gp.csManager.scenePhase++;
                 npc = null; // prevent dialogue from replaying in later cutscene phases
                 return;
@@ -1867,8 +1866,8 @@ public class UI {
         if (itemIndex < gp.player.inventory.size()) {
             Entity itemForHint = gp.player.inventory.get(itemIndex);
             if (itemForHint != null) {
-                if (itemForHint.type == gp.player.type_consumable) actionHint = "Use (ENTER)";
-                else if (itemForHint.type == gp.player.type_sword || itemForHint.type == gp.player.type_shield || itemForHint.type == gp.player.type_book) actionHint = "Equip (ENTER)";
+                if (itemForHint.type == Entity.type_consumable) actionHint = "Use (ENTER)";
+                else if (itemForHint.type == Entity.type_sword || itemForHint.type == Entity.type_shield || itemForHint.type == Entity.type_book) actionHint = "Equip (ENTER)";
             }
         }
 
@@ -1910,10 +1909,10 @@ public class UI {
                 // Stat comparison for equipment
                 int statY = iconY + gp.tileSize / 2 + 24;
                 g2.setFont(cachedFont(Font.PLAIN, 18F));
-                if (item.type == gp.player.type_sword && item.attackValue != 0) {
+                if (item.type == Entity.type_sword && item.attackValue != 0) {
                     int diff = item.attackValue - (gp.player.currentWeapon != null ? gp.player.currentWeapon.attackValue : 0);
                     drawStatComparison(iconX + gp.tileSize + 10, statY, "ATK " + item.attackValue, diff, item == gp.player.currentWeapon);
-                } else if (item.type == gp.player.type_shield && item.defenseValue != 0) {
+                } else if (item.type == Entity.type_shield && item.defenseValue != 0) {
                     int diff = item.defenseValue - (gp.player.currentShield != null ? gp.player.currentShield.defenseValue : 0);
                     drawStatComparison(iconX + gp.tileSize + 10, statY, "DEF " + item.defenseValue, diff, item == gp.player.currentShield);
                 }
@@ -1960,7 +1959,6 @@ public class UI {
     public void options_top( int frameX, int frameY ) {
 
         int fw = gp.tileSize * 8;
-        int fh = gp.tileSize * 10;
         int pad = 20;                   // inner padding
         int lineH = 52;                 // row height for menu items
         int rightCol = frameX + fw - pad - 155; // right column for controls/sliders
@@ -2068,7 +2066,7 @@ public class UI {
                 }
             }
             else if (i == 7) { // Back
-                if (selected && gp.keyH.enterPressed) { gp.gameState = gp.playState; commandNum = 0; gp.config.saveConfig(); }
+                if (selected && gp.keyH.enterPressed) { gp.gameState = GamePanel.playState; commandNum = 0; gp.config.saveConfig(); }
             }
         }
 
@@ -2327,7 +2325,7 @@ public class UI {
             subState = 0;
             titleScreenState = 0;
             gp.stopMusic();
-            gp.gameState = gp.titleState;
+            gp.gameState = GamePanel.titleState;
         }
         if ( commandNum == 1 && gp.keyH.enterPressed ) {
             subState = 0;
@@ -2351,7 +2349,7 @@ public class UI {
             if (transitionAlpha <= 0f) {
                 transitionAlpha = 0f;
                 subState = 0; // Reset for next transition
-                gp.gameState = gp.playState; // Return to gameplay
+                gp.gameState = GamePanel.playState; // Return to gameplay
             }
         }
 
