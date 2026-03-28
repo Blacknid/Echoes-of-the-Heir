@@ -4,10 +4,9 @@ import java.awt.Rectangle;
 import java.util.ArrayList;
 import java.util.Random;
 
+import data.MonsterFactory;
 import environment.EnvironmentManager;
 import main.GamePanel;
-import monster.MON_SkeletonArcher;
-import monster.MON_monster;
 
 /**
  * Periodically spawns monsters inside Tiled-defined MobSpawnerZone rectangles.
@@ -82,9 +81,9 @@ public class MobSpawner {
         int row = pos[1];
 
         if (nightMode) {
-            gp.monster[slot] = new MON_SkeletonArcher(gp, col, row);
+            gp.monster[slot] = MonsterFactory.create(gp, "skeleton_archer", col, row);
         } else {
-            gp.monster[slot] = new MON_monster(gp, col, row);
+            gp.monster[slot] = MonsterFactory.create(gp, "mummy", col, row);
         }
     }
 

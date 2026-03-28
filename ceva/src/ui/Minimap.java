@@ -3,7 +3,6 @@ package ui;
 import java.awt.AlphaComposite;
 import java.awt.BasicStroke;
 import java.awt.Color;
-import java.awt.Font;
 import java.awt.Graphics2D;
 import java.awt.RadialGradientPaint;
 import java.awt.RenderingHints;
@@ -68,6 +67,10 @@ public class Minimap {
     private static final Color NPC_COLOR     = new Color( 80, 185,  80);
     private static final Color CHEST_COLOR   = new Color(215, 175,  40);
     private static final Color OBJECT_COLOR  = new Color(180, 140,  80);
+
+    // Cached fonts for world map overlay
+    private static final java.awt.Font MAP_LABEL_FONT = new java.awt.Font("Georgia", java.awt.Font.BOLD | java.awt.Font.ITALIC, 15);
+    private static final java.awt.Font MAP_HINT_FONT  = new java.awt.Font("Georgia", java.awt.Font.PLAIN, 11);
     private static final Color VIEWPORT_COLOR= new Color(255, 255, 255, 80);
 
     // -----------------------------------------------------------------------
@@ -174,11 +177,11 @@ public class Minimap {
         g2.setComposite(AlphaComposite.getInstance(AlphaComposite.SRC_OVER, 0.72f));
         int labelY = cy + mapRadius + BORDER_WIDTH + 26;
         g2.setColor(new Color(195, 168, 100));
-        g2.setFont(new Font("Georgia", Font.BOLD | Font.ITALIC, 15));
+        g2.setFont(MAP_LABEL_FONT);
         String label = "Map";
         int lw = g2.getFontMetrics().stringWidth(label);
         g2.drawString(label, cx - lw / 2, labelY);
-        g2.setFont(new Font("Georgia", Font.PLAIN, 11));
+        g2.setFont(MAP_HINT_FONT);
         g2.setColor(new Color(145, 122, 72, 180));
         String hint = "[ M ] close";
         int hw = g2.getFontMetrics().stringWidth(hint);

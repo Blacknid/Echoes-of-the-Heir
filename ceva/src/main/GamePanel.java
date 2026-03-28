@@ -109,15 +109,27 @@ public class GamePanel extends JPanel implements Runnable{
     private static final float CAM_LERP = 0.12f;
     private static final int CAM_DEADZONE = 32; // pixels before camera starts catching up
 
-<<<<<<< HEAD
     // PRE-ALLOCATED COLORS (avoid per-frame allocation)
     private static final java.awt.Color PLAYER_GLOW_COLOR = new java.awt.Color(255, 240, 220);
     private static final java.awt.Color DEFAULT_TORCH_COLOR = new java.awt.Color(255, 170, 60);
-=======
-    // Pre-allocated Color constants for lights (avoid per-frame GC pressure)
-    private static final java.awt.Color LIGHT_PLAYER_GLOW = new java.awt.Color(255, 240, 220);
-    private static final java.awt.Color LIGHT_TORCH_ORANGE = new java.awt.Color(255, 170, 60);
->>>>>>> b10782fa01686bccc1d862f2542e9cf6daf13dfc
+
+    // PRE-ALLOCATED DEBUG OVERLAY OBJECTS (avoid per-frame allocation)
+    private static final java.awt.Font DEBUG_FONT = new java.awt.Font("Consolas", java.awt.Font.PLAIN, 13);
+    private static final java.awt.Color DEBUG_BG_COLOR = new java.awt.Color(0, 0, 0, 160);
+    private static final java.awt.Color DEBUG_FPS_GREEN = new java.awt.Color(80, 255, 80);
+    private static final java.awt.Color DEBUG_FPS_YELLOW = new java.awt.Color(255, 220, 60);
+    private static final java.awt.Color DEBUG_FPS_RED = new java.awt.Color(255, 80, 80);
+    private static final java.awt.Color DEBUG_INFO_BLUE = new java.awt.Color(120, 200, 255);
+    private static final java.awt.Color MP_TINT_COLOR  = new java.awt.Color(100, 180, 255);
+    private static final java.awt.Color MP_FILL_COLOR  = new java.awt.Color(80, 160, 240, 200);
+    private static final java.awt.Color MP_BORDER_CLR  = new java.awt.Color(50, 120, 200);
+    private static final java.awt.Color MP_NAME_SHADOW = new java.awt.Color(0, 0, 0, 160);
+    private static final java.awt.Color MP_NAME_COLOR  = new java.awt.Color(180, 220, 255);
+    private static final java.awt.Color MP_BAR_BG      = new java.awt.Color(40, 40, 40, 180);
+    private static final java.awt.Color MP_BAR_GREEN   = new java.awt.Color(60, 200, 80);
+    private static final java.awt.Color MP_BAR_RED     = new java.awt.Color(220, 60, 60);
+    private static final java.awt.BasicStroke MP_STROKE_2 = new java.awt.BasicStroke(2f);
+    private java.awt.Font mpNametagFont; // lazily derived
 
     // MINIMAP
     public Minimap minimap;
@@ -602,11 +614,7 @@ public class GamePanel extends JPanel implements Runnable{
                 // Player warm glow
                 eManager.lightning.addLight(
                     player.worldX + tileSize / 2, player.worldY + tileSize / 2,
-<<<<<<< HEAD
                     tileSize * 4, PLAYER_GLOW_COLOR, 0.25f);
-=======
-                    tileSize * 4, LIGHT_PLAYER_GLOW, 0.25f);
->>>>>>> b10782fa01686bccc1d862f2542e9cf6daf13dfc
                 // Torch objects: warm orange with subtle flicker
                 float flickerBase = System.nanoTime() * 0.000000003f;
                 for (int i = 0; i < obj.length; i++) {
@@ -729,21 +737,21 @@ public class GamePanel extends JPanel implements Runnable{
         final int boxW = 230, boxH = lines * lineHeight + padY * 2;
 
         // Semi-transparent background panel
-        g2.setColor(new Color(0, 0, 0, 160));
+        g2.setColor(DEBUG_BG_COLOR);
         g2.fillRoundRect(x - padX, y - lineHeight - padY, boxW, boxH, 8, 8);
 
-        g2.setFont(new Font("Consolas", Font.PLAIN, 13));
+        g2.setFont(DEBUG_FONT);
         final int safeFPS = currentFPS > 0 ? currentFPS : 1;
         final String frameTimeStr = String.format("%.2f", 1000.0 / safeFPS);
         final String minFrameTimeStr = maxFPS > 0 ? String.format("%.2f", 1000.0 / maxFPS) : "--";
 
         // FPS line — colour-coded: green >= target, yellow >= half, red below
-        if (currentFPS >= FPS)                   g2.setColor(new Color(80, 255, 80));
-        else if (currentFPS >= FPS / 2)          g2.setColor(new Color(255, 220, 60));
-        else                                     g2.setColor(new Color(255, 80, 80));
+        if (currentFPS >= FPS)                   g2.setColor(DEBUG_FPS_GREEN);
+        else if (currentFPS >= FPS / 2)          g2.setColor(DEBUG_FPS_YELLOW);
+        else                                     g2.setColor(DEBUG_FPS_RED);
         g2.drawString("FPS: " + currentFPS + " / " + FPS, x, y); y += lineHeight;
 
-        g2.setColor(new Color(120, 200, 255));
+        g2.setColor(DEBUG_INFO_BLUE);
         g2.drawString("Max FPS: " + maxFPS, x, y); y += lineHeight;
         g2.drawString("Frame time: " + frameTimeStr + " ms", x, y); y += lineHeight;
         g2.drawString("Best frame: " + minFrameTimeStr + " ms", x, y); y += lineHeight;
@@ -758,361 +766,7 @@ public class GamePanel extends JPanel implements Runnable{
             g2.drawString("TileParticles: " + tileParticleEmitter.getActiveCount(), x, y); y += lineHeight;
         }
     }
-}
-
-<<<<<<< HEAD
-=======
-    private void drawCurrentState() {
-        switch (gameState) {
-            case titleState:
-                ui.draw(g2);
-                break;
-            case transitionState:
-                // Draw the world underneath, then UI draws the fade overlay on top
-                drawWorldState();
-                break;
-            case playState:
-            case pauseState:
-            case dialogueState:
-            case characterState:
-            case optionsState:
-            case gameOverState:
-            case cutsceneState:
-            case skillTreeState:
-            default:
-                drawWorldState();
-                break;
-        }
     }
-
-    private void drawWorldState() {
-
-        // OPTIMIZATION: Ensure anti-aliasing is OFF during world rendering (tiles, entities)
-        // AA is expensive for fillRect/drawImage and not needed for pixel art
-        g2.setRenderingHint(java.awt.RenderingHints.KEY_ANTIALIASING, java.awt.RenderingHints.VALUE_ANTIALIAS_OFF);
-        g2.setRenderingHint(java.awt.RenderingHints.KEY_TEXT_ANTIALIASING, java.awt.RenderingHints.VALUE_TEXT_ANTIALIAS_OFF);
-
-        // SMOOTH CAMERA + SCREEN SHAKE: offset the entire world
-        int camOffX = Math.round(cameraX - (player.worldX - player.screenX));
-        int camOffY = Math.round(cameraY - (player.worldY - player.screenY));
-        int shakeX = screenShake.getOffsetX();
-        int shakeY = screenShake.getOffsetY();
-        int totalOffX = camOffX + shakeX;
-        int totalOffY = camOffY + shakeY;
-        if (totalOffX != 0 || totalOffY != 0) {
-            g2.translate(totalOffX, totalOffY);
-        }
-
-        tileM.prepareVisibleTiles();
-        tileM.drawBackground(g2);
-
-        collectRenderableEntities();
-
-        // SORT (only sort the active portion of the list)
-        Collections.sort(entityList.subList(0, entityListIndex), renderSorter);
-
-        // TILE PARTICLES: prepare Y-sorted particle indices for interleaved drawing
-        int tpCount = 0;
-        if (tileParticleEmitter != null) {
-            tpCount = tileParticleEmitter.prepareSortedIndices();
-        }
-        int tpIdx = 0;
-        int depthTileCount = tileM.getDepthTileCount();
-        int depthTileIdx = 0;
-
-        // DRAW ENTITIES + TILE PARTICLES interleaved by Y (depth-correct)
-        // Compare against entity feet (bottom of solidArea) so the crossover fires when
-        // the player visually steps past a structure's base row, not when their sprite top does.
-        java.awt.Composite savedComp = g2.getComposite();
-        for (int i = 0; i < entityListIndex; i++) {
-            entity.Entity e = entityList.get(i);
-            int entityY = e.worldY + e.solidArea.y + e.solidArea.height;
-
-            while (true) {
-                float nextDepthTileY = depthTileIdx < depthTileCount ? tileM.getDepthTileSortY(depthTileIdx) : Float.MAX_VALUE;
-                float nextParticleY = tpIdx < tpCount ? tileParticleEmitter.getSortY(tpIdx) : Float.MAX_VALUE;
-                float nextY = Math.min(nextDepthTileY, nextParticleY);
-
-                if (nextY > entityY) {
-                    break;
-                }
-
-                if (nextDepthTileY <= nextParticleY) {
-                    g2.setComposite(savedComp);
-                    tileM.drawDepthTile(g2, depthTileIdx);
-                    depthTileIdx++;
-                } else {
-                    tileParticleEmitter.drawSingle(g2, tpIdx);
-                    tpIdx++;
-                }
-            }
-
-            // Restore composite in case a particle changed it
-            g2.setComposite(savedComp);
-            e.draw(g2);
-        }
-
-        while (depthTileIdx < depthTileCount || tpIdx < tpCount) {
-            float nextDepthTileY = depthTileIdx < depthTileCount ? tileM.getDepthTileSortY(depthTileIdx) : Float.MAX_VALUE;
-            float nextParticleY = tpIdx < tpCount ? tileParticleEmitter.getSortY(tpIdx) : Float.MAX_VALUE;
-
-            if (nextDepthTileY <= nextParticleY) {
-                g2.setComposite(savedComp);
-                tileM.drawDepthTile(g2, depthTileIdx);
-                depthTileIdx++;
-            } else {
-                tileParticleEmitter.drawSingle(g2, tpIdx);
-                tpIdx++;
-            }
-        }
-        g2.setComposite(savedComp);
-
-        // MULTIPLAYER: draw remote players
-        if (multiplayerMode && mpClient != null && mpClient.isConnected()) {
-            drawRemotePlayers(g2);
-        }
-
-        // FOREGROUND TILES — drawn on top of all entities and depth-sorted tiles (e.g. building roofs/upper walls)
-        tileM.drawForeground(g2);
-
-        clearRenderableEntities();
-
-        // DAMAGE NUMBERS (draw above entities, below UI) — skip off-screen
-        for (int i = 0; i < damageNumbers.size(); i++) {
-            entity.DamageNumber dn = damageNumbers.get(i);
-            if (dn.alive && isEntityInViewport(dn, tileSize)) dn.draw(g2);
-        }
-
-        // CUTSCENE
-        csManager.draw(g2);
-
-        // DEBUG HITBOXES — drawn in world-space (camera transform still active)
-        if (HitBoxes) {
-            drawHitboxDebug(g2);
-        }
-
-        // UNDO CAMERA + SHAKE before drawing screen-space effects and UI
-        if (totalOffX != 0 || totalOffY != 0) {
-            g2.translate(-totalOffX, -totalOffY);
-        }
-
-        // ENVIRONMENT — drawn in screen-space after camera undo so the overlay is always
-        // anchored at (0,0) and covers the full screen regardless of camera movement or dash
-        eManager.draw(g2);
-
-        // SHADER: screen-space effects (drawn after camera undo so they stay fixed on screen)
-        if (mapShader != null) {
-            mapShader.drawAmbientParticles(g2);
-            mapShader.drawWeather(g2);
-            mapShader.drawColorGrading(g2);
-            mapShader.drawVignette(g2);
-        }
-
-        // UI
-        ui.draw(g2);
-
-        // MINIMAP (drawn on top of UI, under debug)
-        if (minimap != null && gameState == playState) {
-            minimap.draw(g2);
-        }
-
-        // QUEST TRACKER (below minimap)
-        if (questManager != null && gameState == playState) {
-            questManager.drawTracker(g2);
-        }
-
-        // QUEST LOG OVERLAY
-        if (questManager != null && questManager.isLogOpen()) {
-            questManager.drawLog(g2);
-        }
-
-        // WORLD MAP OVERLAY (large map on top of world/UI)
-        if (minimap != null) {
-            minimap.drawWorldMap(g2);
-        }
-
-        if (HitBoxes) {
-            // Hitboxes are now drawn in drawHitboxDebug() inside camera transform
-        }
-    }
-
-    private void drawHitboxDebug(Graphics2D g2) {
-        g2.setColor(new Color(255, 0, 0, 128)); // red semi-transparent
-
-        // PLAYER
-        Rectangle r = player.solidArea;
-        int px = player.screenX + r.x;
-        int py = player.screenY + r.y;
-        g2.fillRect(px, py, r.width, r.height);
-        if (player.knockBack) {
-            g2.setColor(new Color(255, 0, 255, 128));
-            g2.fillRect(px, py, r.width, r.height);
-            g2.setColor(Color.WHITE);
-            g2.setFont(new Font("Arial", Font.PLAIN, 12));
-            g2.drawString(String.valueOf(player.knockBackPower), px, py - 4);
-            int cx = px + r.width/2;
-            int cy = py + r.height/2;
-            int vx = player.knockBackVectorX * 2;
-            int vy = player.knockBackVectorY * 2;
-            g2.drawLine(cx, cy, cx + vx, cy + vy);
-            g2.fillOval(cx + vx - 2, cy + vy - 2, 4, 4);
-            g2.setColor(new Color(255, 0, 0, 128));
-        }
-
-        // PLAYER ATTACK HITBOX
-        if (player.attacking) {
-            g2.setColor(new Color(255, 100, 0, 128));
-            int ts = tileSize;
-            int attackWorldX = player.worldX;
-            int attackWorldY = player.worldY;
-            int aw = 0, ah = 0;
-            switch(player.direction) {
-                case Entity.DIR_UP:    aw = ts - 16; ah = ts + 16; attackWorldX += 8; attackWorldY -= ts + 16; break;
-                case Entity.DIR_DOWN:  aw = ts - 16; ah = ts + 16; attackWorldX += 8; attackWorldY += ts; break;
-                case Entity.DIR_LEFT:  aw = ts + 16; ah = ts - 16; attackWorldX -= ts + 16; attackWorldY += 8; break;
-                case Entity.DIR_RIGHT: aw = ts + 16; ah = ts - 16; attackWorldX += ts; attackWorldY += 8; break;
-            }
-            int screenX = attackWorldX - player.worldX + player.screenX;
-            int screenY = attackWorldY - player.worldY + player.screenY;
-            g2.fillRect(screenX, screenY, aw, ah);
-        }
-
-        // NPC
-        g2.setColor(new Color(255, 0, 0, 128));
-        for(Entity n : npc) {
-            if(n != null) {
-                r = n.solidArea;
-                int nx = n.worldX - player.worldX + player.screenX + r.x;
-                int ny = n.worldY - player.worldY + player.screenY + r.y;
-                g2.fillRect(nx, ny, r.width, r.height);
-            }
-        }
-
-        // MONSTERS
-        g2.setColor(new Color(255, 255, 0, 128));
-        for(Entity m : monster) {
-            if(m != null) {
-                r = m.solidArea;
-                int mx = m.worldX - player.worldX + player.screenX + r.x;
-                int my = m.worldY - player.worldY + player.screenY + r.y;
-                g2.fillRect(mx, my, r.width, r.height);
-                if (m.knockBack) {
-                    g2.setColor(new Color(255, 0, 255, 128));
-                    g2.fillRect(mx, my, r.width, r.height);
-                    g2.setColor(Color.WHITE);
-                    g2.setFont(new Font("Arial", Font.PLAIN, 12));
-                    g2.drawString(String.valueOf(m.knockBackPower), mx, my - 4);
-                    int cx = mx + r.width/2;
-                    int cy = my + r.height/2;
-                    int vx = m.knockBackVectorX * 2;
-                    int vy = m.knockBackVectorY * 2;
-                    g2.drawLine(cx, cy, cx + vx, cy + vy);
-                    g2.fillOval(cx + vx - 2, cy + vy - 2, 4, 4);
-                    g2.setColor(new Color(255, 255, 0, 128));
-                }
-            }
-        }
-
-        // OBJECTS
-        g2.setColor(new Color(255, 0, 0, 128));
-        for(Entity o : obj) {
-            if(o != null) {
-                r = o.solidArea;
-                int ox = o.worldX - player.worldX + player.screenX + r.x;
-                int oy = o.worldY - player.worldY + player.screenY + r.y;
-                g2.fillRect(ox, oy, r.width, r.height);
-            }
-        }
-
-        // INTERACTIVE TILES
-        g2.setColor(new Color(0, 255, 255, 128));
-        for(int i = 0; i < iTile.length; i++) {
-            if(iTile[i] != null) {
-                r = iTile[i].solidArea;
-                int ix = iTile[i].worldX - player.worldX + player.screenX + r.x;
-                int iy = iTile[i].worldY - player.worldY + player.screenY + r.y;
-                g2.fillRect(ix, iy, r.width, r.height);
-            }
-        }
-
-        // COLLISION SHAPES (rectangles, rotated rects, polygons, ellipses)
-        if(tileM.collisionShapes != null && !tileM.collisionShapes.isEmpty()) {
-            g2.setColor(new Color(0, 0, 255, 128));
-            AffineTransform oldTransform = g2.getTransform();
-            g2.translate(-player.worldX + player.screenX, -player.worldY + player.screenY);
-            for(Shape shape : tileM.collisionShapes) {
-                g2.fill(shape);
-            }
-            g2.setTransform(oldTransform);
-        }
-    }
-
-    private void collectRenderableEntities() {
-        // OPTIMIZATION: Reuse entityList by tracking index instead of add/clear
-        entityListIndex = 0;
-
-        addToRenderList(player);
-
-        for (int i = 0; i < npc.length; i++) {
-            if (npc[i] != null) {
-                addToRenderList(npc[i]);
-            }
-        }
-
-        for (int i = 0; i < obj.length; i++) {
-            if (obj[i] != null) {
-                addToRenderList(obj[i]);
-            }
-        }
-
-        for (int i = 0; i < monster.length; i++) {
-            if (monster[i] != null) {
-                addToRenderList(monster[i]);
-            }
-        }
-
-        int projSize = projectilesList.size();
-        for (int i = 0; i < projSize; i++) {
-            Entity proj = projectilesList.get(i);
-            if (proj != null) {
-                addToRenderList(proj);
-            }
-        }
-
-        int partSize = particleList.size();
-        for (int i = 0; i < partSize; i++) {
-            Entity particle = particleList.get(i);
-            if (particle != null) {
-                addToRenderList(particle);
-            }
-        }
-
-        for (int i = 0; i < iTile.length; i++) {
-            if (iTile[i] != null) {
-                addToRenderList(iTile[i]);
-            }
-        }
-    }
-
-    private void addToRenderList(Entity entity) {
-        // OPTIMIZATION: Skip entities outside viewport (no need to sort/draw them)
-        if (!isEntityInViewport(entity, tileSize)) return;
-        if (entityListIndex < entityList.size()) {
-            entityList.set(entityListIndex, entity);
-        } else {
-            entityList.add(entity);
-        }
-        entityListIndex++;
-    }
-
-    private void clearRenderableEntities() {
-        // Clear only the used portion of the list for next frame
-        for (int i = 0; i < entityListIndex; i++) {
-            entityList.set(i, null);
-        }
-    }
-
->>>>>>> b10782fa01686bccc1d862f2542e9cf6daf13dfc
 
     public void drawToScreen() {
         repaint();
@@ -1159,29 +813,30 @@ public class GamePanel extends JPanel implements Runnable{
                 g2.drawImage(sprite, screenPosX, screenPosY, tileSize, tileSize, null);
                 // Draw a subtle colored overlay
                 g2.setComposite(java.awt.AlphaComposite.getInstance(java.awt.AlphaComposite.SRC_OVER, 0.15f));
-                g2.setColor(new Color(100, 180, 255));
+                g2.setColor(MP_TINT_COLOR);
                 g2.fillRect(screenPosX, screenPosY, tileSize, tileSize);
                 g2.setComposite(old);
             } else {
                 // Fallback: colored rectangle
-                g2.setColor(new Color(80, 160, 240, 200));
+                g2.setColor(MP_FILL_COLOR);
                 g2.fillRoundRect(screenPosX + 8, screenPosY + 8, tileSize - 16, tileSize - 16, 8, 8);
-                g2.setColor(new Color(50, 120, 200));
-                g2.setStroke(new java.awt.BasicStroke(2f));
+                g2.setColor(MP_BORDER_CLR);
+                g2.setStroke(MP_STROKE_2);
                 g2.drawRoundRect(screenPosX + 8, screenPosY + 8, tileSize - 16, tileSize - 16, 8, 8);
             }
 
             // Nametag above the sprite
-            g2.setFont(g2.getFont().deriveFont(Font.BOLD, 12f));
+            if (mpNametagFont == null) mpNametagFont = g2.getFont().deriveFont(Font.BOLD, 12f);
+            g2.setFont(mpNametagFont);
             java.awt.FontMetrics fm = g2.getFontMetrics();
             int nameW = fm.stringWidth(rp.name);
             int nameX = screenPosX + tileSize / 2 - nameW / 2;
             int nameY = screenPosY - 6;
 
             // Name shadow
-            g2.setColor(new Color(0, 0, 0, 160));
+            g2.setColor(MP_NAME_SHADOW);
             g2.drawString(rp.name, nameX + 1, nameY + 1);
-            g2.setColor(new Color(180, 220, 255));
+            g2.setColor(MP_NAME_COLOR);
             g2.drawString(rp.name, nameX, nameY);
 
             // HP bar below nametag
@@ -1190,10 +845,10 @@ public class GamePanel extends JPanel implements Runnable{
                 int barH = 4;
                 int barX = screenPosX + tileSize / 2 - barW / 2;
                 int barY = screenPosY - 12;
-                g2.setColor(new Color(40, 40, 40, 180));
+                g2.setColor(MP_BAR_BG);
                 g2.fillRoundRect(barX, barY, barW, barH, 3, 3);
                 float ratio = (float) rp.life / rp.maxLife;
-                g2.setColor(ratio > 0.3f ? new Color(60, 200, 80) : new Color(220, 60, 60));
+                g2.setColor(ratio > 0.3f ? MP_BAR_GREEN : MP_BAR_RED);
                 g2.fillRoundRect(barX, barY, (int) (barW * ratio), barH, 3, 3);
             }
         }

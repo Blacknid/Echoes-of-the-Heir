@@ -40,25 +40,21 @@ public class SkillTree {
         nodes = loadFromJson();
     }
 
-    /** Load skill nodes from res/data/skilltree.json, falling back to hardcoded defaults. */
+    /** Load skill nodes from res/data/skilltree.json. */
     private SkillNode[] loadFromJson() {
         try (InputStream is = getClass().getResourceAsStream("/res/data/skilltree.json")) {
-            if (is == null) {
-                System.out.println("[SkillTree] skilltree.json not found, using defaults");
-                return defaultNodes();
-            }
+            if (is == null) throw new RuntimeException("skilltree.json not found in resources");
             BufferedReader br = new BufferedReader(new InputStreamReader(is, "UTF-8"));
             StringBuilder sb = new StringBuilder();
             String line;
             while ((line = br.readLine()) != null) sb.append(line);
 
             ArrayList<SkillNode> list = parseSkillArray(sb.toString());
-            if (list.isEmpty()) return defaultNodes();
+            if (list.isEmpty()) throw new RuntimeException("skilltree.json parsed 0 nodes");
             System.out.println("[SkillTree] Loaded " + list.size() + " nodes from JSON");
             return list.toArray(new SkillNode[0]);
         } catch (Exception e) {
-            System.out.println("[SkillTree] Error loading skilltree.json: " + e.getMessage());
-            return defaultNodes();
+            throw new RuntimeException("[SkillTree] Failed to load skilltree.json: " + e.getMessage(), e);
         }
     }
 
@@ -118,24 +114,6 @@ public class SkillTree {
     private static int intVal(Map<String, String> m, String key, int fallback) {
         String v = m.get(key); if (v == null) return fallback;
         try { return Integer.parseInt(v.trim()); } catch (NumberFormatException e) { return fallback; }
-    }
-
-    /** Hardcoded fallback if JSON fails to load. */
-    private SkillNode[] defaultNodes() {
-        return new SkillNode[] {
-            new SkillNode("VITALITY_CORE",  "Vitality Core",  "+2 max HP, full heal",                1, 0, 0, null),
-            new SkillNode("BLADE_MASTERY",  "Blade Mastery",  "+15% melee damage",                   1, 1, 0, "VITALITY_CORE"),
-            new SkillNode("IRON_WILL",      "Iron Will",      "Take 15% less damage",                2, 2, 0, "BLADE_MASTERY"),
-            new SkillNode("VOID_SNARE",     "Void Snare",     "Pull nearby enemies toward you",      2, 3, 0, "IRON_WILL"),
-            new SkillNode("WINDSTEP",       "Windstep",       "Unlock Dodge Roll",                   1, 0, 1, null),
-            new SkillNode("PHASE_TUNING",   "Phase Tuning",   "Blink cooldown reduced",              1, 1, 1, "WINDSTEP"),
-            new SkillNode("OVERDRIVE",      "Overdrive",      "Buff: speed and melee damage",        2, 2, 1, "PHASE_TUNING"),
-            new SkillNode("QUICK_RECOVERY", "Quick Recovery", "Halve dodge cooldown, +1 speed",      2, 3, 1, "OVERDRIVE"),
-            new SkillNode("AETHER_RESERVE","Aether Reserve", "+2 max mana, full mana",               1, 0, 2, null),
-            new SkillNode("SHOCKWAVE",     "Shockwave",      "Unleash a melee burst around you",     1, 1, 2, "AETHER_RESERVE"),
-            new SkillNode("FROST_NOVA",    "Frost Nova",     "Freeze nearby enemies briefly",        2, 2, 2, "SHOCKWAVE"),
-            new SkillNode("ARCANE_MASTERY", "Arcane Mastery","+3 max mana, full mana restore",       2, 3, 2, "FROST_NOVA"),
-        };
     }
 
     public SkillNode[] getNodes() {

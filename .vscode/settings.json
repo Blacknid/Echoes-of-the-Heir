@@ -8,5 +8,6 @@
         "ceva/src"
     ],
     "java.project.outputPath": "ceva/bin",
-    "java.compile.nullAnalysis.mode": "disabled"
+    "java.compile.nullAnalysis.mode": "disabled",
+    "java.debug.settings.onBuildFailureProceed": true
 }

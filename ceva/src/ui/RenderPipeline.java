@@ -32,6 +32,15 @@ public class RenderPipeline {
         return Integer.compare(feet1, feet2);
     };
 
+    // PRE-ALLOCATED DEBUG COLORS & FONT (avoid per-frame allocation in hitbox debug)
+    private static final Color DBG_RED    = new Color(255, 0, 0, 128);
+    private static final Color DBG_PURPLE = new Color(255, 0, 255, 128);
+    private static final Color DBG_ORANGE = new Color(255, 100, 0, 128);
+    private static final Color DBG_YELLOW = new Color(255, 255, 0, 128);
+    private static final Color DBG_CYAN   = new Color(0, 255, 255, 128);
+    private static final Color DBG_BLUE   = new Color(0, 0, 255, 128);
+    private static final Font  DBG_FONT   = new Font("Arial", Font.PLAIN, 12);
+
     public RenderPipeline(GamePanel gp) {
         this.gp = gp;
     }
@@ -187,7 +196,7 @@ public class RenderPipeline {
     }
 
     void drawHitboxDebug(Graphics2D g2) {
-        g2.setColor(new Color(255, 0, 0, 128));
+        g2.setColor(DBG_RED);
 
         // PLAYER
         Rectangle r = gp.player.solidArea;
@@ -195,10 +204,10 @@ public class RenderPipeline {
         int py = gp.player.screenY + r.y;
         g2.fillRect(px, py, r.width, r.height);
         if (gp.player.knockBack) {
-            g2.setColor(new Color(255, 0, 255, 128));
+            g2.setColor(DBG_PURPLE);
             g2.fillRect(px, py, r.width, r.height);
             g2.setColor(Color.WHITE);
-            g2.setFont(new Font("Arial", Font.PLAIN, 12));
+            g2.setFont(DBG_FONT);
             g2.drawString(String.valueOf(gp.player.knockBackPower), px, py - 4);
             int cx = px + r.width/2;
             int cy = py + r.height/2;
@@ -206,12 +215,12 @@ public class RenderPipeline {
             int vy = gp.player.knockBackVectorY * 2;
             g2.drawLine(cx, cy, cx + vx, cy + vy);
             g2.fillOval(cx + vx - 2, cy + vy - 2, 4, 4);
-            g2.setColor(new Color(255, 0, 0, 128));
+            g2.setColor(DBG_RED);
         }
 
         // PLAYER ATTACK HITBOX
         if (gp.player.attacking) {
-            g2.setColor(new Color(255, 100, 0, 128));
+            g2.setColor(DBG_ORANGE);
             int ts = gp.tileSize;
             int attackWorldX = gp.player.worldX;
             int attackWorldY = gp.player.worldY;
@@ -228,7 +237,7 @@ public class RenderPipeline {
         }
 
         // NPC
-        g2.setColor(new Color(255, 0, 0, 128));
+        g2.setColor(DBG_RED);
         for(Entity n : gp.npc) {
             if(n != null) {
                 r = n.solidArea;
@@ -239,7 +248,7 @@ public class RenderPipeline {
         }
 
         // MONSTERS
-        g2.setColor(new Color(255, 255, 0, 128));
+        g2.setColor(DBG_YELLOW);
         for(Entity m : gp.monster) {
             if(m != null) {
                 r = m.solidArea;
@@ -247,10 +256,10 @@ public class RenderPipeline {
                 int my = m.worldY - gp.player.worldY + gp.player.screenY + r.y;
                 g2.fillRect(mx, my, r.width, r.height);
                 if (m.knockBack) {
-                    g2.setColor(new Color(255, 0, 255, 128));
+                    g2.setColor(DBG_PURPLE);
                     g2.fillRect(mx, my, r.width, r.height);
                     g2.setColor(Color.WHITE);
-                    g2.setFont(new Font("Arial", Font.PLAIN, 12));
+                    g2.setFont(DBG_FONT);
                     g2.drawString(String.valueOf(m.knockBackPower), mx, my - 4);
                     int cx = mx + r.width/2;
                     int cy = my + r.height/2;
@@ -258,13 +267,13 @@ public class RenderPipeline {
                     int vy = m.knockBackVectorY * 2;
                     g2.drawLine(cx, cy, cx + vx, cy + vy);
                     g2.fillOval(cx + vx - 2, cy + vy - 2, 4, 4);
-                    g2.setColor(new Color(255, 255, 0, 128));
+                    g2.setColor(DBG_YELLOW);
                 }
             }
         }
 
         // OBJECTS
-        g2.setColor(new Color(255, 0, 0, 128));
+        g2.setColor(DBG_RED);
         for(Entity o : gp.obj) {
             if(o != null) {
                 r = o.solidArea;
@@ -275,7 +284,7 @@ public class RenderPipeline {
         }
 
         // INTERACTIVE TILES
-        g2.setColor(new Color(0, 255, 255, 128));
+        g2.setColor(DBG_CYAN);
         for(int i = 0; i < gp.iTile.length; i++) {
             if(gp.iTile[i] != null) {
                 r = gp.iTile[i].solidArea;
@@ -287,7 +296,7 @@ public class RenderPipeline {
 
         // COLLISION SHAPES
         if(gp.tileM.collisionShapes != null && !gp.tileM.collisionShapes.isEmpty()) {
-            g2.setColor(new Color(0, 0, 255, 128));
+            g2.setColor(DBG_BLUE);
             AffineTransform oldTransform = g2.getTransform();
             g2.translate(-gp.player.worldX + gp.player.screenX, -gp.player.worldY + gp.player.screenY);
             for(Shape shape : gp.tileM.collisionShapes) {

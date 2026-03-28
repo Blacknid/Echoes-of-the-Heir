@@ -12,11 +12,10 @@ import org.w3c.dom.Element;
 import org.w3c.dom.NodeList;
 
 import audio.SFX;
+import data.MonsterFactory;
 import entity.Entity;
 import entity.NPC_Alucard;
 import main.GamePanel;
-import monster.MON_SkeletonArcher;
-import monster.MON_monster;
 import object.OBJ_Arrow;
 import object.OBJ_Book;
 import object.OBJ_Boots;
@@ -432,15 +431,17 @@ public class MapObjectLoader {
     }
 
     private Entity createMonster(String type, int col, int row, Element obj) {
-        Entity m = switch (type) {
-            case "MON_monster"        -> new MON_monster(gp, col, row);
-            case "MON_SkeletonArcher" -> new MON_SkeletonArcher(gp, col, row);
-            default -> {
-                System.out.println("MapObjectLoader: Unknown monster type '" + type + "'");
-                yield null;
-            }
+        // Accept both legacy TMX class names and JSON ids
+        String id = switch (type) {
+            case "MON_monster"        -> "mummy";
+            case "MON_SkeletonArcher" -> "skeleton_archer";
+            default                   -> type;
         };
-        if (m == null) return null;
+        Entity m = MonsterFactory.create(gp, id, col, row);
+        if (m == null) {
+            System.out.println("MapObjectLoader: Unknown monster type '" + type + "'");
+            return null;
+        }
 
         // Level scaling: +50% HP and +25% ATK per level above 1
         int level = getIntProperty(obj, "level", 1);
@@ -638,14 +639,14 @@ public class MapObjectLoader {
      * No level scaling or property reading — uses defaults.
      */
     public Entity createMonsterByName(String type, int col, int row) {
-        return switch (type) {
-            case "MON_monster"        -> new MON_monster(gp, col, row);
-            case "MON_SkeletonArcher" -> new MON_SkeletonArcher(gp, col, row);
-            default -> {
-                System.out.println("MapObjectLoader: Unknown monster type '" + type + "'");
-                yield null;
-            }
+        String id = switch (type) {
+            case "MON_monster"        -> "mummy";
+            case "MON_SkeletonArcher" -> "skeleton_archer";
+            default                   -> type;
         };
+        Entity m = MonsterFactory.create(gp, id, col, row);
+        if (m == null) System.out.println("MapObjectLoader: Unknown monster type '" + type + "'");
+        return m;
     }
 
     private void spawnMonsterArea(Element obj, int startCol, int startRow,

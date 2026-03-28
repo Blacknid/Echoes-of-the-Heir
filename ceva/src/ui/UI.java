@@ -93,6 +93,12 @@ public class UI {
     private static final BasicStroke STROKE_3  = new BasicStroke(3f);
     private static final BasicStroke STROKE_6  = new BasicStroke(6f);
 
+    // ── BASIC STROKE CACHE — for dynamic stroke widths (pulsing cursors etc.) ──
+    private final HashMap<Float, BasicStroke> strokeCache = new HashMap<>();
+    private BasicStroke cachedStroke(float width) {
+        return strokeCache.computeIfAbsent(width, BasicStroke::new);
+    }
+
     // ── FONT CACHE — eliminates ~80 Font.deriveFont() per frame ──
     private final HashMap<Long, Font> fontCache = new HashMap<>();
     // ── COLOR CACHE — eliminates ~80 cachedColor() per frame (pulse alpha etc.) ──
@@ -127,6 +133,15 @@ public class UI {
     // ── CACHED ALPHA COMPOSITES ──
     private static final AlphaComposite ALPHA_OPAQUE = AlphaComposite.SrcOver;
     private static final AlphaComposite ALPHA_070 = AlphaComposite.getInstance(AlphaComposite.SRC_OVER, 0.7f);
+
+    // ── GRADIENT PAINT CACHE — eliminates ~10 GradientPaint allocations per frame ──
+    private final HashMap<Long, java.awt.GradientPaint> gradientCache = new HashMap<>();
+    private java.awt.GradientPaint cachedGradient(int x1, int y1, Color c1, int x2, int y2, Color c2) {
+        long key = ((long) x1 * 92821 + y1) * 31 + ((long) x2 * 92821 + y2) * 17
+                 + c1.hashCode() * 7L + c2.hashCode();
+        return gradientCache.computeIfAbsent(key,
+            k -> new java.awt.GradientPaint(x1, y1, c1, x2, y2, c2));
+    }
 
 
     public UI(GamePanel gp) {
@@ -758,10 +773,8 @@ public class UI {
             g2.setColor(cachedColor(0, 0, 0, 140));
             g2.drawString(text, tx + 3, ty + 3);
             // Gold gradient
-            java.awt.GradientPaint titleGrad = new java.awt.GradientPaint(
-                tx, ty - 40, cachedColor(255, 230, 120),
-                tx, ty + 10, cachedColor(200, 150, 40));
-            g2.setPaint(titleGrad);
+            g2.setPaint(cachedGradient(tx, ty - 40, cachedColor(255, 230, 120),
+                tx, ty + 10, cachedColor(200, 150, 40)));
             g2.drawString(text, tx, ty);
 
             // Subtitle
@@ -798,10 +811,8 @@ public class UI {
                     g2.setColor(cachedColor(255, 200, 60, 20));
                     g2.fillRoundRect(btnX - 6, by - 6, btnW + 12, btnH + 12, 20, 20);
                     // Filled background
-                    java.awt.GradientPaint btnGrad = new java.awt.GradientPaint(
-                        btnX, by, cachedColor(60, 45, 20, 200),
-                        btnX, by + btnH, cachedColor(40, 30, 12, 220));
-                    g2.setPaint(btnGrad);
+                    g2.setPaint(cachedGradient(btnX, by, cachedColor(60, 45, 20, 200),
+                        btnX, by + btnH, cachedColor(40, 30, 12, 220)));
                     g2.fillRoundRect(btnX, by, btnW, btnH, 14, 14);
                     // Gold border
                     g2.setColor(cachedColor(220, 180, 60));
@@ -952,15 +963,11 @@ public class UI {
             g2.drawString(text, px + (panelW - tw) / 2, py + 42);
 
             // Divider
-            java.awt.GradientPaint divGrad = new java.awt.GradientPaint(
-                px + 40, py + 55, cachedColor(100, 140, 180, 0),
-                px + panelW / 2, py + 55, cachedColor(100, 140, 180, 120));
-            g2.setPaint(divGrad);
+            g2.setPaint(cachedGradient(px + 40, py + 55, cachedColor(100, 140, 180, 0),
+                px + panelW / 2, py + 55, cachedColor(100, 140, 180, 120)));
             g2.drawLine(px + 40, py + 55, px + panelW / 2, py + 55);
-            divGrad = new java.awt.GradientPaint(
-                px + panelW / 2, py + 55, cachedColor(100, 140, 180, 120),
-                px + panelW - 40, py + 55, cachedColor(100, 140, 180, 0));
-            g2.setPaint(divGrad);
+            g2.setPaint(cachedGradient(px + panelW / 2, py + 55, cachedColor(100, 140, 180, 120),
+                px + panelW - 40, py + 55, cachedColor(100, 140, 180, 0)));
             g2.drawLine(px + panelW / 2, py + 55, px + panelW - 40, py + 55);
 
             // Update entries
@@ -1040,21 +1047,21 @@ public class UI {
         int py = (gp.screenHeight - panelH) / 2;
 
         // Dark panel
-        g2.setColor(new Color(12, 14, 24, 235));
+        g2.setColor(cachedColor(12, 14, 24, 235));
         g2.fillRoundRect(px, py, panelW, panelH, 16, 16);
-        g2.setColor(new Color(80, 140, 200, 90));
-        g2.setStroke(new BasicStroke(2f));
+        g2.setColor(cachedColor(80, 140, 200, 90));
+        g2.setStroke(STROKE_2);
         g2.drawRoundRect(px + 2, py + 2, panelW - 4, panelH - 4, 14, 14);
 
         // Title
-        g2.setFont(g2.getFont().deriveFont(Font.BOLD, 32F));
-        g2.setColor(new Color(100, 180, 255));
+        g2.setFont(cachedFont(Font.BOLD, 32F));
+        g2.setColor(cachedColor(100, 180, 255));
         String text = "\u2630  MULTIPLAYER";
-        int tw = (int) g2.getFontMetrics().getStringBounds(text, g2).getWidth();
+        int tw = (int) cachedFM().getStringBounds(text, g2).getWidth();
         g2.drawString(text, px + (panelW - tw) / 2, py + 44);
 
         // Divider
-        g2.setColor(new Color(80, 120, 180, 80));
+        g2.setColor(cachedColor(80, 120, 180, 80));
         g2.drawLine(px + 30, py + 58, px + panelW - 30, py + 58);
 
         // ── Server List ──
@@ -1068,14 +1075,14 @@ public class UI {
         if (mpServerSelection >= servers.size()) scrollOffset = 0; // cursor on menu items
 
         if (servers.isEmpty()) {
-            g2.setFont(g2.getFont().deriveFont(Font.ITALIC, 16F));
-            g2.setColor(new Color(120, 115, 105));
+            g2.setFont(cachedFont(Font.ITALIC, 16F));
+            g2.setColor(cachedColor(120, 115, 105));
             String empty = "No saved servers. Add one below!";
-            int ew = (int) g2.getFontMetrics().getStringBounds(empty, g2).getWidth();
+            int ew = (int) cachedFM().getStringBounds(empty, g2).getWidth();
             g2.drawString(empty, px + (panelW - ew) / 2, listStartY + 30);
         } else {
-            g2.setFont(g2.getFont().deriveFont(Font.BOLD, 12F));
-            g2.setColor(new Color(100, 95, 85));
+            g2.setFont(cachedFont(Font.BOLD, 12F));
+            g2.setColor(cachedColor(100, 95, 85));
             g2.drawString("SAVED SERVERS", entryX, listStartY - 6);
 
             for (int i = scrollOffset; i < Math.min(servers.size(), scrollOffset + maxVisible); i++) {
@@ -1084,34 +1091,34 @@ public class UI {
                 boolean sel = (mpServerSelection == i);
 
                 if (sel) {
-                    g2.setColor(new Color(60, 100, 160, 50));
+                    g2.setColor(cachedColor(60, 100, 160, 50));
                     g2.fillRoundRect(entryX - 4, ey - 4, entryW + 8, entryH + 8, 12, 12);
-                    g2.setColor(new Color(80, 150, 220, 80));
+                    g2.setColor(cachedColor(80, 150, 220, 80));
                     g2.fillRoundRect(entryX, ey, entryW, entryH, 10, 10);
-                    g2.setColor(new Color(100, 180, 255));
-                    g2.setStroke(new BasicStroke(2f));
+                    g2.setColor(cachedColor(100, 180, 255));
+                    g2.setStroke(STROKE_2);
                     g2.drawRoundRect(entryX, ey, entryW, entryH, 10, 10);
                     g2.fillRoundRect(entryX, ey + 8, 3, entryH - 16, 2, 2);
                 } else {
-                    g2.setColor(new Color(25, 28, 40, 160));
+                    g2.setColor(cachedColor(25, 28, 40, 160));
                     g2.fillRoundRect(entryX, ey, entryW, entryH, 10, 10);
-                    g2.setColor(new Color(50, 55, 70, 60));
-                    g2.setStroke(new BasicStroke(1f));
+                    g2.setColor(cachedColor(50, 55, 70, 60));
+                    g2.setStroke(STROKE_1);
                     g2.drawRoundRect(entryX, ey, entryW, entryH, 10, 10);
                 }
 
                 // Server name
-                g2.setFont(g2.getFont().deriveFont(sel ? Font.BOLD : Font.PLAIN, 18F));
-                g2.setColor(sel ? Color.WHITE : new Color(180, 175, 160));
+                g2.setFont(cachedFont(sel ? Font.BOLD : Font.PLAIN, 18F));
+                g2.setColor(sel ? Color.WHITE : cachedColor(180, 175, 160));
                 g2.drawString(srv[0], entryX + 16, ey + 22);
 
                 // IP:port
-                g2.setFont(g2.getFont().deriveFont(Font.PLAIN, 13F));
-                g2.setColor(sel ? new Color(160, 200, 240) : new Color(110, 105, 95));
+                g2.setFont(cachedFont(Font.PLAIN, 13F));
+                g2.setColor(sel ? cachedColor(160, 200, 240) : cachedColor(110, 105, 95));
                 g2.drawString(srv[1] + ":" + srv[2], entryX + 16, ey + 40);
 
                 // Online indicator dot
-                g2.setColor(new Color(80, 200, 100, sel ? 200 : 100));
+                g2.setColor(cachedColor(80, 200, 100, sel ? 200 : 100));
                 g2.fillOval(entryX + entryW - 20, ey + entryH / 2 - 4, 8, 8);
             }
         }
@@ -1122,9 +1129,9 @@ public class UI {
 
         String[] options = {"ADD SERVER", "DIRECT CONNECT", "BACK"};
         Color[] optColors = {
-            new Color(80, 200, 120),
-            new Color(100, 180, 255),
-            new Color(180, 160, 120)
+            cachedColor(80, 200, 120),
+            cachedColor(100, 180, 255),
+            cachedColor(180, 160, 120)
         };
         int optH = 38;
         int optW = panelW - 100;
@@ -1136,42 +1143,42 @@ public class UI {
             boolean sel = (mpServerSelection == idx);
 
             if (sel) {
-                g2.setColor(new Color(optColors[i].getRed(), optColors[i].getGreen(), optColors[i].getBlue(), 20));
+                g2.setColor(cachedColor(optColors[i].getRed(), optColors[i].getGreen(), optColors[i].getBlue(), 20));
                 g2.fillRoundRect(optX - 4, oy - 3, optW + 8, optH + 6, 12, 12);
-                g2.setColor(new Color(optColors[i].getRed(), optColors[i].getGreen(), optColors[i].getBlue(), 50));
+                g2.setColor(cachedColor(optColors[i].getRed(), optColors[i].getGreen(), optColors[i].getBlue(), 50));
                 g2.fillRoundRect(optX, oy, optW, optH, 10, 10);
                 g2.setColor(optColors[i]);
-                g2.setStroke(new BasicStroke(2f));
+                g2.setStroke(STROKE_2);
                 g2.drawRoundRect(optX, oy, optW, optH, 10, 10);
             } else {
-                g2.setColor(new Color(20, 22, 35, 140));
+                g2.setColor(cachedColor(20, 22, 35, 140));
                 g2.fillRoundRect(optX, oy, optW, optH, 10, 10);
-                g2.setColor(new Color(50, 50, 65, 60));
-                g2.setStroke(new BasicStroke(1f));
+                g2.setColor(cachedColor(50, 50, 65, 60));
+                g2.setStroke(STROKE_1);
                 g2.drawRoundRect(optX, oy, optW, optH, 10, 10);
             }
 
-            g2.setFont(g2.getFont().deriveFont(Font.BOLD, 18F));
+            g2.setFont(cachedFont(Font.BOLD, 18F));
             text = options[i];
-            tw = (int) g2.getFontMetrics().getStringBounds(text, g2).getWidth();
-            g2.setColor(sel ? optColors[i] : new Color(140, 135, 120));
+            tw = (int) cachedFM().getStringBounds(text, g2).getWidth();
+            g2.setColor(sel ? optColors[i] : cachedColor(140, 135, 120));
             g2.drawString(text, optX + (optW - tw) / 2, oy + optH / 2 + 6);
         }
 
         // ── Status message ──
         if (gp.mpClient != null && !gp.mpClient.connectionStatus.isEmpty()) {
-            g2.setFont(g2.getFont().deriveFont(Font.ITALIC, 14F));
-            g2.setColor(new Color(255, 200, 80, 200));
+            g2.setFont(cachedFont(Font.ITALIC, 14F));
+            g2.setColor(cachedColor(255, 200, 80, 200));
             String status = gp.mpClient.connectionStatus;
-            int sw = (int) g2.getFontMetrics().getStringBounds(status, g2).getWidth();
+            int sw = (int) cachedFM().getStringBounds(status, g2).getWidth();
             g2.drawString(status, px + (panelW - sw) / 2, py + panelH - 42);
         }
 
         // ── Hint bar ──
-        g2.setFont(g2.getFont().deriveFont(Font.PLAIN, 12F));
-        g2.setColor(new Color(90, 85, 75));
+        g2.setFont(cachedFont(Font.PLAIN, 12F));
+        g2.setColor(cachedColor(90, 85, 75));
         String hint = "[W/S] Navigate   [Enter] Select/Connect   [Delete] Remove Server";
-        int hw = (int) g2.getFontMetrics().getStringBounds(hint, g2).getWidth();
+        int hw = (int) cachedFM().getStringBounds(hint, g2).getWidth();
         g2.drawString(hint, px + (panelW - hw) / 2, py + panelH - 16);
     }
 
@@ -1184,21 +1191,21 @@ public class UI {
         int py = (gp.screenHeight - panelH) / 2;
 
         // Dark panel
-        g2.setColor(new Color(12, 14, 24, 240));
+        g2.setColor(cachedColor(12, 14, 24, 240));
         g2.fillRoundRect(px, py, panelW, panelH, 16, 16);
-        g2.setColor(new Color(80, 160, 220, 80));
-        g2.setStroke(new BasicStroke(2f));
+        g2.setColor(cachedColor(80, 160, 220, 80));
+        g2.setStroke(STROKE_2);
         g2.drawRoundRect(px + 2, py + 2, panelW - 4, panelH - 4, 14, 14);
 
         // Title
-        g2.setFont(g2.getFont().deriveFont(Font.BOLD, 28F));
-        g2.setColor(new Color(100, 200, 140));
+        g2.setFont(cachedFont(Font.BOLD, 28F));
+        g2.setColor(cachedColor(100, 200, 140));
         String title = mpAddMode ? "ADD SERVER" : "DIRECT CONNECT";
-        int ttw = (int) g2.getFontMetrics().getStringBounds(title, g2).getWidth();
+        int ttw = (int) cachedFM().getStringBounds(title, g2).getWidth();
         g2.drawString(title, px + (panelW - ttw) / 2, py + 40);
 
         // Divider
-        g2.setColor(new Color(80, 160, 120, 60));
+        g2.setColor(cachedColor(80, 160, 120, 60));
         g2.drawLine(px + 30, py + 52, px + panelW - 30, py + 52);
 
         // ── Input Fields ──
@@ -1222,27 +1229,27 @@ public class UI {
             boolean active = (mpInputField == i);
 
             // Label
-            g2.setFont(g2.getFont().deriveFont(Font.BOLD, 14F));
-            g2.setColor(active ? new Color(120, 200, 160) : new Color(150, 145, 130));
+            g2.setFont(cachedFont(Font.BOLD, 14F));
+            g2.setColor(active ? cachedColor(120, 200, 160) : cachedColor(150, 145, 130));
             g2.drawString(labels[i], fieldX, fy - 6);
 
             // Field background
             if (active) {
-                g2.setColor(new Color(30, 50, 60, 200));
+                g2.setColor(cachedColor(30, 50, 60, 200));
                 g2.fillRoundRect(fieldX, fy, fieldW, fieldH, 8, 8);
-                g2.setColor(new Color(80, 200, 160));
-                g2.setStroke(new BasicStroke(2f));
+                g2.setColor(cachedColor(80, 200, 160));
+                g2.setStroke(STROKE_2);
                 g2.drawRoundRect(fieldX, fy, fieldW, fieldH, 8, 8);
             } else {
-                g2.setColor(new Color(20, 24, 35, 180));
+                g2.setColor(cachedColor(20, 24, 35, 180));
                 g2.fillRoundRect(fieldX, fy, fieldW, fieldH, 8, 8);
-                g2.setColor(new Color(60, 60, 75, 80));
-                g2.setStroke(new BasicStroke(1f));
+                g2.setColor(cachedColor(60, 60, 75, 80));
+                g2.setStroke(STROKE_1);
                 g2.drawRoundRect(fieldX, fy, fieldW, fieldH, 8, 8);
             }
 
             // Field text + cursor
-            g2.setFont(g2.getFont().deriveFont(Font.PLAIN, 18F));
+            g2.setFont(cachedFont(Font.PLAIN, 18F));
             g2.setColor(Color.WHITE);
             String displayText = values[i];
             if (active) {
@@ -1271,31 +1278,31 @@ public class UI {
             boolean sel = (mpInputField == fieldCount + i);
 
             if (sel) {
-                g2.setColor(new Color(60, 140, 100, 60));
+                g2.setColor(cachedColor(60, 140, 100, 60));
                 g2.fillRoundRect(bx, btnY, btnW, btnH, 10, 10);
-                g2.setColor(new Color(80, 200, 140));
-                g2.setStroke(new BasicStroke(2f));
+                g2.setColor(cachedColor(80, 200, 140));
+                g2.setStroke(STROKE_2);
                 g2.drawRoundRect(bx, btnY, btnW, btnH, 10, 10);
             } else {
-                g2.setColor(new Color(25, 30, 40, 140));
+                g2.setColor(cachedColor(25, 30, 40, 140));
                 g2.fillRoundRect(bx, btnY, btnW, btnH, 10, 10);
-                g2.setColor(new Color(60, 60, 70, 80));
-                g2.setStroke(new BasicStroke(1f));
+                g2.setColor(cachedColor(60, 60, 70, 80));
+                g2.setStroke(STROKE_1);
                 g2.drawRoundRect(bx, btnY, btnW, btnH, 10, 10);
             }
 
-            g2.setFont(g2.getFont().deriveFont(Font.BOLD, 14F));
+            g2.setFont(cachedFont(Font.BOLD, 14F));
             String bText = buttons[i];
-            int btw = (int) g2.getFontMetrics().getStringBounds(bText, g2).getWidth();
-            g2.setColor(sel ? new Color(100, 220, 160) : new Color(140, 135, 120));
+            int btw = (int) cachedFM().getStringBounds(bText, g2).getWidth();
+            g2.setColor(sel ? cachedColor(100, 220, 160) : cachedColor(140, 135, 120));
             g2.drawString(bText, bx + (btnW - btw) / 2, btnY + btnH / 2 + 5);
         }
 
         // ── Hint ──
-        g2.setFont(g2.getFont().deriveFont(Font.PLAIN, 12F));
-        g2.setColor(new Color(90, 85, 75));
+        g2.setFont(cachedFont(Font.PLAIN, 12F));
+        g2.setColor(cachedColor(90, 85, 75));
         String hint = "[Tab] Next field   [Enter] Select   [Esc] Back";
-        int hw = (int) g2.getFontMetrics().getStringBounds(hint, g2).getWidth();
+        int hw = (int) cachedFM().getStringBounds(hint, g2).getWidth();
         g2.drawString(hint, px + (panelW - hw) / 2, py + panelH - 16);
     }
 
@@ -1847,10 +1854,11 @@ public class UI {
         // translucent fill for selected slot
         g2.setColor(cachedColor(255, 255, 255, 40));
         g2.fillRoundRect(cursorX, cursorY, cursorWidth, cursorHeight, 10, 10);
-        // pulsing border for selected slot
-        float strokeWidth = 2f + 2f * (float)((Math.sin(counter * 0.12) + 1.0) * 0.5f);
+        // pulsing border for selected slot (quantized to reduce allocations)
+        float rawStroke = 2f + 2f * (float)((Math.sin(counter * 0.12) + 1.0) * 0.5f);
+        int strokeKey = Math.round(rawStroke * 2); // quantize to 0.5 steps
         g2.setColor(Color.white);
-        g2.setStroke(new BasicStroke(strokeWidth));
+        g2.setStroke(cachedStroke(strokeKey * 0.5f));
         g2.drawRoundRect(cursorX, cursorY, cursorWidth, cursorHeight, 10, 10);
 
         // HINT STRIP (between inventory frame and description window)
@@ -2362,10 +2370,8 @@ public class UI {
         g2.fillRect(0, 0, gp.screenWidth, gp.screenHeight);
 
         // Main panel with gradient background
-        java.awt.GradientPaint bgGrad = new java.awt.GradientPaint(
-            x, y, cachedColor(20, 15, 35, 240),
-            x, y + h, cachedColor(10, 8, 18, 250));
-        g2.setPaint(bgGrad);
+        g2.setPaint(cachedGradient(x, y, cachedColor(20, 15, 35, 240),
+            x, y + h, cachedColor(10, 8, 18, 250)));
         g2.fillRoundRect(x, y, w, h, 16, 16);
 
         // Golden border with glow
@@ -2377,16 +2383,12 @@ public class UI {
         g2.drawRoundRect(x + 2, y + 2, w - 4, h - 4, 14, 14);
 
         // Decorative top accent line
-        java.awt.GradientPaint accentGrad = new java.awt.GradientPaint(
-            x + 40, y + 8, cachedColor(255, 200, 60, 0),
-            x + w / 2, y + 8, cachedColor(255, 200, 60, 200));
-        g2.setPaint(accentGrad);
+        g2.setPaint(cachedGradient(x + 40, y + 8, cachedColor(255, 200, 60, 0),
+            x + w / 2, y + 8, cachedColor(255, 200, 60, 200)));
         g2.setStroke(STROKE_15);
         g2.drawLine(x + 40, y + 8, x + w / 2, y + 8);
-        accentGrad = new java.awt.GradientPaint(
-            x + w / 2, y + 8, cachedColor(255, 200, 60, 200),
-            x + w - 40, y + 8, cachedColor(255, 200, 60, 0));
-        g2.setPaint(accentGrad);
+        g2.setPaint(cachedGradient(x + w / 2, y + 8, cachedColor(255, 200, 60, 200),
+            x + w - 40, y + 8, cachedColor(255, 200, 60, 0)));
         g2.drawLine(x + w / 2, y + 8, x + w - 40, y + 8);
 
         // Title with shadow
@@ -2398,10 +2400,8 @@ public class UI {
         g2.setColor(cachedColor(0, 0, 0, 120));
         g2.drawString(title, tx + 2, y + 48);
         // Gold gradient text
-        java.awt.GradientPaint titleGrad = new java.awt.GradientPaint(
-            tx, y + 20, cachedColor(255, 230, 120),
-            tx, y + 50, cachedColor(220, 170, 50));
-        g2.setPaint(titleGrad);
+        g2.setPaint(cachedGradient(tx, y + 20, cachedColor(255, 230, 120),
+            tx, y + 50, cachedColor(220, 170, 50)));
         g2.drawString(title, tx, y + 46);
 
         // Level badge
@@ -2455,10 +2455,8 @@ public class UI {
                 g2.fillRoundRect(optX - 4, oy - 4, optW + 8, optH + 8, 14, 14);
 
                 // Selected background gradient
-                java.awt.GradientPaint optGrad = new java.awt.GradientPaint(
-                    optX, oy, cachedColor(255, 200, 60, 40),
-                    optX + optW, oy, cachedColor(255, 200, 60, 15));
-                g2.setPaint(optGrad);
+                g2.setPaint(cachedGradient(optX, oy, cachedColor(255, 200, 60, 40),
+                    optX + optW, oy, cachedColor(255, 200, 60, 15)));
                 g2.fillRoundRect(optX, oy, optW, optH, 10, 10);
 
                 // Gold border
@@ -2561,10 +2559,8 @@ public class UI {
         g2.setColor(cachedColor(5, 6, 10, 180));
         g2.fillRect(0, 0, gp.screenWidth, gp.screenHeight);
 
-        java.awt.GradientPaint bg = new java.awt.GradientPaint(
-            x, y, cachedColor(18, 14, 10, 242),
-            x, y + h, cachedColor(10, 9, 15, 248));
-        g2.setPaint(bg);
+        g2.setPaint(cachedGradient(x, y, cachedColor(18, 14, 10, 242),
+            x, y + h, cachedColor(10, 9, 15, 248)));
         g2.fillRoundRect(x, y, w, h, 18, 18);
 
         g2.setColor(cachedColor(220, 175, 80, 120));

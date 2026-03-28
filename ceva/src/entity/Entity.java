@@ -13,7 +13,7 @@ import audio.SFX;
 import main.GamePanel;
 import util.UtilityTool;
 
-public class Entity implements ICombatable, IAnimated, IPathable {
+public class Entity {
 
     protected GamePanel gp;
 
@@ -21,15 +21,11 @@ public class Entity implements ICombatable, IAnimated, IPathable {
     int pathUpdateCounter = 0;
     int pathUpdateInterval = 10;
 
-<<<<<<< HEAD
     // PER-ENTITY PATH CACHE — recalculate only when the goal tile changes
     private final java.util.ArrayList<int[]> cachedWaypoints = new java.util.ArrayList<>();
     private int waypointIdx      = 0;
     private int pathCacheGoalCol = -1;
     private int pathCacheGoalRow = -1;
-=======
-    
->>>>>>> b10782fa01686bccc1d862f2542e9cf6daf13dfc
 
     // DIRECTION CONSTANTS
     public static final int DIR_DOWN  = 0;
@@ -159,18 +155,18 @@ public class Entity implements ICombatable, IAnimated, IPathable {
 
     // TYPE CONSTANTS
     public int type;
-    public final int type_player = 0;
-    public final int type_npc = 1;
-    public final int type_monster = 2;
-    public final int type_sword = 3;
-    public final int type_book = 4;
-    public final int type_shield = 5;
-    public final int type_consumable = 6;
-    public final int type_pickupOnly = 7;
-    public final int type_obstacle = 8;
-    public final int type_buffs = 9;
-    public final int type_ending = 10;
-    public final int type_utility = 11;
+    public static final int type_player = 0;
+    public static final int type_npc = 1;
+    public static final int type_monster = 2;
+    public static final int type_sword = 3;
+    public static final int type_book = 4;
+    public static final int type_shield = 5;
+    public static final int type_consumable = 6;
+    public static final int type_pickupOnly = 7;
+    public static final int type_obstacle = 8;
+    public static final int type_buffs = 9;
+    public static final int type_ending = 10;
+    public static final int type_utility = 11;
 
 
 
@@ -236,25 +232,25 @@ public class Entity implements ICombatable, IAnimated, IPathable {
     public int getTileCol() { return getCenterX() / gp.tileSize; }    
     public int getTileRow() { return getCenterY() / gp.tileSize; } 
 
-    // --- ICombatable interface methods ---
-    @Override public int getMaxLife() { return maxLife; }
-    @Override public int getLife() { return life; }
-    @Override public void setLife(int life) { this.life = life; }
-    @Override public int getAttack() { return attack; }
-    @Override public int getDefense() { return defense; }
-    @Override public boolean isInvincible() { return invincible; }
-    @Override public boolean isDying() { return dying; }
+    // --- Combat methods ---
+    public int getMaxLife() { return maxLife; }
+    public int getLife() { return life; }
+    public void setLife(int life) { this.life = life; }
+    public int getAttack() { return attack; }
+    public int getDefense() { return defense; }
+    public boolean isInvincible() { return invincible; }
+    public boolean isDying() { return dying; }
 
-    // --- IAnimated interface methods ---
-    @Override public BufferedImage getWalkFrame(int direction, int frameIndex) { return getWalkFrameImage(direction, frameIndex); }
-    @Override public int getSpriteNum() { return spriteNum; }
-    @Override public int getDirection() { return direction; }
+    // --- Animation methods ---
+    public BufferedImage getWalkFrame(int direction, int frameIndex) { return getWalkFrameImage(direction, frameIndex); }
+    public int getSpriteNum() { return spriteNum; }
+    public int getDirection() { return direction; }
 
-    // --- IPathable interface methods ---
-    @Override public boolean isOnPath() { return onPath; }
-    @Override public void setOnPath(boolean onPath) { this.onPath = onPath; }
-    @Override public int getSpeed() { return speed; }
-    @Override public void setSpeed(int speed) { this.speed = speed; }
+    // --- Pathfinding methods ---
+    public boolean isOnPath() { return onPath; }
+    public void setOnPath(boolean onPath) { this.onPath = onPath; }
+    public int getSpeed() { return speed; }
+    public void setSpeed(int speed) { this.speed = speed; }
     
     public void resetCounter() {
         spriteCounter = 0;
