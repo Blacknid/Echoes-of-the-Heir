@@ -99,11 +99,13 @@ public class MobSpawner {
      * - Is off-screen
      * - Does not collide with terrain
      */
+    // Minimum Chebyshev tile distance from the player before a monster may spawn.
+    // Half-screen size (10 cols wide, 6 rows tall at 1280x768 / 64px) + 2 tile buffer = 12 tiles.
+    private static final int MIN_SPAWN_DIST_TILES = 12;
+
     private int[] findSpawnPosition() {
         int playerCol = gp.player.worldX / gp.tileSize;
         int playerRow = gp.player.worldY / gp.tileSize;
-        int halfScreenCols = gp.maxScreenCol / 2 + 1;
-        int halfScreenRows = gp.maxScreenRow / 2 + 1;
 
         int ts = gp.tileSize;
 
@@ -120,10 +122,11 @@ public class MobSpawner {
             // Map bounds check
             if (col < 2 || col >= gp.maxWorldCol - 2 || row < 2 || row >= gp.maxWorldRow - 2) continue;
 
-            // Must be off-screen
+            // Must be at least MIN_SPAWN_DIST_TILES tiles away in both axes (Chebyshev distance).
+            // Using max(|dc|, |dr|) ensures diagonal positions aren't sneaked through.
             int dcol = Math.abs(col - playerCol);
             int drow = Math.abs(row - playerRow);
-            if (dcol < halfScreenCols && drow < halfScreenRows) continue;
+            if (Math.max(dcol, drow) < MIN_SPAWN_DIST_TILES) continue;
 
             // Collision check
             int worldX = col * ts;

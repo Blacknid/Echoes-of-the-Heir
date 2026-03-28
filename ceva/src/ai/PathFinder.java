@@ -81,10 +81,12 @@ public class PathFinder {
         boolean chasingPlayer = (goalCol == playerTileCol && goalRow == playerTileRow);
 
         // OPTIMIZATION: Only check nodes in a bounding box around start→goal (not the entire map)
-        int minCol = Math.max(0, Math.min(startCol, goalCol) - 5);
-        int maxCol = Math.min(gp.maxWorldCol - 1, Math.max(startCol, goalCol) + 5);
-        int minRow = Math.max(0, Math.min(startRow, goalRow) - 5);
-        int maxRow = Math.min(gp.maxWorldRow - 1, Math.max(startRow, goalRow) + 5);
+        int dist = Math.abs(startCol - goalCol) + Math.abs(startRow - goalRow);
+        int margin = Math.max(10, dist / 2); // scale margin with path length
+        int minCol = Math.max(0, Math.min(startCol, goalCol) - margin);
+        int maxCol = Math.min(gp.maxWorldCol - 1, Math.max(startCol, goalCol) + margin);
+        int minRow = Math.max(0, Math.min(startRow, goalRow) - margin);
+        int maxRow = Math.min(gp.maxWorldRow - 1, Math.max(startRow, goalRow) + margin);
 
         for (int col = minCol; col <= maxCol; col++) {
             for (int row = minRow; row <= maxRow; row++) {

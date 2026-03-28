@@ -26,6 +26,8 @@ public class Entity {
     private int waypointIdx      = 0;
     private int pathCacheGoalCol = -1;
     private int pathCacheGoalRow = -1;
+    private int pathStallCounter = 0;  // frames without reaching the next waypoint
+    private static final int PATH_STALL_LIMIT = 10; // force repath after this many stalled frames
 
     // DIRECTION CONSTANTS
     public static final int DIR_DOWN  = 0;
@@ -199,8 +201,21 @@ public class Entity {
     public int aggroRange = 160;        // aggro distance in pixels (default ~2.5 tiles)
     public int wanderRadius = 0;        // max wander pixel offset from spawn (0 = free)
     public boolean staticNPC = false;   // NPC never wanders or follows paths — stays in place
+    public boolean guardMode  = false;  // Static from spawn; faces the player every tick. Set onPath=true to unlock movement.
+    public int walkToCol = -1;          // after interaction: walk to this tile column, then re-enter guardMode (-1 = unused)
+    public int walkToRow = -1;          // after interaction: walk to this tile row
+    public int walkToDialogueSet = -1;  // dialogue set to use after arriving at walkTo destination (-1 = keep existing logic)
+
+    // ── NPC STEP CHAIN: sequence of (dialogueSet, walkToCol, walkToRow) steps ──
+    // Each step is int[3]: {dialogueSet, col, row}.  col/row < 0 means "stay here" (final step).
+    public final java.util.ArrayList<int[]> npcSteps = new java.util.ArrayList<>();
+    public int npcStepIndex = 0;
+
     public String onSpeakQuestId = null;   // quest id to progress when player talks to this NPC
     public int    onSpeakQuestAmount = 1;  // how much to add to that quest on each speak
+
+    public String requiredItem = null;          // item name the player must have to trigger alternate dialogue
+    public int    requiredItemDialogueSet = -1; // which dialogue set to use when the player has the item
 
 
 
@@ -263,6 +278,19 @@ public class Entity {
     }
     public void setAction() {}
     public void speak() {}
+
+    /**
+     * Checks if the player has the required item; if so, starts the alternate dialogue.
+     * Call at the top of speak() — returns true if the item dialogue was triggered.
+     */
+    protected boolean checkRequiredItemDialogue() {
+        if (requiredItem != null && requiredItemDialogueSet >= 0
+                && gp.player.searchItemInInventory(requiredItem) != 999) {
+            startDialogue(this, requiredItemDialogueSet);
+            return true;
+        }
+        return false;
+    }
     public void setLoot(Entity loot) {}
     public void facePlayer() {
         switch (gp.player.direction) {
@@ -270,6 +298,31 @@ public class Entity {
             case DIR_DOWN:  direction = DIR_UP;    break;
             case DIR_LEFT:  direction = DIR_RIGHT; break;
             case DIR_RIGHT: direction = DIR_LEFT;  break;
+        }
+    }
+    /** Turns this entity to face toward the player's actual position, ignoring the player's facing direction. */
+    public void faceTowardPlayer() {
+        int dx = gp.player.worldX - worldX;
+        int dy = gp.player.worldY - worldY;
+        if (Math.abs(dx) >= Math.abs(dy)) {
+            direction = dx >= 0 ? DIR_RIGHT : DIR_LEFT;
+        } else {
+            direction = dy >= 0 ? DIR_DOWN : DIR_UP;
+        }
+    }
+    /**
+     * Called on walkTo arrival. Loads the next step's walkTo coords so the
+     * next speak() will know where to send the NPC (and which dialogue to play).
+     */
+    protected void advanceNpcStep() {
+        if (npcSteps.isEmpty()) return;
+        // npcStepIndex points at the next step to load after the walk that just finished
+        if (npcStepIndex < npcSteps.size()) {
+            int[] step = npcSteps.get(npcStepIndex);
+            walkToDialogueSet = step[0];
+            walkToCol = step[1];
+            walkToRow = step[2];
+            npcStepIndex++; // advance now so next arrival loads the one after this
         }
     }
     public void interact() {}
@@ -389,14 +442,17 @@ public class Entity {
         int previousWorldX = worldX;
         int previousWorldY = worldY;
 
-        if (!staticNPC) setAction();
+        // guardMode: block setAction unless we currently have an active walkTo path
+        if (!staticNPC && (!guardMode || onPath)) setAction();
+        // guardMode: face the player each tick when not walking
+        if (guardMode && !onPath) faceTowardPlayer();
         checkCollision();
 
         // ------------------------------------------------------------------
         // NORMAL MOVEMENT
         // IF COLLISION IS FALSE, MOVE
         // Only run manual movement if pathfinding is NOT active
-        if (!collisionOn && !onPath) {
+        if (!collisionOn && !onPath && !staticNPC && !guardMode) {
             switch (direction) {
                 case DIR_UP:    worldY -= speed; break;
                 case DIR_DOWN:  worldY += speed; break;
@@ -760,17 +816,25 @@ public class Entity {
             onPath = false;
             cachedWaypoints.clear();
             waypointIdx = 0;
+            if (walkToCol == goalCol && walkToRow == goalRow) {
+                guardMode = true;
+                walkToCol = -1;
+                walkToRow = -1;
+                advanceNpcStep();
+            }
             return;
         }
 
         // Reuse cached path while the goal tile hasn't changed
         if (goalCol == pathCacheGoalCol && goalRow == pathCacheGoalRow
-                && waypointIdx < cachedWaypoints.size()) {
+                && waypointIdx < cachedWaypoints.size()
+                && pathStallCounter < PATH_STALL_LIMIT) {
             followWaypoints();
             return;
         }
 
-        // Goal changed — run A* and cache the result
+        // Goal changed or stalled too long — run A* and cache the result
+        pathStallCounter = 0;
         pathCacheGoalCol = goalCol;
         pathCacheGoalRow = goalRow;
         cachedWaypoints.clear();
@@ -819,23 +883,32 @@ public class Entity {
         // Reached current waypoint — advance to next
         if (dx <= speed + 1 && dy <= speed + 1) {
             waypointIdx++;
+            pathStallCounter = 0;
             if (waypointIdx >= cachedWaypoints.size()) {
                 onPath = false;
                 cachedWaypoints.clear();
                 waypointIdx = 0;
+                if (walkToCol == pathCacheGoalCol && walkToRow == pathCacheGoalRow) {
+                    guardMode = true;
+                    walkToCol = -1;
+                    walkToRow = -1;
+                    advanceNpcStep();
+                }
             }
             return;
         }
 
-        // Move toward the current waypoint (one axis per frame)
-        boolean moved;
+        // Move toward the current waypoint
         if (dy > dx) {
-            moved = tryMoveVertical(enTopY, nextY);
+            boolean moved = tryMoveVertical(enTopY, nextY);
             if (!moved) tryMoveHorizontal(enLeftX, nextX);
         } else {
-            moved = tryMoveHorizontal(enLeftX, nextX);
+            boolean moved = tryMoveHorizontal(enLeftX, nextX);
             if (!moved) tryMoveVertical(enTopY, nextY);
         }
+
+        // Always count frames spent on this waypoint — triggers repath around obstacles
+        pathStallCounter++;
     }
 
     // Try to move vertically toward the target. Returns true if movement occurred.
@@ -865,6 +938,8 @@ public class Entity {
         }
         return false;
     }
+
+
 
     // Direct chase fallback: move toward the goal tile without A*
     protected void directChase(int goalCol, int goalRow) {

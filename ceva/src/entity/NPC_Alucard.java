@@ -2,6 +2,7 @@ package entity;
 
 import java.awt.image.BufferedImage;
 import java.util.Random;
+
 import main.GamePanel;
 
 public class NPC_Alucard extends Entity{
@@ -53,13 +54,15 @@ public class NPC_Alucard extends Entity{
         ensureDialogues()[2][1] = "You are now worthy to possess\nthe Dark Heart.";
         ensureDialogues()[2][2] = "Take it and fulfill your destiny.";
 
+        ensureDialogues()[3][0] = "I see you've defeated the castle's guardian and claimed the Dark Heart.";
+
     }
     public void setAction() {
 
         if ( onPath ) {
 
-            int goalCol = 44;
-            int goalRow = 36;
+            int goalCol = (walkToCol >= 0) ? walkToCol : 44;
+            int goalRow = (walkToRow >= 0) ? walkToRow : 36;
 
             searchPath(goalCol, goalRow);
         }
@@ -92,6 +95,29 @@ public class NPC_Alucard extends Entity{
     public void speak() {
 
         facePlayer();
+
+        // ── ITEM-CONDITIONAL DIALOGUE: override everything if the player has the required item ──
+        if (checkRequiredItemDialogue()) return;
+
+        // ── STEP CHAIN: if npcSteps are defined, use them instead of the hardcoded logic ──
+        if (!npcSteps.isEmpty()) {
+            int dlg  = (walkToDialogueSet >= 0) ? walkToDialogueSet : 0;
+            startDialogue(this, dlg);
+
+            // If the current step has a walk target, start walking after dialogue
+            if (walkToCol >= 0 && walkToRow >= 0) {
+                onPath = true;
+            }
+            return;
+        }
+
+        // ── LEGACY: single walkTo support (no step chain) ──
+        // Post-walk: walkToCol was cleared on arrival; use the designated dialogue set permanently
+        if (walkToCol < 0 && walkToDialogueSet >= 0) {
+            startDialogue(this, walkToDialogueSet);
+            return;
+        }
+
         if ( gp.player.level < 3 && gp.player.hasKey == 0 )
             startDialogue(this, 0);
         else if ( gp.player.level >= 3 && gp.csManager.sceneNum >= gp.csManager.ending )
@@ -99,7 +125,6 @@ public class NPC_Alucard extends Entity{
         else
             startDialogue(this, 1);
 
-        onPath = true;
-
+        if (walkToCol >= 0) onPath = true;
     }
 }

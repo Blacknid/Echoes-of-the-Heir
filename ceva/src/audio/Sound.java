@@ -20,7 +20,7 @@ public class Sound {
 
     public Sound() {
 
-        soundURL[0] = getClass().getResource("/res/sound/Michiduta Theme.wav");
+        soundURL[0] = getClass().getResource("/res/sound/Main_Theme.wav"); // unOfficially "main theme"
         soundURL[1] = getClass().getResource("/res/sound/Door.wav");
         soundURL[2] = getClass().getResource("/res/sound/Equip.wav"); 
         soundURL[3] = getClass().getResource("/res/sound/Options.wav");

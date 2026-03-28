@@ -363,7 +363,7 @@ public class KeyHandler implements KeyListener {
             while (System.currentTimeMillis() - start < 6000) {
                 if (gp.mpClient.isConnected()) {
                     gp.gameState = gp.playState;
-                    gp.playMusic(SFX.MUSIC_THEME);
+                    gp.playMusic(SFX.MAIN_THEME);
                     return;
                 }
                 if (!gp.mpClient.isConnecting()) {
@@ -620,7 +620,7 @@ public class KeyHandler implements KeyListener {
                 // Retry: reset and continue playing
                 gp.resetGame(false);
                 gp.gameState = gp.playState;
-                gp.playMusic(SFX.MUSIC_THEME);
+                gp.playMusic(SFX.MAIN_THEME);
                 gp.player.setDefaultPositions();
             }
             else if (gp.ui.commandNum == 1) {
