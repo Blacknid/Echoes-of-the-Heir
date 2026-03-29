@@ -1501,6 +1501,11 @@
     <property name="foreground" type="bool" value="true"/>
    </properties>
   </tile>
+  <tile id="186">
+   <properties>
+    <property name="sortYOffset" type="int" value="64"/>
+   </properties>
+  </tile>
   <tile id="190">
    <properties>
     <property name="foreground" type="bool" value="true"/>
