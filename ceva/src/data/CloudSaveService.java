@@ -65,6 +65,7 @@ public class CloudSaveService {
     private static final String RSA_TRANSFORMATION = "RSA/ECB/PKCS1Padding";
     private static final SecureRandom SECURE_RANDOM = new SecureRandom();
     private static final String LOCAL_SAVE_FILE = "local_save.dat";
+    private static final String LOCAL_AES_KEY_FILE = "local_aes.key";
 
     // ── Heartbeat ────────────────────────────────────────────────────────
     private static final long HEARTBEAT_INTERVAL_MS = 10_000;
@@ -73,6 +74,10 @@ public class CloudSaveService {
 
     // ── Session state (set after successful handshake) ───────────────────
     private byte[] sessionKey;
+
+    // ── Offline save sync state ──────────────────────────────────────────
+    private volatile boolean pendingUpload = false;
+    private volatile String cachedLicenseKey;
 
     // =====================================================================
     //  PUBLIC API
@@ -87,6 +92,10 @@ public class CloudSaveService {
             while (heartbeatRunning) {
                 boolean alive = ping();
                 serverOnline.set(alive);
+                // Auto-sync pending local save when server comes back online
+                if (alive && pendingUpload) {
+                    syncPendingLocalSave();
+                }
                 try { Thread.sleep(HEARTBEAT_INTERVAL_MS); }
                 catch (InterruptedException e) { Thread.currentThread().interrupt(); break; }
             }
@@ -100,86 +109,45 @@ public class CloudSaveService {
     public boolean isServerOnline() { return serverOnline.get(); }
 
     /**
-     * Save game state.  Behaviour depends on {@code offlineMode}:
-     * <ul>
-     *   <li><b>offlineMode = false</b> (Online): stream directly to server from RAM.
-     *       No local files are written.</li>
-     *   <li><b>offlineMode = true</b> (Offline debug): write encrypted local_save.dat
-     *       and attempt background sync to server.</li>
-     * </ul>
+     * Save game state.  Always tries the server first.  If the server is
+     * unreachable the state is encrypted with a self-assigned random AES key
+     * and stored locally.  The heartbeat thread will automatically upload the
+     * pending local save once the server becomes reachable again.
      */
     public SaveResult save(GameState state, String licenseKey, boolean offlineMode) {
 
         state.timestamp = System.currentTimeMillis();
+        cachedLicenseKey = licenseKey;
 
-        if (offlineMode) {
-            SaveResult local = saveLocalEncrypted(state, licenseKey);
-            // Background sync attempt
-            if (serverOnline.get()) {
-                Thread sync = new Thread(() -> uploadToServer(state, licenseKey),
-                        "CloudSave-Sync");
-                sync.setDaemon(true);
-                sync.start();
+        // Try server upload first (regardless of offlineMode)
+        if (licenseKey != null && serverOnline.get()) {
+            SaveResult result = uploadToServer(state, licenseKey);
+            if (result.ok()) {
+                pendingUpload = false;
+                deletePendingLocalFiles();
+                return result;
             }
-            return local;
         }
 
-        // Online mode — zero disk
-        if (!serverOnline.get()) {
-            return SaveResult.fail("Cloud save failed: Server offline (heartbeat).");
+        // Server unreachable — save locally with self-assigned AES key
+        SaveResult local = saveLocalWithOwnKey(state);
+        if (local.ok()) {
+            pendingUpload = true;
         }
-        return uploadToServer(state, licenseKey);
+        return local;
     }
 
     /**
-     * Download the latest save from the server.
-     * Returns null GameState inside SaveResult on failure.
+     * Download the latest save.  Tries the server first; falls back to the
+     * locally cached save (encrypted with the self-assigned AES key) when the
+     * server is unreachable.
      */
     public DownloadResult download(String licenseKey) {
 
-        if (!serverOnline.get() && !ping()) {
-            return DownloadResult.fail("Download failed: Server offline (heartbeat).");
-        }
-        serverOnline.set(true);
+        cachedLicenseKey = licenseKey;
 
-        try (Socket socket = new Socket()) {
-            socket.connect(new InetSocketAddress(activeHost, SERVER_PORT), CONNECT_TIMEOUT_MS);
-            socket.setSoTimeout(SOCKET_TIMEOUT_MS);
-
-            BufferedWriter writer = writer(socket);
-            BufferedReader reader = reader(socket);
-
-            if (!handshake(licenseKey, writer, reader)) {
-                return DownloadResult.fail("Download failed: authorization rejected.");
-            }
-
-            writer.write("DOWNLOAD");
-            writer.newLine();
-            writer.flush();
-
-            String line = reader.readLine();
-            if ("NO_SAVE".equals(line)) {
-                return DownloadResult.fail("No save found on server.");
-            }
-
-            byte[] decrypted = aesDecrypt(Base64.getDecoder().decode(line), sessionKey);
-            String json = new String(decrypted, StandardCharsets.UTF_8);
-            return DownloadResult.ok(json);
-
-        } catch (ConnectException e) {
-            return DownloadResult.fail("Download failed: Connection refused.");
-        } catch (Exception e) {
-            return DownloadResult.fail("Download failed: " + e.getMessage());
-        }
-    }
-
-    // =====================================================================
-    //  UPLOAD / HANDSHAKE
-    // =====================================================================
-
-    private SaveResult uploadToServer(GameState state, String licenseKey) {
-        try {
-            byte[] jsonBytes = serializeToJsonBytes(state);
+        if (licenseKey != null && (serverOnline.get() || ping())) {
+            serverOnline.set(true);
 
             try (Socket socket = new Socket()) {
                 socket.connect(new InetSocketAddress(activeHost, SERVER_PORT), CONNECT_TIMEOUT_MS);
@@ -189,29 +157,88 @@ public class CloudSaveService {
                 BufferedReader reader = reader(socket);
 
                 if (!handshake(licenseKey, writer, reader)) {
-                    return SaveResult.fail("Cloud save authorization failed.");
+                    return DownloadResult.fail("Download failed: authorization rejected.");
                 }
 
-                writer.write("UPLOAD");
+                writer.write("DOWNLOAD");
                 writer.newLine();
                 writer.flush();
 
-                byte[] encrypted = aesEncrypt(jsonBytes, sessionKey);
-                String payload = Base64.getEncoder().encodeToString(encrypted);
-                writer.write(payload);
-                writer.newLine();
-                writer.flush();
+                String line = reader.readLine();
+                if ("NO_SAVE".equals(line)) {
+                    // Server has no save — check local cache
+                    String localJson = loadLocalWithOwnKey();
+                    if (localJson != null) {
+                        return DownloadResult.ok(localJson);
+                    }
+                    return DownloadResult.fail("No save found on server or locally.");
+                }
 
-                String ack = reader.readLine();
-                if (ack != null && ack.startsWith("SYNC")) {
-                    // Server has a newer save — it sent the newer version back
-                    return SaveResult.ok("Cloud save synced (server had newer version).");
-                }
-                if ("SAVED".equals(ack)) {
-                    return SaveResult.ok("Cloud save uploaded.");
-                }
-                return SaveResult.fail("Cloud save: unexpected server response: " + ack);
+                byte[] decrypted = aesDecrypt(Base64.getDecoder().decode(line), sessionKey);
+                String json = new String(decrypted, StandardCharsets.UTF_8);
+                pendingUpload = false;
+                deletePendingLocalFiles();
+                return DownloadResult.ok(json);
+
+            } catch (ConnectException e) {
+                serverOnline.set(false);
+                // Fall through to local cache
+            } catch (Exception e) {
+                // Fall through to local cache
             }
+        }
+
+        // Server offline — try locally cached save
+        String localJson = loadLocalWithOwnKey();
+        if (localJson != null) {
+            return DownloadResult.ok(localJson);
+        }
+        return DownloadResult.fail("Server offline, no local save available.");
+    }
+
+    // =====================================================================
+    //  UPLOAD / HANDSHAKE
+    // =====================================================================
+
+    private SaveResult uploadToServer(GameState state, String licenseKey) {
+        try {
+            byte[] jsonBytes = serializeToJsonBytes(state);
+            return uploadRawJsonToServer(jsonBytes, licenseKey);
+        } catch (ReflectiveOperationException e) {
+            return SaveResult.fail("Cloud save failed during serialization.");
+        }
+    }
+
+    private SaveResult uploadRawJsonToServer(byte[] jsonBytes, String licenseKey) {
+        try (Socket socket = new Socket()) {
+            socket.connect(new InetSocketAddress(activeHost, SERVER_PORT), CONNECT_TIMEOUT_MS);
+            socket.setSoTimeout(SOCKET_TIMEOUT_MS);
+
+            BufferedWriter writer = writer(socket);
+            BufferedReader reader = reader(socket);
+
+            if (!handshake(licenseKey, writer, reader)) {
+                return SaveResult.fail("Cloud save authorization failed.");
+            }
+
+            writer.write("UPLOAD");
+            writer.newLine();
+            writer.flush();
+
+            byte[] encrypted = aesEncrypt(jsonBytes, sessionKey);
+            String payload = Base64.getEncoder().encodeToString(encrypted);
+            writer.write(payload);
+            writer.newLine();
+            writer.flush();
+
+            String ack = reader.readLine();
+            if (ack != null && ack.startsWith("SYNC")) {
+                return SaveResult.ok("Cloud save synced (server had newer version).");
+            }
+            if ("SAVED".equals(ack)) {
+                return SaveResult.ok("Cloud save uploaded.");
+            }
+            return SaveResult.fail("Cloud save: unexpected server response: " + ack);
 
         } catch (ConnectException e) {
             serverOnline.set(false);
@@ -222,8 +249,6 @@ public class CloudSaveService {
             return SaveResult.fail("Cloud save failed: " + e.getMessage());
         } catch (GeneralSecurityException e) {
             return SaveResult.fail("Cloud save failed during encryption.");
-        } catch (ReflectiveOperationException e) {
-            return SaveResult.fail("Cloud save failed during serialization.");
         }
     }
 
@@ -264,40 +289,86 @@ public class CloudSaveService {
     }
 
     // =====================================================================
-    //  OFFLINE / LOCAL ENCRYPTED SAVE
+    //  OFFLINE / LOCAL ENCRYPTED SAVE  (self-assigned random AES key)
     // =====================================================================
 
-    private SaveResult saveLocalEncrypted(GameState state, String licenseKey) {
+    private byte[] getOrCreateLocalAesKey() throws IOException {
+        java.io.File keyFile = new java.io.File(LOCAL_AES_KEY_FILE);
+        if (keyFile.exists()) {
+            try (FileInputStream fis = new FileInputStream(keyFile)) {
+                byte[] key = fis.readAllBytes();
+                if (key.length == 32) return key;
+            }
+        }
+        byte[] key = new byte[32];
+        SECURE_RANDOM.nextBytes(key);
+        try (FileOutputStream fos = new FileOutputStream(keyFile)) {
+            fos.write(key);
+        }
+        return key;
+    }
+
+    private SaveResult saveLocalWithOwnKey(GameState state) {
         try {
             byte[] jsonBytes = serializeToJsonBytes(state);
-            byte[] aesKey = MessageDigest.getInstance("SHA-256")
-                    .digest(licenseKey.getBytes(StandardCharsets.UTF_8));
+            byte[] aesKey = getOrCreateLocalAesKey();
             byte[] encrypted = aesEncrypt(jsonBytes, aesKey);
 
             try (FileOutputStream fos = new FileOutputStream(LOCAL_SAVE_FILE)) {
                 fos.write(encrypted);
             }
-            return SaveResult.ok("Saved to local_save.dat (offline mode).");
+            return SaveResult.ok("Saved locally (server offline).");
 
         } catch (Exception e) {
             return SaveResult.fail("Local save failed: " + e.getMessage());
         }
     }
 
-    /** Load a previously saved offline file and return its JSON string. */
-    public String loadLocalEncrypted(String licenseKey) {
+    private String loadLocalWithOwnKey() {
         try {
+            java.io.File keyFile = new java.io.File(LOCAL_AES_KEY_FILE);
+            if (!keyFile.exists()) return null;
+            byte[] aesKey;
+            try (FileInputStream fis = new FileInputStream(keyFile)) {
+                aesKey = fis.readAllBytes();
+            }
+            if (aesKey.length != 32) return null;
+
+            java.io.File saveFile = new java.io.File(LOCAL_SAVE_FILE);
+            if (!saveFile.exists()) return null;
             byte[] data;
-            try (FileInputStream fis = new FileInputStream(LOCAL_SAVE_FILE)) {
+            try (FileInputStream fis = new FileInputStream(saveFile)) {
                 data = fis.readAllBytes();
             }
-            byte[] aesKey = MessageDigest.getInstance("SHA-256")
-                    .digest(licenseKey.getBytes(StandardCharsets.UTF_8));
             byte[] decrypted = aesDecrypt(data, aesKey);
             return new String(decrypted, StandardCharsets.UTF_8);
         } catch (Exception e) {
             return null;
         }
+    }
+
+    /** Upload the pending local save to the server (called from heartbeat). */
+    private void syncPendingLocalSave() {
+        if (cachedLicenseKey == null) return;
+        try {
+            String json = loadLocalWithOwnKey();
+            if (json == null) { pendingUpload = false; return; }
+
+            byte[] jsonBytes = json.getBytes(StandardCharsets.UTF_8);
+            SaveResult result = uploadRawJsonToServer(jsonBytes, cachedLicenseKey);
+            if (result.ok()) {
+                pendingUpload = false;
+                deletePendingLocalFiles();
+                System.out.println("Pending local save synced to server.");
+            }
+        } catch (Exception e) {
+            System.out.println("Failed to sync pending save: " + e.getMessage());
+        }
+    }
+
+    private void deletePendingLocalFiles() {
+        try { new java.io.File(LOCAL_SAVE_FILE).delete(); } catch (Exception ignored) {}
+        try { new java.io.File(LOCAL_AES_KEY_FILE).delete(); } catch (Exception ignored) {}
     }
 
     // =====================================================================
