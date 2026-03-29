@@ -105,11 +105,6 @@ public class GamePanel extends JPanel implements Runnable{
     public MobSpawner mobSpawner;
     public SaveLoad saveLoad = new SaveLoad(this);
 
-    // SMOOTH CAMERA
-    public float cameraX, cameraY;          // smooth world-space camera top-left
-    private static final float CAM_LERP = 0.12f;
-    private static final int CAM_DEADZONE = 32; // pixels before camera starts catching up
-
     // PRE-ALLOCATED COLORS (avoid per-frame allocation)
     private static final java.awt.Color PLAYER_GLOW_COLOR = new java.awt.Color(255, 240, 220);
     private static final java.awt.Color DEFAULT_TORCH_COLOR = new java.awt.Color(255, 170, 60);
@@ -247,6 +242,16 @@ public class GamePanel extends JPanel implements Runnable{
     // Apply the TMX-defined spawn point now that events are loaded
     if (!mapManager.loadingGame) {
         player.setDefaultPositions();
+        // Load map-level properties (music, weather, dialogueTrigger, etc.) for the initial map
+        String initialPath = mapManager.mapRegistry.getOrDefault(mapManager.currentMapId, "");
+        if (!initialPath.isEmpty()) {
+            mapObjectLoader.loadMapProperties(initialPath);
+        }
+        // Show spawn message if the map defines one
+        if (!mapManager.pendingDialogueTrigger.isEmpty()) {
+            ui.addMessage(mapManager.pendingDialogueTrigger, new java.awt.Color(255, 240, 180), mapManager.pendingDialogueTriggerDuration);
+            mapManager.pendingDialogueTrigger = "";
+        }
     }
     mobSpawner = new MobSpawner(this);
     gameState = titleState;
@@ -290,18 +295,13 @@ public class GamePanel extends JPanel implements Runnable{
         15, 10
     );
 
-    // SMOOTH CAMERA: initialize to player position
-    cameraX = player.worldX - player.screenX;
-    cameraY = player.worldY - player.screenY;
-
     // MINIMAP: create and bake initial terrain
     minimap = new Minimap(this);
     minimap.bakeTerrainImage();
 
     // QUEST SYSTEM
     questManager = new QuestManager(this);
-    questManager.addQuest("find_keys", "Find the Keys", "Collect 3 keys to open the gate", 3);
-    questManager.addQuest("slay_monsters", "Monster Slayer", "Defeat 5 monsters", 5);
+    questManager.addQuest("find_exit", "Find the Exit", "Search the cave for a way out", 1);
 
     // MEMORY SYSTEM
     memoryJournal = new data.MemoryJournal();
@@ -692,16 +692,6 @@ public class GamePanel extends JPanel implements Runnable{
             // SCREEN SHAKE
             screenShake.update();
 
-            // SMOOTH CAMERA: lerp towards player
-            float targetCamX = player.worldX - player.screenX;
-            float targetCamY = player.worldY - player.screenY;
-            float dx = targetCamX - cameraX;
-            float dy = targetCamY - cameraY;
-            if (Math.abs(dx) > CAM_DEADZONE) cameraX += dx * CAM_LERP;
-            else cameraX += dx * 0.4f;
-            if (Math.abs(dy) > CAM_DEADZONE) cameraY += dy * CAM_LERP;
-            else cameraY += dy * 0.4f;
-
             // DAMAGE NUMBERS
             for (int i = damageNumbers.size() - 1; i >= 0; i--) {
                 entity.DamageNumber dn = damageNumbers.get(i);
@@ -746,9 +736,9 @@ public class GamePanel extends JPanel implements Runnable{
     private boolean vpCacheValid = false;
 
     private void updateViewportCache() {
-        vpMinX = Math.round(cameraX);
+        vpMinX = player.worldX - player.screenX;
         vpMaxX = vpMinX + screenWidth;
-        vpMinY = Math.round(cameraY);
+        vpMinY = player.worldY - player.screenY;
         vpMaxY = vpMinY + screenHeight;
         vpCacheValid = true;
     }
@@ -842,8 +832,8 @@ public class GamePanel extends JPanel implements Runnable{
     private void drawRemotePlayers(Graphics2D g2) {
         for (var entry : mpClient.remotePlayers.entrySet()) {
             MultiplayerClient.RemotePlayerState rp = entry.getValue();
-            int screenPosX = rp.worldX - (int) cameraX;
-            int screenPosY = rp.worldY - (int) cameraY;
+            int screenPosX = rp.worldX - player.worldX + player.screenX;
+            int screenPosY = rp.worldY - player.worldY + player.screenY;
 
             // Skip if off-screen
             if (screenPosX + tileSize < -tileSize || screenPosX > screenWidth + tileSize) continue;

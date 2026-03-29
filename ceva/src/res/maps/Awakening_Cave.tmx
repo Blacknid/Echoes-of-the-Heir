@@ -1,7 +1,9 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<map version="1.10" tiledversion="1.12.1" orientation="orthogonal" renderorder="right-down" width="40" height="30" tilewidth="32" tileheight="32" infinite="0" nextlayerid="20" nextobjectid="27">
+<map version="1.10" tiledversion="1.12.1" orientation="orthogonal" renderorder="right-down" width="40" height="30" tilewidth="32" tileheight="32" infinite="0" nextlayerid="20" nextobjectid="58">
  <properties>
   <property name="ambientLight" type="float" value="0.7"/>
+  <property name="dialogueTrigger" value="( Where... am I? )"/>
+  <property name="dialogueTriggerDuration" type="int" value="480"/>
   <property name="weather" value="CLEAR"/>
   <property name="weatherCycle" type="bool" value="false"/>
  </properties>
@@ -4260,6 +4262,57 @@
   <object id="2" x="766" y="323">
    <polygon points="0,0 32,0 31.5,-20 93.8333,-20.5 93.3333,-81.5 134,-81.5 134.5,-70 157,-70 157,-81 195.5,-81 195.5,-73 224.5,-73 224.5,-82 263.5,-82 263.5,-70.5 289,-70.5 289.5,-83 320.5,-83 320.5,-52 377.955,-52 378,-70 414.818,-69.2727 415,-82.5 456.818,-82.2727 456.727,-55.2273 488.273,-54.7273 489.5,-16 510.833,-15.9091 514,-126.5 2,-131"/>
   </object>
+  <object id="27" x="770" y="500.5">
+   <polygon points="0.136364,30.1818 64.3636,33.1364 65.0909,78.7727 141.623,78.6025 141.864,68 184.935,68.352 185.084,54.7479 216.229,55.0315 215.441,67.6964 254.211,67.8637 254.227,58.6364 286.209,58.6267 286.091,69.0682 314.624,69.3984 314.5,59.75 348.5,59.75 348.5,19 128,22 128.5,10.5 109,11 108.5,-5 90,-5.5 90,-19.5 48.3302,-20.3524 47.25,-53 -0.5,-53.25"/>
+  </object>
+  <object id="28" x="1279" y="461.5">
+   <polygon points="0,0 -36,-0.5 -35.5,33 -70,33 -70,58.5 -125,59.5 -124.75,139.25 -72,139 -73,97.5 0.5,98.5"/>
+  </object>
+  <object id="29" x="948" y="614">
+   <polygon points="0,0 0.333333,9.33333 23,9.66667 22.6667,-0.333333"/>
+  </object>
+  <object id="30" x="1032.67" y="749.667">
+   <polygon points="0,0 0,3.66667 8,4.33333 8,-0.333333"/>
+  </object>
+  <object id="31" x="1239" y="597.667">
+   <polygon points="0,0 0,15 40.3333,16 41,0.666667"/>
+  </object>
+  <object id="32" x="1280" y="688">
+   <polygon points="0,0 -87.6667,-2 -86.3333,47.6667 -0.333333,50"/>
+  </object>
+  <object id="44" x="683.773" y="38.7727">
+   <polygon points="1.81818,0 43.5,0 43.5,7 1.86364,7"/>
+  </object>
+  <object id="45" x="763" y="122.5">
+   <polygon points="0,0 -1,19.5 49,20.5 40.5,3.5"/>
+  </object>
+  <object id="46" x="821.5" y="62">
+   <polygon points="0,0 -3.5,11.5 30.5,12.5 19,-1.5"/>
+  </object>
+  <object id="47" x="966" y="105.5">
+   <polygon points="0,0 19,0 18.5,-9.5 -1,-11"/>
+  </object>
+  <object id="48" x="1241.5" y="135.5">
+   <polygon points="0,0 -0.5,8 19,8.5 19,-3"/>
+  </object>
+  <object id="49" x="1096.5" y="37">
+   <polygon points="0,0 0,6.5 16,6.5 17,-0.5"/>
+  </object>
+  <object id="50" x="1166" y="52">
+   <polygon points="0,0 -5.5,19 76,21 70,0"/>
+  </object>
+  <object id="51" x="436" y="41.5">
+   <polygon points="0,0 0,6 28,6.5 27,0"/>
+  </object>
+  <object id="52" x="454" y="226.5">
+   <polygon points="1.875,-1 1.75,8.5 21.875,8.625 21.875,-0.875"/>
+  </object>
+  <object id="53" x="504" y="506">
+   <polygon points="0,-2.45455 0.0909091,11.8636 50.5,11.8333 50.5,-2.5"/>
+  </object>
+  <object id="54" x="420" y="1.66667">
+   <polyline points="0,0 -23.3333,19.6667 -12,65.3333 40.6667,63.6667 45.3333,542.333 138,541.333 148.5,604.833 393.5,605.833 415.5,575.333 493,577.833 497,638.833 587,637.333 596.333,766.667 860.333,767.333"/>
+  </object>
  </objectgroup>
  <objectgroup id="13" name="Events">
   <object id="1" type="SpawnPoint" x="621" y="97.0909">
@@ -4271,7 +4324,7 @@
  Good Luck!</property>
     <property name="oneShot" type="bool" value="true"/>
    </properties>
-   <polyline points="0,0 0,96"/>
+   <polyline points="0,-32 0,96"/>
   </object>
   <object id="23" name="Slime spawner" type="SpawnZone" x="864" y="364.8">
    <properties>
@@ -4281,7 +4334,7 @@
     <property name="lootFragment" value="frag_cave"/>
     <property name="lootItem" value="Key"/>
     <property name="maxAmount" type="int" value="3"/>
-    <property name="monster" value="mummy"/>
+    <property name="monster" value="inkblot"/>
     <property name="totalLimit" type="int" value="5"/>
    </properties>
    <polygon points="0,0 0,76.8 32,76.8 32,115.2 224,115.2 224,76.8 352,76.8 384,76.8 384,0 352,0 352,-38.4 160,-38.4 160,-76.8 32,-76.8 32,-38.4 0,-38.4"/>
@@ -4292,7 +4345,7 @@
 Keep searching.</property>
     <property name="requiredItem" value="Normal Sword"/>
    </properties>
-   <polyline points="0,0 0,95.3333"/>
+   <polyline points="0.5,-30.5 0,95.3333"/>
   </object>
   <object id="26" name="Req. Combat" type="LevelGate" x="1116" y="547" rotation="270">
    <properties>
@@ -4300,6 +4353,18 @@ Keep searching.</property>
     <property name="requiredFragment" value="frag_cave"/>
    </properties>
    <polyline points="0,0 0,63.3333"/>
+  </object>
+  <object id="56" type="DialogueTrigger" x="622.667" y="54">
+   <properties>
+    <property name="message" value="I can't remember anything... Just fragments... like a dream I can't hold."/>
+   </properties>
+   <polygon points="-62,96.5 63,96.5"/>
+  </object>
+  <object id="57" type="DialogueTrigger" x="573.904" y="-18">
+   <properties>
+    <property name="message" value="This place... it's drawn. The walls look painted."/>
+   </properties>
+   <polygon points="2.09607,210 98.0961,178"/>
   </object>
  </objectgroup>
 </map>

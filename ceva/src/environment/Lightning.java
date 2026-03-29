@@ -129,11 +129,9 @@ public class Lightning {
         // Clear overlay to fully transparent — one bulk array fill instead of skipping tiles
         Arrays.fill(darknessPixels, 0);
 
-        // Viewport center in tile coords
-        float camCenterX = gp.cameraX + gp.player.screenX;
-        float camCenterY = gp.cameraY + gp.player.screenY;
-        int viewCenterCol = (int)(camCenterX / gp.tileSize);
-        int viewCenterRow = (int)(camCenterY / gp.tileSize);
+        // Viewport center in tile coords (player is always centered)
+        int viewCenterCol = gp.player.worldX / gp.tileSize;
+        int viewCenterRow = gp.player.worldY / gp.tileSize;
 
         // Sub-tile fractional player position for smooth light centering
         float playerTileColF = (float) gp.player.worldX / gp.tileSize;

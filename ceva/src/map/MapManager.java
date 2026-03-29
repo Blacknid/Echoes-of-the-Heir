@@ -42,6 +42,10 @@ public class MapManager {
     public java.awt.Color mapBackgroundColor = java.awt.Color.BLACK;
     /** Named spawn point to resolve after map loads. */
     public String nextSpawnId = "";
+    /** Message to display once after the player spawns on this map (from dialogueTrigger TMX property). */
+    public String pendingDialogueTrigger = "";
+    /** How long (in frames) the spawn dialogue message stays on screen. Default 300. */
+    public int pendingDialogueTriggerDuration = 300;
 
     public boolean loadingGame = false;
 
@@ -139,6 +143,12 @@ public class MapManager {
 
         gp.player.worldX = spawnCol * gp.tileSize;
         gp.player.worldY = spawnRow * gp.tileSize;
+
+        // Show map-entry dialogue trigger message if one was defined
+        if (!pendingDialogueTrigger.isEmpty()) {
+            gp.ui.addMessage(pendingDialogueTrigger, new java.awt.Color(255, 240, 180), pendingDialogueTriggerDuration);
+            pendingDialogueTrigger = "";
+        }
 
         doorEntryCol = -1;
         doorEntryRow = -1;

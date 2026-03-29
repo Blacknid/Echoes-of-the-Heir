@@ -52,6 +52,7 @@ import tiles_interactive.IT_Pot;
  *   lightLevel    (int)     0=day 1=dusk 2=night 3=dawn
  *   spawnCol/Row  (int)     default map spawn tile
  *   bgColor       (String)  "#rrggbb" background clear color
+ *   dialogueTrigger (String) Message shown to the player once when they spawn on this map
  *
  * ENTITY PROPERTIES (custom Tiled properties on any object):
  *   facing        (String)  up|down|left|right
@@ -423,6 +424,13 @@ public class MapObjectLoader {
             try { gp.mapManager.mapBackgroundColor = java.awt.Color.decode(bgColor.trim()); }
             catch (NumberFormatException ignored) {}
         }
+
+        // dialogueTrigger: message shown to the player once when they spawn on this map
+        String dialogueTrigger = getStringProperty(mapEl, "dialogueTrigger", null);
+        gp.mapManager.pendingDialogueTrigger = (dialogueTrigger != null && !dialogueTrigger.isBlank())
+            ? dialogueTrigger.trim() : "";
+        // dialogueTriggerDuration: how many frames the message stays (default 300)
+        gp.mapManager.pendingDialogueTriggerDuration = getIntProperty(mapEl, "dialogueTriggerDuration", 300);
     }
 
     private void applyMapMusic(String value) {
@@ -534,6 +542,7 @@ public class MapObjectLoader {
             case "MON_monster"        -> "mummy";
             case "MON_SkeletonArcher" -> "skeleton_archer";
             case "MON_Shade"          -> "shade";
+            case "MON_Inkblot", "Inkblot" -> "inkblot";
             default                   -> type;
         };
         Entity m = MonsterFactory.create(gp, id, col, row);
@@ -897,6 +906,7 @@ public class MapObjectLoader {
             case "MON_monster"        -> "mummy";
             case "MON_SkeletonArcher" -> "skeleton_archer";
             case "MON_Shade"          -> "shade";
+            case "MON_Inkblot", "Inkblot" -> "inkblot";
             default                   -> type;
         };
         Entity m = MonsterFactory.create(gp, id, col, row);

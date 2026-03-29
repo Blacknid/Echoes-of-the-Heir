@@ -220,7 +220,8 @@ public class Entity {
     public boolean requiredItemConsumed = false; // if true, the item is removed from inventory on delivery
 
     // ── MEMORY FRAGMENT SYSTEM ──
-    public String   memoryFragmentId   = null;   // unique ID (e.g. "kings_face")
+    public String   
+    memoryFragmentId   = null;   // unique ID (e.g. "kings_face")
     public String   memoryFragmentName = null;   // display name ("His Last Expression")
     public String[] memoryFragmentText = null;   // 1–5 lines of flashback text
     public boolean  memoryFragmentClaimed = false;
@@ -804,9 +805,6 @@ public class Entity {
             if (deathRewardExp > 0) {
                 gp.player.exp += deathRewardExp;
                 gp.player.checkLevelUp();
-            }
-            if (deathRewardQuestKills > 0 && gp.questManager != null) {
-                gp.questManager.progress("slay_monsters", deathRewardQuestKills);
             }
             if (deathRewardCoins > 0) {
                 gp.player.coin += deathRewardCoins;
