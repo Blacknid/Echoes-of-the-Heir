@@ -18,8 +18,9 @@ public final class UtilityTool {
 
     public static BufferedImage scaleImage(BufferedImage original, int width, int height) {
 
-        // Create a hardware-compatible image with pre-multiplied alpha for fastest blitting
-        BufferedImage scaleImage = GC.createCompatibleImage(width, height, Transparency.BITMASK);
+        // TRANSLUCENT produces TYPE_INT_ARGB_PRE — fastest for OpenGL pipeline compositing
+        // and preserves semi-transparent (anti-aliased) sprite edges correctly.
+        BufferedImage scaleImage = GC.createCompatibleImage(width, height, Transparency.TRANSLUCENT);
         Graphics2D g2 = scaleImage.createGraphics();
         g2.setRenderingHint(RenderingHints.KEY_INTERPOLATION, RenderingHints.VALUE_INTERPOLATION_NEAREST_NEIGHBOR);
         g2.setRenderingHint(RenderingHints.KEY_RENDERING, RenderingHints.VALUE_RENDER_SPEED);

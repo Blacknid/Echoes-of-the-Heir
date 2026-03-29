@@ -13,8 +13,10 @@ import org.w3c.dom.NodeList;
 
 import audio.SFX;
 import data.MonsterFactory;
+import entity.BossMonster;
 import entity.Entity;
 import entity.NPC_Alucard;
+import entity.NPC_Generic;
 import main.GamePanel;
 import object.OBJ_Arrow;
 import object.OBJ_Book;
@@ -44,6 +46,8 @@ import tiles_interactive.IT_Pot;
  *   mapName       (String)  display name shown in UI
  *   music         (String)  "theme" | integer SFX index
  *   weather       (String)  CLEAR | RAIN | STORM | SNOW
+ *   weatherCycle  (bool)    true (default) enables day/night + auto weather;
+ *                           false disables both cycles for this map
  *   ambientLight  (float)   0.0 (bright) to 0.95 (very dark)
  *   lightLevel    (int)     0=day 1=dusk 2=night 3=dawn
  *   spawnCol/Row  (int)     default map spawn tile
@@ -87,6 +91,10 @@ import tiles_interactive.IT_Pot;
  *   spawnId       (String)  Door: named spawn point id on target map
  *   spawnDirection(String)  Door: direction player faces on arrival
  *
+ *   Light object (type="Light" in Tiled):
+ *   lightRadius   (int)     light radius in tiles (default 4)
+ *   lightColor    (String)  "#rrggbb" hex color tint (default: warm orange)
+ *
  * PER-TILE PROPERTIES (set on individual tiles inside a tileset in Tiled):
  *   depthSort     (bool)    Depth-sort THIS tile against entities — player walks behind it
  *                           when approaching from above, and in front when coming from below.
@@ -94,8 +102,15 @@ import tiles_interactive.IT_Pot;
  *                           Example: select campfire tile → Custom Properties → add bool "depthSort" = true
  *   sortYOffset   (int)     Shift the tile's depth-sort anchor in pixels (default 0 = tile bottom).
  *                           Use a NEGATIVE value to move the anchor UP (e.g. -32 moves it to tile centre).
+ *                           Tiles with sortYOffset != 0 are automatically depth-sorted.
  *   foreground    (bool)    Force tile to always draw ON TOP of all entities (e.g. building roofs).
  *   background    (bool)    Force tile to never depth-sort (always behind entities).
+ *
+ * LAYER PROPERTIES (set on tile layers in Tiled):
+ *   background    (bool)    Force ALL tiles on this layer to background — drawn first, behind entities.
+ *                           Overrides tileset-level depthSort. Use for Ground layers with mixed tilesets.
+ *   depthSort     (bool)    Force ALL tiles on this layer to depth-sort against entities.
+ *   foreground    (bool)    Force ALL tiles on this layer to always draw above entities.
  *
  * EVENT TYPES (Events objectgroup):
  *   MapTransition   targetMap, targetCol, targetRow, spawnId
@@ -236,6 +251,39 @@ public class MapObjectLoader {
                     int areaW  = (int)(objW * sf);
                     int areaH  = (int)(objH * sf);
 
+                    // Expand area from polyline/polygon child if present and no explicit size
+                    if (areaW == 0 && areaH == 0) {
+                        String polyPoints = null;
+                        NodeList polylines = obj.getElementsByTagName("polyline");
+                        if (polylines.getLength() > 0)
+                            polyPoints = ((Element) polylines.item(0)).getAttribute("points");
+                        if (polyPoints == null || polyPoints.isEmpty()) {
+                            NodeList polygons = obj.getElementsByTagName("polygon");
+                            if (polygons.getLength() > 0)
+                                polyPoints = ((Element) polygons.item(0)).getAttribute("points");
+                        }
+                        if (polyPoints != null && !polyPoints.isEmpty()) {
+                            double minPX = 0, minPY = 0, maxPX = 0, maxPY = 0;
+                            for (String pt : polyPoints.trim().split("\\s+")) {
+                                String[] xy = pt.split(",");
+                                if (xy.length < 2) continue;
+                                double px = Double.parseDouble(xy[0]);
+                                double py = Double.parseDouble(xy[1]);
+                                if (px < minPX) minPX = px;
+                                if (px > maxPX) maxPX = px;
+                                if (py < minPY) minPY = py;
+                                if (py > maxPY) maxPY = py;
+                            }
+                            areaW = Math.max(gp.tileSize, (int)((maxPX - minPX) * sf));
+                            areaH = Math.max(gp.tileSize, (int)((maxPY - minPY) * sf));
+                            // Adjust origin to top-left of bounding box
+                            worldX += (int)(minPX * sf);
+                            worldY += (int)(minPY * sf);
+                            col = worldX / gp.tileSize;
+                            row = worldY / gp.tileSize;
+                        }
+                    }
+
                     switch (layerName) {
                         case "Objects" -> {
                             if (!entities) continue;
@@ -319,6 +367,7 @@ public class MapObjectLoader {
     private void applyMapProperties(Element mapEl) {
         // Reset per-map overrides each time a map loads
         gp.eManager.pinnedFilterAlpha = -1f;
+        gp.eManager.weatherCycleEnabled = true;
         gp.mapManager.defaultSpawnCol = -1;
         gp.mapManager.defaultSpawnRow = -1;
         gp.mapManager.mapBackgroundColor = java.awt.Color.BLACK;
@@ -339,6 +388,12 @@ public class MapObjectLoader {
         } else {
             // No weather property — release the pin so auto-cycle works on this map
             gp.eManager.pinnedWeather = -1;
+        }
+
+        // weatherCycle: when false, disables both day/night and auto-weather cycling
+        if (!getBoolProperty(mapEl, "weatherCycle", true)) {
+            gp.eManager.weatherCycleEnabled = false;
+            System.out.println("MapObjectLoader: weatherCycle=false (cycling disabled)");
         }
 
         String ambStr = getStringProperty(mapEl, "ambientLight", null);
@@ -396,7 +451,21 @@ public class MapObjectLoader {
                     Entity le = createEntityByName(loot);
                     if (le != null) chest.setLoot(le);
                 }
-                if (getBoolProperty(obj, "opened", false)) chest.opened = true;
+                String reqItem = getStringProperty(obj, "requiredItem", "");
+                if (!reqItem.isEmpty()) {
+                    chest.requiredItem = reqItem;
+                    chest.consumeItem = getBoolProperty(obj, "consumeItem", false);
+                    chest.setDialogue(); // refresh dialogue with requirement name
+                }
+                String animSheet = getStringProperty(obj, "openAnimation", "");
+                int animFrames = getIntProperty(obj, "openFrames", 0);
+                if (!animSheet.isEmpty() && animFrames > 1) {
+                    chest.loadOpenAnimation(animSheet, animFrames);
+                }
+                if (getBoolProperty(obj, "opened", false)) {
+                    chest.opened = true;
+                    chest.down1 = chest.image1;
+                }
                 return chest;
             }
             case "Door" -> {
@@ -437,6 +506,19 @@ public class MapObjectLoader {
             case "Heart"  -> { return new OBJ_Heart(gp); }
             case "Mana"   -> { return new OBJ_ManaCrystal(gp); }
             case "Compas" -> { return new OBJ_Compas(gp); }
+            case "Light" -> {
+                Entity light = new Entity(gp);
+                light.name = "Light";
+                light.lightSource = true;
+                light.lightRadius = getIntProperty(obj, "lightRadius", 4);
+                String llc = getStringProperty(obj, "lightColor", null);
+                if (llc != null && !llc.isBlank()) {
+                    try { light.lightColor = java.awt.Color.decode(llc.trim()); }
+                    catch (NumberFormatException ignored) {}
+                }
+                light.collision = false;
+                return light;
+            }
             default -> {
                 Entity e = createEntityByName(type);
                 if (e != null) return e;
@@ -451,6 +533,7 @@ public class MapObjectLoader {
         String id = switch (type) {
             case "MON_monster"        -> "mummy";
             case "MON_SkeletonArcher" -> "skeleton_archer";
+            case "MON_Shade"          -> "shade";
             default                   -> type;
         };
         Entity m = MonsterFactory.create(gp, id, col, row);
@@ -475,12 +558,34 @@ public class MapObjectLoader {
         if (aggroRange   > 0) m.aggroRange   = aggroRange;
         if (wanderRadius > 0) m.wanderRadius = wanderRadius;
 
+        // Boss wrapper
+        int bossId = getIntProperty(obj, "bossId", 0);
+        if (bossId > 0) {
+            float threshold  = getFloatProperty(obj, "phase2Threshold", 0.5f);
+            int   speedBoost = getIntProperty(obj, "phase2SpeedBoost", 1);
+            m = new BossMonster(gp, m, bossId, threshold, speedBoost);
+        }
+
         return m;
     }
 
     private Entity createNPC(String type, Element obj) {
         Entity npc = switch (type) {
             case "NPC_Alucard" -> new NPC_Alucard(gp);
+            case "NPC_Generic" -> {
+                NPC_Generic g = new NPC_Generic(gp);
+                // sprite path
+                String sprite = getStringProperty(obj, "sprite", null);
+                if (sprite != null && !sprite.isBlank()) g.spritePath = sprite;
+                g.getImage();
+                // data-driven dialogue: dialogue_S_L (set S, line L)
+                loadDataDrivenDialogues(g, obj);
+                // memory fragment
+                loadFragmentProperties(g, obj);
+                // choice dialogue
+                loadChoiceProperties(g, obj);
+                yield g;
+            }
             default -> {
                 System.out.println("MapObjectLoader: Unknown NPC type '" + type + "'");
                 yield null;
@@ -565,9 +670,78 @@ public class MapObjectLoader {
             npc.requiredItemDialogueSet = getIntProperty(obj, "requiredItemDialogueSet", 0);
         }
 
+        // requiredItemConsumed: remove the item from inventory when dialogue switches
+        if (getBoolProperty(obj, "requiredItemConsumed", false)) npc.requiredItemConsumed = true;
+
         int wanderRadius = getIntProperty(obj, "wanderRadius", -1);
         if (wanderRadius > 0) npc.wanderRadius = wanderRadius;
         return npc;
+    }
+
+    /**
+     * Load dialogue_S_L Tiled properties into the NPC's dialogue array.
+     * Supports up to 10 sets × 10 lines (dialogue_0_0 .. dialogue_9_9).
+     */
+    private void loadDataDrivenDialogues(Entity npc, Element obj) {
+        String[][] dialogues = npc.ensureDialogues();
+        for (int s = 0; s < dialogues.length; s++) {
+            for (int l = 0; l < dialogues[s].length; l++) {
+                String val = getStringProperty(obj, "dialogue_" + s + "_" + l, null);
+                if (val != null && !val.isBlank()) {
+                    dialogues[s][l] = val.replace("\\n", "\n");
+                }
+            }
+        }
+    }
+
+    /** Load memory fragment properties from Tiled. */
+    private void loadFragmentProperties(Entity npc, Element obj) {
+        String fid = getStringProperty(obj, "memoryFragmentId", null);
+        if (fid == null || fid.isBlank()) return;
+        npc.memoryFragmentId = fid;
+        npc.memoryFragmentName = getStringProperty(obj, "memoryFragmentName", fid);
+        // memoryText0..memoryText4
+        int count = 0;
+        for (int i = 0; i < 5; i++) {
+            String t = getStringProperty(obj, "memoryText" + i, null);
+            if (t != null && !t.isBlank()) {
+                npc.memoryFragmentText[i] = t.replace("\\n", "\n");
+                count++;
+            }
+        }
+        npc.fragmentRequiredCount = getIntProperty(obj, "fragmentRequiredCount", 0);
+        npc.fragmentRequiredItem  = getStringProperty(obj, "fragmentRequiredItem", null);
+        npc.fragmentRequiredBoss  = getIntProperty(obj, "fragmentRequiredBoss", -1);
+        npc.fragmentRequiredQuest = getStringProperty(obj, "fragmentRequiredQuest", null);
+
+        // Register with journal
+        if (gp.memoryJournal != null) {
+            String[] textArr = new String[count];
+            int idx = 0;
+            for (int i = 0; i < 5; i++) {
+                if (npc.memoryFragmentText[i] != null) textArr[idx++] = npc.memoryFragmentText[i];
+            }
+            int order = getIntProperty(obj, "fragmentOrder", 99);
+            String source = getStringProperty(obj, "fragmentSource", npc.name);
+            gp.memoryJournal.registerFragment(fid, npc.memoryFragmentName, textArr, order, source);
+        }
+    }
+
+    /** Load choice dialogue properties from Tiled. */
+    private void loadChoiceProperties(Entity npc, Element obj) {
+        String choices = getStringProperty(obj, "dialogueChoices", null);
+        if (choices == null || choices.isBlank()) return;
+        npc.dialogueChoices = choices.split("\\|");
+        String nextSets = getStringProperty(obj, "choiceNextSet", null);
+        if (nextSets != null && !nextSets.isBlank()) {
+            String[] parts = nextSets.split("\\|");
+            npc.choiceNextSet = new int[parts.length];
+            for (int i = 0; i < parts.length; i++) {
+                try { npc.choiceNextSet[i] = Integer.parseInt(parts[i].trim()); }
+                catch (NumberFormatException e) { npc.choiceNextSet[i] = 0; }
+            }
+        }
+        npc.choiceResultKey = getStringProperty(obj, "choiceResultKey", null);
     }
 
     private tiles_interactive.interactiveTile createInteractiveTile(String type, int col, int row,
@@ -628,15 +802,18 @@ public class MapObjectLoader {
                 gp.eHandler.registerDialogueTrigger(col, row, msg, speaker, one);
             }
             case "LevelGate" -> {
-                int    min   = getIntProperty(obj, "minLevel", 2);
+                int    min   = getIntProperty(obj, "minLevel", 0);
                 String msg   = getStringProperty(obj, "message",
-                    "You are not strong enough to pass here.").replace("\\n", "\n");
+                    "You cannot pass here.").replace("\\n", "\n");
                 String tMap  = getStringProperty(obj, "targetMap", "");
                 int    tCol  = getIntProperty(obj, "targetCol", 5);
                 int    tRow  = getIntProperty(obj, "targetRow", 5);
                 String sid   = getStringProperty(obj, "spawnId", "");
+                String reqItem = getStringProperty(obj, "requiredItem", "");
+                boolean consume = getBoolProperty(obj, "consumeItem", false);
+                String reqFrag = getStringProperty(obj, "requiredFragment", "");
                 forEachTile(col, row, worldX, worldY, areaW, areaH, (tc, tr) ->
-                    gp.eHandler.registerLevelGate(tc, tr, min, msg, tMap, tCol, tRow, sid));
+                    gp.eHandler.registerLevelGate(tc, tr, min, msg, tMap, tCol, tRow, sid, reqItem, consume, reqFrag));
             }
             case "Checkpoint" -> {
                 boolean silent = getBoolProperty(obj, "silent", false);
@@ -668,8 +845,14 @@ public class MapObjectLoader {
                 String monType  = getStringProperty(obj, "monster",   "MON_monster");
                 int    maxAmt   = getIntProperty(obj, "maxAmount",  5);
                 int    interval = getIntProperty(obj, "interval",   300);
+                boolean confined = getBoolProperty(obj, "confined",   false);
+                int    actRange  = getIntProperty(obj, "activationRange", 0);
+                int    totalLim  = getIntProperty(obj, "totalLimit",  0);
+                String lootItm  = getStringProperty(obj, "lootItem",  "");
+                String lootFrag = getStringProperty(obj, "lootFragment", "");
                 gp.eHandler.registerSpawnZone(worldX, worldY, areaW, areaH,
-                                               monType, maxAmt, interval);
+                                               monType, maxAmt, interval,
+                                               confined, actRange, totalLim, lootItm, lootFrag);
             }
             case "MobSpawnerZone" -> {
                 // Registers a rectangle where the MobSpawner (time-of-day spawning) may place mobs.
@@ -688,6 +871,17 @@ public class MapObjectLoader {
                     System.out.println("MapObjectLoader: Quest registered '" + qId + "' -> " + qName);
                 }
             }
+            case "MemoryGate" -> {
+                int    req  = getIntProperty(obj, "requiredFragments", 1);
+                String msg  = getStringProperty(obj, "message",
+                    "The path is sealed. You need more memories.").replace("\\n", "\n");
+                String tMap = getStringProperty(obj, "targetMap", "");
+                int    tCol = getIntProperty(obj, "targetCol", 5);
+                int    tRow = getIntProperty(obj, "targetRow", 5);
+                String sid  = getStringProperty(obj, "spawnId", "");
+                forEachTile(col, row, worldX, worldY, areaW, areaH, (tc, tr) ->
+                    gp.eHandler.registerMemoryGate(tc, tr, req, msg, tMap, tCol, tRow, sid));
+            }
             default -> System.out.println("MapObjectLoader: Unknown event '" + type + "'");
         }
     }
@@ -702,6 +896,7 @@ public class MapObjectLoader {
         String id = switch (type) {
             case "MON_monster"        -> "mummy";
             case "MON_SkeletonArcher" -> "skeleton_archer";
+            case "MON_Shade"          -> "shade";
             default                   -> type;
         };
         Entity m = MonsterFactory.create(gp, id, col, row);
@@ -742,8 +937,8 @@ public class MapObjectLoader {
             case "Potion"  -> new OBJ_Potion(gp);
             case "Boots"   -> new OBJ_Boots(gp);
             case "Gem"     -> new OBJ_Gem(gp);
-            case "Sword"   -> new OBJ_Sword_Normal(gp);
-            case "Shield"  -> new OBJ_Shield_Wood(gp);
+            case "Sword", "Normal Sword"   -> new OBJ_Sword_Normal(gp);
+            case "Shield", "Wood Shield"  -> new OBJ_Shield_Wood(gp);
             case "Heart"   -> new OBJ_Heart(gp);
             case "Mana"    -> new OBJ_ManaCrystal(gp);
             case "Arrow"   -> new OBJ_Arrow(gp);
@@ -752,6 +947,11 @@ public class MapObjectLoader {
             case "Coins"   -> new OBJ_Coins(gp);
             case "Tower"   -> new OBJ_Tower(gp);
             case "Tent"    -> new OBJ_Tent(gp);
+            case "Light"   -> {
+                Entity l = new Entity(gp);
+                l.name = "Light"; l.lightSource = true; l.lightRadius = 4; l.collision = false;
+                yield l;
+            }
             default        -> null;
         };
     }
@@ -834,6 +1034,12 @@ public class MapObjectLoader {
         String v = getStringProperty(element, name, null);
         if (v == null || v.isBlank()) return defaultValue;
         try { return Integer.parseInt(v.trim()); } catch (NumberFormatException e) { return defaultValue; }
+    }
+
+    private float getFloatProperty(Element element, String name, float defaultValue) {
+        String v = getStringProperty(element, name, null);
+        if (v == null || v.isBlank()) return defaultValue;
+        try { return Float.parseFloat(v.trim()); } catch (NumberFormatException e) { return defaultValue; }
     }
 
     private boolean getBoolProperty(Element element, String name, boolean defaultValue) {

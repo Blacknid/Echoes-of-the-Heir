@@ -40,5 +40,24 @@
     "fleeDist": 2,
     "deathCoins": 0,
     "deathQuestKills": 1
+  },
+  {
+    "id": "shade",
+    "name": "Shade",
+    "maxLife": 4,
+    "attack": 3,
+    "defense": 0,
+    "exp": 5,
+    "speed": 2,
+    "walkFrameCount": 6,
+    "spriteSheet": "/res/monster/Monster_walking-sheet",
+    "framesPerRow": [6, 6, 6, 6],
+    "solidArea": { "x": 12, "y": 8, "width": 40, "height": 48 },
+    "aiBehavior": "melee_chase",
+    "aggroRange": 10,
+    "fleeThreshold": 0,
+    "fleeDuration": 0,
+    "deathCoins": 0,
+    "deathQuestKills": 1
   }
 ]

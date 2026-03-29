@@ -200,6 +200,7 @@ public class Entity {
     public boolean invisible = false;   // set from Tiled 'invisible' property (no draw)
     public int aggroRange = 160;        // aggro distance in pixels (default ~2.5 tiles)
     public int wanderRadius = 0;        // max wander pixel offset from spawn (0 = free)
+    public Rectangle confinementZone = null; // if set, monster cannot leave this rectangle (world pixels)
     public boolean staticNPC = false;   // NPC never wanders or follows paths — stays in place
     public boolean guardMode  = false;  // Static from spawn; faces the player every tick. Set onPath=true to unlock movement.
     public int walkToCol = -1;          // after interaction: walk to this tile column, then re-enter guardMode (-1 = unused)
@@ -216,6 +217,24 @@ public class Entity {
 
     public String requiredItem = null;          // item name the player must have to trigger alternate dialogue
     public int    requiredItemDialogueSet = -1; // which dialogue set to use when the player has the item
+    public boolean requiredItemConsumed = false; // if true, the item is removed from inventory on delivery
+
+    // ── MEMORY FRAGMENT SYSTEM ──
+    public String   memoryFragmentId   = null;   // unique ID (e.g. "kings_face")
+    public String   memoryFragmentName = null;   // display name ("His Last Expression")
+    public String[] memoryFragmentText = null;   // 1–5 lines of flashback text
+    public boolean  memoryFragmentClaimed = false;
+    // Trigger conditions — checked to decide if the fragment can be claimed
+    public int    fragmentRequiredCount = -1;     // minimum fragment count (-1 = no requirement)
+    public String fragmentRequiredItem  = null;   // player must hold this item
+    public int    fragmentRequiredBoss  = -1;     // boss # that must be defeated (1–4, -1 = none)
+    public String fragmentRequiredQuest = null;   // quest ID that must be complete
+
+    // ── CHOICE DIALOGUE SYSTEM ──
+    public String[] dialogueChoices    = null;   // option texts (null = linear dialogue)
+    public int      selectedChoice     = 0;      // cursor index during choice selection
+    public int[]    choiceNextSet      = null;   // dialogue set to jump to per choice index
+    public String   choiceResultKey    = null;   // key to store chosen option in GameState
 
 
 
@@ -463,6 +482,40 @@ public class Entity {
         
         // IMPORTANT: If we just finished pathfinding, we don't want to keep moving.
         // The searchPath logic handles movement when onPath is true.
+
+        // ── CONFINEMENT ZONE: clamp monster inside its spawn zone ──
+        if (confinementZone != null) {
+            int solidLeft   = worldX + solidArea.x;
+            int solidRight  = worldX + solidArea.x + solidArea.width;
+            int solidTop    = worldY + solidArea.y;
+            int solidBottom = worldY + solidArea.y + solidArea.height;
+            boolean hitBoundary = false;
+            if (solidLeft < confinementZone.x) {
+                worldX = confinementZone.x - solidArea.x;
+                hitBoundary = true;
+            } else if (solidRight > confinementZone.x + confinementZone.width) {
+                worldX = confinementZone.x + confinementZone.width - solidArea.x - solidArea.width;
+                hitBoundary = true;
+            }
+            if (solidTop < confinementZone.y) {
+                worldY = confinementZone.y - solidArea.y;
+                hitBoundary = true;
+            } else if (solidBottom > confinementZone.y + confinementZone.height) {
+                worldY = confinementZone.y + confinementZone.height - solidArea.y - solidArea.height;
+                hitBoundary = true;
+            }
+            if (hitBoundary) {
+                // Pick a new random direction to wander away from the edge
+                actionLockCounter = 0;
+                onPath = false;
+                switch (direction) {
+                    case DIR_UP:    direction = DIR_DOWN;  break;
+                    case DIR_DOWN:  direction = DIR_UP;    break;
+                    case DIR_LEFT:  direction = DIR_RIGHT; break;
+                    case DIR_RIGHT: direction = DIR_LEFT;  break;
+                }
+            }
+        }
 
         boolean movedThisFrame = worldX != previousWorldX || worldY != previousWorldY;
 

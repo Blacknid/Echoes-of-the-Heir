@@ -289,6 +289,11 @@ public class UI {
             drawDialogueScreen();
         }
 
+        // JOURNAL STATE
+        if ( gp.gameState == GamePanel.journalState ) {
+            drawJournalScreen();
+        }
+
         if( gameFinished ) {
 
             g2.setFont(arial_40);
@@ -1452,7 +1457,24 @@ public class UI {
 
                 if ( gp.gameState == GamePanel.dialogueState || gp.gameState == GamePanel.cutsceneState ) {
 
-                        npc.dialogueIndex++;
+                        // Choice confirmation: if choices are showing, apply the selected choice
+                        if (npc.dialogueChoices != null && npc.dialogueChoices.length > 0) {
+                            // Store result key (e.g. "ending" → gp.endingChosen)
+                            if ("ending".equals(npc.choiceResultKey)) {
+                                gp.endingChosen = npc.selectedChoice + 1; // 1-based
+                            }
+                            // Jump to the dialogue set mapped to this choice
+                            if (npc.choiceNextSet != null && npc.selectedChoice < npc.choiceNextSet.length) {
+                                npc.dialogueSet = npc.choiceNextSet[npc.selectedChoice];
+                                npc.dialogueIndex = 0;
+                            } else {
+                                npc.dialogueIndex++;
+                            }
+                            npc.dialogueChoices = null; // clear choices after confirming
+                            npc.selectedChoice = 0;
+                        } else {
+                            npc.dialogueIndex++;
+                        }
                         gp.keyH.enterPressed = false;               
                 }
             }
@@ -1494,8 +1516,152 @@ public class UI {
             int contX = gp.tileSize * 2 + width - gp.tileSize - contW;
             int contY = gp.tileSize / 2 + height - 16;
             g2.drawString(cont, contX, contY);
+
+            // ── CHOICE OPTIONS (if available on this dialogue line) ──
+            if (npc.dialogueChoices != null && npc.dialogueChoices.length > 0) {
+                drawDialogueChoices(gp.tileSize * 2, gp.tileSize / 2 + height + 8, width);
+            }
         }
     }
+
+    // ── CHOICE DIALOGUE OPTIONS ──
+    private void drawDialogueChoices(int boxX, int boxY, int boxWidth) {
+        if (npc == null || npc.dialogueChoices == null) return;
+
+        int optionH = 36;
+        int totalH = npc.dialogueChoices.length * optionH + 20;
+
+        drawSubWindow(boxX, boxY, boxWidth, totalH);
+
+        g2.setFont(cachedFont(Font.PLAIN, 22F));
+        int textX = boxX + gp.tileSize;
+        int textY = boxY + optionH;
+
+        for (int i = 0; i < npc.dialogueChoices.length; i++) {
+            String option = npc.dialogueChoices[i];
+            if (option == null) continue;
+
+            // Highlight selected option
+            if (i == npc.selectedChoice) {
+                g2.setColor(cachedColor(255, 215, 100));
+                g2.drawString("\u25B6 ", textX - 20, textY);
+                g2.drawString(option, textX, textY);
+            } else {
+                g2.setColor(cachedColor(180, 175, 165));
+                g2.drawString(option, textX, textY);
+            }
+            textY += optionH;
+        }
+    }
+
+    // ── MEMORY JOURNAL SCREEN ──
+    private int journalScroll = 0;
+    public int journalSelectedIndex = 0;
+
+    public void drawJournalScreen() {
+
+        data.MemoryJournal journal = gp.memoryJournal;
+        if (journal == null) return;
+
+        // ── FULL-SCREEN BACKDROP ──
+        g2.setColor(cachedColor(15, 10, 5, 230));
+        g2.fillRect(0, 0, gp.screenWidth, gp.screenHeight);
+
+        // ── TITLE ──
+        g2.setFont(cachedFont(Font.BOLD, 32F));
+        g2.setColor(cachedColor(255, 215, 100));
+        String title = "Memory Journal";
+        g2.drawString(title, getXforCenteredText(title), 50);
+
+        // ── FRAGMENT COUNTER ──
+        g2.setFont(cachedFont(Font.PLAIN, 18F));
+        g2.setColor(cachedColor(180, 175, 165));
+        String counter = journal.getCount() + " / " + journal.getTotal() + " Memories";
+        g2.drawString(counter, getXforCenteredText(counter), 78);
+
+        java.util.List<data.MemoryJournal.MemoryFragment> allFragments = journal.getAllSorted();
+        if (allFragments.isEmpty()) {
+            g2.setFont(cachedFont(Font.ITALIC, 22F));
+            g2.setColor(cachedColor(140, 135, 120));
+            String emptyMsg = "No memories collected yet...";
+            g2.drawString(emptyMsg, getXforCenteredText(emptyMsg), gp.screenHeight / 2);
+            return;
+        }
+
+        // ── LEFT PANEL: Fragment list ──
+        int panelX = gp.tileSize;
+        int panelY = 100;
+        int panelW = gp.screenWidth / 3;
+        int panelH = gp.screenHeight - 140;
+        drawSubWindow(panelX, panelY, panelW, panelH);
+
+        g2.setFont(cachedFont(Font.PLAIN, 18F));
+        int listX = panelX + 20;
+        int listY = panelY + 30;
+        int lineH = 28;
+
+        int maxVisible = (panelH - 40) / lineH;
+        if (journalSelectedIndex < journalScroll) journalScroll = journalSelectedIndex;
+        if (journalSelectedIndex >= journalScroll + maxVisible) journalScroll = journalSelectedIndex - maxVisible + 1;
+
+        for (int i = journalScroll; i < allFragments.size() && i < journalScroll + maxVisible; i++) {
+            data.MemoryJournal.MemoryFragment f = allFragments.get(i);
+
+            if (i == journalSelectedIndex) {
+                g2.setColor(cachedColor(255, 215, 100));
+                g2.drawString("\u25B6 ", listX - 16, listY);
+            }
+
+            if (f.collected) {
+                g2.setColor(i == journalSelectedIndex ? cachedColor(255, 235, 180) : cachedColor(210, 200, 180));
+                g2.drawString(f.name, listX, listY);
+            } else {
+                g2.setColor(cachedColor(80, 75, 65));
+                g2.drawString("??? (" + f.source + ")", listX, listY);
+            }
+            listY += lineH;
+        }
+
+        // ── RIGHT PANEL: Selected fragment text ──
+        int rightX = panelX + panelW + gp.tileSize / 2;
+        int rightY = panelY;
+        int rightW = gp.screenWidth - rightX - gp.tileSize;
+        int rightH = panelH;
+        drawSubWindow(rightX, rightY, rightW, rightH);
+
+        if (journalSelectedIndex >= 0 && journalSelectedIndex < allFragments.size()) {
+            data.MemoryJournal.MemoryFragment selected = allFragments.get(journalSelectedIndex);
+
+            if (selected.collected && selected.text != null) {
+                g2.setFont(cachedFont(Font.BOLD, 22F));
+                g2.setColor(cachedColor(255, 215, 100));
+                g2.drawString(selected.name, rightX + 20, rightY + 35);
+
+                g2.setFont(cachedFont(Font.ITALIC, 14F));
+                g2.setColor(cachedColor(140, 135, 120));
+                g2.drawString("Source: " + selected.source, rightX + 20, rightY + 55);
+
+                g2.setFont(cachedFont(Font.PLAIN, 19F));
+                g2.setColor(cachedColor(230, 225, 215));
+                int textY = rightY + 85;
+                for (String line : selected.text) {
+                    if (line == null) continue;
+                    g2.drawString(line, rightX + 20, textY);
+                    textY += 28;
+                }
+            } else {
+                g2.setFont(cachedFont(Font.ITALIC, 20F));
+                g2.setColor(cachedColor(100, 95, 85));
+                g2.drawString("This memory has not been found yet.", rightX + 20, rightY + 60);
+            }
+        }
+
+        // ── CONTROLS HINT ──
+        g2.setFont(cachedFont(Font.PLAIN, 14F));
+        g2.setColor(cachedColor(120, 115, 105));
+        g2.drawString("W/S: Navigate    J/ESC: Close", panelX + 20, gp.screenHeight - 20);
+    }
+
     public void drawGameOverScreen() {
 
         // Fade-in animation
@@ -1760,9 +1926,13 @@ public class UI {
         int halfW = contentW / 2;
         g2.setFont(cachedFont(Font.PLAIN, 13F));
         g2.setColor(cachedColor(180,200,140)); g2.drawString("Weapon", leftX, curY);
-        g2.drawImage(gp.player.currentWeapon.down1, leftX + (halfW - iconSz) / 2, curY + 4, iconSz, iconSz, null);
+        if (gp.player.currentWeapon != null) {
+            g2.drawImage(gp.player.currentWeapon.down1, leftX + (halfW - iconSz) / 2, curY + 4, iconSz, iconSz, null);
+        }
         g2.setColor(cachedColor(180,200,140)); g2.drawString("Shield", leftX + halfW, curY);
-        g2.drawImage(gp.player.currentShield.down1, leftX + halfW + (halfW - iconSz) / 2, curY + 4, iconSz, iconSz, null);
+        if (gp.player.currentShield != null) {
+            g2.drawImage(gp.player.currentShield.down1, leftX + halfW + (halfW - iconSz) / 2, curY + 4, iconSz, iconSz, null);
+        }
     }
 
     /** Draws a section header label with a separator line, returns the Y for the first content row. */

@@ -44,6 +44,9 @@ public class EnvironmentManager {
     /** When >= 0 the weather is pinned by Tiled and the auto-cycle is suppressed. */
     public int pinnedWeather = -1;
 
+    /** When false, both day/night and auto-weather cycling are disabled for this map. */
+    public boolean weatherCycleEnabled = true;
+
     // Auto-weather cycle
     private int weatherTimer = 0;
     private static final int WEATHER_CYCLE_MIN = 3600;  // 1 min
@@ -60,45 +63,41 @@ public class EnvironmentManager {
     }
 
     public void update() {
-        // If ambient light is pinned from map properties, skip the day/night cycle
+        // Day/night cycle — skip when ambient light is pinned OR weatherCycle is disabled
         if (pinnedFilterAlpha >= 0f) {
             filterAlpha = pinnedFilterAlpha;
-        } else {
-        // Day/night cycle
-        if (dayState == day) {
-            dayCounter++;
-            if (dayCounter > dayDuration) {
-                dayState = dusk;
-                dayCounter = 0;
+        } else if (weatherCycleEnabled) {
+            if (dayState == day) {
+                dayCounter++;
+                if (dayCounter > dayDuration) {
+                    dayState = dusk;
+                    dayCounter = 0;
+                }
             }
-        }
-        if (dayState == dusk) {
-            // CHANGE THIS LINE: Use the speed variable
-            filterAlpha += transitionSpeed; 
-            
-            if (filterAlpha >= 0.95f) {
-                filterAlpha = 0.95f;
-                dayState = night;
+            if (dayState == dusk) {
+                filterAlpha += transitionSpeed;
+                if (filterAlpha >= 0.95f) {
+                    filterAlpha = 0.95f;
+                    dayState = night;
+                }
             }
-        }
-        if (dayState == night) {
-            dayCounter++;
-            if (dayCounter > dayDuration) {
-                dayState = dawn;
-                dayCounter = 0;
+            if (dayState == night) {
+                dayCounter++;
+                if (dayCounter > dayDuration) {
+                    dayState = dawn;
+                    dayCounter = 0;
+                }
             }
-        }
-        if (dayState == dawn) {
-            // CHANGE THIS LINE: Use the speed variable
-            filterAlpha -= transitionSpeed; 
-
-            if (filterAlpha <= 0f) {
-                filterAlpha = 0f;
-                dayState = day;
+            if (dayState == dawn) {
+                filterAlpha -= transitionSpeed;
+                if (filterAlpha <= 0f) {
+                    filterAlpha = 0f;
+                    dayState = day;
+                }
             }
         }
 
-        // Weather intensity fade
+        // Weather intensity fade (always runs so transitions finish smoothly)
         if (weatherTarget != WEATHER_CLEAR) {
             weatherState = weatherTarget;
             if (weatherIntensity < 1f) {
@@ -113,8 +112,8 @@ public class EnvironmentManager {
             }
         }
 
-        // Auto-weather cycle — suppressed when map has a pinned weather from Tiled
-        if (pinnedWeather < 0) {
+        // Auto-weather cycle — suppressed when pinned or cycling disabled
+        if (pinnedWeather < 0 && weatherCycleEnabled) {
             weatherTimer++;
             if (weatherTimer >= nextWeatherChange) {
                 weatherTimer = 0;
@@ -124,13 +123,11 @@ public class EnvironmentManager {
                     if (roll < 0.45) setWeather(WEATHER_RAIN);
                     else if (roll < 0.65) setWeather(WEATHER_STORM);
                     else if (roll < 0.85) setWeather(WEATHER_SNOW);
-                    // 15% chance stays clear
                 } else {
                     setWeather(WEATHER_CLEAR);
                 }
             }
         }
-        } // end pinnedFilterAlpha else block
     }
 
     /** Set weather with smooth transition. */

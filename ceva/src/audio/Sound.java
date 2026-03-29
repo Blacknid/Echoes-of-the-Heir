@@ -15,8 +15,10 @@ public class Sound {
     int volumeScale = 3;
     float volume;
 
-    // OPTIMIZATION: Cache clips to avoid re-opening the same audio file repeatedly
-    private Clip[] clipCache = new Clip[30];
+    // Concurrent SFX: up to POOL clips per sound index for overlapping playback
+    private static final int POOL = 3;
+    private Clip[][] clipPool = new Clip[30][POOL];
+    private int[] clipRobin = new int[30]; // round-robin index per slot
 
     public Sound() {
 
@@ -38,21 +40,25 @@ public class Sound {
 
     public void setFile(int i) {
         try {
+            // Round-robin through the pool for this sound index
+            int slot = clipRobin[i];
+            clipRobin[i] = (slot + 1) % POOL;
+
             // Reuse cached clip if available
-            if (clipCache[i] != null && clipCache[i].isOpen()) {
-                clip = clipCache[i];
+            if (clipPool[i][slot] != null && clipPool[i][slot].isOpen()) {
+                clip = clipPool[i][slot];
                 clip.stop();
                 clip.setFramePosition(0);
             } else {
                 // Close previous clip in this slot to prevent resource leak
-                if (clipCache[i] != null) {
-                    clipCache[i].close();
+                if (clipPool[i][slot] != null) {
+                    clipPool[i][slot].close();
                 }
                 AudioInputStream ais = AudioSystem.getAudioInputStream(soundURL[i]);
                 clip = AudioSystem.getClip();
                 clip.open(ais);
-                ais.close(); // Close the stream after opening the clip
-                clipCache[i] = clip;
+                ais.close();
+                clipPool[i][slot] = clip;
             }
             fc = (FloatControl) clip.getControl(FloatControl.Type.MASTER_GAIN);
             checkVolume();
