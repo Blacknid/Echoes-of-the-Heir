@@ -69,13 +69,13 @@ public class Player extends Entity {
     public int levelUpChoice = 0;    // currently highlighted option (0-2)
     public String[] levelUpOptions;  // 3 stat upgrade labels
     public int[] levelUpValues;      // stat gain amounts
-    public int skillPoints = 0;
+    public int skillPoints = 20;
     public final SkillTree skillTree = new SkillTree();
 
     // Passive bonuses from skill tree
     public float meleeDamageMultiplier = 1f;
     public float damageTakenMultiplier = 1f;
-    public boolean dashUnlocked = false;
+    public boolean dashUnlocked = true;
     public int dashCooldownBonus = 0;
     public int teleportCooldownBonus = 0;
     public boolean shockwaveUnlocked = false;
@@ -158,7 +158,7 @@ public class Player extends Entity {
         level = 1;
         maxLife = 3;
         life = maxLife;
-        strenght = 1;
+        strenght = 10;
         dexterity = 1;
         exp = 0;
         nextLevelExp = 5;

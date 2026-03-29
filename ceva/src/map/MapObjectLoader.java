@@ -449,9 +449,10 @@ public class MapObjectLoader {
     private Entity createMonster(String type, int col, int row, Element obj) {
         // Accept both legacy TMX class names and JSON ids
         String id = switch (type) {
-            case "MON_monster"        -> "mummy";
-            case "MON_SkeletonArcher" -> "skeleton_archer";
-            default                   -> type;
+            case "MON_monster"         -> "mummy";
+            case "MON_SkeletonArcher"  -> "skeleton_archer";
+            case "BOSS_WitheredTree"   -> "withered_tree";
+            default                    -> type;
         };
         Entity m = MonsterFactory.create(gp, id, col, row);
         if (m == null) {
@@ -700,9 +701,10 @@ public class MapObjectLoader {
      */
     public Entity createMonsterByName(String type, int col, int row) {
         String id = switch (type) {
-            case "MON_monster"        -> "mummy";
-            case "MON_SkeletonArcher" -> "skeleton_archer";
-            default                   -> type;
+            case "MON_monster"         -> "mummy";
+            case "MON_SkeletonArcher"  -> "skeleton_archer";
+            case "BOSS_WitheredTree"   -> "withered_tree";
+            default                    -> type;
         };
         Entity m = MonsterFactory.create(gp, id, col, row);
         if (m == null) System.out.println("MapObjectLoader: Unknown monster type '" + type + "'");
