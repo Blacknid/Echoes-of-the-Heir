@@ -1,12 +1,14 @@
 package tile;
 
 import java.awt.AlphaComposite;
+import java.awt.BasicStroke;
 import java.awt.Color;
 import java.awt.Composite;
 import java.awt.Graphics2D;
 import java.awt.Rectangle;
 import java.awt.Shape;
 import java.awt.geom.AffineTransform;
+import java.awt.geom.Area;
 import java.awt.geom.Ellipse2D;
 import java.awt.geom.Path2D;
 import java.awt.geom.Rectangle2D;
@@ -183,6 +185,8 @@ public class TileManager {
     public ArrayList<Float> layerParallaxX = new ArrayList<>();
     public ArrayList<Float> layerParallaxY = new ArrayList<>();
     public ArrayList<Boolean> layerBackground = new ArrayList<>();
+    public ArrayList<Boolean> layerDepthSort  = new ArrayList<>();
+    public ArrayList<Boolean> layerForeground = new ArrayList<>();
     // (layerOpacity and layerTint declared above near ImageLayerData)
 
     // Collision shapes (from Tiled objectgroup layers — rectangles, rotated rects, polygons, ellipses)
@@ -217,8 +221,8 @@ public class TileManager {
     }
 
     private void initializeDefaultMap() {
-        loadMapFromTMX("/res/maps/harta.tmx");
-        loadCollisionLayer("/res/maps/harta.tmx");
+        loadMapFromTMX("/res/maps/Awakening_Cave.tmx");
+        loadCollisionLayer("/res/maps/Awakening_Cave.tmx");
     }
 
     // ---------------- Load tilesets ----------------
@@ -383,6 +387,8 @@ public class TileManager {
             layerParallaxX.clear();
             layerParallaxY.clear();
             layerBackground.clear();
+            layerDepthSort.clear();
+            layerForeground.clear();
             layerOpacity.clear();
             layerTint.clear();
             imageLayers.clear();
@@ -438,6 +444,8 @@ public class TileManager {
                 Color tint      = parseTintColor(layer.getAttribute("tintcolor"));
 
                 boolean isBackground = false;
+                boolean isDepthSort  = false;
+                boolean isForeground = false;
                 NodeList layerProps = layer.getChildNodes();
                 for (int lp = 0; lp < layerProps.getLength(); lp++) {
                     if (layerProps.item(lp) instanceof Element) {
@@ -446,8 +454,13 @@ public class TileManager {
                             NodeList propList = child.getElementsByTagName("property");
                             for (int pp = 0; pp < propList.getLength(); pp++) {
                                 Element prop = (Element) propList.item(pp);
-                                if ("background".equals(prop.getAttribute("name"))) {
+                                String propName = prop.getAttribute("name");
+                                if ("background".equals(propName)) {
                                     isBackground = "true".equalsIgnoreCase(prop.getAttribute("value"));
+                                } else if ("depthSort".equals(propName)) {
+                                    isDepthSort = "true".equalsIgnoreCase(prop.getAttribute("value"));
+                                } else if ("foreground".equals(propName)) {
+                                    isForeground = "true".equalsIgnoreCase(prop.getAttribute("value"));
                                 }
                             }
                         }
@@ -518,6 +531,8 @@ public class TileManager {
                 layerParallaxX.add(parallaxX);
                 layerParallaxY.add(parallaxY);
                 layerBackground.add(isBackground);
+                layerDepthSort.add(isDepthSort);
+                layerForeground.add(isForeground);
                 layerOpacity.add(opacity);
                 layerTint.add(tint);
             }
@@ -692,11 +707,16 @@ public class TileManager {
             return buildEllipseShape(x, y, w, h, rotation);
         }
 
-        // --- Polyline (skip — open shape, no area for collision) ---
+        // --- Polyline — stroked into a filled shape using a configurable thickness ---
         NodeList polylineNodes = obj.getElementsByTagName("polyline");
         if (polylineNodes.getLength() > 0) {
-            System.out.println("Skipping collision object #" + obj.getAttribute("id") + " (polyline — no area)");
-            return null;
+            String pointsStr = ((Element) polylineNodes.item(0)).getAttribute("points");
+            // Optional custom thickness Tiled property (in map pixels, scaled to game pixels)
+            String thickAttr = getObjectProperty(obj, "thickness");
+            float thickness = (thickAttr != null && !thickAttr.isEmpty())
+                ? (float)(Double.parseDouble(thickAttr) * sf)
+                : 6f; // default: 6 game pixels
+            return buildPolylineShape(x, y, rotation, pointsStr, sf, thickness);
         }
 
         // --- Rectangle (default Tiled object type) ---
@@ -787,6 +807,25 @@ public class TileManager {
         return at.createTransformedShape(new Ellipse2D.Double(0, 0, w, h));
     }
 
+    private Shape buildPolylineShape(double x, double y, double rotation, String pointsStr, double sf, float thickness) {
+        String[] pairs = pointsStr.trim().split("\\s+");
+        Path2D.Double line = new Path2D.Double();
+        for (int i = 0; i < pairs.length; i++) {
+            String[] coords = pairs[i].split(",");
+            double px = Double.parseDouble(coords[0]) * sf;
+            double py = Double.parseDouble(coords[1]) * sf;
+            if (i == 0) line.moveTo(px, py);
+            else        line.lineTo(px, py);
+        }
+        // Convert open path to a filled area by stroking it
+        Shape stroked = new BasicStroke(thickness, BasicStroke.CAP_SQUARE, BasicStroke.JOIN_MITER)
+                .createStrokedShape(line);
+        AffineTransform at = new AffineTransform();
+        at.translate(x, y);
+        if (rotation != 0) at.rotate(Math.toRadians(rotation));
+        return new Area(at.createTransformedShape(stroked));
+    }
+
     private Shape buildPolygonShape(double x, double y, double rotation, String pointsStr, double sf) {
         String[] pairs = pointsStr.trim().split("\\s+");
         Path2D.Double poly = new Path2D.Double();
@@ -812,6 +851,7 @@ public class TileManager {
     private int[]     gidToRenderOrder;
     private boolean[] gidToDepthSort;
     private boolean[] gidToForeground;
+    private boolean[] gidToBackground;
     private int[]     gidToSortYOffset;
 
     // OPTIMIZATION: Dirty tracking — skip rebuild when viewport is identical to last frame
@@ -887,6 +927,16 @@ public class TileManager {
         foregroundVisibleTiles.clear();
         poolIndex = 0;
 
+        // Find the first layer explicitly marked depthSort — layers at or above it
+        // auto-promote to depth-sort so they interleave correctly with entities.
+        int firstDepthLayerIdx = Integer.MAX_VALUE;
+        for (int i = 0; i < mapLayers.size(); i++) {
+            if (i < layerDepthSort.size() && layerDepthSort.get(i)) {
+                firstDepthLayerIdx = i;
+                break;
+            }
+        }
+
         for (int layerIndex = 0; layerIndex < mapLayers.size(); layerIndex++) {
             int[][] map = mapLayers.get(layerIndex);
             byte[][] flipMap = layerIndex < mapFlipLayers.size() ? mapFlipLayers.get(layerIndex) : null;
@@ -895,6 +945,8 @@ public class TileManager {
             float opacity = layerIndex < layerOpacity.size()   ? layerOpacity.get(layerIndex)   : 1.0f;
             Color tint    = layerIndex < layerTint.size()      ? layerTint.get(layerIndex)       : null;
             boolean forceBackground = layerIndex < layerBackground.size() && layerBackground.get(layerIndex);
+            boolean forceDepthSort = layerIndex < layerDepthSort.size() && layerDepthSort.get(layerIndex);
+            boolean forceForeground = layerIndex < layerForeground.size() && layerForeground.get(layerIndex);
 
             for (int worldRow = minRow; worldRow <= maxRow; worldRow++) {
                 for (int worldCol = minCol; worldCol <= maxCol; worldCol++) {
@@ -932,24 +984,41 @@ public class TileManager {
                     visibleTile.opacity     = opacity;
                     visibleTile.tint        = tint;
                     visibleTile.flipFlags   = (flipMap != null) ? flipMap[worldCol][worldRow] : 0;
-                    // IMPORTANT: rendering properties (depthSort, sortYOffset, renderOrder, foreground)
-                    // must be read from the BASE GID (the tile placed in the map), not the animation
-                    // frame GID — only the image is taken from the current animation frame.
-                    visibleTile.renderOrder = (gidToRenderOrder != null && gid < gidToRenderOrder.length)
-                                              ? gidToRenderOrder[gid] : 0;
+                    // Use layerIndex as renderOrder so Tiled layer order is always respected
+                    visibleTile.renderOrder = layerIndex;
 
                     // sortY = bottom edge of this tile + sortYOffset.
-                    // For multi-row structures (e.g. 2-tile fence top bar), set
-                    // sortYOffset on the TOP-row tiles in Tiled so their sortY
-                    // matches the bottom row's sortY — making them sort as one unit.
+                    // sortYOffset values are in GAME pixels (not Tiled pixels) — no scaling needed.
+                    // For multi-row structures, set sortYOffset on the TOP-row tiles
+                    // so their sortY matches the bottom row's sortY.
                     int sortYOff = (gidToSortYOffset != null && gid < gidToSortYOffset.length) ? gidToSortYOffset[gid] : 0;
                     visibleTile.sortY = worldY + tileSize + sortYOff;
 
-                    if (forceBackground) {
-                        backgroundVisibleTiles.add(visibleTile);
-                    } else if (gidToForeground != null && gid < gidToForeground.length && gidToForeground[gid]) {
+                    // Per-tile properties override layer-level settings
+                    boolean isTileForeground = (gidToForeground != null && gid < gidToForeground.length && gidToForeground[gid]);
+                    boolean isTileDepthSort  = (gidToDepthSort  != null && gid < gidToDepthSort.length  && gidToDepthSort[gid]);
+                    boolean isTileBackground = (gidToBackground != null && gid < gidToBackground.length && gidToBackground[gid]);
+
+                    // Classification priority:
+                    // 1. Per-tile foreground always wins
+                    // 2. Per-tile depthSort (including sortYOffset) overrides everything
+                    // 3. Per-tile background overrides layer-level settings
+                    // 4. Layer-level foreground
+                    // 5. Layer-level background (only if layer is below depth-sort layers)
+                    // 6. Layer-level depthSort
+                    // 7. Auto-promote: layers at/above first depth-sort layer → depth-sort
+                    // 8. Default: background
+                    if (isTileForeground) {
                         foregroundVisibleTiles.add(visibleTile);
-                    } else if (gidToDepthSort != null && gid < gidToDepthSort.length && gidToDepthSort[gid]) {
+                    } else if (isTileDepthSort) {
+                        depthVisibleTiles.add(visibleTile);
+                    } else if (isTileBackground) {
+                        backgroundVisibleTiles.add(visibleTile);
+                    } else if (forceForeground) {
+                        foregroundVisibleTiles.add(visibleTile);
+                    } else if (forceBackground) {
+                        backgroundVisibleTiles.add(visibleTile);
+                    } else if (forceDepthSort || layerIndex >= firstDepthLayerIdx) {
                         depthVisibleTiles.add(visibleTile);
                     } else {
                         backgroundVisibleTiles.add(visibleTile);
@@ -1124,6 +1193,7 @@ public class TileManager {
         gidToRenderOrder  = new int[maxGIDValue + 1];
         gidToDepthSort    = new boolean[maxGIDValue + 1];
         gidToForeground   = new boolean[maxGIDValue + 1];
+        gidToBackground   = new boolean[maxGIDValue + 1];
         gidToSortYOffset  = new int[maxGIDValue + 1];
         for (Tileset ts : tilesets) {
             for (int i = 0; i < ts.tileCount && i < ts.tiles.length; i++) {
@@ -1135,8 +1205,12 @@ public class TileManager {
                 if (ts.tiles[i] != null) {
                     if (ts.tiles[i].depthSort) gidToDepthSort[gid] = true;
                     if (ts.tiles[i].foreground) gidToForeground[gid] = true;
-                    if (ts.tiles[i].background) { gidToDepthSort[gid] = false; gidToForeground[gid] = false; }
+                    if (ts.tiles[i].background) { gidToDepthSort[gid] = false; gidToForeground[gid] = false; gidToBackground[gid] = true; }
                     gidToSortYOffset[gid] = ts.tiles[i].sortYOffset;
+                    // Tiles with sortYOffset automatically become depth-sorted
+                    if (ts.tiles[i].sortYOffset != 0 && !ts.tiles[i].background) {
+                        gidToDepthSort[gid] = true;
+                    }
                 }
             }
         }

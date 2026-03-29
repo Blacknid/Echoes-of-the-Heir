@@ -49,7 +49,11 @@ public class KeyHandler implements KeyListener {
         }
         // DIALOGUE / CUTSCENE STATE
         else if (gp.gameState == GamePanel.dialogueState || gp.gameState == GamePanel.cutsceneState) {
-            if (code == KeyEvent.VK_ENTER) enterPressed = true;
+            handleDialogueState(code);
+        }
+        // JOURNAL STATE
+        else if (gp.gameState == GamePanel.journalState) {
+            handleJournalState(code);
         }
         // CHARACTER STATE
         else if (gp.gameState == GamePanel.characterState) {
@@ -452,6 +456,7 @@ public class KeyHandler implements KeyListener {
         // Only allow opening inventory if no other overlay is open
         if (code == KeyEvent.VK_E && !isOverlayOpen()) { gp.gameState = GamePanel.characterState; }
         if (code == KeyEvent.VK_K && !isOverlayOpen()) { gp.gameState = GamePanel.skillTreeState; }
+        if (code == KeyEvent.VK_J && !isOverlayOpen()) { gp.gameState = GamePanel.journalState; }
         if (code == KeyEvent.VK_ENTER) { enterPressed = true; }
         if (code == KeyEvent.VK_F) { shotKeyPressed = true; }
 
@@ -463,6 +468,33 @@ public class KeyHandler implements KeyListener {
 
         // Debug toggle
         if (code == KeyEvent.VK_T) { showDebugText = !showDebugText; }
+
+        // [DEBUG] F5 = toggle persistent sepia overlay (MapShaderManager.sepiaMode)
+        if (code == KeyEvent.VK_F5 && gp.mapShader != null) {
+            gp.mapShader.sepiaMode = !gp.mapShader.sepiaMode;
+        }
+
+        // [DEBUG] F7 = collect all registered test fragments (visible in journal via J)
+        if (code == KeyEvent.VK_F7 && gp.memoryJournal != null) {
+            gp.memoryJournal.collect("frag_prologue");
+            gp.memoryJournal.collect("frag_forest");
+            gp.memoryJournal.collect("frag_lake");
+            gp.gameState = GamePanel.journalState;
+        }
+
+        // [DEBUG] F8 = teleport to Awakening Cave
+        if (code == KeyEvent.VK_F8) {
+            gp.startTransition("awakening_cave", 20, 15);
+        }
+
+        // [DEBUG] F6 = trigger a test MemoryFlashback sequence
+        if (code == KeyEvent.VK_F6 && gp.memoryFlashback != null) {
+            data.MemoryJournal.MemoryFragment testFrag = new data.MemoryJournal.MemoryFragment(
+                "test_sepia", "A Lost Moment",
+                new String[]{"The rain fell on cobblestones...", "She never looked back.", "Neither did he."},
+                0, "debug");
+            gp.memoryFlashback.trigger(testFrag);
+        }
 
         // Hitboxes toggle
         if (code == KeyEvent.VK_H) { gp.HitBoxes = !gp.HitBoxes; }
@@ -496,6 +528,40 @@ public class KeyHandler implements KeyListener {
     private boolean isOverlayOpen() {
         return (gp.questManager != null && gp.questManager.isLogOpen()) ||
                (gp.minimap != null && gp.minimap.isWorldMapOpen());
+    }
+
+    private void handleDialogueState(int code) {
+        Entity npc = gp.ui.npc;
+        // If choices are showing and typewriter is done, navigate choices with W/S
+        if (npc != null && npc.dialogueChoices != null && npc.dialogueChoices.length > 0) {
+            if (code == KeyEvent.VK_W) {
+                npc.selectedChoice--;
+                if (npc.selectedChoice < 0) npc.selectedChoice = npc.dialogueChoices.length - 1;
+            }
+            if (code == KeyEvent.VK_S) {
+                npc.selectedChoice++;
+                if (npc.selectedChoice >= npc.dialogueChoices.length) npc.selectedChoice = 0;
+            }
+        }
+        if (code == KeyEvent.VK_ENTER) enterPressed = true;
+    }
+
+    private void handleJournalState(int code) {
+        if (code == KeyEvent.VK_J || code == KeyEvent.VK_ESCAPE) {
+            gp.gameState = GamePanel.playState;
+            return;
+        }
+        if (code == KeyEvent.VK_W) {
+            gp.ui.journalSelectedIndex--;
+            if (gp.ui.journalSelectedIndex < 0) gp.ui.journalSelectedIndex = 0;
+        }
+        if (code == KeyEvent.VK_S) {
+            if (gp.memoryJournal != null) {
+                int max = gp.memoryJournal.getAllSorted().size() - 1;
+                gp.ui.journalSelectedIndex++;
+                if (gp.ui.journalSelectedIndex > max) gp.ui.journalSelectedIndex = max;
+            }
+        }
     }
 
     private void handleTeleport() {

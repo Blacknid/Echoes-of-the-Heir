@@ -81,6 +81,7 @@ public class GamePanel extends JPanel implements Runnable{
     public int currentFPS = 0;
     public int maxFPS = 0;      // Session peak FPS
     int monitorRefreshRate = 60; // Detected at startup
+    private int tickCounter = 0; // Monotonic update tick for throttling
 
     // SYSTEM
     public TileManager tileM = new TileManager(this);
@@ -140,6 +141,18 @@ public class GamePanel extends JPanel implements Runnable{
     // QUEST SYSTEM
     public QuestManager questManager;
 
+    // MEMORY SYSTEM
+    public data.MemoryJournal memoryJournal;
+    public environment.MemoryFlashback memoryFlashback;
+
+    // STORY PROGRESS
+    public boolean boss1Defeated;
+    public boolean boss2Defeated;
+    public boolean boss3Defeated;
+    public boolean boss4Defeated;
+    public int storyAct;       // 0=tutorial, 1=shatterLake, 2=ashenWoods, 3=citadel, 4=gallery, 5=frame
+    public int endingChosen;   // 0=none, 1=confront, 2=sacrifice, 3=forgive
+
     // MAP MANAGEMENT (extracted from GamePanel)
     public MapManager mapManager;
 
@@ -178,6 +191,7 @@ public class GamePanel extends JPanel implements Runnable{
     public static final int levelUpState = 9;
     public static final int skillTreeState = 10;
     public static final int multiplayerPlayState = 11;
+    public static final int journalState = 12;
 
     // MULTIPLAYER
     public MultiplayerClient mpClient;
@@ -214,9 +228,10 @@ public class GamePanel extends JPanel implements Runnable{
     mapManager.registerMap("harta", "/res/maps/harta.tmx");
     mapManager.registerMap("test", "/res/maps/test.tmx");
     mapManager.registerMap("Dungeon1", "/res/maps/Dungeon1.tmx");
+    mapManager.registerMap("awakening_cave", "/res/maps/Awakening_Cave.tmx");
 
     if (!mapManager.loadingGame) {
-        mapManager.currentMapId = "harta";
+        mapManager.currentMapId = "awakening_cave";
         aSetter.setObject();
         eManager.setup();
         aSetter.setInteractiveTile();
@@ -287,6 +302,24 @@ public class GamePanel extends JPanel implements Runnable{
     questManager = new QuestManager(this);
     questManager.addQuest("find_keys", "Find the Keys", "Collect 3 keys to open the gate", 3);
     questManager.addQuest("slay_monsters", "Monster Slayer", "Defeat 5 monsters", 5);
+
+    // MEMORY SYSTEM
+    memoryJournal = new data.MemoryJournal();
+    memoryFlashback = new environment.MemoryFlashback(this);
+
+    memoryJournal.registerFragment("frag_cave", "Awakening Cave",
+        new String[]{"The air was thick with dust and silence.", "He had no memory of how he got here.", "Only a faint glimmer of light in the distance."},
+        1, "battle_cave");
+    // [TEST] Register sample memory fragments (remove when real fragments are wired)
+    memoryJournal.registerFragment("frag_prologue", "The Shattered Throne",
+        new String[]{"The crown fell before the war ended.", "No one claimed it.", "No one dared."},
+        2, "prologue");
+    memoryJournal.registerFragment("frag_forest", "Voices in the Ash",
+        new String[]{"She heard her name in the smoke.", "She did not turn back."},
+        3, "ashen_woods");
+    memoryJournal.registerFragment("frag_lake", "Shatter Lake",
+        new String[]{"The water remembered everything.", "He had stood here before.", "So had she.", "Never together."},
+        4, "shatter_lake");
 
     // RENDER PIPELINE
     renderPipeline = new RenderPipeline(this);
@@ -516,6 +549,16 @@ public class GamePanel extends JPanel implements Runnable{
     }
 
     public void update() {
+        tickCounter++;
+
+        // MEMORY FLASHBACK: update even during other states (it's an overlay)
+        if (memoryFlashback != null && memoryFlashback.isActive()) {
+            memoryFlashback.update();
+            if (memoryFlashback.getState() == environment.MemoryFlashback.DONE) {
+                memoryFlashback.finish();
+            }
+            return; // freeze everything else during flashback
+        }
 
         if(gameState == playState) {
             // Refresh viewport cache once per frame
@@ -564,9 +607,17 @@ public class GamePanel extends JPanel implements Runnable{
                         // OPTIMIZATION: Only update monsters that are in or near viewport
                         if (isEntityInViewport(monster[i], tileSize * 2)) {
                             monster[i].update();
+                        } else if (isEntityInViewport(monster[i], tileSize * 6)
+                                   && (tickCounter & 3) == 0) {
+                            // Distant monsters: run AI every 4 frames to prevent snap-teleport on re-entry
+                            monster[i].setAction();
                         }
                     }
                     if ( !monster[i].alive ) {
+                        // Boss death: trigger story progression
+                        if (monster[i] instanceof entity.BossMonster bm) {
+                            bm.onDeath();
+                        }
                         monster[i] = null;
                     }
                 }
@@ -723,6 +774,11 @@ public class GamePanel extends JPanel implements Runnable{
     g2.clearRect(0, 0, screenWidth, screenHeight);
 
     renderPipeline.drawCurrentState(g2);
+
+    // MEMORY FLASHBACK OVERLAY (drawn on top of everything)
+    if (memoryFlashback != null && memoryFlashback.isActive()) {
+        memoryFlashback.draw(g2);
+    }
 
     // DEBUG TEXT
     if(keyH.showDebugText) {

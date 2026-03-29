@@ -66,6 +66,10 @@ public class MapShaderManager {
     // ===================== COLOR GRADING =====================
     private Color warmOverlay;
 
+    // ===================== SEPIA MODE (Memory Flashback) =====================
+    public boolean sepiaMode = false;
+    private static final Color SEPIA_TINT = new Color(112, 66, 20, 50);
+
     // ===================== AMBIENT PARTICLES =====================
     private static final int PARTICLE_COUNT = 35;
     private float[] pX, pY, pVX, pVY, pAlpha, pSize, pAlphaDir;
@@ -263,6 +267,12 @@ public class MapShaderManager {
     // =====================================================================
 
     public void drawColorGrading(Graphics2D g2) {
+        if (sepiaMode) {
+            // Desaturated sepia overlay for memory flashback sequences
+            g2.setColor(SEPIA_TINT);
+            g2.fillRect(0, 0, gp.screenWidth, gp.screenHeight);
+            return;
+        }
         // Only apply warm overlay during daytime; let the night system handle darkness
         if (gp.eManager != null && gp.eManager.filterAlpha < 0.5f) {
             g2.setColor(warmOverlay);

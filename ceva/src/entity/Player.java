@@ -12,8 +12,6 @@ import java.awt.AlphaComposite;
  import main.KeyHandler;
  import main.SkillTree;
  import object.OBJ_Arrow;
- import object.OBJ_Shield_Wood;
- import object.OBJ_Sword_Normal;
 
 public class Player extends Entity {
 
@@ -182,8 +180,8 @@ public class Player extends Entity {
         frostNovaCooldown = 0;
         overdriveCooldown = 0;
         overdriveTimer = 0;
-        currentWeapon = new OBJ_Sword_Normal(gp);
-        currentShield = new OBJ_Shield_Wood(gp);
+        currentWeapon = null;
+        currentShield = null;
         projectile = new OBJ_Arrow(gp);
         attack = getAttack();
         defense = getDefense();
@@ -195,8 +193,7 @@ public class Player extends Entity {
     }
 
     public void setItems() {
-        inventory.add(currentWeapon);
-        inventory.add(currentShield);
+        // Equipment is set but not added to inventory at game start
     }
 
     public void setDialogue() {
@@ -508,7 +505,7 @@ public class Player extends Entity {
                 gp.eHandler.checkEvent();
 
                 // Start attack if enter pressed or buffered (combo chain within window)
-                if ((keyH.enterPressed || attackBuffered) && !attackCanceled && !dashing) {
+                if ((keyH.enterPressed || attackBuffered) && !attackCanceled && !dashing && currentWeapon != null) {
                     attacking = true;
                     spriteCounter = 0;
                     attackBuffered = false;
@@ -1259,7 +1256,7 @@ public class Player extends Entity {
             if (i != 999) {
                 attackCanceled = true;
                 gp.npc[i].speak();
-            } else if (!attackCanceled) {
+            } else if (!attackCanceled && currentWeapon != null) {
                 gp.playSE(SFX.WEAPON_SWING);
                 attacking = true;
             }
@@ -1550,12 +1547,20 @@ public class Player extends Entity {
 
     // Utility methods
     public int getAttack() {
-        attackArea = currentWeapon.attackArea;
-        return attack = strenght * currentWeapon.attackValue;
+        if (currentWeapon != null) {
+            attackArea = currentWeapon.attackArea;
+            return attack = strenght * currentWeapon.attackValue;
+        }
+        attackArea.width = 20;
+        attackArea.height = 20;
+        return attack = strenght;
     }
 
     public int getDefense() {
-        return defense = dexterity * currentShield.defenseValue;
+        if (currentShield != null) {
+            return defense = dexterity * currentShield.defenseValue;
+        }
+        return defense = 0;
     }
 
     public void checkLevelUp() {

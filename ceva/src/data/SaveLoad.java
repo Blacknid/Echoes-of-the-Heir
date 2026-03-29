@@ -179,6 +179,22 @@ public class SaveLoad {
             gs.mapObjectLootName[i] = gp.obj[i].loot != null ? gp.obj[i].loot.name : "NA";
         }
 
+        // MEMORY FRAGMENTS
+        if (gp.memoryJournal != null) {
+            gs.collectedFragmentIds = new java.util.ArrayList<>(gp.memoryJournal.getCollectedIds());
+            gs.totalFragmentsCollected = gp.memoryJournal.getCount();
+        }
+
+        // BOSS PROGRESS
+        gs.boss1Defeated = gp.boss1Defeated;
+        gs.boss2Defeated = gp.boss2Defeated;
+        gs.boss3Defeated = gp.boss3Defeated;
+        gs.boss4Defeated = gp.boss4Defeated;
+
+        // STORY PROGRESS
+        gs.storyAct = gp.storyAct;
+        gs.endingChosen = gp.endingChosen;
+
         gs.timestamp = System.currentTimeMillis();
         return gs;
     }
@@ -230,6 +246,27 @@ public class SaveLoad {
                 String lootName = gp.obj[i].loot != null ? gp.obj[i].loot.name : "NA";
                 sb.append("obj.").append(i).append(".loot=").append(lootName).append('\n');
             }
+
+            // MEMORY FRAGMENTS
+            if (gp.memoryJournal != null) {
+                java.util.List<String> ids = gp.memoryJournal.getCollectedIds();
+                sb.append("fragments.size=").append(ids.size()).append('\n');
+                for (int i = 0; i < ids.size(); i++) {
+                    sb.append("fragments.").append(i).append('=').append(ids.get(i)).append('\n');
+                }
+            } else {
+                sb.append("fragments.size=0\n");
+            }
+
+            // BOSS PROGRESS
+            sb.append("boss1Defeated=").append(gp.boss1Defeated).append('\n');
+            sb.append("boss2Defeated=").append(gp.boss2Defeated).append('\n');
+            sb.append("boss3Defeated=").append(gp.boss3Defeated).append('\n');
+            sb.append("boss4Defeated=").append(gp.boss4Defeated).append('\n');
+
+            // STORY PROGRESS
+            sb.append("storyAct=").append(gp.storyAct).append('\n');
+            sb.append("endingChosen=").append(gp.endingChosen).append('\n');
 
             byte[] encrypted = encrypt(sb.toString());
             try (FileOutputStream fos = new FileOutputStream("save.dat")) {
@@ -345,6 +382,27 @@ public class SaveLoad {
                 }
             }
 
+            // MEMORY FRAGMENTS
+            if (gp.memoryJournal != null) {
+                int fragSize = Integer.parseInt(map.getOrDefault("fragments.size", "0"));
+                for (int i = 0; i < fragSize; i++) {
+                    String fid = map.get("fragments." + i);
+                    if (fid != null && !fid.isBlank()) {
+                        gp.memoryJournal.addById(fid);
+                    }
+                }
+            }
+
+            // BOSS PROGRESS
+            gp.boss1Defeated = Boolean.parseBoolean(map.getOrDefault("boss1Defeated", "false"));
+            gp.boss2Defeated = Boolean.parseBoolean(map.getOrDefault("boss2Defeated", "false"));
+            gp.boss3Defeated = Boolean.parseBoolean(map.getOrDefault("boss3Defeated", "false"));
+            gp.boss4Defeated = Boolean.parseBoolean(map.getOrDefault("boss4Defeated", "false"));
+
+            // STORY PROGRESS
+            gp.storyAct = Integer.parseInt(map.getOrDefault("storyAct", "0"));
+            gp.endingChosen = Integer.parseInt(map.getOrDefault("endingChosen", "0"));
+
         } catch (Exception e) {
             e.printStackTrace();
             System.out.println("Load Exception!");
@@ -430,6 +488,25 @@ public class SaveLoad {
                 gp.obj[i].down1 = gp.obj[i].image1;
             }
         }
+
+        // MEMORY FRAGMENTS
+        if (gp.memoryJournal != null && state.collectedFragmentIds != null) {
+            for (String fid : state.collectedFragmentIds) {
+                if (fid != null && !fid.isBlank()) {
+                    gp.memoryJournal.addById(fid);
+                }
+            }
+        }
+
+        // BOSS PROGRESS
+        gp.boss1Defeated = state.boss1Defeated;
+        gp.boss2Defeated = state.boss2Defeated;
+        gp.boss3Defeated = state.boss3Defeated;
+        gp.boss4Defeated = state.boss4Defeated;
+
+        // STORY PROGRESS
+        gp.storyAct = state.storyAct;
+        gp.endingChosen = state.endingChosen;
     }
 
     private static String getAt(String[] arr, int index, String fallback) {

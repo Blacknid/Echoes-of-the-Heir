@@ -7,7 +7,6 @@ import java.awt.Rectangle;
 import java.awt.Shape;
 import java.awt.geom.AffineTransform;
 import java.util.ArrayList;
-import java.util.Collections;
 import java.util.Comparator;
 
 import entity.Entity;
@@ -88,7 +87,9 @@ public class RenderPipeline {
 
         collectRenderableEntities();
 
-        Collections.sort(entityList.subList(0, entityListIndex), renderSorter);
+        // Trim to actual count so sort works on a real list (avoids subList heap alloc)
+        while (entityList.size() > entityListIndex) entityList.remove(entityList.size() - 1);
+        entityList.sort(renderSorter);
 
         // TILE PARTICLES
         int tpCount = 0;

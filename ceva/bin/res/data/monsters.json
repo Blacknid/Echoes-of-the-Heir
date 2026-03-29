@@ -42,6 +42,7 @@
     "deathQuestKills": 1
   },
   {
+<<<<<<< HEAD
     "id": "withered_tree",
     "name": "The Withered Tree",
     "maxLife": 80,
@@ -60,5 +61,24 @@
     "deathCoins": 10,
     "deathQuestKills": 1,
     "isBoss": true
+=======
+    "id": "shade",
+    "name": "Shade",
+    "maxLife": 4,
+    "attack": 3,
+    "defense": 0,
+    "exp": 5,
+    "speed": 2,
+    "walkFrameCount": 6,
+    "spriteSheet": "/res/monster/Monster_walking-sheet",
+    "framesPerRow": [6, 6, 6, 6],
+    "solidArea": { "x": 12, "y": 8, "width": 40, "height": 48 },
+    "aiBehavior": "melee_chase",
+    "aggroRange": 10,
+    "fleeThreshold": 0,
+    "fleeDuration": 0,
+    "deathCoins": 0,
+    "deathQuestKills": 1
+>>>>>>> b606fee9f1bb89387e45f5e6c81440e75ec43a77
   }
 ]

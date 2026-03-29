@@ -1,12 +1,12 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<map version="1.10" tiledversion="1.12.1" orientation="orthogonal" renderorder="right-down" width="100" height="100" tilewidth="32" tileheight="32" infinite="0" nextlayerid="16" nextobjectid="132">
+<map version="1.10" tiledversion="1.12.1" orientation="orthogonal" renderorder="right-down" width="100" height="100" tilewidth="32" tileheight="32" infinite="0" nextlayerid="16" nextobjectid="134">
  <properties>
-  <property name="ambientLight" type="float" value="0.15"/>
+  <property name="ambientLight" type="float" value="0"/>
   <property name="music" value="0"/>
-  <property name="weather" value="SNOW"/>
+  <property name="weather" value="CLEAR"/>
  </properties>
  <tileset firstgid="1" name="grass" tilewidth="32" tileheight="32" tilecount="12" columns="6">
-  <image source="../tiles/Grass_sheet.png" width="192" height="64"/>
+  <image source="../tiles/IDK/Grass_sheet.png" width="192" height="64"/>
   <tile id="1" probability="0.5"/>
   <tile id="2" probability="0.3"/>
   <tile id="3" probability="0.3"/>
@@ -22,7 +22,7 @@
    <property name="depthSort" value="true"/>
    <property name="renderOrder" value="25"/>
   </properties>
-  <image source="../tiles/Tileset2.png" width="256" height="256"/>
+  <image source="../tiles/IDK/Tileset2.png" width="256" height="256"/>
   <tile id="0">
    <properties>
     <property name="sortYOffset" type="int" value="64"/>
@@ -170,7 +170,7 @@
   </tile>
  </tileset>
  <tileset firstgid="77" name="Water-sheet" tilewidth="32" tileheight="32" tilecount="30" columns="6">
-  <image source="../tiles/Water-sheet.png" width="192" height="160"/>
+  <image source="../tiles/IDK/Water-sheet.png" width="192" height="160"/>
   <tile id="20">
    <animation>
     <frame tileid="0" duration="360"/>
@@ -180,7 +180,7 @@
   </tile>
  </tileset>
  <tileset firstgid="107" name="tree" tilewidth="66" tileheight="77" tilecount="1" columns="1">
-  <image source="../tiles/Trees.png" width="66" height="77"/>
+  <image source="../tiles/IDK/Trees.png" width="66" height="77"/>
  </tileset>
  <tileset firstgid="108" name="Shadows" tilewidth="95" tileheight="62" tilecount="1" columns="1">
   <properties>
@@ -189,7 +189,7 @@
   <image source="../tiles/Shadows/Shadows.png" width="95" height="62"/>
  </tileset>
  <tileset firstgid="109" name="TX Props" tilewidth="32" tileheight="32" tilecount="256" columns="16">
-  <image source="../tiles/TX Props.png" width="512" height="512"/>
+  <image source="../tiles/IDK/TX Props.png" width="512" height="512"/>
   <tile id="8">
    <properties>
     <property name="depthSort" type="bool" value="true"/>
@@ -252,7 +252,7 @@
   </tile>
  </tileset>
  <tileset firstgid="365" name="Campfire_Animation" tilewidth="32" tileheight="64" tilecount="8" columns="8">
-  <image source="../tiles/Campfire_Animation.png" width="256" height="64"/>
+  <image source="../tiles/IDK/Campfire_Animation.png" width="256" height="64"/>
   <tile id="0">
    <properties>
     <property name="depthSort" type="bool" value="true"/>
@@ -271,8 +271,72 @@
   </tile>
  </tileset>
  <tileset firstgid="373" name="Path_sheet" tilewidth="32" tileheight="32" tilecount="18" columns="6">
-  <image source="../tiles/Path_sheet.png" width="192" height="96"/>
+  <image source="../tiles/IDK/Path_sheet.png" width="192" height="96"/>
   <tile id="1" probability="0.5"/>
+ </tileset>
+ <tileset firstgid="391" name="golden chalice 64x64-spirits" tilewidth="64" tileheight="64" tilecount="8" columns="8">
+  <image source="../tiles/IDK/golden chalice 64x64-spirits.png" width="512" height="64"/>
+  <tile id="0">
+   <properties>
+    <property name="depthSort" type="bool" value="true"/>
+   </properties>
+   <animation>
+    <frame tileid="0" duration="120"/>
+    <frame tileid="1" duration="120"/>
+    <frame tileid="2" duration="120"/>
+    <frame tileid="3" duration="120"/>
+    <frame tileid="4" duration="120"/>
+    <frame tileid="5" duration="120"/>
+    <frame tileid="6" duration="120"/>
+    <frame tileid="7" duration="120"/>
+   </animation>
+  </tile>
+ </tileset>
+ <tileset firstgid="399" name="altar 224x288 - standard" tilewidth="224" tileheight="288" tilecount="39" columns="39">
+  <image source="../tiles/IDK/altar 224x288 - standard.png" width="8736" height="288"/>
+  <tile id="0">
+   <animation>
+    <frame tileid="0" duration="60"/>
+    <frame tileid="1" duration="60"/>
+    <frame tileid="2" duration="60"/>
+    <frame tileid="3" duration="60"/>
+    <frame tileid="4" duration="60"/>
+    <frame tileid="5" duration="60"/>
+    <frame tileid="6" duration="60"/>
+    <frame tileid="7" duration="60"/>
+    <frame tileid="8" duration="60"/>
+    <frame tileid="9" duration="60"/>
+    <frame tileid="10" duration="60"/>
+    <frame tileid="11" duration="60"/>
+    <frame tileid="12" duration="60"/>
+    <frame tileid="13" duration="60"/>
+    <frame tileid="14" duration="60"/>
+    <frame tileid="15" duration="60"/>
+    <frame tileid="16" duration="60"/>
+    <frame tileid="17" duration="60"/>
+    <frame tileid="18" duration="60"/>
+    <frame tileid="19" duration="60"/>
+    <frame tileid="20" duration="60"/>
+    <frame tileid="21" duration="60"/>
+    <frame tileid="22" duration="60"/>
+    <frame tileid="23" duration="60"/>
+    <frame tileid="24" duration="60"/>
+    <frame tileid="25" duration="60"/>
+    <frame tileid="26" duration="60"/>
+    <frame tileid="27" duration="60"/>
+    <frame tileid="28" duration="60"/>
+    <frame tileid="29" duration="60"/>
+    <frame tileid="30" duration="60"/>
+    <frame tileid="31" duration="60"/>
+    <frame tileid="32" duration="60"/>
+    <frame tileid="33" duration="60"/>
+    <frame tileid="34" duration="60"/>
+    <frame tileid="35" duration="60"/>
+    <frame tileid="36" duration="60"/>
+    <frame tileid="37" duration="60"/>
+    <frame tileid="38" duration="60"/>
+   </animation>
+  </tile>
  </tileset>
  <layer id="2" name="Field" width="100" height="100">
   <data encoding="csv">
@@ -879,12 +943,12 @@
 0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
 0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
 0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
+0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,399,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
 0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
 0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
 0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
 0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
-0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
-0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
+0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,391,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
 0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
 0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
 0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
@@ -1166,6 +1230,9 @@
   </object>
   <object id="130" x="1637.33" y="2115.33">
    <polygon points="-1.65956,-7.49621 -1.66667,113.333 30,113.576 29.7879,140.667 61.5758,141.03 61.875,175.208 150.528,175.192 150.333,143.273 183.97,143.364 181.939,21.6061 54.2424,21 53.6061,-7.48485"/>
+  </object>
+  <object id="132" x="1534" y="2656.67">
+   <polyline points="0,0 0.666667,-38 -44.3333,-83 -44.6667,-146.333 2.33333,-193.333 95.3333,-193.667 141.667,-147.333 142,-83.6667 95,-37.3333 96,-10 95.6667,0"/>
   </object>
  </objectgroup>
  <objectgroup id="8" name="Objects"/>

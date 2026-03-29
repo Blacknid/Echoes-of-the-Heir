@@ -63,6 +63,9 @@ public class EventHandler {
     // ---- Camera shake events -------------------------------------------------
     final Map<String, String>        cameraShakes  = new HashMap<>();
 
+    // ---- Memory gates --------------------------------------------------------
+    final Map<String, MemoryGateData> memoryGates = new HashMap<>();
+
     // ---- Spawn zones ---------------------------------------------------------
     final List<SpawnZoneData> spawnZones = new ArrayList<>();
     private final Random spawnRnd = new Random();
@@ -97,9 +100,15 @@ public class EventHandler {
         int col, row, minLevel;
         String blockedMessage, targetMap, spawnId;
         int targetCol, targetRow;
-        LevelGateData(int c, int r, int ml, String msg, String tm, int tc, int tr, String sid) {
+        String requiredItem;   // item name the player must have (empty = no item check)
+        boolean consumeItem;   // if true, remove the item from inventory when passing
+        String requiredFragment; // memory fragment ID required to pass (empty = no check)
+        LevelGateData(int c, int r, int ml, String msg, String tm, int tc, int tr, String sid,
+                      String reqItem, boolean consume, String reqFrag) {
             col=c; row=r; minLevel=ml; blockedMessage=msg;
             targetMap=tm; targetCol=tc; targetRow=tr; spawnId=sid;
+            requiredItem=reqItem; consumeItem=consume;
+            requiredFragment = (reqFrag != null) ? reqFrag : "";
         }
     }
 
@@ -117,11 +126,35 @@ public class EventHandler {
         int worldX, worldY, areaW, areaH;
         String monsterType;
         int maxAmount, intervalFrames, spawnTimer;
+        boolean confined;       // if true, spawned monsters cannot leave this zone
+        int activationRange;    // tile distance from player before zone starts spawning (0 = always active)
+        int totalLimit;         // total monsters to ever spawn (0 = unlimited)
+        int totalSpawned;       // how many have been spawned so far
+        String lootItem;        // item name to award after the last monster dies (empty = no loot)
+        String lootFragment;    // memory fragment ID to collect after last monster dies (empty = none)
+        boolean lootGiven;      // true once the loot has been awarded
         /** Indices into gp.monster[] that this zone has spawned and not yet replaced. */
         final List<Integer> trackedSlots = new ArrayList<>();
-        SpawnZoneData(int wx, int wy, int aw, int ah, String mt, int max, int interval) {
+        SpawnZoneData(int wx, int wy, int aw, int ah, String mt, int max, int interval,
+                      boolean confined, int activationRange, int totalLimit,
+                      String lootItem, String lootFragment) {
             worldX=wx; worldY=wy; areaW=aw; areaH=ah;
             monsterType=mt; maxAmount=max; intervalFrames=interval; spawnTimer=0;
+            this.confined=confined; this.activationRange=activationRange;
+            this.totalLimit=totalLimit; this.totalSpawned=0;
+            this.lootItem=(lootItem != null) ? lootItem : "";
+            this.lootFragment=(lootFragment != null) ? lootFragment : "";
+            this.lootGiven=false;
+        }
+    }
+
+    private static class MemoryGateData {
+        int col, row, requiredFragments;
+        String blockedMessage, targetMap, spawnId;
+        int targetCol, targetRow;
+        MemoryGateData(int c, int r, int req, String msg, String tm, int tc, int tr, String sid) {
+            col=c; row=r; requiredFragments=req; blockedMessage=msg;
+            targetMap=tm; targetCol=tc; targetRow=tr; spawnId=sid;
         }
     }
 
@@ -144,6 +177,7 @@ public class EventHandler {
         checkpoints.clear();
         questTriggers.clear();
         cameraShakes.clear();
+        memoryGates.clear();
         namedSpawnPoints.clear();
         spawnZones.clear();
         eventMap.clear();
@@ -180,10 +214,12 @@ public class EventHandler {
     }
 
     public void registerLevelGate(int col, int row, int minLevel, String blockedMessage,
-                                  String targetMap, int targetCol, int targetRow, String spawnId) {
+                                  String targetMap, int targetCol, int targetRow, String spawnId,
+                                  String requiredItem, boolean consumeItem, String requiredFragment) {
         levelGates.put(key(col, row),
             new LevelGateData(col, row, minLevel, blockedMessage,
-                              targetMap, targetCol, targetRow, spawnId));
+                              targetMap, targetCol, targetRow, spawnId,
+                              requiredItem, consumeItem, requiredFragment));
     }
 
     public void registerCheckpoint(int col, int row, boolean silent) {
@@ -200,6 +236,14 @@ public class EventHandler {
         namedSpawnPoints.put(id, new int[]{col, row});
     }
 
+    public void registerMemoryGate(int col, int row, int requiredFragments,
+                                   String blockedMessage, String targetMap,
+                                   int targetCol, int targetRow, String spawnId) {
+        memoryGates.put(key(col, row),
+            new MemoryGateData(col, row, requiredFragments, blockedMessage,
+                               targetMap, targetCol, targetRow, spawnId));
+    }
+
     /** Returns the {col, row} of a named spawn point, or null if not found. */
     public int[] getNamedSpawnPoint(String id) {
         return namedSpawnPoints.get(id);
@@ -210,11 +254,18 @@ public class EventHandler {
     }
 
     public void registerSpawnZone(int worldX, int worldY, int areaW, int areaH,
-                                   String monsterType, int maxAmount, int intervalFrames) {
+                                   String monsterType, int maxAmount, int intervalFrames,
+                                   boolean confined, int activationRange,
+                                   int totalLimit, String lootItem, String lootFragment) {
         spawnZones.add(new SpawnZoneData(worldX, worldY, areaW, areaH,
-                                         monsterType, maxAmount, intervalFrames));
+                                         monsterType, maxAmount, intervalFrames,
+                                         confined, activationRange, totalLimit,
+                                         lootItem, lootFragment));
         System.out.println("EventHandler: SpawnZone registered " + monsterType
-            + " max=" + maxAmount + " interval=" + intervalFrames + "f");
+            + " max=" + maxAmount + " interval=" + intervalFrames + "f"
+            + " confined=" + confined + " activationRange=" + activationRange + " tiles"
+            + " totalLimit=" + totalLimit + " lootItem=" + lootItem
+            + " lootFragment=" + lootFragment);
     }
 
     /** Called every game frame (play state) to tick spawn zone timers. */
@@ -225,8 +276,45 @@ public class EventHandler {
             zone.trackedSlots.removeIf(idx ->
                 idx < 0 || idx >= gp.monster.length || gp.monster[idx] == null);
 
+            // If totalLimit is set, check if all spawned monsters have been killed
+            if (zone.totalLimit > 0 && zone.totalSpawned >= zone.totalLimit
+                    && zone.trackedSlots.isEmpty() && !zone.lootGiven) {
+                // All monsters from this zone are dead — award loot
+                zone.lootGiven = true;
+                if (!zone.lootItem.isEmpty()) {
+                    entity.Entity item = gp.mapObjectLoader.createEntityByName(zone.lootItem);
+                    if (item != null && gp.player.canObtainItem(item)) {
+                        gp.ui.addMessage("You obtained " + item.name + "!",
+                            new java.awt.Color(255, 230, 100));
+                    } else if (item != null) {
+                        gp.ui.addMessage("You found " + item.name + ", but your inventory is full!",
+                            new java.awt.Color(255, 100, 100));
+                    }
+                }
+                if (!zone.lootFragment.isEmpty() && gp.memoryJournal != null) {
+                    data.MemoryJournal.MemoryFragment frag = gp.memoryJournal.collect(zone.lootFragment);
+                    if (frag != null && gp.memoryFlashback != null) {
+                        gp.memoryFlashback.trigger(frag);
+                    }
+                }
+                continue; // zone is complete, nothing left to spawn
+            }
+
+            // If totalLimit reached, don't spawn more — just wait for remaining to die
+            if (zone.totalLimit > 0 && zone.totalSpawned >= zone.totalLimit) continue;
+
             // Still at cap — nothing to do yet
             if (zone.trackedSlots.size() >= zone.maxAmount) continue;
+
+            // Activation range check: only spawn when player is within N tiles of the zone
+            if (zone.activationRange > 0) {
+                int px = gp.player.worldX + gp.tileSize / 2;
+                int py = gp.player.worldY + gp.tileSize / 2;
+                int zCenterX = zone.worldX + zone.areaW / 2;
+                int zCenterY = zone.worldY + zone.areaH / 2;
+                int distTiles = (int)(Math.max(Math.abs(px - zCenterX), Math.abs(py - zCenterY)) / gp.tileSize);
+                if (distTiles > zone.activationRange) continue;
+            }
 
             // Tick the respawn timer only when a slot is free
             zone.spawnTimer++;
@@ -263,8 +351,13 @@ public class EventHandler {
 
             entity.Entity m = gp.mapObjectLoader.createMonsterByName(zone.monsterType, col, row);
             if (m != null) {
+                if (zone.confined) {
+                    m.confinementZone = new java.awt.Rectangle(
+                        zone.worldX, zone.worldY, zone.areaW, zone.areaH);
+                }
                 gp.monster[slot] = m;
                 zone.trackedSlots.add(slot);
+                zone.totalSpawned++;
             }
         }
     }
@@ -321,6 +414,14 @@ public class EventHandler {
         for (LevelGateData gate : levelGates.values()) {
             if (hit(gate.col, gate.row, Entity.DIR_ANY)) {
                 triggerLevelGate(gate);
+                return;
+            }
+        }
+
+        // Memory gates
+        for (MemoryGateData mg : memoryGates.values()) {
+            if (hit(mg.col, mg.row, Entity.DIR_ANY)) {
+                triggerMemoryGate(mg);
                 return;
             }
         }
@@ -408,8 +509,23 @@ public class EventHandler {
     }
 
     private void triggerLevelGate(LevelGateData gate) {
-        if (gp.player.level >= gate.minLevel) {
-            // Player is high enough level — pass through (optionally transition map)
+        boolean levelOk = (gate.minLevel <= 0 || gp.player.level >= gate.minLevel);
+        boolean itemOk  = true;
+        int itemIdx = -1;
+        if (gate.requiredItem != null && !gate.requiredItem.isEmpty()) {
+            itemIdx = gp.player.searchItemInInventory(gate.requiredItem);
+            itemOk = (itemIdx != 999);
+        }
+
+        boolean fragmentOk = gate.requiredFragment.isEmpty()
+            || (gp.memoryJournal != null && gp.memoryJournal.has(gate.requiredFragment));
+
+        if (levelOk && itemOk && fragmentOk) {
+            // Consume the item if configured
+            if (gate.consumeItem && itemIdx >= 0 && itemIdx < gp.player.inventory.size()) {
+                gp.player.inventory.remove(itemIdx);
+            }
+            // Pass through (optionally transition map)
             if (!gate.targetMap.isEmpty()) {
                 lastTriggerCol = gate.col;
                 lastTriggerRow = gate.row;
@@ -432,6 +548,35 @@ public class EventHandler {
             String[][] d = eventMaster.ensureDialogues();
             if (d[0] == null) d[0] = new String[1];
             d[0][0] = gate.blockedMessage;
+            eventMaster.startDialogue(eventMaster, 0);
+            gp.gameState = GamePanel.dialogueState;
+        }
+        touchConsumed();
+    }
+
+    private void triggerMemoryGate(MemoryGateData mg) {
+        int collected = (gp.memoryJournal != null) ? gp.memoryJournal.getCount() : 0;
+        if (collected >= mg.requiredFragments) {
+            if (mg.targetMap != null && !mg.targetMap.isEmpty()) {
+                lastTriggerCol = mg.col;
+                lastTriggerRow = mg.row;
+                gp.mapManager.nextSpawnId = mg.spawnId != null ? mg.spawnId : "";
+                gp.startTransition(mg.targetMap, mg.targetCol, mg.targetRow);
+            }
+        } else {
+            switch (gp.player.direction) {
+                case Entity.DIR_UP    -> gp.player.worldY += gp.tileSize * 2;
+                case Entity.DIR_DOWN  -> gp.player.worldY -= gp.tileSize * 2;
+                case Entity.DIR_LEFT  -> gp.player.worldX += gp.tileSize * 2;
+                case Entity.DIR_RIGHT -> gp.player.worldX -= gp.tileSize * 2;
+            }
+            gp.screenShake.shakeLight();
+            gp.player.hitFlashCounter = 10;
+            gp.player.spriteNum = 1;
+            gp.player.spriteCounter = 0;
+            String[][] d = eventMaster.ensureDialogues();
+            if (d[0] == null) d[0] = new String[1];
+            d[0][0] = mg.blockedMessage;
             eventMaster.startDialogue(eventMaster, 0);
             gp.gameState = GamePanel.dialogueState;
         }
