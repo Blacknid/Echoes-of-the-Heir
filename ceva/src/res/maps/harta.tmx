@@ -1236,7 +1236,11 @@
   </object>
  </objectgroup>
  <objectgroup id="8" name="Objects"/>
- <objectgroup id="9" name="Monsters"/>
+ <objectgroup id="9" name="Monsters">
+  <object id="200" name="The Withered Tree" type="BOSS_WitheredTree" x="1664" y="1440">
+   <point/>
+  </object>
+ </objectgroup>
  <objectgroup id="10" name="NPCs">
   <object id="83" name="Alucard" type="NPC_Alucard" x="1664" y="2784">
    <properties>

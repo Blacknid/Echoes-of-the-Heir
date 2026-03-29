@@ -576,7 +576,7 @@ public class GamePanel extends JPanel implements Runnable{
                     Entity particle = particleList.get(i);
                     if (particle != null) {
                         if (particle.alive) particle.update();
-                        else { particleList.remove(i); particlePool.release((Particle) particle); }
+                        else { particleList.remove(i); if (particle instanceof Particle) particlePool.release((Particle) particle); }
                     }
                 }
                 if (tileParticleEmitter != null) tileParticleEmitter.update();
@@ -643,8 +643,10 @@ public class GamePanel extends JPanel implements Runnable{
                         particle.update();
                     } else {
                         particleList.remove(i);
-                        // OPTIMIZATION: Return particle to pool for reuse
-                        particlePool.release((Particle) particle);
+                        // OPTIMIZATION: Return particle to pool for reuse (skip non-poolable entities like BossSwingEffect)
+                        if (particle instanceof Particle) {
+                            particlePool.release((Particle) particle);
+                        }
                     }
                 }
             }

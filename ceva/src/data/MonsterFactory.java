@@ -7,6 +7,7 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.Map;
 
+import entity.BOSS_WitheredTree;
 import entity.Entity;
 import main.GamePanel;
 
@@ -63,6 +64,15 @@ public class MonsterFactory {
     }
 
     private static Entity buildMonster(GamePanel gp, Map<String, String> def, int col, int row) {
+        // Boss types get their own dedicated class
+        String aiBehavior = def.getOrDefault("aiBehavior", "melee_chase");
+        if ("boss_tree".equals(aiBehavior)) {
+            BOSS_WitheredTree boss = new BOSS_WitheredTree(gp);
+            boss.worldX = col * gp.tileSize;
+            boss.worldY = row * gp.tileSize;
+            return boss;
+        }
+
         Entity m = new Entity(gp);
         m.type = Entity.type_monster;
         m.collision = true;
@@ -106,14 +116,14 @@ public class MonsterFactory {
         }
 
         // Attach AI behavior
-        String aiBehavior = def.getOrDefault("aiBehavior", "melee_chase");
+        String monsterAI = def.getOrDefault("aiBehavior", "melee_chase");
         float fleeThreshold = floatVal(def, "fleeThreshold", 0.5f);
         int shootCooldown = intVal(def, "shootCooldown", 90);
         int preferredDist = intVal(def, "preferredDist", 5);
         int fleeDist = intVal(def, "fleeDist", 2);
 
         // Store AI config in a behavior wrapper that overrides setAction/damageReaction
-        return new DataDrivenMonster(gp, m, aiBehavior, fleeThreshold, shootCooldown, preferredDist, fleeDist);
+        return new DataDrivenMonster(gp, m, monsterAI, fleeThreshold, shootCooldown, preferredDist, fleeDist);
     }
 
     // --- Minimal JSON parsing (flat array of objects with nested solidArea) ---

@@ -42,10 +42,37 @@
     "deathQuestKills": 0
   },
   {
+<<<<<<< HEAD
     "id": "inkblot",
     "name": "Inkblot",
     "maxLife": 3,
     "attack": 2,
+=======
+<<<<<<< HEAD
+    "id": "withered_tree",
+    "name": "The Withered Tree",
+    "maxLife": 80,
+    "attack": 5,
+    "defense": 2,
+    "exp": 25,
+    "speed": 1,
+    "walkFrameCount": 6,
+    "spriteSheet": "/res/bosses/Ent1/With_shadow/Ent1_Walk_with_shadow",
+    "framesPerRow": [6, 6, 6, 6],
+    "solidArea": { "x": 16, "y": 16, "width": 96, "height": 96 },
+    "aiBehavior": "boss_tree",
+    "aggroRange": 10,
+    "fleeThreshold": 0.0,
+    "fleeDuration": 0,
+    "deathCoins": 10,
+    "deathQuestKills": 1,
+    "isBoss": true
+=======
+    "id": "shade",
+    "name": "Shade",
+    "maxLife": 4,
+    "attack": 3,
+>>>>>>> 32e5dd1142c47553e205fc5cf7ab447da19e8c9a
     "defense": 0,
     "exp": 2,
     "speed": 2,
@@ -59,5 +86,6 @@
     "fleeDuration": 0,
     "deathCoins": 0,
     "deathQuestKills": 1
+>>>>>>> b606fee9f1bb89387e45f5e6c81440e75ec43a77
   }
 ]
