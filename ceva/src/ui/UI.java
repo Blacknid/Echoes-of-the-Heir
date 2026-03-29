@@ -164,7 +164,7 @@ public class UI {
 
         // LOAD TITLE BACKGROUND
         try {
-            titleBackground = ImageIO.read(getClass().getResourceAsStream("/res/background_royal.png"));
+            titleBackground = ImageIO.read(getClass().getResourceAsStream(getTitleScreenBackgroundImage()));
             if (titleBackground != null) {
                 titleBackground = UtilityTool.scaleImage(titleBackground, gp.screenWidth, gp.screenHeight);
                 System.out.println("Title background loaded successfully!");
@@ -2828,5 +2828,12 @@ public class UI {
         int x = tailX - length;
         return x;
 
+    }
+
+    public String getTitleScreenBackgroundImage() {
+        if((int)(Math.random() * 100) % 2 == 0)
+            return "/res/background_royal.png";
+        else
+            return "/res/background.png";
     }
 }
