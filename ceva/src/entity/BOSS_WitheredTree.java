@@ -309,7 +309,7 @@ public class BOSS_WitheredTree extends Entity {
 
         // At midpoint, actually switch phase
         if (phaseTransitionTimer == PHASE_TRANSITION_DURATION / 2) {
-            applyPhase(pendingPhase);
+            transitionToPhase(pendingPhase);
 
             // Second wave of particles
             Color c = (pendingPhase == 2) ? PHASE3_SPARK : PHASE2_SPARK;
