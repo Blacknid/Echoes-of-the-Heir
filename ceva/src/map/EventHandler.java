@@ -1,5 +1,11 @@
 package map;
 
+import java.awt.AlphaComposite;
+import java.awt.BasicStroke;
+import java.awt.Color;
+import java.awt.Font;
+import java.awt.Graphics2D;
+import java.awt.Stroke;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
@@ -656,6 +662,89 @@ public class EventHandler {
         canTouchEvent = false;
         previousEventX = gp.player.worldX;
         previousEventY = gp.player.worldY;
+    }
+
+    // ---- Debug visualisation --------------------------------------------------
+
+    /** Draws coloured outlines for every registered event zone. Called by RenderPipeline. */
+    public void drawEventDebug(Graphics2D g2,
+                               int playerWorldX, int playerWorldY,
+                               int pScreenX,     int pScreenY,
+                               int tileSize) {
+        Font   labelFont = new Font("Arial", Font.BOLD, 10);
+        Stroke oldStroke = g2.getStroke();
+        java.awt.Composite oldComp = g2.getComposite();
+        g2.setFont(labelFont);
+        g2.setStroke(new BasicStroke(2f));
+        g2.setComposite(AlphaComposite.getInstance(AlphaComposite.SRC_OVER, 0.75f));
+
+        // Map transitions — magenta
+        drawEventLayer(g2, mapTransitions,   playerWorldX, playerWorldY, pScreenX, pScreenY,
+                       tileSize, new Color(255,   0, 255), "WARP");
+        // Healing pools — bright green
+        drawEventLayer(g2, healingPools,     playerWorldX, playerWorldY, pScreenX, pScreenY,
+                       tileSize, new Color(  0, 220,  80), "HEAL");
+        // Damage traps — bright red
+        drawEventLayer(g2, damageTraps,      playerWorldX, playerWorldY, pScreenX, pScreenY,
+                       tileSize, new Color(220,  40,  40), "TRAP");
+        // Dialogue triggers — yellow
+        drawEventLayer(g2, dialogueTriggers, playerWorldX, playerWorldY, pScreenX, pScreenY,
+                       tileSize, new Color(255, 230,   0), "DIAL");
+        // Level gates — orange
+        drawEventLayer(g2, levelGates,       playerWorldX, playerWorldY, pScreenX, pScreenY,
+                       tileSize, new Color(255, 140,   0), "GATE");
+        // Checkpoints — cyan
+        drawEventLayer(g2, checkpoints,      playerWorldX, playerWorldY, pScreenX, pScreenY,
+                       tileSize, new Color(  0, 220, 220), "SAVE");
+        // Quest triggers — purple
+        drawEventLayer(g2, questTriggers,    playerWorldX, playerWorldY, pScreenX, pScreenY,
+                       tileSize, new Color(180,  80, 255), "QUEST");
+        // Camera shakes — white
+        drawEventLayer(g2, cameraShakes,     playerWorldX, playerWorldY, pScreenX, pScreenY,
+                       tileSize, new Color(220, 220, 220), "SHAKE");
+        // Memory gates — deep blue
+        drawEventLayer(g2, memoryGates,      playerWorldX, playerWorldY, pScreenX, pScreenY,
+                       tileSize, new Color( 60,  80, 255), "MEM");
+
+        // Spawn zones (have custom world-space bounds, not tile-grid keys)
+        g2.setColor(new Color(255, 160, 0));
+        for (SpawnZoneData sz : spawnZones) {
+            int sx = sz.worldX - playerWorldX + pScreenX;
+            int sy = sz.worldY - playerWorldY + pScreenY;
+            g2.drawRect(sx, sy, sz.areaW, sz.areaH);
+            g2.drawString("ZONE:" + sz.monsterType, sx + 3, sy + 13);
+        }
+
+        // Named spawn points — lime
+        g2.setColor(new Color(160, 255, 80));
+        for (Map.Entry<String, int[]> e : namedSpawnPoints.entrySet()) {
+            int[] pos = e.getValue();  // [col, row]
+            int sx = pos[0] * tileSize - playerWorldX + pScreenX;
+            int sy = pos[1] * tileSize - playerWorldY + pScreenY;
+            g2.drawRect(sx, sy, tileSize, tileSize);
+            g2.drawString("SP:" + e.getKey(), sx + 3, sy + 13);
+        }
+
+        g2.setStroke(oldStroke);
+        g2.setComposite(oldComp);
+    }
+
+    /** Draws one event-type layer (keyed by "col,row" strings) with a given colour and label. */
+    private void drawEventLayer(Graphics2D g2, Map<String, ?> map,
+                                int playerWorldX, int playerWorldY,
+                                int pScreenX, int pScreenY,
+                                int tileSize, Color color, String label) {
+        g2.setColor(color);
+        for (String k : map.keySet()) {
+            String[] parts = k.split(",");
+            if (parts.length < 2) continue;
+            int col = Integer.parseInt(parts[0]);
+            int row = Integer.parseInt(parts[1]);
+            int sx  = col * tileSize - playerWorldX + pScreenX;
+            int sy  = row * tileSize - playerWorldY + pScreenY;
+            g2.drawRect(sx, sy, tileSize - 1, tileSize - 1);
+            g2.drawString(label, sx + 3, sy + 13);
+        }
     }
 
     private static String key(int col, int row) { return col + "," + row; }
