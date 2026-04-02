@@ -296,6 +296,10 @@ public class EventHandler {
                     if (frag != null && gp.memoryFlashback != null) {
                         gp.memoryFlashback.trigger(frag);
                     }
+                    // Collecting frag_cave marks "Find the Exit" as complete
+                    if ("frag_cave".equals(zone.lootFragment) && gp.questManager != null) {
+                        gp.questManager.progress("find_exit", 1);
+                    }
                 }
                 continue; // zone is complete, nothing left to spawn
             }

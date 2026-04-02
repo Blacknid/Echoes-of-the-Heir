@@ -4277,6 +4277,9 @@
   <object id="31" x="1239" y="597.667">
    <polygon points="0,0 0,15 40.3333,16 41,0.666667"/>
   </object>
+  <object id="32" x="1280" y="688">
+   <polygon points="0,0 -87.6667,-2 -86.3333,47.6667 -0.333333,50"/>
+  </object>
   <object id="44" x="683.773" y="38.7727">
    <polygon points="1.81818,0 43.5,0 43.5,7 1.86364,7"/>
   </object>
@@ -4331,7 +4334,7 @@
     <property name="lootFragment" value="frag_cave"/>
     <property name="lootItem" value="Key"/>
     <property name="maxAmount" type="int" value="3"/>
-    <property name="monster" value="mummy"/>
+    <property name="monster" value="inkblot"/>
     <property name="totalLimit" type="int" value="5"/>
    </properties>
    <polygon points="0,0 0,76.8 32,76.8 32,115.2 224,115.2 224,76.8 352,76.8 384,76.8 384,0 352,0 352,-38.4 160,-38.4 160,-76.8 32,-76.8 32,-38.4 0,-38.4"/>

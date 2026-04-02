@@ -16,7 +16,7 @@
     "fleeThreshold": 0.5,
     "fleeDuration": 60,
     "deathCoins": 0,
-    "deathQuestKills": 1
+    "deathQuestKills": 0
   },
   {
     "id": "skeleton_archer",
@@ -39,7 +39,7 @@
     "preferredDist": 5,
     "fleeDist": 2,
     "deathCoins": 0,
-    "deathQuestKills": 1
+    "deathQuestKills": 0
   },
   {
     "id": "withered_tree",
@@ -62,19 +62,19 @@
     "isBoss": true
   },
   {
-    "id": "shade",
-    "name": "Shade",
-    "maxLife": 4,
-    "attack": 3,
+    "id": "inkblot",
+    "name": "Inkblot",
+    "maxLife": 3,
+    "attack": 2,
     "defense": 0,
-    "exp": 5,
+    "exp": 2,
     "speed": 2,
-    "walkFrameCount": 6,
-    "spriteSheet": "/res/monster/Monster_walking-sheet",
-    "framesPerRow": [6, 6, 6, 6],
-    "solidArea": { "x": 12, "y": 8, "width": 40, "height": 48 },
+    "walkFrameCount": 8,
+    "spriteSheet": "/res/monster/Inkblot/Inkblot_walking",
+    "framesPerRow": [8, 8, 8, 8],
+    "solidArea": { "x": 18, "y": 30, "width": 28, "height": 26 },
     "aiBehavior": "melee_chase",
-    "aggroRange": 10,
+    "aggroRange": 3,
     "fleeThreshold": 0,
     "fleeDuration": 0,
     "deathCoins": 0,

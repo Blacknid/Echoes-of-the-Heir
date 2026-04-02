@@ -36,6 +36,7 @@ public class UI {
     ArrayList<Integer> messageCounter = new ArrayList<>();
     ArrayList<Color> messageColor = new ArrayList<>();
     ArrayList<BufferedImage> messageIcon = new ArrayList<>();
+    ArrayList<Integer> messageDuration = new ArrayList<>();
     public boolean gameFinished = false;
     public String currentDialogue = "";
     public int commandNum = 0;
@@ -202,17 +203,23 @@ public class UI {
     }
 
     public void addMessage(String text, Color color) {
-        message.add(text);
-        messageColor.add(color);
-        messageCounter.add(0);
-        messageIcon.add(null);
+        addMessage(text, color, (BufferedImage) null, 180);
+    }
+
+    public void addMessage(String text, Color color, int duration) {
+        addMessage(text, color, (BufferedImage) null, duration);
     }
 
     public void addMessage(String text, Color color, BufferedImage icon) {
+        addMessage(text, color, icon, 180);
+    }
+
+    public void addMessage(String text, Color color, BufferedImage icon, int duration) {
         message.add(text);
         messageColor.add(color);
         messageCounter.add(0);
         messageIcon.add(icon);
+        messageDuration.add(Math.max(50, duration));
     }
     public void draw(Graphics2D g2) {
 
@@ -683,20 +690,23 @@ public class UI {
             int count = messageCounter.get(i) + 1;
             messageCounter.set(i, count);
 
-            // Alpha: full 0-140, fade 140-180
+            int dur = messageDuration.get(i);
+            int fadeStart = dur - 40;
+
+            // Alpha: full 0-fadeStart, fade fadeStart-dur
             int alpha = 255;
-            if (count > 140) {
-                alpha = 255 - (int)((count - 140) * (255.0 / 40));
+            if (count > fadeStart) {
+                alpha = 255 - (int)((count - fadeStart) * (255.0 / 40));
                 if (alpha < 0) alpha = 0;
             }
 
-            // Slide from right: ease-out over first 12 frames, ease-in slide out over last 40
+            // Slide from left: ease-out over first 12 frames, ease-in slide out over last 40
             int slideOffset = 0;
             if (count < 12) {
                 float t = count / 12f;
                 slideOffset = (int)((1 - t * t) * 200);
-            } else if (count > 140) {
-                float t = (count - 140) / 40f;
+            } else if (count > fadeStart) {
+                float t = (count - fadeStart) / 40f;
                 slideOffset = (int)(t * t * 200);
             }
 
@@ -707,8 +717,8 @@ public class UI {
             int pillW = txtW + iconSpace + 24;
             int pillH = 34;
 
-            // Position: right side of screen, below minimap area
-            int px = gp.screenWidth - pillW - 16 + slideOffset;
+            // Position: left side of screen
+            int px = 16 - slideOffset;
             int py = 300 + totalHeight;
 
             Color baseColor = messageColor.get(i);
@@ -717,34 +727,35 @@ public class UI {
             g2.setColor(cachedColor(10, 8, 6, (int)(alpha * 0.7f)));
             g2.fillRoundRect(px, py, pillW, pillH, 12, 12);
 
-            // Right accent bar
+            // Left accent bar
             g2.setColor(cachedColor(baseColor.getRed(), baseColor.getGreen(), baseColor.getBlue(), alpha));
-            g2.fillRoundRect(px + pillW - 3, py, 3, pillH, 3, 3);
+            g2.fillRoundRect(px, py, 3, pillH, 3, 3);
 
             // Icon
             if (icon != null) {
                 java.awt.Composite saved = g2.getComposite();
                 g2.setComposite(AlphaComposite.getInstance(AlphaComposite.SRC_OVER, Math.max(0f, Math.min(1f, alpha / 255f))));
-                g2.drawImage(icon, px + 8, py + 3, 24, 24, null);
+                g2.drawImage(icon, px + 14, py + 3, 24, 24, null);
                 g2.setComposite(saved);
             }
 
             // Text shadow
             g2.setColor(cachedColor(0, 0, 0, alpha));
-            g2.drawString(txt, px + 10 + iconSpace + 1, py + 23);
+            g2.drawString(txt, px + 14 + iconSpace + 1, py + 23);
 
             // Text
             g2.setColor(cachedColor(baseColor.getRed(), baseColor.getGreen(), baseColor.getBlue(), alpha));
-            g2.drawString(txt, px + 10 + iconSpace, py + 22);
+            g2.drawString(txt, px + 14 + iconSpace, py + 22);
 
             totalHeight += pillH + 6;
 
-            // Remove after 180 frames
-            if (count > 180) {
+            // Remove after dur frames
+            if (count > dur) {
                 message.remove(i);
                 messageCounter.remove(i);
                 messageColor.remove(i);
                 messageIcon.remove(i);
+                messageDuration.remove(i);
                 i--;
             }
         }

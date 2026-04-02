@@ -71,15 +71,11 @@ public class RenderPipeline {
         g2.setRenderingHint(java.awt.RenderingHints.KEY_ANTIALIASING, java.awt.RenderingHints.VALUE_ANTIALIAS_OFF);
         g2.setRenderingHint(java.awt.RenderingHints.KEY_TEXT_ANTIALIASING, java.awt.RenderingHints.VALUE_TEXT_ANTIALIAS_OFF);
 
-        // SMOOTH CAMERA + SCREEN SHAKE
-        int camOffX = Math.round(gp.cameraX - (gp.player.worldX - gp.player.screenX));
-        int camOffY = Math.round(gp.cameraY - (gp.player.worldY - gp.player.screenY));
+        // SCREEN SHAKE
         int shakeX = gp.screenShake.getOffsetX();
         int shakeY = gp.screenShake.getOffsetY();
-        int totalOffX = camOffX + shakeX;
-        int totalOffY = camOffY + shakeY;
-        if (totalOffX != 0 || totalOffY != 0) {
-            g2.translate(totalOffX, totalOffY);
+        if (shakeX != 0 || shakeY != 0) {
+            g2.translate(shakeX, shakeY);
         }
 
         gp.tileM.prepareVisibleTiles();
@@ -161,9 +157,9 @@ public class RenderPipeline {
             drawHitboxDebug(g2);
         }
 
-        // UNDO CAMERA + SHAKE
-        if (totalOffX != 0 || totalOffY != 0) {
-            g2.translate(-totalOffX, -totalOffY);
+        // UNDO SHAKE
+        if (shakeX != 0 || shakeY != 0) {
+            g2.translate(-shakeX, -shakeY);
         }
 
         // ENVIRONMENT

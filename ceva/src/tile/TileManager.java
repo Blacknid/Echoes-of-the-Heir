@@ -77,6 +77,9 @@ public class TileManager {
 
     // Per-map TMX tile size (updated when loading a map; used for scaling)
     int mapTileSize = originalTileSize;
+    // Actual map dimensions in tiles (read from TMX <map width/height>)
+    public int currentMapCols = 100;
+    public int currentMapRows = 100;
     // Pixel offset for infinite maps (after shifting chunks to start at 0,0)
     int mapOffsetPixelsX = 0;
     int mapOffsetPixelsY = 0;
@@ -406,6 +409,12 @@ public class TileManager {
             } else {
                 mapTileSize = originalTileSize;
             }
+
+            // Read actual map dimensions (tiles)
+            String mw = mapRoot.getAttribute("width");
+            String mh = mapRoot.getAttribute("height");
+            if (mw != null && !mw.isEmpty()) currentMapCols = Integer.parseInt(mw);
+            if (mh != null && !mh.isEmpty()) currentMapRows = Integer.parseInt(mh);
 
             // Detect infinite map
             boolean infinite = "1".equals(mapRoot.getAttribute("infinite"));
