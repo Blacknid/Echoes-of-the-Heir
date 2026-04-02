@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<map version="1.10" tiledversion="1.12.1" orientation="orthogonal" renderorder="right-down" width="40" height="30" tilewidth="32" tileheight="32" infinite="0" nextlayerid="21" nextobjectid="81">
+<map version="1.10" tiledversion="1.12.1" orientation="orthogonal" renderorder="right-down" width="40" height="30" tilewidth="32" tileheight="32" infinite="0" nextlayerid="21" nextobjectid="84">
  <properties>
   <property name="ambientLight" type="float" value="0.7"/>
   <property name="dialogueTrigger" value="( Where... am I? )"/>
@@ -4281,7 +4281,21 @@
 0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0
 </data>
  </layer>
- <objectgroup id="14" name="NPCs"/>
+ <objectgroup id="14" name="NPCs">
+  <object id="83" type="NPC_Generic" x="928" y="768">
+   <properties>
+    <property name="dialogue_0_0" value="Uhm... hello?"/>
+    <property name="dialogue_0_1" value="I don't really remember much, but I think I got hurt near here..."/>
+    <property name="dialogue_0_2" value="Please take my sword, it might help you on your journey."/>
+    <property name="dialogue_0_3" value="... Help me later too, I don't want to be alone here."/>
+    <property name="giveItem" value="sword_normal"/>
+    <property name="idleDirection" type="int" value="2"/>
+    <property name="idleSprite" value="/res/NPC/Tutorial_idle"/>
+    <property name="staticNPC" type="bool" value="true"/>
+   </properties>
+   <point/>
+  </object>
+ </objectgroup>
  <objectgroup id="15" name="Monsters"/>
  <objectgroup id="16" name="Objects" visible="0">
   <object id="25" name="Weapon Chest" type="Chest" x="928" y="32" width="32" height="32">
@@ -4301,9 +4315,6 @@
   </object>
   <object id="28" x="1279" y="461.5">
    <polygon points="0,0 -36,-0.5 -35.5,33 -70,33 -70,58.5 -125,59.5 -124.75,139.25 -72,139 -73,97.5 0.5,98.5"/>
-  </object>
-  <object id="29" x="948" y="614">
-   <polygon points="0,0 0.333333,9.33333 23,9.66667 22.6667,-0.333333"/>
   </object>
   <object id="31" x="1239" y="597.667">
    <polygon points="0,0 0,15 40.3333,16 41,0.666667"/>
@@ -4331,17 +4342,6 @@
   </object>
  </objectgroup>
  <objectgroup id="13" name="Events">
-  <object id="1" type="SpawnPoint" x="621" y="97.0909">
-   <point/>
-  </object>
-  <object id="20" name="Tutorial ( Combat )" type="DialogueTrigger" x="984.007" y="511.519" rotation="90">
-   <properties>
-    <property name="message">You'll start the Combat Tutorial. 
- Good Luck!</property>
-    <property name="oneShot" type="bool" value="true"/>
-   </properties>
-   <polyline points="0.805353,-199.993 0.805689,-120.452"/>
-  </object>
   <object id="23" name="Slime spawner" type="SpawnZone" x="864" y="364.8">
    <properties>
     <property name="activationRange" type="int" value="3"/>
@@ -4354,13 +4354,6 @@
     <property name="totalLimit" type="int" value="5"/>
    </properties>
    <polygon points="0,0 0,76.8 32,76.8 32,115.2 224,115.2 224,76.8 352,76.8 384,76.8 384,0 352,0 352,-38.4 160,-38.4 160,-76.8 32,-76.8 32,-38.4 0,-38.4"/>
-  </object>
-  <object id="26" name="Req. Frag" type="LevelGate" x="704" y="384" rotation="180">
-   <properties>
-    <property name="message" value="You haven't completed the Combat Tutorial yet."/>
-    <property name="requiredFragment" value="frag_cave"/>
-   </properties>
-   <polyline points="-72,-60.75 -72,58.8333"/>
   </object>
   <object id="60" name="Ambient Light" type="Lighting" x="976.667" y="97.3333">
    <properties>
@@ -4439,13 +4432,6 @@
    </properties>
    <point/>
   </object>
-  <object id="73" name="Ambient Light" type="Lighting" x="528.667" y="513.333">
-   <properties>
-    <property name="lightColor" value="#dd5dac"/>
-    <property name="lightRadius" type="int" value="4"/>
-   </properties>
-   <point/>
-  </object>
   <object id="75" name="Ambient Light" type="Lighting" x="1104.67" y="97.3333">
    <properties>
     <property name="lightColor" value="#a0f595"/>
@@ -4460,13 +4446,6 @@
    </properties>
    <point/>
   </object>
-  <object id="76" name="Tranzitie" type="MapTransition" x="576" y="352" width="96" height="32">
-   <properties>
-    <property name="targetCol" type="int" value="50"/>
-    <property name="targetMap" value="harta"/>
-    <property name="targetRow" type="int" value="50"/>
-   </properties>
-  </object>
   <object id="78" name="SpawnPoint" type="SpawnPoint" x="1120" y="861">
    <point/>
   </object>
@@ -4477,6 +4456,20 @@ Keep searching.</property>
     <property name="requiredItem" value="Normal Sword"/>
    </properties>
    <polyline points="0,0 32,0"/>
+  </object>
+  <object id="81" name="Tutorial ( Combat )" type="DialogueTrigger" x="1120" y="512">
+   <properties>
+    <property name="message">You'll start the Combat Tutorial. 
+ Good Luck!</property>
+    <property name="oneShot" type="bool" value="true"/>
+   </properties>
+   <polyline points="0,0 32,0"/>
+  </object>
+  <object id="82" type="LevelGate" x="777" y="319.333" width="32" height="128">
+   <properties>
+    <property name="message" value="You haven't completed the Combat Tutorial yet."/>
+    <property name="requiredFragment" value="frag_cave"/>
+   </properties>
   </object>
  </objectgroup>
 </map>

@@ -62,7 +62,13 @@ public class Entity {
     
     public int direction = DIR_DOWN;
 
-
+    // IDLE ANIMATION
+    public int idleDirection = -1;          // -1 = use current direction; >= 0 = forced idle dir
+    public int idleSpriteNum = 1;
+    public int idleSpriteCounter = 0;
+    private int idleFrameDirection = 1;
+    public int idleAnimationInterval = 24;  // ticks between idle frame advances (~0.4 s at 60 UPS)
+    protected boolean entityIdle = true;
 
     // COUNTERS
     public int spriteCounter = 0;
@@ -229,6 +235,14 @@ public class Entity {
     public String requiredItem = null;          // item name the player must have to trigger alternate dialogue
     public int    requiredItemDialogueSet = -1; // which dialogue set to use when the player has the item
     public boolean requiredItemConsumed = false; // if true, the item is removed from inventory on delivery
+
+    public String  giveItemId          = null;  // ItemFactory id to give on first interaction
+    public int     giveItemDialogueSet  = 0;    // dialogue set played while giving
+    public boolean giveItemGiven        = false; // true after item was given once
+
+    public String  giveItem2Id         = null;  // ItemFactory id to give after NPC finishes helping (post-walk)
+    public int     giveItem2DialogueSet = -1;   // dialogue set played while giving item 2 (-1 = use walkToDialogueSet)
+    public boolean giveItem2Given       = false; // true after item 2 was given
 
     // ── MEMORY FRAGMENT SYSTEM ──
     public String   
@@ -574,6 +588,11 @@ public class Entity {
         }
 
         if (movedThisFrame) {
+            entityIdle = false;
+            idleSpriteNum = 1;
+            idleSpriteCounter = 0;
+            idleFrameDirection = 1;
+
             spriteCounter++;
             if (spriteCounter > animationFrameInterval) {
                 int maxWalkFrames = Math.max(1, Math.min(walkFrameCount, 8));
@@ -599,6 +618,32 @@ public class Entity {
             spriteNum = 1;
             spriteCounter = 0;
             walkFrameDirection = 1;
+            entityIdle = true;
+
+            // Cycle idle animation if idle frames are available
+            if (idleFrames != null) {
+                int dir = (idleDirection >= 0) ? idleDirection : direction;
+                if (dir >= 0 && dir < idleFrames.length && idleFrames[dir] != null && idleFrames[dir].length > 0) {
+                    idleSpriteCounter++;
+                    if (idleSpriteCounter > idleAnimationInterval) {
+                        int maxIdle = idleFrames[dir].length;
+                        if (maxIdle == 1) {
+                            idleSpriteNum = 1;
+                        } else {
+                            idleSpriteNum += idleFrameDirection;
+                            if (idleSpriteNum >= maxIdle) {
+                                idleSpriteNum = maxIdle;
+                                idleFrameDirection = -1;
+                            }
+                            if (idleSpriteNum <= 1) {
+                                idleSpriteNum = 1;
+                                idleFrameDirection = 1;
+                            }
+                        }
+                        idleSpriteCounter = 0;
+                    }
+                }
+            }
         }
 
         if (invincible) {
@@ -630,7 +675,19 @@ public class Entity {
             int drawW = (int)(gp.tileSize * spriteScale);
             int drawH = (int)(gp.tileSize * spriteScale);
 
-            currentSprite = getWalkFrameImage(direction, spriteNum);
+            // Use idle animation when standing still and idle frames exist
+            if (entityIdle && idleFrames != null) {
+                int idleDir = (idleDirection >= 0) ? idleDirection : direction;
+                if (idleDir >= 0 && idleDir < idleFrames.length && idleFrames[idleDir] != null) {
+                    int idx = idleSpriteNum - 1;
+                    if (idx >= 0 && idx < idleFrames[idleDir].length) {
+                        currentSprite = idleFrames[idleDir][idx];
+                    }
+                }
+            }
+            if (currentSprite == null) {
+                currentSprite = getWalkFrameImage(direction, spriteNum);
+            }
             if (currentSprite == null) {
                 currentSprite = getWalkFrameImage(direction, 1);
             }

@@ -299,15 +299,8 @@ public class MapObjectLoader {
                                 if (py < minPY) minPY = py;
                                 if (py > maxPY) maxPY = py;
                             }
-                            // Include the object origin (0,0) in the bounding box so
-                            // that the anchor point of the Tiled object is always part
-                            // of the registered area.
-                            if (0 < minPX) minPX = 0;
-                            if (0 > maxPX) maxPX = 0;
-                            if (0 < minPY) minPY = 0;
-                            if (0 > maxPY) maxPY = 0;
-                            areaW = Math.max(gp.tileSize, (int)((maxPX - minPX) * sf));
-                            areaH = Math.max(gp.tileSize, (int)((maxPY - minPY) * sf));
+                            areaW = (int)((maxPX - minPX) * sf);
+                            areaH = (int)((maxPY - minPY) * sf);
                             // Adjust origin to top-left of bounding box
                             worldX += (int)(minPX * sf);
                             worldY += (int)(minPY * sf);
@@ -387,23 +380,20 @@ public class MapObjectLoader {
                                 gp.obj[objIdx++] = light;
                                 continue;
                             }
-                            // For polyline events (barrier lines), expand the thin
-                            // dimension so the trigger covers the full corridor
-                            // width/height regardless of polyline orientation.
-                            if (isPolyline && areaW > 0 && areaH > 0) {
-                                int maxDim = Math.max(areaW, areaH);
-                                if (areaW < maxDim) {
-                                    int expand = maxDim - areaW;
+                            // For polyline events, ensure the thin dimension is at
+                            // least half a tile so the barrier is practical to collide with.
+                            if (isPolyline) {
+                                int minThickness = gp.tileSize / 2;
+                                if (areaW < minThickness) {
+                                    int expand = minThickness - areaW;
                                     worldX -= expand / 2;
-                                    areaW = maxDim;
+                                    areaW = minThickness;
                                 }
-                                if (areaH < maxDim) {
-                                    int expand = maxDim - areaH;
+                                if (areaH < minThickness) {
+                                    int expand = minThickness - areaH;
                                     worldY -= expand / 2;
-                                    areaH = maxDim;
+                                    areaH = minThickness;
                                 }
-                                col = worldX / gp.tileSize;
-                                row = worldY / gp.tileSize;
                             }
                             loadEvent(type, obj, col, row, worldX, worldY, areaW, areaH);
                         }
@@ -631,9 +621,12 @@ public class MapObjectLoader {
             case "NPC_Alucard" -> new NPC_Alucard(gp);
             case "NPC_Generic" -> {
                 NPC_Generic g = new NPC_Generic(gp);
-                // sprite path
+                // sprite path (walk sheet)
                 String sprite = getStringProperty(obj, "sprite", null);
                 if (sprite != null && !sprite.isBlank()) g.spritePath = sprite;
+                // idle sprite path
+                String idleSprite = getStringProperty(obj, "idleSprite", null);
+                if (idleSprite != null && !idleSprite.isBlank()) g.idleSpritePath = idleSprite;
                 g.getImage();
                 // data-driven dialogue: dialogue_S_L (set S, line L)
                 loadDataDrivenDialogues(g, obj);
@@ -669,6 +662,10 @@ public class MapObjectLoader {
 
         // guardMode: static from spawn AND faces the player every tick; unlocked by setting onPath=true
         if (getBoolProperty(obj, "guardMode", false)) npc.guardMode = true;
+
+        // idleDirection: force a direction while idle (0=down, 1=left, 2=right, 3=up)
+        int idleDir = getIntProperty(obj, "idleDirection", -1);
+        if (idleDir >= 0) npc.idleDirection = idleDir;
 
         // walkToCol / walkToRow: after the player interacts, NPC walks to this tile then re-enters guardMode
         int wCol = getIntProperty(obj, "walkToCol", -1);
@@ -729,6 +726,24 @@ public class MapObjectLoader {
 
         // requiredItemConsumed: remove the item from inventory when dialogue switches
         if (getBoolProperty(obj, "requiredItemConsumed", false)) npc.requiredItemConsumed = true;
+
+        // idleAnimSpeed: ticks between idle animation frame advances (default 24; lower = faster)
+        int idleAnimSpeed = getIntProperty(obj, "idleAnimSpeed", -1);
+        if (idleAnimSpeed > 0) npc.idleAnimationInterval = idleAnimSpeed;
+
+        // giveItem / giveItemDialogueSet: give an item to the player on first interaction
+        String giveItem = getStringProperty(obj, "giveItem", null);
+        if (giveItem != null && !giveItem.isBlank()) {
+            npc.giveItemId         = giveItem;
+            npc.giveItemDialogueSet = getIntProperty(obj, "giveItemDialogueSet", 0);
+        }
+
+        // giveItem2 / giveItem2DialogueSet: give a second item after the NPC finishes walking (post-help)
+        String giveItem2 = getStringProperty(obj, "giveItem2", null);
+        if (giveItem2 != null && !giveItem2.isBlank()) {
+            npc.giveItem2Id          = giveItem2;
+            npc.giveItem2DialogueSet  = getIntProperty(obj, "giveItem2DialogueSet", -1);
+        }
 
         int wanderRadius = getIntProperty(obj, "wanderRadius", -1);
         if (wanderRadius > 0) npc.wanderRadius = wanderRadius;
@@ -831,6 +846,10 @@ public class MapObjectLoader {
 
     private void loadEvent(String type, Element obj, int col, int row,
                            int worldX, int worldY, int areaW, int areaH) {
+        // Default event dimensions: if no area, use one tile
+        int ew = (areaW > 0) ? areaW : gp.tileSize;
+        int eh = (areaH > 0) ? areaH : gp.tileSize;
+
         switch (type) {
             case "MapTransition" -> {
                 String tMap   = getStringProperty(obj, "targetMap", "");
@@ -838,30 +857,24 @@ public class MapObjectLoader {
                 int    tRow   = getIntProperty(obj, "targetRow", 5);
                 String spawnId = getStringProperty(obj, "spawnId", "");
                 if (!tMap.isEmpty()) {
-                    forEachTile(col, row, worldX, worldY, areaW, areaH, (tc, tr) ->
-                        gp.eHandler.registerMapTransition(tc, tr, tMap, tCol, tRow, spawnId));
+                    gp.eHandler.registerMapTransition(worldX, worldY, ew, eh,
+                        tMap, tCol, tRow, spawnId);
                 }
             }
             case "HealingPool" -> {
-                forEachTile(col, row, worldX, worldY, areaW, areaH, (tc, tr) ->
-                    gp.eHandler.registerHealingPool(tc, tr));
+                gp.eHandler.registerHealingPool(worldX, worldY, ew, eh);
             }
             case "DamageTrap" -> {
                 int     damage     = getIntProperty(obj, "damage", 1);
                 boolean repeatable = getBoolProperty(obj, "repeatable", true);
-                forEachTile(col, row, worldX, worldY, areaW, areaH, (tc, tr) ->
-                    gp.eHandler.registerDamageTrap(tc, tr, damage, repeatable));
+                gp.eHandler.registerDamageTrap(worldX, worldY, ew, eh, damage, repeatable);
             }
             case "DialogueTrigger" -> {
                 String msg    = getStringProperty(obj, "message", "...").replace("\\n", "\n");
                 String speaker = getStringProperty(obj, "speaker", "");
                 boolean one   = getBoolProperty(obj, "oneShot", true);
-                // Create ONE shared instance so all covered tiles share the same oneShot flag;
-                // without this, each tile would have its own 'triggered' bool and a one-shot
-                // trigger could fire more than once (once per tile the player steps on).
                 EventHandler.DialogueData shared = new EventHandler.DialogueData(msg, speaker, one);
-                forEachTile(col, row, worldX, worldY, areaW, areaH, (tc, tr) ->
-                    gp.eHandler.registerDialogueTrigger(tc, tr, shared));
+                gp.eHandler.registerDialogueTrigger(worldX, worldY, ew, eh, shared);
             }
             case "LevelGate" -> {
                 int    min   = getIntProperty(obj, "minLevel", 0);
@@ -874,18 +887,19 @@ public class MapObjectLoader {
                 String reqItem = getStringProperty(obj, "requiredItem", "");
                 boolean consume = getBoolProperty(obj, "consumeItem", false);
                 String reqFrag = getStringProperty(obj, "requiredFragment", "");
-                forEachTile(col, row, worldX, worldY, areaW, areaH, (tc, tr) ->
-                    gp.eHandler.registerLevelGate(tc, tr, min, msg, tMap, tCol, tRow, sid, reqItem, consume, reqFrag));
+                gp.eHandler.registerLevelGate(worldX, worldY, ew, eh,
+                    min, msg, tMap, tCol, tRow, sid, reqItem, consume, reqFrag);
             }
             case "Checkpoint" -> {
                 boolean silent = getBoolProperty(obj, "silent", false);
-                gp.eHandler.registerCheckpoint(col, row, silent);
+                gp.eHandler.registerCheckpoint(worldX, worldY, ew, eh, silent);
             }
             case "QuestTrigger" -> {
                 String  qId   = getStringProperty(obj, "questId", "");
                 int     prog  = getIntProperty(obj, "progress", 1);
                 boolean one   = getBoolProperty(obj, "oneShot", true);
-                if (!qId.isEmpty()) gp.eHandler.registerQuestTrigger(col, row, qId, prog, one);
+                if (!qId.isEmpty())
+                    gp.eHandler.registerQuestTrigger(worldX, worldY, ew, eh, qId, prog, one);
             }
             case "SpawnPoint" -> {
                 // Always record this as the default map spawn position
@@ -901,7 +915,7 @@ public class MapObjectLoader {
             }
             case "CameraShake" -> {
                 String intensity = getStringProperty(obj, "intensity", "medium");
-                gp.eHandler.registerCameraShake(col, row, intensity);
+                gp.eHandler.registerCameraShake(worldX, worldY, ew, eh, intensity);
             }
             case "SpawnZone" -> {
                 String monType  = getStringProperty(obj, "monster",   "MON_monster");
@@ -941,8 +955,8 @@ public class MapObjectLoader {
                 int    tCol = getIntProperty(obj, "targetCol", 5);
                 int    tRow = getIntProperty(obj, "targetRow", 5);
                 String sid  = getStringProperty(obj, "spawnId", "");
-                forEachTile(col, row, worldX, worldY, areaW, areaH, (tc, tr) ->
-                    gp.eHandler.registerMemoryGate(tc, tr, req, msg, tMap, tCol, tRow, sid));
+                gp.eHandler.registerMemoryGate(worldX, worldY, ew, eh,
+                    req, msg, tMap, tCol, tRow, sid);
             }
             default -> System.out.println("MapObjectLoader: Unknown event '" + type + "'");
         }

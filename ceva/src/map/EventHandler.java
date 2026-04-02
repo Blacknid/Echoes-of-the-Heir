@@ -45,39 +45,21 @@ public class EventHandler {
     // ---- Named spawn points --------------------------------------------------
     public final Map<String, int[]>  namedSpawnPoints = new HashMap<>();
 
-    // ---- Map transitions -----------------------------------------------------
-    final Map<Long, MapTransition> mapTransitions = new HashMap<>();
-
-    // ---- Healing pools -------------------------------------------------------
-    final Map<Long, int[]>           healingPools   = new HashMap<>();
-
-    // ---- Damage traps --------------------------------------------------------
-    final Map<Long, DamageTrapData> damageTraps   = new HashMap<>();
-
-    // ---- Dialogue triggers ---------------------------------------------------
-    final Map<Long, DialogueData>    dialogueTriggers = new HashMap<>();
-
-    // ---- Level gates ---------------------------------------------------------
-    final Map<Long, LevelGateData>   levelGates    = new HashMap<>();
-
-    // ---- Checkpoints ---------------------------------------------------------
-    final Map<Long, CheckpointData>  checkpoints  = new HashMap<>();
-
-    // ---- Quest triggers ------------------------------------------------------
-    final Map<Long, QuestTriggerData> questTriggers = new HashMap<>();
-
-    // ---- Camera shake events -------------------------------------------------
-    final Map<Long, String>          cameraShakes  = new HashMap<>();
-
-    // ---- Memory gates --------------------------------------------------------
-    final Map<Long, MemoryGateData>  memoryGates = new HashMap<>();
+    // ---- Pixel-precise event lists -------------------------------------------
+    // Each event stores an exact world-space Rectangle hitbox from Tiled.
+    final List<PixelEvent<MapTransition>>    mapTransitions    = new ArrayList<>();
+    final List<PixelEvent<int[]>>            healingPools      = new ArrayList<>();
+    final List<PixelEvent<DamageTrapData>>   damageTraps       = new ArrayList<>();
+    final List<PixelEvent<DialogueData>>     dialogueTriggers  = new ArrayList<>();
+    final List<PixelEvent<LevelGateData>>    levelGates        = new ArrayList<>();
+    final List<PixelEvent<CheckpointData>>   checkpoints       = new ArrayList<>();
+    final List<PixelEvent<QuestTriggerData>> questTriggers     = new ArrayList<>();
+    final List<PixelEvent<String>>           cameraShakes      = new ArrayList<>();
+    final List<PixelEvent<MemoryGateData>>   memoryGates       = new ArrayList<>();
 
     // ---- Spawn zones ---------------------------------------------------------
     final List<SpawnZoneData> spawnZones = new ArrayList<>();
     private final Random spawnRnd = new Random();
-
-    // ---- EventRect cache for AABB checks ------------------------------------
-    private final HashMap<Long, EventRect> eventMap = new HashMap<>();
 
     // ENTRY POINT TRACKING
     public int lastTriggerCol = 0;
@@ -167,6 +149,16 @@ public class EventHandler {
         }
     }
 
+    /** Wrapper that pairs an event payload with its exact world-space hitbox. */
+    static class PixelEvent<T> {
+        final java.awt.Rectangle hitbox;
+        final T data;
+        PixelEvent(int wx, int wy, int w, int h, T data) {
+            hitbox = new java.awt.Rectangle(wx, wy, Math.max(1, w), Math.max(1, h));
+            this.data = data;
+        }
+    }
+
     // ---- Constructor ---------------------------------------------------------
 
     public EventHandler(GamePanel gp) {
@@ -189,7 +181,6 @@ public class EventHandler {
         memoryGates.clear();
         namedSpawnPoints.clear();
         spawnZones.clear();
-        eventMap.clear();
         canTouchEvent = true;
         previousEventX = gp.player.worldX;
         previousEventY = gp.player.worldY;
@@ -199,52 +190,60 @@ public class EventHandler {
 
     // ---- Registration methods ------------------------------------------------
 
-    public void registerMapTransition(int col, int row, String mapId,
-                                      int spawnCol, int spawnRow, String spawnId) {
-        mapTransitions.put(tileKey(col, row), new MapTransition(mapId, spawnCol, spawnRow, spawnId));
+    // ---- Pixel-precise registration methods ----------------------------------
+    // All event hitboxes use exact world-space coordinates (wx, wy, w, h).
+
+    public void registerMapTransition(int wx, int wy, int w, int h,
+                                      String mapId, int spawnCol, int spawnRow, String spawnId) {
+        mapTransitions.add(new PixelEvent<>(wx, wy, w, h,
+            new MapTransition(mapId, spawnCol, spawnRow, spawnId)));
     }
 
-    /** Legacy overload (no spawnId). */
+    /** Legacy tile-based overload (no spawnId). */
     public void registerMapTransition(int col, int row, String mapId, int spawnCol, int spawnRow) {
-        registerMapTransition(col, row, mapId, spawnCol, spawnRow, "");
+        int ts = gp.tileSize;
+        registerMapTransition(col * ts, row * ts, ts, ts, mapId, spawnCol, spawnRow, "");
     }
 
-    public void registerHealingPool(int col, int row) {
-        healingPools.put(tileKey(col, row), new int[]{col, row});
+    public void registerHealingPool(int wx, int wy, int w, int h) {
+        healingPools.add(new PixelEvent<>(wx, wy, w, h, new int[]{wx, wy}));
     }
 
-    public void registerDamageTrap(int col, int row, int damage, boolean repeatable) {
-        damageTraps.put(tileKey(col, row), new DamageTrapData(damage, repeatable));
+    public void registerDamageTrap(int wx, int wy, int w, int h, int damage, boolean repeatable) {
+        damageTraps.add(new PixelEvent<>(wx, wy, w, h, new DamageTrapData(damage, repeatable)));
     }
 
-    public void registerDialogueTrigger(int col, int row, String message,
-                                        String speaker, boolean oneShot) {
-        dialogueTriggers.put(tileKey(col, row), new DialogueData(message, speaker, oneShot));
+    public void registerDialogueTrigger(int wx, int wy, int w, int h,
+                                        String message, String speaker, boolean oneShot) {
+        dialogueTriggers.add(new PixelEvent<>(wx, wy, w, h,
+            new DialogueData(message, speaker, oneShot)));
     }
 
-    /** Package-private: registers a pre-created (shared) DialogueData for the given tile.
-     *  Used by MapObjectLoader so that all tiles of a multi-tile trigger share one
-     *  instance — ensuring the oneShot flag is honoured across the entire area. */
-    void registerDialogueTrigger(int col, int row, DialogueData shared) {
-        dialogueTriggers.put(tileKey(col, row), shared);
+    /** Package-private: registers with a pre-created (shared) DialogueData. */
+    void registerDialogueTrigger(int wx, int wy, int w, int h, DialogueData shared) {
+        dialogueTriggers.add(new PixelEvent<>(wx, wy, w, h, shared));
     }
 
-    public void registerLevelGate(int col, int row, int minLevel, String blockedMessage,
-                                  String targetMap, int targetCol, int targetRow, String spawnId,
-                                  String requiredItem, boolean consumeItem, String requiredFragment) {
-        levelGates.put(tileKey(col, row),
+    public void registerLevelGate(int wx, int wy, int w, int h, int minLevel,
+                                  String blockedMessage, String targetMap,
+                                  int targetCol, int targetRow, String spawnId,
+                                  String requiredItem, boolean consumeItem,
+                                  String requiredFragment) {
+        int col = wx / gp.tileSize, row = wy / gp.tileSize;
+        levelGates.add(new PixelEvent<>(wx, wy, w, h,
             new LevelGateData(col, row, minLevel, blockedMessage,
                               targetMap, targetCol, targetRow, spawnId,
-                              requiredItem, consumeItem, requiredFragment));
+                              requiredItem, consumeItem, requiredFragment)));
     }
 
-    public void registerCheckpoint(int col, int row, boolean silent) {
-        checkpoints.put(tileKey(col, row), new CheckpointData(silent));
+    public void registerCheckpoint(int wx, int wy, int w, int h, boolean silent) {
+        checkpoints.add(new PixelEvent<>(wx, wy, w, h, new CheckpointData(silent)));
     }
 
-    public void registerQuestTrigger(int col, int row, String questId,
-                                     int progress, boolean oneShot) {
-        questTriggers.put(tileKey(col, row), new QuestTriggerData(questId, progress, oneShot));
+    public void registerQuestTrigger(int wx, int wy, int w, int h,
+                                     String questId, int progress, boolean oneShot) {
+        questTriggers.add(new PixelEvent<>(wx, wy, w, h,
+            new QuestTriggerData(questId, progress, oneShot)));
     }
 
     /** Register a named spawn point (resolved by doors/transitions after the map loads). */
@@ -252,12 +251,13 @@ public class EventHandler {
         namedSpawnPoints.put(id, new int[]{col, row});
     }
 
-    public void registerMemoryGate(int col, int row, int requiredFragments,
+    public void registerMemoryGate(int wx, int wy, int w, int h, int requiredFragments,
                                    String blockedMessage, String targetMap,
                                    int targetCol, int targetRow, String spawnId) {
-        memoryGates.put(tileKey(col, row),
+        int col = wx / gp.tileSize, row = wy / gp.tileSize;
+        memoryGates.add(new PixelEvent<>(wx, wy, w, h,
             new MemoryGateData(col, row, requiredFragments, blockedMessage,
-                               targetMap, targetCol, targetRow, spawnId));
+                               targetMap, targetCol, targetRow, spawnId)));
     }
 
     /** Returns the {col, row} of a named spawn point, or null if not found. */
@@ -265,8 +265,8 @@ public class EventHandler {
         return namedSpawnPoints.get(id);
     }
 
-    public void registerCameraShake(int col, int row, String intensity) {
-        cameraShakes.put(tileKey(col, row), intensity);
+    public void registerCameraShake(int wx, int wy, int w, int h, String intensity) {
+        cameraShakes.add(new PixelEvent<>(wx, wy, w, h, intensity));
     }
 
     public void registerSpawnZone(int worldX, int worldY, int areaW, int areaH,
@@ -396,6 +396,9 @@ public class EventHandler {
 
     // ---- Per-frame event check -----------------------------------------------
 
+    // Reusable rectangle for player's world-space solid area
+    private final java.awt.Rectangle playerRect = new java.awt.Rectangle();
+
     public void checkEvent() {
         int xDist = Math.abs(gp.player.worldX - previousEventX);
         int yDist = Math.abs(gp.player.worldY - previousEventY);
@@ -403,94 +406,80 @@ public class EventHandler {
 
         if (!canTouchEvent) return;
 
-        if (forEachCandidateTile((col, row, key) -> {
-            int[] pos = healingPools.get(key);
-            if (pos != null && hit(col, row, Entity.DIR_ANY)) {
-                healingPool(GamePanel.dialogueState);
-                return true;
-            }
-            return false;
-        })) return;
+        // Compute player's world-space solid area once per frame
+        playerRect.setBounds(
+            gp.player.worldX + gp.player.solidArea.x,
+            gp.player.worldY + gp.player.solidArea.y,
+            gp.player.solidArea.width,
+            gp.player.solidArea.height);
 
-        if (forEachCandidateTile((col, row, key) -> {
-            DamageTrapData trap = damageTraps.get(key);
-            if (trap != null && (trap.repeatable || !trap.triggered) && hit(col, row, Entity.DIR_ANY)) {
-                damageTrap(trap);
-                return true;
+        for (PixelEvent<int[]> pe : healingPools) {
+            if (playerRect.intersects(pe.hitbox)) {
+                healingPool(GamePanel.dialogueState);
+                return;
             }
-            return false;
-        })) return;
+        }
+
+        for (PixelEvent<DamageTrapData> pe : damageTraps) {
+            DamageTrapData trap = pe.data;
+            if ((trap.repeatable || !trap.triggered) && playerRect.intersects(pe.hitbox)) {
+                damageTrap(trap);
+                return;
+            }
+        }
 
         // Gates checked BEFORE dialogues — blocking barriers take priority.
-        // Gates return true only when the player is blocked; a silent pass
-        // (requirements met, no map transition) returns false so that
-        // subsequent events (e.g. a dialogue just past the gate) can fire.
-        if (forEachCandidateTile((col, row, key) -> {
-            LevelGateData gate = levelGates.get(key);
-            if (gate != null && hit(col, row, Entity.DIR_ANY)) {
-                return triggerLevelGate(gate);
-            }
-            return false;
-        })) return;
+        for (PixelEvent<LevelGateData> pe : levelGates) {
+            if (playerRect.intersects(pe.hitbox) && triggerLevelGate(pe.data)) return;
+        }
 
-        if (forEachCandidateTile((col, row, key) -> {
-            MemoryGateData memoryGate = memoryGates.get(key);
-            if (memoryGate != null && hit(col, row, Entity.DIR_ANY)) {
-                return triggerMemoryGate(memoryGate);
-            }
-            return false;
-        })) return;
+        for (PixelEvent<MemoryGateData> pe : memoryGates) {
+            if (playerRect.intersects(pe.hitbox) && triggerMemoryGate(pe.data)) return;
+        }
 
-        if (forEachCandidateTile((col, row, key) -> {
-            DialogueData data = dialogueTriggers.get(key);
-            if (data != null && (!data.oneShot || !data.triggered) && hit(col, row, Entity.DIR_ANY)) {
-                triggerDialogue(data);
-                return true;
+        for (PixelEvent<DialogueData> pe : dialogueTriggers) {
+            DialogueData dd = pe.data;
+            if ((!dd.oneShot || !dd.triggered) && playerRect.intersects(pe.hitbox)) {
+                triggerDialogue(dd);
+                return;
             }
-            return false;
-        })) return;
+        }
 
-        if (forEachCandidateTile((col, row, key) -> {
-            CheckpointData cp = checkpoints.get(key);
-            if (cp != null && hit(col, row, Entity.DIR_ANY)) {
-                triggerCheckpoint(cp);
-                return true;
+        for (PixelEvent<CheckpointData> pe : checkpoints) {
+            if (playerRect.intersects(pe.hitbox)) {
+                triggerCheckpoint(pe.data);
+                return;
             }
-            return false;
-        })) return;
+        }
 
-        if (forEachCandidateTile((col, row, key) -> {
-            QuestTriggerData qt = questTriggers.get(key);
-            if (qt != null && (!qt.oneShot || !qt.triggered) && hit(col, row, Entity.DIR_ANY)) {
+        for (PixelEvent<QuestTriggerData> pe : questTriggers) {
+            QuestTriggerData qt = pe.data;
+            if ((!qt.oneShot || !qt.triggered) && playerRect.intersects(pe.hitbox)) {
                 triggerQuestEvent(qt);
-                return true;
+                return;
             }
-            return false;
-        })) return;
+        }
 
-        if (forEachCandidateTile((col, row, key) -> {
-            String intensity = cameraShakes.get(key);
-            if (intensity != null && hit(col, row, Entity.DIR_ANY)) {
-                applyCameraShake(intensity);
+        for (PixelEvent<String> pe : cameraShakes) {
+            if (playerRect.intersects(pe.hitbox)) {
+                applyCameraShake(pe.data);
                 touchConsumed();
-                return true;
+                return;
             }
-            return false;
-        })) return;
+        }
 
-        // Map transitions (checked last so gameplay events fire first)
-        forEachCandidateTile((col, row, key) -> {
-            MapTransition mt = mapTransitions.get(key);
-            if (mt != null && hit(col, row, Entity.DIR_ANY)) {
-                lastTriggerCol = col;
-                lastTriggerRow = row;
+        // Map transitions checked last so gameplay events fire first
+        for (PixelEvent<MapTransition> pe : mapTransitions) {
+            if (playerRect.intersects(pe.hitbox)) {
+                MapTransition mt = pe.data;
+                lastTriggerCol = pe.hitbox.x / gp.tileSize;
+                lastTriggerRow = pe.hitbox.y / gp.tileSize;
                 gp.mapManager.nextSpawnId = (mt.spawnId != null) ? mt.spawnId : "";
                 gp.startTransition(mt.mapId, mt.spawnCol, mt.spawnRow);
                 touchConsumed();
-                return true;
+                return;
             }
-            return false;
-        });
+        }
     }
 
     // ---- Event Actions -------------------------------------------------------
@@ -648,35 +637,14 @@ public class EventHandler {
     }
 
     // ---- AABB Hit Test -------------------------------------------------------
+    // (Removed: pixel-precise hitboxes are tested directly in checkEvent())
 
-    public boolean hit(int col, int row, int reqDirection) {
-        EventRect er = getEventRect(col, row);
-
-        gp.player.solidArea.x += gp.player.worldX;
-        gp.player.solidArea.y += gp.player.worldY;
-        er.x += col * gp.tileSize;
-        er.y += row * gp.tileSize;
-
-        boolean hit = gp.player.solidArea.intersects(er) && !er.eventDone
-                && (reqDirection == Entity.DIR_ANY || gp.player.direction == reqDirection);
-
-        if (hit) {
-            previousEventX = gp.player.worldX;
-            previousEventY = gp.player.worldY;
-        }
-
-        gp.player.solidArea.x = gp.player.solidAreaDefaultX;
-        gp.player.solidArea.y = gp.player.solidAreaDefaultY;
-        er.x = er.eventRectDefaultX;
-        er.y = er.eventRectDefaultY;
-
-        return hit;
-    }
-
-    /** Reusable return-path registration. */
+    /** Reusable return-path registration (tile-based for backward compatibility). */
     public void registerReturnTransition(int col, int row, String destinationMapId,
                                          int destCol, int destRow) {
-        registerMapTransition(col, row, destinationMapId, destCol, destRow, "");
+        int ts = gp.tileSize;
+        registerMapTransition(col * ts, row * ts, ts, ts,
+                              destinationMapId, destCol, destRow, "");
     }
 
     // ---- Helpers -------------------------------------------------------------
@@ -703,31 +671,31 @@ public class EventHandler {
 
         // Map transitions — magenta
         drawEventLayer(g2, mapTransitions,   playerWorldX, playerWorldY, pScreenX, pScreenY,
-                       tileSize, new Color(255,   0, 255), "WARP");
+                       new Color(255,   0, 255), "WARP");
         // Healing pools — bright green
         drawEventLayer(g2, healingPools,     playerWorldX, playerWorldY, pScreenX, pScreenY,
-                       tileSize, new Color(  0, 220,  80), "HEAL");
+                       new Color(  0, 220,  80), "HEAL");
         // Damage traps — bright red
         drawEventLayer(g2, damageTraps,      playerWorldX, playerWorldY, pScreenX, pScreenY,
-                       tileSize, new Color(220,  40,  40), "TRAP");
+                       new Color(220,  40,  40), "TRAP");
         // Dialogue triggers — yellow
         drawEventLayer(g2, dialogueTriggers, playerWorldX, playerWorldY, pScreenX, pScreenY,
-                       tileSize, new Color(255, 230,   0), "DIAL");
+                       new Color(255, 230,   0), "DIAL");
         // Level gates — orange
         drawEventLayer(g2, levelGates,       playerWorldX, playerWorldY, pScreenX, pScreenY,
-                       tileSize, new Color(255, 140,   0), "GATE");
+                       new Color(255, 140,   0), "GATE");
         // Checkpoints — cyan
         drawEventLayer(g2, checkpoints,      playerWorldX, playerWorldY, pScreenX, pScreenY,
-                       tileSize, new Color(  0, 220, 220), "SAVE");
+                       new Color(  0, 220, 220), "SAVE");
         // Quest triggers — purple
         drawEventLayer(g2, questTriggers,    playerWorldX, playerWorldY, pScreenX, pScreenY,
-                       tileSize, new Color(180,  80, 255), "QUEST");
+                       new Color(180,  80, 255), "QUEST");
         // Camera shakes — white
         drawEventLayer(g2, cameraShakes,     playerWorldX, playerWorldY, pScreenX, pScreenY,
-                       tileSize, new Color(220, 220, 220), "SHAKE");
+                       new Color(220, 220, 220), "SHAKE");
         // Memory gates — deep blue
         drawEventLayer(g2, memoryGates,      playerWorldX, playerWorldY, pScreenX, pScreenY,
-                       tileSize, new Color( 60,  80, 255), "MEM");
+                       new Color( 60,  80, 255), "MEM");
 
         // Spawn zones (have custom world-space bounds, not tile-grid keys)
         g2.setColor(new Color(255, 160, 0));
@@ -752,75 +720,18 @@ public class EventHandler {
         g2.setComposite(oldComp);
     }
 
-    /** Draws one event-type layer (keyed by packed Long) with a given colour and label. */
-    private void drawEventLayer(Graphics2D g2, Map<Long, ?> map,
-                                int playerWorldX, int playerWorldY,
-                                int pScreenX, int pScreenY,
-                                int tileSize, Color color, String label) {
+    /** Draws one pixel-precise event layer with a given colour and label. */
+    private <T> void drawEventLayer(Graphics2D g2, List<PixelEvent<T>> events,
+                                    int playerWorldX, int playerWorldY,
+                                    int pScreenX, int pScreenY,
+                                    Color color, String label) {
         g2.setColor(color);
-        for (long k : map.keySet()) {
-            int col = (int)(k >> 32);
-            int row = (int)(k & 0xFFFFFFFFL);
-            int sx  = col * tileSize - playerWorldX + pScreenX;
-            int sy  = row * tileSize - playerWorldY + pScreenY;
-            g2.drawRect(sx, sy, tileSize - 1, tileSize - 1);
+        for (PixelEvent<T> pe : events) {
+            int sx = pe.hitbox.x - playerWorldX + pScreenX;
+            int sy = pe.hitbox.y - playerWorldY + pScreenY;
+            g2.drawRect(sx, sy, pe.hitbox.width - 1, pe.hitbox.height - 1);
             g2.drawString(label, sx + 3, sy + 13);
         }
-    }
-
-    private static long tileKey(int col, int row) { return ((long) col << 32) | (row & 0xFFFFFFFFL); }
-
-    @FunctionalInterface
-    private interface TileVisitor {
-        /** Return true to stop iteration (event was consumed). */
-        boolean visit(int col, int row, long key);
-    }
-
-    /**
-     * Iterates all tiles the player's solid area touches and calls the visitor for each.
-     * Returns true (and stops) as soon as the visitor returns true.
-     */
-    private boolean forEachCandidateTile(TileVisitor visitor) {
-        int ts = gp.tileSize;
-        int px = gp.player.worldX + gp.player.solidArea.x;
-        int py = gp.player.worldY + gp.player.solidArea.y;
-        int pw = gp.player.solidArea.width;
-        int ph = gp.player.solidArea.height;
-        int colMin = Math.max(0, px / ts);
-        int colMax = Math.min(gp.maxWorldCol - 1, (px + pw) / ts);
-        int rowMin = Math.max(0, py / ts);
-        int rowMax = Math.min(gp.maxWorldRow - 1, (py + ph) / ts);
-        for (int r = rowMin; r <= rowMax; r++) {
-            for (int c = colMin; c <= colMax; c++) {
-                if (visitor.visit(c, r, tileKey(c, r))) return true;
-            }
-        }
-        return false;
-    }
-
-    /** Returns true if the player's solid area overlaps the given tile's full bounds. */
-    private boolean playerOverlapsTile(int col, int row) {
-        int px = gp.player.worldX + gp.player.solidArea.x;
-        int py = gp.player.worldY + gp.player.solidArea.y;
-        int pw = gp.player.solidArea.width;
-        int ph = gp.player.solidArea.height;
-        int tx = col * gp.tileSize;
-        int ty = row * gp.tileSize;
-        return px < tx + gp.tileSize && px + pw > tx
-            && py < ty + gp.tileSize && py + ph > ty;
-    }
-
-    private EventRect getEventRect(int col, int row) {
-        long k = ((long) col << 32) | (row & 0xFFFFFFFFL);
-        EventRect er = eventMap.get(k);
-        if (er == null) {
-            er = new EventRect();
-            er.x = 0; er.y = 0;
-            er.width = gp.tileSize; er.height = gp.tileSize;
-            er.eventRectDefaultX = 0; er.eventRectDefaultY = 0;
-            eventMap.put(k, er);
-        }
-        return er;
     }
 
     // ---- Legacy public helpers (kept for AssetSetter / external callers) -----
