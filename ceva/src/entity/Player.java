@@ -168,14 +168,14 @@ public class Player extends Entity {
         level = 1;
         maxLife = 3;
         life = maxLife;
-        strenght = 10;
+        strenght = 2;
         dexterity = 1;
         exp = 0;
         nextLevelExp = 5;
         coin = 0;
         maxMana = 3;
         mana = maxMana;
-        skillPoints = 12;
+        skillPoints = 100;
         meleeDamageMultiplier = 1f;
         damageTakenMultiplier = 1f;
         dashUnlocked = false;

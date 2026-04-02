@@ -252,15 +252,19 @@ public class MapObjectLoader {
                     int areaH  = (int)(objH * sf);
 
                     // Expand area from polyline/polygon child if present and no explicit size
+                    boolean isPolyline = false;
                     if (areaW == 0 && areaH == 0) {
                         String polyPoints = null;
                         NodeList polylines = obj.getElementsByTagName("polyline");
-                        if (polylines.getLength() > 0)
+                        if (polylines.getLength() > 0) {
                             polyPoints = ((Element) polylines.item(0)).getAttribute("points");
+                            isPolyline = true;
+                        }
                         if (polyPoints == null || polyPoints.isEmpty()) {
                             NodeList polygons = obj.getElementsByTagName("polygon");
                             if (polygons.getLength() > 0)
                                 polyPoints = ((Element) polygons.item(0)).getAttribute("points");
+                            isPolyline = false;
                         }
                         if (polyPoints != null && !polyPoints.isEmpty()) {
                             // Tiled stores rotation in degrees, clockwise in screen space (y-down).
@@ -277,7 +281,8 @@ public class MapObjectLoader {
                                 cosR = Math.cos(rad);
                                 sinR = Math.sin(rad);
                             }
-                            double minPX = 0, minPY = 0, maxPX = 0, maxPY = 0;
+                            double minPX = Double.MAX_VALUE, minPY = Double.MAX_VALUE;
+                            double maxPX = -Double.MAX_VALUE, maxPY = -Double.MAX_VALUE;
                             for (String pt : polyPoints.trim().split("\\s+")) {
                                 String[] xy = pt.split(",");
                                 if (xy.length < 2) continue;
@@ -294,6 +299,13 @@ public class MapObjectLoader {
                                 if (py < minPY) minPY = py;
                                 if (py > maxPY) maxPY = py;
                             }
+                            // Include the object origin (0,0) in the bounding box so
+                            // that the anchor point of the Tiled object is always part
+                            // of the registered area.
+                            if (0 < minPX) minPX = 0;
+                            if (0 > maxPX) maxPX = 0;
+                            if (0 < minPY) minPY = 0;
+                            if (0 > maxPY) maxPY = 0;
                             areaW = Math.max(gp.tileSize, (int)((maxPX - minPX) * sf));
                             areaH = Math.max(gp.tileSize, (int)((maxPY - minPY) * sf));
                             // Adjust origin to top-left of bounding box
@@ -374,6 +386,24 @@ public class MapObjectLoader {
                                 applyCommonProperties(light, obj);
                                 gp.obj[objIdx++] = light;
                                 continue;
+                            }
+                            // For polyline events (barrier lines), expand the thin
+                            // dimension so the trigger covers the full corridor
+                            // width/height regardless of polyline orientation.
+                            if (isPolyline && areaW > 0 && areaH > 0) {
+                                int maxDim = Math.max(areaW, areaH);
+                                if (areaW < maxDim) {
+                                    int expand = maxDim - areaW;
+                                    worldX -= expand / 2;
+                                    areaW = maxDim;
+                                }
+                                if (areaH < maxDim) {
+                                    int expand = maxDim - areaH;
+                                    worldY -= expand / 2;
+                                    areaH = maxDim;
+                                }
+                                col = worldX / gp.tileSize;
+                                row = worldY / gp.tileSize;
                             }
                             loadEvent(type, obj, col, row, worldX, worldY, areaW, areaH);
                         }
@@ -1048,9 +1078,13 @@ public class MapObjectLoader {
                              int areaW, int areaH, TileAction action) {
         if (areaW <= 0 || areaH <= 0) { action.accept(col, row); return; }
         int ts = gp.tileSize;
-        for (int dx = 0; dx < areaW; dx += ts)
-            for (int dy = 0; dy < areaH; dy += ts)
-                action.accept((worldX + dx) / ts, (worldY + dy) / ts);
+        int startCol = worldX / ts;
+        int endCol   = (worldX + areaW - 1) / ts;
+        int startRow = worldY / ts;
+        int endRow   = (worldY + areaH - 1) / ts;
+        for (int c = startCol; c <= endCol; c++)
+            for (int r = startRow; r <= endRow; r++)
+                action.accept(c, r);
     }
 
     private int firstFreeSlot(Entity[] arr) {

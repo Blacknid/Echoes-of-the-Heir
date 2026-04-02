@@ -393,7 +393,7 @@ public class EventHandler {
     public void checkEvent() {
         int xDist = Math.abs(gp.player.worldX - previousEventX);
         int yDist = Math.abs(gp.player.worldY - previousEventY);
-        if (Math.max(xDist, yDist) > gp.tileSize) canTouchEvent = true;
+        if (Math.max(xDist, yDist) >= gp.tileSize) canTouchEvent = true;
 
         if (!canTouchEvent) return;
 
@@ -415,20 +415,14 @@ public class EventHandler {
             return false;
         })) return;
 
-        if (forEachCandidateTile((col, row, key) -> {
-            DialogueData data = dialogueTriggers.get(key);
-            if (data != null && (!data.oneShot || !data.triggered) && hit(col, row, Entity.DIR_ANY)) {
-                triggerDialogue(data);
-                return true;
-            }
-            return false;
-        })) return;
-
+        // Gates checked BEFORE dialogues — blocking barriers take priority.
+        // Gates return true only when the player is blocked; a silent pass
+        // (requirements met, no map transition) returns false so that
+        // subsequent events (e.g. a dialogue just past the gate) can fire.
         if (forEachCandidateTile((col, row, key) -> {
             LevelGateData gate = levelGates.get(key);
             if (gate != null && hit(col, row, Entity.DIR_ANY)) {
-                triggerLevelGate(gate);
-                return true;
+                return triggerLevelGate(gate);
             }
             return false;
         })) return;
@@ -436,7 +430,15 @@ public class EventHandler {
         if (forEachCandidateTile((col, row, key) -> {
             MemoryGateData memoryGate = memoryGates.get(key);
             if (memoryGate != null && hit(col, row, Entity.DIR_ANY)) {
-                triggerMemoryGate(memoryGate);
+                return triggerMemoryGate(memoryGate);
+            }
+            return false;
+        })) return;
+
+        if (forEachCandidateTile((col, row, key) -> {
+            DialogueData data = dialogueTriggers.get(key);
+            if (data != null && (!data.oneShot || !data.triggered) && hit(col, row, Entity.DIR_ANY)) {
+                triggerDialogue(data);
                 return true;
             }
             return false;
@@ -521,7 +523,8 @@ public class EventHandler {
         touchConsumed();
     }
 
-    private void triggerLevelGate(LevelGateData gate) {
+    /** @return true if the player was blocked (consume touch), false if passed silently. */
+    private boolean triggerLevelGate(LevelGateData gate) {
         boolean levelOk = (gate.minLevel <= 0 || gp.player.level >= gate.minLevel);
         boolean itemOk  = true;
         int itemIdx = -1;
@@ -544,7 +547,11 @@ public class EventHandler {
                 lastTriggerRow = gate.row;
                 gp.mapManager.nextSpawnId = gate.spawnId != null ? gate.spawnId : "";
                 gp.startTransition(gate.targetMap, gate.targetCol, gate.targetRow);
+                touchConsumed();
+                return true;
             }
+            // Requirements met, no transition — pass silently (don't block other events)
+            return false;
         } else {
             // Snap player back 2 tiles, reset walk frame, then show dialogue
             switch (gp.player.direction) {
@@ -563,11 +570,13 @@ public class EventHandler {
             d[0][0] = gate.blockedMessage;
             eventMaster.startDialogue(eventMaster, 0);
             gp.gameState = GamePanel.dialogueState;
+            touchConsumed();
+            return true;
         }
-        touchConsumed();
     }
 
-    private void triggerMemoryGate(MemoryGateData mg) {
+    /** @return true if the player was blocked (consume touch), false if passed silently. */
+    private boolean triggerMemoryGate(MemoryGateData mg) {
         int collected = (gp.memoryJournal != null) ? gp.memoryJournal.getCount() : 0;
         if (collected >= mg.requiredFragments) {
             if (mg.targetMap != null && !mg.targetMap.isEmpty()) {
@@ -575,7 +584,11 @@ public class EventHandler {
                 lastTriggerRow = mg.row;
                 gp.mapManager.nextSpawnId = mg.spawnId != null ? mg.spawnId : "";
                 gp.startTransition(mg.targetMap, mg.targetCol, mg.targetRow);
+                touchConsumed();
+                return true;
             }
+            // Requirements met, no transition — pass silently
+            return false;
         } else {
             switch (gp.player.direction) {
                 case Entity.DIR_UP    -> gp.player.worldY += gp.tileSize * 2;
@@ -592,8 +605,9 @@ public class EventHandler {
             d[0][0] = mg.blockedMessage;
             eventMaster.startDialogue(eventMaster, 0);
             gp.gameState = GamePanel.dialogueState;
+            touchConsumed();
+            return true;
         }
-        touchConsumed();
     }
 
     private void triggerCheckpoint(CheckpointData cp) {
@@ -698,9 +712,9 @@ public class EventHandler {
         EventRect er = eventMap.get(k);
         if (er == null) {
             er = new EventRect();
-            er.x = 8; er.y = 8;
-            er.width = gp.tileSize - 16; er.height = gp.tileSize - 16;
-            er.eventRectDefaultX = 8; er.eventRectDefaultY = 8;
+            er.x = 0; er.y = 0;
+            er.width = gp.tileSize; er.height = gp.tileSize;
+            er.eventRectDefaultX = 0; er.eventRectDefaultY = 0;
             eventMap.put(k, er);
         }
         return er;

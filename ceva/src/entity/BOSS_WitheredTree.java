@@ -1,11 +1,11 @@
 package entity;
 
 import java.awt.AlphaComposite;
+import java.awt.BasicStroke;
 import java.awt.Color;
 import java.awt.Font;
 import java.awt.FontMetrics;
 import java.awt.Graphics2D;
-import java.awt.BasicStroke;
 import java.awt.Stroke;
 import java.awt.image.BufferedImage;
 import java.util.Random;
@@ -220,12 +220,12 @@ public class BOSS_WitheredTree extends Entity {
             // Sheet rows: DOWN(0), RIGHT(1), LEFT(2), UP(3)
             // Game dirs:  DOWN(0), LEFT(1),  RIGHT(2), UP(3)
             // Swap rows 1 & 2 so sprites match direction constants
-            phaseWalkFrames[p]   = swapLeftRight(loadSpriteMatrix(ws + "_Walk_with_shadow",   SPRITE_SIZE, SPRITE_SIZE));
-            phaseIdleFrames[p]   = swapLeftRight(loadSpriteMatrix(ws + "_Idle_with_shadow",   SPRITE_SIZE, SPRITE_SIZE));
-            phaseAttackFrames[p] = swapLeftRight(loadSpriteMatrix(ws + "_Attack_with_shadow", SPRITE_SIZE, SPRITE_SIZE));
-            phaseHurtFrames[p]   = swapLeftRight(loadSpriteMatrix(ws + "_Hurt_with_shadow",   SPRITE_SIZE, SPRITE_SIZE));
-            phaseDeathFrames[p]  = swapLeftRight(loadSpriteMatrix(ws + "_Death_with_shadow",  SPRITE_SIZE, SPRITE_SIZE));
-            phaseSwingFrames[p]  = swapLeftRight(loadSpriteMatrix(base + "/Parts/" + prefixes[p] + "_Attack_swing", SPRITE_SIZE, SPRITE_SIZE));
+            phaseWalkFrames[p]   = swapLeftRight(loadSpriteMatrix(base + "/With_shadow/" + prefixes[p] + "_Walk_with_shadow",   SPRITE_SIZE, SPRITE_SIZE));
+            phaseIdleFrames[p]   = swapLeftRight(loadSpriteMatrix(base + "/With_shadow/" + prefixes[p] + "_Idle_with_shadow",   SPRITE_SIZE, SPRITE_SIZE));
+            phaseAttackFrames[p] = swapLeftRight(loadSpriteMatrix(base + "/With_shadow/" + prefixes[p] + "_Attack_with_shadow", SPRITE_SIZE, SPRITE_SIZE));
+            phaseHurtFrames[p]   = swapLeftRight(loadSpriteMatrix(base + "/With_shadow/" + prefixes[p] + "_Hurt_with_shadow",   SPRITE_SIZE, SPRITE_SIZE));
+            phaseDeathFrames[p]  = swapLeftRight(loadSpriteMatrix(base + "/With_shadow/" + prefixes[p] + "_Death_with_shadow",  SPRITE_SIZE, SPRITE_SIZE));
+           // phaseSwingFrames[p]  = swapLeftRight(loadSpriteMatrix(base + "/Parts/" + prefixes[p] + "_Attack_swing", SPRITE_SIZE, SPRITE_SIZE));
         }
 
         // Load leaf projectile frames from Ent2's leaves spritesheet
