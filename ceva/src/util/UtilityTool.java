@@ -18,6 +18,10 @@ public final class UtilityTool {
 
     public static BufferedImage scaleImage(BufferedImage original, int width, int height) {
 
+        if (original.getWidth() == width && original.getHeight() == height) {
+            return original;
+        }
+
         // TRANSLUCENT produces TYPE_INT_ARGB_PRE — fastest for OpenGL pipeline compositing
         // and preserves semi-transparent (anti-aliased) sprite edges correctly.
         BufferedImage scaleImage = GC.createCompatibleImage(width, height, Transparency.TRANSLUCENT);

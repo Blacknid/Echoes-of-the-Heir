@@ -9,6 +9,8 @@ import java.awt.RenderingHints;
 import java.awt.Shape;
 import java.awt.geom.Ellipse2D;
 import java.awt.image.BufferedImage;
+import java.util.HashMap;
+import java.util.Map;
 
 import entity.Entity;
 import main.GamePanel;
@@ -80,6 +82,7 @@ public class Minimap {
 
     private BufferedImage terrainImage;
     private boolean worldMapOpen = false;
+    private final Map<String, BufferedImage> bakedTerrainCache = new HashMap<>();
 
     public Minimap(GamePanel gp) {
         this.gp = gp;
@@ -87,6 +90,13 @@ public class Minimap {
 
     /** Bake the world terrain as flat DST-style biome colours. Call after map loads. */
     public void bakeTerrainImage() {
+        String cacheKey = getCacheKey();
+        BufferedImage cached = bakedTerrainCache.get(cacheKey);
+        if (cached != null) {
+            terrainImage = cached;
+            return;
+        }
+
         int w = gp.maxWorldCol * BAKE_PIXELS_PER_TILE;
         int h = gp.maxWorldRow * BAKE_PIXELS_PER_TILE;
         terrainImage = new BufferedImage(w, h, BufferedImage.TYPE_INT_ARGB);
@@ -111,6 +121,11 @@ public class Minimap {
         }
 
         mapG.dispose();
+        bakedTerrainCache.put(cacheKey, terrainImage);
+    }
+
+    public void invalidateTerrainCache(String mapId) {
+        bakedTerrainCache.remove(mapId);
     }
 
     /** Map a GID to a flat biome colour. Returns null to skip (transparent layers). */
@@ -329,5 +344,12 @@ public class Minimap {
             return PLAIN_GRASS_GID;
         }
         return gid;
+    }
+
+    private String getCacheKey() {
+        if (gp.mapManager != null && gp.mapManager.currentMapId != null && !gp.mapManager.currentMapId.isBlank()) {
+            return gp.mapManager.currentMapId;
+        }
+        return "default";
     }
 }

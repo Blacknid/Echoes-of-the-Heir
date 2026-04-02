@@ -342,6 +342,10 @@ public class Player extends Entity {
         if (frostNovaCooldown > 0) frostNovaCooldown--;
         if (overdriveCooldown > 0) overdriveCooldown--;
 
+        // Status effect timers
+        if (slowedTimer > 0 && --slowedTimer == 0) slowed = false;
+        if (rootedTimer > 0 && --rootedTimer == 0) rooted = false;
+
         if (overdriveTimer > 0) {
             overdriveTimer--;
             if (!dashing) {
@@ -417,11 +421,13 @@ public class Player extends Entity {
                 worldY = originalY;
             }
         } else {
+            // STATUS: rooted blocks all movement input
+            boolean canMove = !rooted;
             // Determine direction based on keys — vertical takes priority for animation
-            boolean movingUp = keyH.upPressed;
-            boolean movingDown = keyH.downPressed;
-            boolean movingLeft = keyH.leftPressed;
-            boolean movingRight = keyH.rightPressed;
+            boolean movingUp    = canMove && keyH.upPressed;
+            boolean movingDown  = canMove && keyH.downPressed;
+            boolean movingLeft  = canMove && keyH.leftPressed;
+            boolean movingRight = canMove && keyH.rightPressed;
             boolean movingVertical = movingUp || movingDown;
             boolean movingHorizontal = movingLeft || movingRight;
             boolean diagonal = movingVertical && movingHorizontal;
@@ -448,6 +454,11 @@ public class Player extends Entity {
                     // 70.71% per axis — total vector equals cardinal speed, balanced feel
                     moveSpeedX = Math.max(1, (int)(speed * 0.7071));
                     moveSpeedY = Math.max(1, (int)(speed * 0.7071));
+                }
+                // Slowed: halve effective movement speed (e.g. Canvas Moth dust debuff)
+                if (slowed && !dashing) {
+                    moveSpeedX = Math.max(1, moveSpeedX / 2);
+                    moveSpeedY = Math.max(1, moveSpeedY / 2);
                 }
 
                 // --- PER-AXIS COLLISION: check and move each axis independently ---
@@ -767,8 +778,16 @@ public class Player extends Entity {
                 if (isHeavy) kb = (int)(kb * 2.0f);
                 knockBack(gp.monster[i], kb, worldX, worldY);
                 int damage = effectiveAttack - gp.monster[i].defense;
-                if (damage < 0) {
-                    damage = 0;
+                if (damage < 0) damage = 0;
+                // Frontal armor: 50% damage reduction when hitting the monster's face
+                if (gp.monster[i].frontalArmor) {
+                    int md = gp.monster[i].direction;
+                    boolean isFrontalHit =
+                        (md == DIR_DOWN  && direction == DIR_UP)   ||
+                        (md == DIR_UP    && direction == DIR_DOWN)  ||
+                        (md == DIR_LEFT  && direction == DIR_RIGHT) ||
+                        (md == DIR_RIGHT && direction == DIR_LEFT);
+                    if (isFrontalHit) damage = Math.max(1, damage / 2);
                 }
                 gp.monster[i].life -= damage;
                 generateParticle(this, gp.monster[i]);
@@ -1195,6 +1214,9 @@ public class Player extends Entity {
     // Interaction methods
     public void pickUpObject(int i) {
         if (i != 999) {
+            // Non-interactive technical entities (light sources, markers) are never pickable
+            if (gp.obj[i].lightSource) return;
+
             // PICKUP ONLY OBJECTS
             if (gp.obj[i].type == type_pickupOnly) {
                 attackCanceled = true;

@@ -1,6 +1,7 @@
 package data;
 
 import java.util.Random;
+
 import entity.Entity;
 import entity.Projectile;
 import main.GamePanel;
@@ -58,13 +59,20 @@ public class DataDrivenMonster extends Entity {
         this.solidAreaDefaultY = template.solidAreaDefaultY;
         this.walkFrames = template.walkFrames;
         this.projectile = template.projectile;
+        this.frontalArmor = template.frontalArmor;
+        this.rootOnContactDuration = template.rootOnContactDuration;
+        this.phasing = template.phasing;
+        this.phasingCycleDuration = template.phasingCycleDuration;
     }
 
     @Override
     public void setAction() {
         switch (aiBehavior) {
-            case "ranged_archer" -> setActionRanged();
-            default -> setActionMelee();  // melee_chase
+            case "ranged_archer"    -> setActionRanged();
+            case "stationary_trap" -> setActionStationaryTrap();
+            case "pack_hunter"     -> setActionPackHunter();
+            case "phasing_ranged"  -> setActionPhasingRanged();
+            default                -> setActionMelee();  // melee_chase
         }
     }
 
@@ -72,21 +80,16 @@ public class DataDrivenMonster extends Entity {
     public void damageReaction() {
         actionLockCounter = 0;
         switch (aiBehavior) {
-            case "ranged_archer" -> {
+            case "stationary_trap" -> { /* stationary — no flee reaction */ }
+            case "ranged_archer", "phasing_ranged" -> {
                 if (life <= maxLife * fleeThreshold) {
-                    fleeing = true;
-                    onPath = false;
-                    fleeCounter = 0;
-                    speed = defaultSpeed + 1;
+                    fleeing = true; onPath = false; fleeCounter = 0; speed = defaultSpeed + 1;
                 }
             }
             default -> {
                 onPath = true;
                 if (life <= maxLife * fleeThreshold) {
-                    fleeing = true;
-                    onPath = false;
-                    fleeCounter = 0;
-                    speed = defaultSpeed + 1;
+                    fleeing = true; onPath = false; fleeCounter = 0; speed = defaultSpeed + 1;
                 }
             }
         }
@@ -227,5 +230,55 @@ public class DataDrivenMonster extends Entity {
             direction = DIRECTIONS[random.nextInt(4)];
             actionLockCounter = 0;
         }
+    }
+
+    // ---------- Stationary Trap AI ----------
+    // Never moves. Faces the player. rootOnContactDuration handles the grab via Entity.checkCollision().
+    private void setActionStationaryTrap() {
+        speed  = 0;
+        onPath = false;
+        faceTowardPlayer();
+    }
+
+    // ---------- Pack Hunter AI ----------
+    // Chases the player when a pack-mate is nearby; flees when alone.
+    private void setActionPackHunter() {
+        if (fleeing) {
+            fleeCounter++;
+            int dx = worldX - gp.player.worldX;
+            int dy = worldY - gp.player.worldY;
+            setFleeDirection(dx, dy);
+            if (fleeCounter > fleeDuration) { fleeing = false; fleeCounter = 0; speed = defaultSpeed; }
+            return;
+        }
+
+        boolean packNearby = false;
+        for (Entity m : gp.monster) {
+            if (m == null || m == this || !m.alive) continue;
+            if (m instanceof DataDrivenMonster ddm && "pack_hunter".equals(ddm.aiBehavior)) {
+                double dist = Math.hypot(m.worldX - worldX, m.worldY - worldY);
+                if (dist < gp.tileSize * 4) { packNearby = true; break; }
+            }
+        }
+
+        if (packNearby) {
+            setActionMelee();
+        } else if (isPlayerInRange(aggroRange)) {
+            // Alone — flee from player
+            int dx = worldX - gp.player.worldX;
+            int dy = worldY - gp.player.worldY;
+            setFleeDirection(dx, dy);
+            speed = defaultSpeed;
+        } else {
+            speed = defaultSpeed;
+            randomMovement();
+        }
+    }
+
+    // ---------- Phasing Ranged AI ----------
+    // Behaves like ranged_archer but the phasing cycle (toggling invincibility) is driven by Entity.update().
+    // The AI just needs to handle standard ranged combat — phasing is transparent to the AI.
+    private void setActionPhasingRanged() {
+        setActionRanged();
     }
 }

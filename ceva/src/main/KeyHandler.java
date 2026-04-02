@@ -5,6 +5,7 @@ import java.awt.event.KeyListener;
 
 import audio.SFX;
 import entity.Entity;
+import util.ResourceCache;
 
 public class KeyHandler implements KeyListener {
 
@@ -500,7 +501,20 @@ public class KeyHandler implements KeyListener {
         if (code == KeyEvent.VK_H) { gp.HitBoxes = !gp.HitBoxes; }
 
         // Reload map
-        if (code == KeyEvent.VK_R) { gp.tileM.loadMapFromTMX("/res/maps/harta.tmx"); }
+        if (code == KeyEvent.VK_R && gp.mapManager != null) {
+            String path = gp.mapManager.mapRegistry.getOrDefault(gp.mapManager.currentMapId, gp.mapManager.currentMapId);
+            ResourceCache.invalidateXml(path);
+            gp.tileM.loadMapFromTMX(path);
+            gp.tileM.loadCollisionLayer(path);
+            gp.mapObjectLoader.loadMapProperties(path);
+            gp.eHandler.reset();
+            gp.aSetter.loadEventsFromTMX();
+            gp.cChecker.updateCollisionRectsCache();
+            if (gp.minimap != null) {
+                gp.minimap.invalidateTerrainCache(gp.mapManager.currentMapId);
+                gp.minimap.bakeTerrainImage();
+            }
+        }
 
         // Path toggle
         if (code == KeyEvent.VK_Y) { gp.drawPath = !gp.drawPath; } 

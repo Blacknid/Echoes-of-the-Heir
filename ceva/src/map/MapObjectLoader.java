@@ -1,11 +1,7 @@
 package map;
 
-import java.io.InputStream;
 import java.util.HashMap;
 import java.util.Map;
-
-import javax.xml.parsers.DocumentBuilder;
-import javax.xml.parsers.DocumentBuilderFactory;
 
 import org.w3c.dom.Document;
 import org.w3c.dom.Element;
@@ -37,6 +33,7 @@ import object.OBJ_Torch;
 import object.OBJ_Tower;
 import tiles_interactive.IT_Coins;
 import tiles_interactive.IT_Pot;
+import util.ResourceCache;
 
 /**
  * Full Tiled-to-Game pipeline: loads objects, monsters, NPCs, interactive tiles,
@@ -92,7 +89,7 @@ import tiles_interactive.IT_Pot;
  *   spawnId       (String)  Door: named spawn point id on target map
  *   spawnDirection(String)  Door: direction player faces on arrival
  *
- *   Light object (type="Light" in Tiled):
+ *   Light object (type="Light" or "Lighting" in Tiled):
  *   lightRadius   (int)     light radius in tiles (default 4)
  *   lightColor    (String)  "#rrggbb" hex color tint (default: warm orange)
  *
@@ -118,6 +115,7 @@ import tiles_interactive.IT_Pot;
  *   HealingPool     (no extra properties)
  *   DamageTrap      damage (int), repeatable (bool, default true)
  *   DialogueTrigger message (String), speaker (String), oneShot (bool)
+ *   Lighting        point/marker-based static light with lightRadius/lightColor
  *   LevelGate       minLevel (int), message (String),
  *                   targetMap/targetCol/targetRow (optional, if passable above minLevel)
  *   Checkpoint      silent (bool)
@@ -177,6 +175,7 @@ public class MapObjectLoader {
 
     /** Parse only the Events objectgroup (MapTransitions, HealingPools, etc.). */
     public void loadEvents(String tmxPath) {
+        clearEventLayerLights();
         load(tmxPath, false, true);
     }
 
@@ -264,12 +263,32 @@ public class MapObjectLoader {
                                 polyPoints = ((Element) polygons.item(0)).getAttribute("points");
                         }
                         if (polyPoints != null && !polyPoints.isEmpty()) {
+                            // Tiled stores rotation in degrees, clockwise in screen space (y-down).
+                            // We need to rotate each point before computing the bounding box so
+                            // that rotated event objects (e.g. LevelGate rotation="270") register
+                            // the correct tiles instead of the unrotated axis-aligned tiles.
+                            String rotStr = obj.getAttribute("rotation");
+                            double rotDeg = (rotStr != null && !rotStr.isEmpty())
+                                ? Double.parseDouble(rotStr) : 0.0;
+                            boolean hasRotation = rotDeg != 0.0;
+                            double cosR = 1, sinR = 0;
+                            if (hasRotation) {
+                                double rad = Math.toRadians(rotDeg);
+                                cosR = Math.cos(rad);
+                                sinR = Math.sin(rad);
+                            }
                             double minPX = 0, minPY = 0, maxPX = 0, maxPY = 0;
                             for (String pt : polyPoints.trim().split("\\s+")) {
                                 String[] xy = pt.split(",");
                                 if (xy.length < 2) continue;
                                 double px = Double.parseDouble(xy[0]);
                                 double py = Double.parseDouble(xy[1]);
+                                if (hasRotation) {
+                                    // CW rotation in y-down screen space: x'=x·cos+y·sin, y'=-x·sin+y·cos
+                                    double rx = px * cosR + py * sinR;
+                                    double ry = -px * sinR + py * cosR;
+                                    px = rx; py = ry;
+                                }
                                 if (px < minPX) minPX = px;
                                 if (px > maxPX) maxPX = px;
                                 if (py < minPY) minPY = py;
@@ -294,8 +313,7 @@ public class MapObjectLoader {
                             }
                             Entity entity = createObject(type, obj);
                             if (entity != null) {
-                                entity.worldX = worldX;
-                                entity.worldY = worldY;
+                                applyLoadedWorldPosition(entity, type, obj, worldX, worldY);
                                 applyCommonProperties(entity, obj);
                                 gp.obj[objIdx++] = entity;
                             }
@@ -346,6 +364,17 @@ public class MapObjectLoader {
                         }
                         case "Events" -> {
                             if (!events) continue;
+                            if (isLightMarkerType(type)) {
+                                if (objIdx >= gp.obj.length) {
+                                    System.out.println("MapObjectLoader WARNING: obj[] full, skipping event light " + type);
+                                    continue;
+                                }
+                                Entity light = createLightMarker(obj, true);
+                                applyLoadedWorldPosition(light, type, obj, worldX, worldY);
+                                applyCommonProperties(light, obj);
+                                gp.obj[objIdx++] = light;
+                                continue;
+                            }
                             loadEvent(type, obj, col, row, worldX, worldY, areaW, areaH);
                         }
                     }
@@ -514,19 +543,7 @@ public class MapObjectLoader {
             case "Heart"  -> { return new OBJ_Heart(gp); }
             case "Mana"   -> { return new OBJ_ManaCrystal(gp); }
             case "Compas" -> { return new OBJ_Compas(gp); }
-            case "Light" -> {
-                Entity light = new Entity(gp);
-                light.name = "Light";
-                light.lightSource = true;
-                light.lightRadius = getIntProperty(obj, "lightRadius", 4);
-                String llc = getStringProperty(obj, "lightColor", null);
-                if (llc != null && !llc.isBlank()) {
-                    try { light.lightColor = java.awt.Color.decode(llc.trim()); }
-                    catch (NumberFormatException ignored) {}
-                }
-                light.collision = false;
-                return light;
-            }
+            case "Light", "Lighting" -> { return createLightMarker(obj, false); }
             default -> {
                 Entity e = createEntityByName(type);
                 if (e != null) return e;
@@ -539,18 +556,12 @@ public class MapObjectLoader {
     private Entity createMonster(String type, int col, int row, Element obj) {
         // Accept both legacy TMX class names and JSON ids
         String id = switch (type) {
-<<<<<<< HEAD
             case "MON_monster"         -> "mummy";
             case "MON_SkeletonArcher"  -> "skeleton_archer";
             case "BOSS_WitheredTree"   -> "withered_tree";
-            default                    -> type;
-=======
-            case "MON_monster"        -> "mummy";
-            case "MON_SkeletonArcher" -> "skeleton_archer";
             case "MON_Shade"          -> "shade";
             case "MON_Inkblot", "Inkblot" -> "inkblot";
             default                   -> type;
->>>>>>> b606fee9f1bb89387e45f5e6c81440e75ec43a77
         };
         Entity m = MonsterFactory.create(gp, id, col, row);
         if (m == null) {
@@ -815,7 +826,12 @@ public class MapObjectLoader {
                 String msg    = getStringProperty(obj, "message", "...").replace("\\n", "\n");
                 String speaker = getStringProperty(obj, "speaker", "");
                 boolean one   = getBoolProperty(obj, "oneShot", true);
-                gp.eHandler.registerDialogueTrigger(col, row, msg, speaker, one);
+                // Create ONE shared instance so all covered tiles share the same oneShot flag;
+                // without this, each tile would have its own 'triggered' bool and a one-shot
+                // trigger could fire more than once (once per tile the player steps on).
+                EventHandler.DialogueData shared = new EventHandler.DialogueData(msg, speaker, one);
+                forEachTile(col, row, worldX, worldY, areaW, areaH, (tc, tr) ->
+                    gp.eHandler.registerDialogueTrigger(tc, tr, shared));
             }
             case "LevelGate" -> {
                 int    min   = getIntProperty(obj, "minLevel", 0);
@@ -910,18 +926,12 @@ public class MapObjectLoader {
      */
     public Entity createMonsterByName(String type, int col, int row) {
         String id = switch (type) {
-<<<<<<< HEAD
             case "MON_monster"         -> "mummy";
             case "MON_SkeletonArcher"  -> "skeleton_archer";
             case "BOSS_WitheredTree"   -> "withered_tree";
-            default                    -> type;
-=======
-            case "MON_monster"        -> "mummy";
-            case "MON_SkeletonArcher" -> "skeleton_archer";
             case "MON_Shade"          -> "shade";
             case "MON_Inkblot", "Inkblot" -> "inkblot";
             default                   -> type;
->>>>>>> b606fee9f1bb89387e45f5e6c81440e75ec43a77
         };
         Entity m = MonsterFactory.create(gp, id, col, row);
         if (m == null) System.out.println("MapObjectLoader: Unknown monster type '" + type + "'");
@@ -973,11 +983,27 @@ public class MapObjectLoader {
             case "Tent"    -> new OBJ_Tent(gp);
             case "Light"   -> {
                 Entity l = new Entity(gp);
-                l.name = "Light"; l.lightSource = true; l.lightRadius = 4; l.collision = false;
+                l.name = "Light"; l.type = Entity.type_utility; l.lightSource = true; l.lightRadius = 4; l.collision = false;
                 yield l;
             }
             default        -> null;
         };
+    }
+
+    private Entity createLightMarker(Element obj, boolean eventLayer) {
+        Entity light = new Entity(gp);
+        light.name = "Light";
+        light.type = Entity.type_utility;  // never picked up or interacted with
+        light.lightSource = true;
+        light.lightRadius = getIntProperty(obj, "lightRadius", 4);
+        String colorHex = getStringProperty(obj, "lightColor", null);
+        if (colorHex != null && !colorHex.isBlank()) {
+            try { light.lightColor = java.awt.Color.decode(colorHex.trim()); }
+            catch (NumberFormatException ignored) {}
+        }
+        light.collision = false;
+        light.eventLayerLight = eventLayer;
+        return light;
     }
 
     // ---- Tower Eye Spawning ---------------------------------------------------
@@ -986,6 +1012,31 @@ public class MapObjectLoader {
         for (Entity entity : gp.obj) {
             if (entity instanceof OBJ_Tower tower) tower.spawnEye();
         }
+    }
+
+    private void clearEventLayerLights() {
+        for (int i = 0; i < gp.obj.length; i++) {
+            if (gp.obj[i] != null && gp.obj[i].eventLayerLight) {
+                gp.obj[i] = null;
+            }
+        }
+    }
+
+    private void applyLoadedWorldPosition(Entity entity, String type, Element obj, int worldX, int worldY) {
+        entity.worldX = worldX;
+        entity.worldY = worldY;
+        if (entity.lightSource && isLightMarkerType(type) && isPointObject(obj)) {
+            entity.worldX -= gp.tileSize / 2;
+            entity.worldY -= gp.tileSize / 2;
+        }
+    }
+
+    private boolean isLightMarkerType(String type) {
+        return "Light".equalsIgnoreCase(type) || "Lighting".equalsIgnoreCase(type);
+    }
+
+    private boolean isPointObject(Element obj) {
+        return obj.getElementsByTagName("point").getLength() > 0;
     }
 
     // ---- Utilities ------------------------------------------------------------
@@ -1024,15 +1075,12 @@ public class MapObjectLoader {
     // ---- XML Helpers ----------------------------------------------------------
 
     private Document parseXmlResource(String path) throws Exception {
-        InputStream stream = getClass().getResourceAsStream(path);
-        if (stream == null) {
+        Document document = ResourceCache.loadXml(path);
+        if (document == null) {
             System.out.println("MapObjectLoader: XML resource not found: " + path);
             return null;
         }
-        DocumentBuilder builder = DocumentBuilderFactory.newInstance().newDocumentBuilder();
-        Document doc = builder.parse(stream);
-        doc.getDocumentElement().normalize();
-        return doc;
+        return document;
     }
 
     /** Reads a named property from the direct {@code <properties>} child of {@code element}. */
@@ -1048,6 +1096,9 @@ public class MapObjectLoader {
                 if (!name.equals(property.getAttribute("name"))) continue;
                 String value = property.getAttribute("value");
                 if (value == null || value.isBlank()) value = property.getTextContent();
+                // Treat blank/empty the same as missing — use the caller's default.
+                // This makes message="" in Tiled fall back to "You cannot pass here." etc.
+                if (value == null || value.isBlank()) return defaultValue;
                 return value;
             }
         }

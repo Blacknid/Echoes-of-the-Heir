@@ -13,16 +13,13 @@ import java.awt.geom.Ellipse2D;
 import java.awt.geom.Path2D;
 import java.awt.geom.Rectangle2D;
 import java.awt.image.BufferedImage;
-import java.io.InputStream;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Map;
-import javax.imageio.ImageIO;
-import javax.xml.parsers.DocumentBuilder;
-import javax.xml.parsers.DocumentBuilderFactory;
 import main.GamePanel;
+import util.ResourceCache;
 import util.UtilityTool;
 import org.w3c.dom.Document;
 import org.w3c.dom.Element;
@@ -94,6 +91,20 @@ public class TileManager {
         return alphaCompositeCache.computeIfAbsent(alpha,
             a -> AlphaComposite.getInstance(AlphaComposite.SRC_OVER, a));
     }
+
+    private static final String DEFAULT_COLLISION_OBJECT_LAYER = "Collision";
+
+    private static final class TilesetFrameCache {
+        final BufferedImage[] images;
+        final int[] drawOffsets;
+
+        TilesetFrameCache(BufferedImage[] images, int[] drawOffsets) {
+            this.images = images;
+            this.drawOffsets = drawOffsets;
+        }
+    }
+
+    private static final HashMap<String, TilesetFrameCache> tilesetFrameCache = new HashMap<>();
 
     // Tilesets
     public class Tileset {
@@ -206,15 +217,14 @@ public class TileManager {
     public TileManager(GamePanel gp) {
         this.gp = gp;
 
-        // Default: only the "Collision" objectgroup provides collision rectangles
-        collisionObjectLayers.add("Collision");
+        resetCollisionConfig();
 
         initializeDefaultMap();
         printCollisionConfig();
     }
 
     /** Print current collision configuration to console. */
-    public void printCollisionConfig() {
+    private void printCollisionConfig() {
         System.out.println("=== COLLISION CONFIGURATION ===");
         System.out.println("Object layers (rectangles): " + collisionObjectLayers);
         System.out.println("Tile layers (full tile blocking): " + collisionTileLayers);
@@ -228,29 +238,43 @@ public class TileManager {
         loadCollisionLayer("/res/maps/Awakening_Cave.tmx");
     }
 
+    private void resetCollisionConfig() {
+        collisionObjectLayers.clear();
+        collisionTileLayers.clear();
+        collisionObjectLayers.add(DEFAULT_COLLISION_OBJECT_LAYER);
+    }
+
+    private void applyMapCollisionProperties(Element mapRoot) {
+        String objectLayers = getStringProperty(mapRoot, "collisionObjectLayers", "");
+        if (objectLayers != null && !objectLayers.isBlank()) {
+            collisionObjectLayers.clear();
+            loadDelimitedSet(collisionObjectLayers, objectLayers);
+            if (collisionObjectLayers.isEmpty()) {
+                collisionObjectLayers.add(DEFAULT_COLLISION_OBJECT_LAYER);
+            }
+        }
+
+        String tileLayers = getStringProperty(mapRoot, "collisionTileLayers", "");
+        if (tileLayers != null && !tileLayers.isBlank()) {
+            loadDelimitedSet(collisionTileLayers, tileLayers);
+        }
+    }
+
+    private void loadDelimitedSet(HashSet<String> target, String value) {
+        for (String token : value.split(",")) {
+            String trimmed = token.trim();
+            if (!trimmed.isEmpty()) {
+                target.add(trimmed);
+            }
+        }
+    }
+
     // ---------------- Load tilesets ----------------
     public void addTileset(String path, int firstGID, int tileWidth, int tileHeight, int tileCount, int columns, String name, int renderOrder, boolean depthSort, boolean foreground) {
         try {
-            System.out.println("Trying to load: " + path);
-            java.net.URL url = getClass().getResource(path);
-            if (url == null) {
-                System.out.println("CRITICAL: File not found at path: " + path);
-            } else {
-                System.out.println("Success! Found at: " + url.getPath());
-            }
-            InputStream imageStream = getClass().getResourceAsStream(path);
-            if (imageStream == null) {
-                return;
-            }
-
-            BufferedImage tilesetImage;
-            try {
-                tilesetImage = ImageIO.read(imageStream);
-            } finally {
-                imageStream.close();
-            }
             int safeColumns = Math.max(1, columns);
             int safeTileCount = Math.max(1, tileCount);
+            TilesetFrameCache cachedFrames = getOrCreateTilesetFrames(path, tileWidth, tileHeight, safeTileCount, safeColumns);
 
             Tileset ts = new Tileset();
             ts.name = name;
@@ -264,30 +288,53 @@ public class TileManager {
             ts.tiles = new Tile[ts.tileCount];
 
             for (int index = 0; index < ts.tileCount; index++) {
-                int tileX = (index % safeColumns) * tileWidth;
-                int tileY = (index / safeColumns) * tileHeight;
-
-                if (tileX + tileWidth > tilesetImage.getWidth() || tileY + tileHeight > tilesetImage.getHeight()) {
+                if (cachedFrames.images[index] == null) {
                     break;
                 }
 
                 ts.tiles[index] = new Tile();
-                BufferedImage sub = tilesetImage.getSubimage(tileX, tileY, tileWidth, tileHeight);
-                // Scale tiles proportionally: game tileSize / map tileSize gives the world scale factor.
-                // This preserves oversized tiles (e.g. 190x200 trees) at their correct visual size.
-                float tileScale = (float) tileSize / mapTileSize;
-                int scaledWidth = Math.max(1, Math.round(tileWidth * tileScale));
-                int scaledHeight = Math.max(1, Math.round(tileHeight * tileScale));
-                ts.tiles[index].image = UtilityTool.scaleImage(sub, scaledWidth, scaledHeight);
-                ts.tiles[index].drawOffsetY = Math.max(0, scaledHeight - tileSize);
+                ts.tiles[index].image = cachedFrames.images[index];
+                ts.tiles[index].drawOffsetY = cachedFrames.drawOffsets[index];
             }
 
             tilesets.add(ts);
-            System.out.println("Loaded tileset: " + path + ", firstGID=" + firstGID);
         } catch (Exception e) {
             System.out.println("Failed to load tileset: " + path);
             e.printStackTrace(System.out);
         }
+    }
+
+    private TilesetFrameCache getOrCreateTilesetFrames(String path, int tileWidth, int tileHeight,
+                                                       int tileCount, int columns) throws Exception {
+        String cacheKey = path + '|' + tileWidth + '|' + tileHeight + '|' + tileCount
+            + '|' + columns + '|' + mapTileSize + '|' + tileSize;
+        TilesetFrameCache cached = tilesetFrameCache.get(cacheKey);
+        if (cached != null) {
+            return cached;
+        }
+
+        BufferedImage tilesetImage = ResourceCache.loadImage(path);
+        BufferedImage[] images = new BufferedImage[tileCount];
+        int[] drawOffsets = new int[tileCount];
+        float tileScale = (float) tileSize / mapTileSize;
+
+        for (int index = 0; index < tileCount; index++) {
+            int tileX = (index % columns) * tileWidth;
+            int tileY = (index / columns) * tileHeight;
+            if (tileX + tileWidth > tilesetImage.getWidth() || tileY + tileHeight > tilesetImage.getHeight()) {
+                break;
+            }
+
+            BufferedImage sub = tilesetImage.getSubimage(tileX, tileY, tileWidth, tileHeight);
+            int scaledWidth = Math.max(1, Math.round(tileWidth * tileScale));
+            int scaledHeight = Math.max(1, Math.round(tileHeight * tileScale));
+            images[index] = UtilityTool.scaleImage(sub, scaledWidth, scaledHeight);
+            drawOffsets[index] = Math.max(0, scaledHeight - tileSize);
+        }
+
+        TilesetFrameCache frameCache = new TilesetFrameCache(images, drawOffsets);
+        tilesetFrameCache.put(cacheKey, frameCache);
+        return frameCache;
     }
 
     public void loadTilesets(String mapPath) {
@@ -330,7 +377,7 @@ public class TileManager {
                     tilesetElement.getAttribute("name"),
                     getTilesetRenderOrder(tilesetElement, resourcePath),
                     getTilesetDepthSort(tilesetElement, resourcePath),
-                    getTilesetForeground(tilesetElement, resourcePath)
+                    getTilesetForeground(tilesetElement)
                 );
                 applyPerTileProperties(tilesets.get(tilesets.size() - 1), tilesetElement);
             }
@@ -416,6 +463,9 @@ public class TileManager {
             if (mw != null && !mw.isEmpty()) currentMapCols = Integer.parseInt(mw);
             if (mh != null && !mh.isEmpty()) currentMapRows = Integer.parseInt(mh);
 
+            resetCollisionConfig();
+            applyMapCollisionProperties(mapRoot);
+
             // Detect infinite map
             boolean infinite = "1".equals(mapRoot.getAttribute("infinite"));
             int offsetX = 0, offsetY = 0;
@@ -455,6 +505,7 @@ public class TileManager {
                 boolean isBackground = false;
                 boolean isDepthSort  = false;
                 boolean isForeground = false;
+                boolean isCollision  = false;
                 NodeList layerProps = layer.getChildNodes();
                 for (int lp = 0; lp < layerProps.getLength(); lp++) {
                     if (layerProps.item(lp) instanceof Element) {
@@ -470,10 +521,15 @@ public class TileManager {
                                     isDepthSort = "true".equalsIgnoreCase(prop.getAttribute("value"));
                                 } else if ("foreground".equals(propName)) {
                                     isForeground = "true".equalsIgnoreCase(prop.getAttribute("value"));
+                                } else if ("collision".equals(propName)) {
+                                    isCollision = "true".equalsIgnoreCase(prop.getAttribute("value"));
                                 }
                             }
                         }
                     }
+                }
+                if (isCollision && !layerName.isBlank()) {
+                    collisionTileLayers.add(layerName);
                 }
 
                 int[][] layerMap  = new int[gp.maxWorldCol][gp.maxWorldRow];
@@ -559,14 +615,13 @@ public class TileManager {
                     System.out.println("Skipping imagelayer — cannot resolve source: " + srcRaw);
                     continue;
                 }
-                InputStream imgStream = getClass().getResourceAsStream(srcPath);
-                if (imgStream == null) {
+                BufferedImage rawImage;
+                try {
+                    rawImage = ResourceCache.loadImage(srcPath);
+                } catch (java.io.IOException imageError) {
                     System.out.println("Skipping imagelayer — file not found: " + srcPath);
                     continue;
                 }
-                BufferedImage img;
-                try { img = ImageIO.read(imgStream); } finally { imgStream.close(); }
-                if (img == null) continue;
 
                 ImageLayerData ild = new ImageLayerData();
                 ild.name      = ilEl.getAttribute("name");
@@ -577,9 +632,9 @@ public class TileManager {
                 ild.opacity   = getFloatAttribute(ilEl, "opacity",   1f);
                 ild.tintColor = parseTintColor(ilEl.getAttribute("tintcolor"));
                 // Scale image to match game tileSize
-                int scaledW = Math.max(1, (int) Math.round(img.getWidth()  * sf));
-                int scaledH = Math.max(1, (int) Math.round(img.getHeight() * sf));
-                ild.image = UtilityTool.scaleImage(img, scaledW, scaledH);
+                int scaledW = Math.max(1, (int) Math.round(rawImage.getWidth()  * sf));
+                int scaledH = Math.max(1, (int) Math.round(rawImage.getHeight() * sf));
+                ild.image = ResourceCache.loadScaledImage(srcPath, scaledW, scaledH);
                 imageLayers.add(ild);
                 System.out.println("Loaded imagelayer: " + ild.name + " @ (" + ild.worldX + "," + ild.worldY + ")");
             }
@@ -949,9 +1004,9 @@ public class TileManager {
         for (int layerIndex = 0; layerIndex < mapLayers.size(); layerIndex++) {
             int[][] map = mapLayers.get(layerIndex);
             byte[][] flipMap = layerIndex < mapFlipLayers.size() ? mapFlipLayers.get(layerIndex) : null;
-            float px      = layerIndex < layerParallaxX.size() ? layerParallaxX.get(layerIndex) : 1.0f;
-            float py      = layerIndex < layerParallaxY.size() ? layerParallaxY.get(layerIndex) : 1.0f;
-            float opacity = layerIndex < layerOpacity.size()   ? layerOpacity.get(layerIndex)   : 1.0f;
+            float px      = getLayerFloat(layerParallaxX, layerIndex, 1.0f);
+            float py      = getLayerFloat(layerParallaxY, layerIndex, 1.0f);
+            float opacity = getLayerFloat(layerOpacity, layerIndex, 1.0f);
             Color tint    = layerIndex < layerTint.size()      ? layerTint.get(layerIndex)       : null;
             boolean forceBackground = layerIndex < layerBackground.size() && layerBackground.get(layerIndex);
             boolean forceDepthSort = layerIndex < layerDepthSort.size() && layerDepthSort.get(layerIndex);
@@ -1353,7 +1408,7 @@ public class TileManager {
             || normalized.contains("tower") || normalized.contains("wall");
     }
 
-    private boolean getTilesetForeground(Element tilesetElement, String resourcePath) {
+    private boolean getTilesetForeground(Element tilesetElement) {
         String value = getStringProperty(tilesetElement, "foreground", null);
         if (value == null || value.isBlank()) {
             return false;
@@ -1521,20 +1576,20 @@ public class TileManager {
         }
     }
 
+    private float getLayerFloat(ArrayList<Float> values, int index, float defaultValue) {
+        if (index < 0 || index >= values.size()) {
+            return defaultValue;
+        }
+        Float value = values.get(index);
+        return value != null ? value : defaultValue;
+    }
+
     private Document parseXmlResource(String path) throws Exception {
-        InputStream resourceStream = getClass().getResourceAsStream(path);
-        if (resourceStream == null) {
+        Document document = ResourceCache.loadXml(path);
+        if (document == null) {
             System.out.println("CRITICAL: XML resource not found: " + path);
             return null;
         }
-
-        try {
-            DocumentBuilder builder = DocumentBuilderFactory.newInstance().newDocumentBuilder();
-            Document document = builder.parse(resourceStream);
-            document.getDocumentElement().normalize();
-            return document;
-        } finally {
-            resourceStream.close();
-        }
+        return document;
     }
 }
