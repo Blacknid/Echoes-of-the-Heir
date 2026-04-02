@@ -1,5 +1,11 @@
 package map;
 
+import java.awt.AlphaComposite;
+import java.awt.BasicStroke;
+import java.awt.Color;
+import java.awt.Font;
+import java.awt.Graphics2D;
+import java.awt.Stroke;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
@@ -681,30 +687,127 @@ public class EventHandler {
         previousEventY = gp.player.worldY;
     }
 
-    @FunctionalInterface
-    private interface CandidateTileAction {
-        boolean test(int col, int row, long key);
+    // ---- Debug visualisation --------------------------------------------------
+
+    /** Draws coloured outlines for every registered event zone. Called by RenderPipeline. */
+    public void drawEventDebug(Graphics2D g2,
+                               int playerWorldX, int playerWorldY,
+                               int pScreenX,     int pScreenY,
+                               int tileSize) {
+        Font   labelFont = new Font("Arial", Font.BOLD, 10);
+        Stroke oldStroke = g2.getStroke();
+        java.awt.Composite oldComp = g2.getComposite();
+        g2.setFont(labelFont);
+        g2.setStroke(new BasicStroke(2f));
+        g2.setComposite(AlphaComposite.getInstance(AlphaComposite.SRC_OVER, 0.75f));
+
+        // Map transitions — magenta
+        drawEventLayer(g2, mapTransitions,   playerWorldX, playerWorldY, pScreenX, pScreenY,
+                       tileSize, new Color(255,   0, 255), "WARP");
+        // Healing pools — bright green
+        drawEventLayer(g2, healingPools,     playerWorldX, playerWorldY, pScreenX, pScreenY,
+                       tileSize, new Color(  0, 220,  80), "HEAL");
+        // Damage traps — bright red
+        drawEventLayer(g2, damageTraps,      playerWorldX, playerWorldY, pScreenX, pScreenY,
+                       tileSize, new Color(220,  40,  40), "TRAP");
+        // Dialogue triggers — yellow
+        drawEventLayer(g2, dialogueTriggers, playerWorldX, playerWorldY, pScreenX, pScreenY,
+                       tileSize, new Color(255, 230,   0), "DIAL");
+        // Level gates — orange
+        drawEventLayer(g2, levelGates,       playerWorldX, playerWorldY, pScreenX, pScreenY,
+                       tileSize, new Color(255, 140,   0), "GATE");
+        // Checkpoints — cyan
+        drawEventLayer(g2, checkpoints,      playerWorldX, playerWorldY, pScreenX, pScreenY,
+                       tileSize, new Color(  0, 220, 220), "SAVE");
+        // Quest triggers — purple
+        drawEventLayer(g2, questTriggers,    playerWorldX, playerWorldY, pScreenX, pScreenY,
+                       tileSize, new Color(180,  80, 255), "QUEST");
+        // Camera shakes — white
+        drawEventLayer(g2, cameraShakes,     playerWorldX, playerWorldY, pScreenX, pScreenY,
+                       tileSize, new Color(220, 220, 220), "SHAKE");
+        // Memory gates — deep blue
+        drawEventLayer(g2, memoryGates,      playerWorldX, playerWorldY, pScreenX, pScreenY,
+                       tileSize, new Color( 60,  80, 255), "MEM");
+
+        // Spawn zones (have custom world-space bounds, not tile-grid keys)
+        g2.setColor(new Color(255, 160, 0));
+        for (SpawnZoneData sz : spawnZones) {
+            int sx = sz.worldX - playerWorldX + pScreenX;
+            int sy = sz.worldY - playerWorldY + pScreenY;
+            g2.drawRect(sx, sy, sz.areaW, sz.areaH);
+            g2.drawString("ZONE:" + sz.monsterType, sx + 3, sy + 13);
+        }
+
+        // Named spawn points — lime
+        g2.setColor(new Color(160, 255, 80));
+        for (Map.Entry<String, int[]> e : namedSpawnPoints.entrySet()) {
+            int[] pos = e.getValue();  // [col, row]
+            int sx = pos[0] * tileSize - playerWorldX + pScreenX;
+            int sy = pos[1] * tileSize - playerWorldY + pScreenY;
+            g2.drawRect(sx, sy, tileSize, tileSize);
+            g2.drawString("SP:" + e.getKey(), sx + 3, sy + 13);
+        }
+
+        g2.setStroke(oldStroke);
+        g2.setComposite(oldComp);
     }
 
-    private boolean forEachCandidateTile(CandidateTileAction action) {
-        int leftCol = (gp.player.worldX + gp.player.solidArea.x) / gp.tileSize;
-        int rightCol = (gp.player.worldX + gp.player.solidArea.x + gp.player.solidArea.width) / gp.tileSize;
-        int topRow = (gp.player.worldY + gp.player.solidArea.y) / gp.tileSize;
-        int bottomRow = (gp.player.worldY + gp.player.solidArea.y + gp.player.solidArea.height) / gp.tileSize;
+    /** Draws one event-type layer (keyed by packed Long) with a given colour and label. */
+    private void drawEventLayer(Graphics2D g2, Map<Long, ?> map,
+                                int playerWorldX, int playerWorldY,
+                                int pScreenX, int pScreenY,
+                                int tileSize, Color color, String label) {
+        g2.setColor(color);
+        for (long k : map.keySet()) {
+            int col = (int)(k >> 32);
+            int row = (int)(k & 0xFFFFFFFFL);
+            int sx  = col * tileSize - playerWorldX + pScreenX;
+            int sy  = row * tileSize - playerWorldY + pScreenY;
+            g2.drawRect(sx, sy, tileSize - 1, tileSize - 1);
+            g2.drawString(label, sx + 3, sy + 13);
+        }
+    }
 
-        for (int row = topRow; row <= bottomRow; row++) {
-            for (int col = leftCol; col <= rightCol; col++) {
-                long key = tileKey(col, row);
-                if (action.test(col, row, key)) {
-                    return true;
-                }
+    private static long tileKey(int col, int row) { return ((long) col << 32) | (row & 0xFFFFFFFFL); }
+
+    @FunctionalInterface
+    private interface TileVisitor {
+        /** Return true to stop iteration (event was consumed). */
+        boolean visit(int col, int row, long key);
+    }
+
+    /**
+     * Iterates all tiles the player's solid area touches and calls the visitor for each.
+     * Returns true (and stops) as soon as the visitor returns true.
+     */
+    private boolean forEachCandidateTile(TileVisitor visitor) {
+        int ts = gp.tileSize;
+        int px = gp.player.worldX + gp.player.solidArea.x;
+        int py = gp.player.worldY + gp.player.solidArea.y;
+        int pw = gp.player.solidArea.width;
+        int ph = gp.player.solidArea.height;
+        int colMin = Math.max(0, px / ts);
+        int colMax = Math.min(gp.maxWorldCol - 1, (px + pw) / ts);
+        int rowMin = Math.max(0, py / ts);
+        int rowMax = Math.min(gp.maxWorldRow - 1, (py + ph) / ts);
+        for (int r = rowMin; r <= rowMax; r++) {
+            for (int c = colMin; c <= colMax; c++) {
+                if (visitor.visit(c, r, tileKey(c, r))) return true;
             }
         }
         return false;
     }
 
-    private static long tileKey(int col, int row) {
-        return ((long) col << 32) | (row & 0xFFFFFFFFL);
+    /** Returns true if the player's solid area overlaps the given tile's full bounds. */
+    private boolean playerOverlapsTile(int col, int row) {
+        int px = gp.player.worldX + gp.player.solidArea.x;
+        int py = gp.player.worldY + gp.player.solidArea.y;
+        int pw = gp.player.solidArea.width;
+        int ph = gp.player.solidArea.height;
+        int tx = col * gp.tileSize;
+        int ty = row * gp.tileSize;
+        return px < tx + gp.tileSize && px + pw > tx
+            && py < ty + gp.tileSize && py + ph > ty;
     }
 
     private EventRect getEventRect(int col, int row) {
