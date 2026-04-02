@@ -154,6 +154,31 @@ public class GamePanel extends JPanel implements Runnable{
     // GLOBAL HIT-STOP: freezes all entities for impactful hits
     public int globalHitstopTimer = 0;
 
+    // CAMERA LOCK: for cutscenes that detach the camera from the player
+    public boolean cameraLocked  = false;
+    public int     cameraWorldX  = 0;   // world X to center on when locked
+    public int     cameraWorldY  = 0;   // world Y to center on when locked
+
+    /** Returns the world X the camera is currently tracking. */
+    public int getCamWorldX() { return cameraLocked ? cameraWorldX : player.worldX; }
+    /** Returns the world Y the camera is currently tracking. */
+    public int getCamWorldY() { return cameraLocked ? cameraWorldY : player.worldY; }
+    /** Returns the screen X offset for world-to-screen projection. Always matches player.screenX. */
+    public int getCamScreenX() { return player.screenX; }
+    /** Returns the screen Y offset for world-to-screen projection. Always matches player.screenY. */
+    public int getCamScreenY() { return player.screenY; }
+    /**
+     * Lock the camera to a world position (tile coordinates).
+     * Use for cutscenes, boss intros, etc. Call unlockCamera() to restore.
+     */
+    public void lockCamera(int tileCol, int tileRow) {
+        cameraWorldX = tileCol * tileSize;
+        cameraWorldY = tileRow * tileSize;
+        cameraLocked = true;
+    }
+    /** Restore the camera to follow the player. */
+    public void unlockCamera() { cameraLocked = false; }
+
     // DAMAGE NUMBERS
     public ObjectPool<entity.DamageNumber> damageNumberPool;
     public java.util.ArrayList<entity.DamageNumber> damageNumbers = new java.util.ArrayList<>();
@@ -652,7 +677,9 @@ public class GamePanel extends JPanel implements Runnable{
             }
             for ( int i = 0 ; i < iTile.length ; i++ ) {
                 if ( iTile[i] != null ) {
-                    iTile[i].update();
+                    if (iTile[i].invincible || isEntityInViewport(iTile[i], tileSize)) {
+                        iTile[i].update();
+                    }
                 }
             }
             eManager.update();

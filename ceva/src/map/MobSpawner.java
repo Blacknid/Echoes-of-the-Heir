@@ -153,9 +153,6 @@ public class MobSpawner {
                 }
             }
         }
-        for (java.awt.Shape s : gp.tileM.collisionShapes) {
-            if (s.intersects(rect)) return true;
-        }
-        return false;
+        return gp.cChecker.rectHitsCollision(rect);
     }
 }

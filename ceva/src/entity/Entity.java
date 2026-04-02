@@ -7,11 +7,9 @@ import java.awt.Rectangle;
 import java.awt.image.BufferedImage;
 import java.io.IOException;
 
-import javax.imageio.ImageIO;
-
 import audio.SFX;
 import main.GamePanel;
-import util.UtilityTool;
+import util.ResourceCache;
 
 public class Entity {
 
@@ -79,6 +77,16 @@ public class Entity {
     int dyingCounter = 0;
     int hpBarCounter = 0;
     public int crowdControlTimer = 0;
+
+    // ── STATUS EFFECTS ──
+    public boolean slowed = false;              // movement speed halved (e.g. Canvas Moth dust)
+    public int     slowedTimer = 0;             // frames remaining
+    public boolean rooted = false;              // cannot move (e.g. Hollow Stump grab)
+    public int     rootedTimer = 0;             // frames remaining
+    public boolean phasing = false;             // toggles invulnerability on a cycle (Portrait Ghost, Drowned Sketch)
+    public int     phasingCycleCounter  = 0;    // current position within the cycle
+    public int     phasingCycleDuration = 180;  // frames per full cycle (half vulnerable, half invulnerable)
+
     public boolean deathRewardsQueued = false;
     public int deathRewardExp = 0;
     public int deathRewardQuestKills = 0;
@@ -150,6 +158,8 @@ public class Entity {
     public boolean fleeing = false;            // AI state: running away from player
     public int fleeCounter = 0;
     public int fleeDuration = 60;
+    public boolean frontalArmor = false;       // blocks 50% of frontal hits (Painted Guard, Painted Crab)
+    public int     rootOnContactDuration = 0; // roots the player on contact for N frames (Hollow Stump)
     public Entity loot;
     public boolean opened = false;
 
@@ -194,6 +204,7 @@ public class Entity {
     public boolean lightSource = false;
     public int lightRadius = 0;
     public java.awt.Color lightColor = null; // custom light tint (null = default orange)
+    public boolean eventLayerLight = false; // transient static light loaded from the TMX Events layer
 
     // TILED / EDITOR METADATA
     public String objectId = null;      // persistent ID set from Tiled 'id' property
@@ -248,6 +259,7 @@ public class Entity {
     public int amount = 1; //stack-ul incepe initial de la 1, fie ca e stackable sau nu
     public float working_power; //cat ia din durabilitatea obiectului (toporul ia mai mult din durabilitatea lemnului decat o sabie)
     public String tool_type; //pentru ce e folosita unealta (topor pentru lemn)
+    public float spriteScale = 1.0f;           // 1.0 = normal size, 2.0 = double (boss phase scaling)
 
     public Entity(GamePanel gp) {
         this.gp = gp;
@@ -377,6 +389,12 @@ public class Entity {
 
             gp.player.life -= damage;
             gp.player.invincible = true;
+
+            // Grab: root the player if this monster has a rootOnContactDuration
+            if (rootOnContactDuration > 0 && !gp.player.rooted) {
+                gp.player.rooted = true;
+                gp.player.rootedTimer = rootOnContactDuration;
+            }
         }
     }
     public Color getParticleColor() {
@@ -459,6 +477,26 @@ public class Entity {
             return;
         }
 
+        // ── STATUS EFFECTS: tick timers ──
+        if (slowedTimer > 0 && --slowedTimer == 0) slowed = false;
+        if (rootedTimer > 0 && --rootedTimer == 0) rooted = false;
+        // Phasing cycle: first half = invulnerable, second half = vulnerable
+        if (phasing) {
+            if (++phasingCycleCounter >= phasingCycleDuration) phasingCycleCounter = 0;
+            boolean shouldBeInvulnerable = phasingCycleCounter < phasingCycleDuration / 2;
+            if (shouldBeInvulnerable != invincible) {
+                invincible = shouldBeInvulnerable;
+                invincibleCounter = 0;
+            }
+        }
+        // Rooted: freeze AI and movement this frame while still ticking other timers
+        if (rooted) {
+            if (invincible) { invincibleCounter++; if (invincibleCounter > invincibleDuration) { invincible = false; invincibleCounter = 0; } }
+            if (hitFlashCounter > 0) hitFlashCounter--;
+            if (shotAvailableCounter < 30) shotAvailableCounter++;
+            return;
+        }
+
         int previousWorldX = worldX;
         int previousWorldY = worldY;
 
@@ -473,11 +511,12 @@ public class Entity {
         // IF COLLISION IS FALSE, MOVE
         // Only run manual movement if pathfinding is NOT active
         if (!collisionOn && !onPath && !staticNPC && !guardMode) {
+            int moveSpeed = slowed ? Math.max(1, speed / 2) : speed;
             switch (direction) {
-                case DIR_UP:    worldY -= speed; break;
-                case DIR_DOWN:  worldY += speed; break;
-                case DIR_LEFT:  worldX -= speed; break;
-                case DIR_RIGHT: worldX += speed; break;
+                case DIR_UP:    worldY -= moveSpeed; break;
+                case DIR_DOWN:  worldY += moveSpeed; break;
+                case DIR_LEFT:  worldX -= moveSpeed; break;
+                case DIR_RIGHT: worldX += moveSpeed; break;
             }
         }
         
@@ -588,8 +627,8 @@ public class Entity {
             worldY + gp.tileSize > gp.player.worldY - gp.player.screenY && 
             worldY - gp.tileSize < gp.player.worldY + gp.player.screenY) {      
 
-            int drawW = gp.tileSize;
-            int drawH = gp.tileSize;
+            int drawW = (int)(gp.tileSize * spriteScale);
+            int drawH = (int)(gp.tileSize * spriteScale);
 
             currentSprite = getWalkFrameImage(direction, spriteNum);
             if (currentSprite == null) {
@@ -617,7 +656,8 @@ public class Entity {
             if (invincible) {
                 hpBarOn = true;
                 hpBarCounter = 0;
-                changeAlpha(g2, 0.4F);
+                // Phasing monsters: more transparent during invulnerable phase
+                changeAlpha(g2, phasing ? 0.25F : 0.4F);
             }
             if (dying) {
                 int deathJitter = Math.max(0, 6 - dyingCounter / 8);
@@ -818,8 +858,7 @@ public class Entity {
     public BufferedImage setup(String imagePath, int width, int height) {
         BufferedImage image = null;
         try {
-            image = ImageIO.read(getClass().getResourceAsStream(imagePath + ".png"));
-            image = UtilityTool.scaleImage(image, width, height);
+            image = ResourceCache.loadScaledImage(imagePath + ".png", width, height);
         } catch(IOException e) {
             e.printStackTrace();
         }
@@ -1054,7 +1093,7 @@ public class Entity {
         BufferedImage sheet;
 
         try {
-            sheet = ImageIO.read(getClass().getResourceAsStream(path + ".png"));
+            sheet = ResourceCache.loadImage(path + ".png");
         } catch (IOException e) {
             throw new RuntimeException("Failed to load spritesheet: " + path, e);
         }

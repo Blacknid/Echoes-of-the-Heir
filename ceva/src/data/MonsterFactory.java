@@ -115,6 +115,15 @@ public class MonsterFactory {
             m.projectile = new object.OBJ_Arrow(gp);
         }
 
+        // New combat properties
+        m.frontalArmor = boolVal(def, "frontalArmor", false);
+        m.rootOnContactDuration = intVal(def, "rootDuration", 0);
+        int phasingCycle = intVal(def, "phasingCycleDuration", 0);
+        if (phasingCycle > 0) {
+            m.phasing = true;
+            m.phasingCycleDuration = phasingCycle;
+        }
+
         // Attach AI behavior
         String monsterAI = def.getOrDefault("aiBehavior", "melee_chase");
         float fleeThreshold = floatVal(def, "fleeThreshold", 0.5f);
@@ -227,5 +236,11 @@ public class MonsterFactory {
         String v = m.get(key);
         if (v == null) return def;
         try { return Float.parseFloat(v); } catch (NumberFormatException e) { return def; }
+    }
+
+    private static boolean boolVal(Map<String, String> m, String key, boolean def) {
+        String v = m.get(key);
+        if (v == null) return def;
+        return "true".equalsIgnoreCase(v);
     }
 }

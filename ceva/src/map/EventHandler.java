@@ -46,31 +46,31 @@ public class EventHandler {
     public final Map<String, int[]>  namedSpawnPoints = new HashMap<>();
 
     // ---- Map transitions -----------------------------------------------------
-    final Map<String, MapTransition> mapTransitions = new HashMap<>();
+    final Map<Long, MapTransition> mapTransitions = new HashMap<>();
 
     // ---- Healing pools -------------------------------------------------------
-    final Map<String, int[]>         healingPools   = new HashMap<>();
+    final Map<Long, int[]>           healingPools   = new HashMap<>();
 
     // ---- Damage traps --------------------------------------------------------
-    final Map<String, DamageTrapData> damageTraps   = new HashMap<>();
+    final Map<Long, DamageTrapData> damageTraps   = new HashMap<>();
 
     // ---- Dialogue triggers ---------------------------------------------------
-    final Map<String, DialogueData>  dialogueTriggers = new HashMap<>();
+    final Map<Long, DialogueData>    dialogueTriggers = new HashMap<>();
 
     // ---- Level gates ---------------------------------------------------------
-    final Map<String, LevelGateData> levelGates    = new HashMap<>();
+    final Map<Long, LevelGateData>   levelGates    = new HashMap<>();
 
     // ---- Checkpoints ---------------------------------------------------------
-    final Map<String, CheckpointData> checkpoints  = new HashMap<>();
+    final Map<Long, CheckpointData>  checkpoints  = new HashMap<>();
 
     // ---- Quest triggers ------------------------------------------------------
-    final Map<String, QuestTriggerData> questTriggers = new HashMap<>();
+    final Map<Long, QuestTriggerData> questTriggers = new HashMap<>();
 
     // ---- Camera shake events -------------------------------------------------
-    final Map<String, String>        cameraShakes  = new HashMap<>();
+    final Map<Long, String>          cameraShakes  = new HashMap<>();
 
     // ---- Memory gates --------------------------------------------------------
-    final Map<String, MemoryGateData> memoryGates = new HashMap<>();
+    final Map<Long, MemoryGateData>  memoryGates = new HashMap<>();
 
     // ---- Spawn zones ---------------------------------------------------------
     final List<SpawnZoneData> spawnZones = new ArrayList<>();
@@ -93,8 +93,11 @@ public class EventHandler {
     }
 
     private static class DamageTrapData {
-        int col, row, damage; boolean repeatable;
-        DamageTrapData(int c, int r, int d, boolean rep) { col=c; row=r; damage=d; repeatable=rep; }
+        int damage;
+        boolean repeatable, triggered;
+        DamageTrapData(int d, boolean rep) {
+            damage=d; repeatable=rep; triggered=false;
+        }
     }
 
     static class DialogueData {
@@ -198,7 +201,7 @@ public class EventHandler {
 
     public void registerMapTransition(int col, int row, String mapId,
                                       int spawnCol, int spawnRow, String spawnId) {
-        mapTransitions.put(key(col, row), new MapTransition(mapId, spawnCol, spawnRow, spawnId));
+        mapTransitions.put(tileKey(col, row), new MapTransition(mapId, spawnCol, spawnRow, spawnId));
     }
 
     /** Legacy overload (no spawnId). */
@@ -207,34 +210,41 @@ public class EventHandler {
     }
 
     public void registerHealingPool(int col, int row) {
-        healingPools.put(key(col, row), new int[]{col, row});
+        healingPools.put(tileKey(col, row), new int[]{col, row});
     }
 
     public void registerDamageTrap(int col, int row, int damage, boolean repeatable) {
-        damageTraps.put(key(col, row), new DamageTrapData(col, row, damage, repeatable));
+        damageTraps.put(tileKey(col, row), new DamageTrapData(damage, repeatable));
     }
 
     public void registerDialogueTrigger(int col, int row, String message,
                                         String speaker, boolean oneShot) {
-        dialogueTriggers.put(key(col, row), new DialogueData(message, speaker, oneShot));
+        dialogueTriggers.put(tileKey(col, row), new DialogueData(message, speaker, oneShot));
+    }
+
+    /** Package-private: registers a pre-created (shared) DialogueData for the given tile.
+     *  Used by MapObjectLoader so that all tiles of a multi-tile trigger share one
+     *  instance — ensuring the oneShot flag is honoured across the entire area. */
+    void registerDialogueTrigger(int col, int row, DialogueData shared) {
+        dialogueTriggers.put(tileKey(col, row), shared);
     }
 
     public void registerLevelGate(int col, int row, int minLevel, String blockedMessage,
                                   String targetMap, int targetCol, int targetRow, String spawnId,
                                   String requiredItem, boolean consumeItem, String requiredFragment) {
-        levelGates.put(key(col, row),
+        levelGates.put(tileKey(col, row),
             new LevelGateData(col, row, minLevel, blockedMessage,
                               targetMap, targetCol, targetRow, spawnId,
                               requiredItem, consumeItem, requiredFragment));
     }
 
     public void registerCheckpoint(int col, int row, boolean silent) {
-        checkpoints.put(key(col, row), new CheckpointData(silent));
+        checkpoints.put(tileKey(col, row), new CheckpointData(silent));
     }
 
     public void registerQuestTrigger(int col, int row, String questId,
                                      int progress, boolean oneShot) {
-        questTriggers.put(key(col, row), new QuestTriggerData(questId, progress, oneShot));
+        questTriggers.put(tileKey(col, row), new QuestTriggerData(questId, progress, oneShot));
     }
 
     /** Register a named spawn point (resolved by doors/transitions after the map loads). */
@@ -245,7 +255,7 @@ public class EventHandler {
     public void registerMemoryGate(int col, int row, int requiredFragments,
                                    String blockedMessage, String targetMap,
                                    int targetCol, int targetRow, String spawnId) {
-        memoryGates.put(key(col, row),
+        memoryGates.put(tileKey(col, row),
             new MemoryGateData(col, row, requiredFragments, blockedMessage,
                                targetMap, targetCol, targetRow, spawnId));
     }
@@ -256,7 +266,7 @@ public class EventHandler {
     }
 
     public void registerCameraShake(int col, int row, String intensity) {
-        cameraShakes.put(key(col, row), intensity);
+        cameraShakes.put(tileKey(col, row), intensity);
     }
 
     public void registerSpawnZone(int worldX, int worldY, int areaW, int areaH,
@@ -393,93 +403,92 @@ public class EventHandler {
 
         if (!canTouchEvent) return;
 
-        // Healing pools
-        for (int[] pos : healingPools.values()) {
-            if (hit(pos[0], pos[1], Entity.DIR_ANY)) {
+        if (forEachCandidateTile((col, row, key) -> {
+            int[] pos = healingPools.get(key);
+            if (pos != null && hit(col, row, Entity.DIR_ANY)) {
                 healingPool(GamePanel.dialogueState);
-                return;
+                return true;
             }
-        }
+            return false;
+        })) return;
 
-        // Damage traps
-        for (DamageTrapData trap : damageTraps.values()) {
-            if (hit(trap.col, trap.row, Entity.DIR_ANY)) {
+        if (forEachCandidateTile((col, row, key) -> {
+            DamageTrapData trap = damageTraps.get(key);
+            if (trap != null && (trap.repeatable || !trap.triggered) && hit(col, row, Entity.DIR_ANY)) {
                 damageTrap(trap);
-                return;
+                return true;
             }
-        }
+            return false;
+        })) return;
 
-        // Dialogue triggers
-        for (Map.Entry<String, DialogueData> entry : dialogueTriggers.entrySet()) {
-            DialogueData data = entry.getValue();
-            if (data.oneShot && data.triggered) continue;
-            String[] parts = entry.getKey().split(",");
-            if (hit(Integer.parseInt(parts[0]), Integer.parseInt(parts[1]), Entity.DIR_ANY)) {
+        if (forEachCandidateTile((col, row, key) -> {
+            DialogueData data = dialogueTriggers.get(key);
+            if (data != null && (!data.oneShot || !data.triggered) && hit(col, row, Entity.DIR_ANY)) {
                 triggerDialogue(data);
-                return;
+                return true;
             }
-        }
+            return false;
+        })) return;
 
-        // Level gates
-        for (LevelGateData gate : levelGates.values()) {
-            if (hit(gate.col, gate.row, Entity.DIR_ANY)) {
+        if (forEachCandidateTile((col, row, key) -> {
+            LevelGateData gate = levelGates.get(key);
+            if (gate != null && hit(col, row, Entity.DIR_ANY)) {
                 triggerLevelGate(gate);
-                return;
+                return true;
             }
-        }
+            return false;
+        })) return;
 
-        // Memory gates
-        for (MemoryGateData mg : memoryGates.values()) {
-            if (hit(mg.col, mg.row, Entity.DIR_ANY)) {
-                triggerMemoryGate(mg);
-                return;
+        if (forEachCandidateTile((col, row, key) -> {
+            MemoryGateData memoryGate = memoryGates.get(key);
+            if (memoryGate != null && hit(col, row, Entity.DIR_ANY)) {
+                triggerMemoryGate(memoryGate);
+                return true;
             }
-        }
+            return false;
+        })) return;
 
-        // Checkpoints
-        for (Map.Entry<String, CheckpointData> entry : checkpoints.entrySet()) {
-            CheckpointData cp = entry.getValue();
-            String[] parts = entry.getKey().split(",");
-            if (hit(Integer.parseInt(parts[0]), Integer.parseInt(parts[1]), Entity.DIR_ANY)) {
+        if (forEachCandidateTile((col, row, key) -> {
+            CheckpointData cp = checkpoints.get(key);
+            if (cp != null && hit(col, row, Entity.DIR_ANY)) {
                 triggerCheckpoint(cp);
-                return;
+                return true;
             }
-        }
+            return false;
+        })) return;
 
-        // Quest triggers
-        for (Map.Entry<String, QuestTriggerData> entry : questTriggers.entrySet()) {
-            QuestTriggerData qt = entry.getValue();
-            if (qt.oneShot && qt.triggered) continue;
-            String[] parts = entry.getKey().split(",");
-            if (hit(Integer.parseInt(parts[0]), Integer.parseInt(parts[1]), Entity.DIR_ANY)) {
+        if (forEachCandidateTile((col, row, key) -> {
+            QuestTriggerData qt = questTriggers.get(key);
+            if (qt != null && (!qt.oneShot || !qt.triggered) && hit(col, row, Entity.DIR_ANY)) {
                 triggerQuestEvent(qt);
-                return;
+                return true;
             }
-        }
+            return false;
+        })) return;
 
-        // Camera shakes
-        for (Map.Entry<String, String> entry : cameraShakes.entrySet()) {
-            String[] parts = entry.getKey().split(",");
-            if (hit(Integer.parseInt(parts[0]), Integer.parseInt(parts[1]), Entity.DIR_ANY)) {
-                applyCameraShake(entry.getValue());
+        if (forEachCandidateTile((col, row, key) -> {
+            String intensity = cameraShakes.get(key);
+            if (intensity != null && hit(col, row, Entity.DIR_ANY)) {
+                applyCameraShake(intensity);
                 touchConsumed();
-                return;
+                return true;
             }
-        }
+            return false;
+        })) return;
 
         // Map transitions (checked last so gameplay events fire first)
-        for (Map.Entry<String, MapTransition> entry : mapTransitions.entrySet()) {
-            String[] parts = entry.getKey().split(",");
-            MapTransition mt = entry.getValue();
-            if (hit(Integer.parseInt(parts[0]), Integer.parseInt(parts[1]), Entity.DIR_ANY)) {
-                lastTriggerCol = Integer.parseInt(parts[0]);
-                lastTriggerRow = Integer.parseInt(parts[1]);
+        forEachCandidateTile((col, row, key) -> {
+            MapTransition mt = mapTransitions.get(key);
+            if (mt != null && hit(col, row, Entity.DIR_ANY)) {
+                lastTriggerCol = col;
+                lastTriggerRow = row;
                 gp.mapManager.nextSpawnId = (mt.spawnId != null) ? mt.spawnId : "";
                 gp.startTransition(mt.mapId, mt.spawnCol, mt.spawnRow);
                 touchConsumed();
-                return;
+                return true;
             }
-        }
+            return false;
+        });
     }
 
     // ---- Event Actions -------------------------------------------------------
@@ -503,7 +512,7 @@ public class EventHandler {
         gp.player.invincible = true;
         gp.player.hitFlashCounter = 6;
         gp.screenShake.shakeMedium();
-        if (!trap.repeatable) trap.repeatable = false; // flag consumed for one-shot variant
+        if (!trap.repeatable) trap.triggered = true;
         touchConsumed();
     }
 
@@ -729,17 +738,15 @@ public class EventHandler {
         g2.setComposite(oldComp);
     }
 
-    /** Draws one event-type layer (keyed by "col,row" strings) with a given colour and label. */
-    private void drawEventLayer(Graphics2D g2, Map<String, ?> map,
+    /** Draws one event-type layer (keyed by packed Long) with a given colour and label. */
+    private void drawEventLayer(Graphics2D g2, Map<Long, ?> map,
                                 int playerWorldX, int playerWorldY,
                                 int pScreenX, int pScreenY,
                                 int tileSize, Color color, String label) {
         g2.setColor(color);
-        for (String k : map.keySet()) {
-            String[] parts = k.split(",");
-            if (parts.length < 2) continue;
-            int col = Integer.parseInt(parts[0]);
-            int row = Integer.parseInt(parts[1]);
+        for (long k : map.keySet()) {
+            int col = (int)(k >> 32);
+            int row = (int)(k & 0xFFFFFFFFL);
             int sx  = col * tileSize - playerWorldX + pScreenX;
             int sy  = row * tileSize - playerWorldY + pScreenY;
             g2.drawRect(sx, sy, tileSize - 1, tileSize - 1);
@@ -747,7 +754,35 @@ public class EventHandler {
         }
     }
 
-    private static String key(int col, int row) { return col + "," + row; }
+    private static long tileKey(int col, int row) { return ((long) col << 32) | (row & 0xFFFFFFFFL); }
+
+    @FunctionalInterface
+    private interface TileVisitor {
+        /** Return true to stop iteration (event was consumed). */
+        boolean visit(int col, int row, long key);
+    }
+
+    /**
+     * Iterates all tiles the player's solid area touches and calls the visitor for each.
+     * Returns true (and stops) as soon as the visitor returns true.
+     */
+    private boolean forEachCandidateTile(TileVisitor visitor) {
+        int ts = gp.tileSize;
+        int px = gp.player.worldX + gp.player.solidArea.x;
+        int py = gp.player.worldY + gp.player.solidArea.y;
+        int pw = gp.player.solidArea.width;
+        int ph = gp.player.solidArea.height;
+        int colMin = Math.max(0, px / ts);
+        int colMax = Math.min(gp.maxWorldCol - 1, (px + pw) / ts);
+        int rowMin = Math.max(0, py / ts);
+        int rowMax = Math.min(gp.maxWorldRow - 1, (py + ph) / ts);
+        for (int r = rowMin; r <= rowMax; r++) {
+            for (int c = colMin; c <= colMax; c++) {
+                if (visitor.visit(c, r, tileKey(c, r))) return true;
+            }
+        }
+        return false;
+    }
 
     /** Returns true if the player's solid area overlaps the given tile's full bounds. */
     private boolean playerOverlapsTile(int col, int row) {

@@ -224,6 +224,9 @@ public class CollisionChecker {
 
         for (int i = 0; i < gp.obj.length; i++) {
             if (gp.obj[i] != null) {
+                // Light sources and other non-interactive markers are never collidable
+                if (gp.obj[i].lightSource) continue;
+
                 // Quick distance pre-filter: skip objects far away
                 int dx = entity.worldX - gp.obj[i].worldX;
                 int dy = entity.worldY - gp.obj[i].worldY;
