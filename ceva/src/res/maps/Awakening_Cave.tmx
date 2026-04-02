@@ -4311,7 +4311,7 @@
    <polygon points="0,-2.45455 0.0909091,11.8636 50.5,11.8333 50.5,-2.5"/>
   </object>
   <object id="54" x="420" y="1.66667">
-   <polyline points="0,0 -23.3333,19.6667 -12,65.3333 40.6667,63.6667 45.3333,542.333 138,541.333 148.5,604.833 393.5,605.833 415.5,575.333 493,577.833 497,638.833 587,637.333 596.333,766.667 860.333,767.333"/>
+   <polyline points="860,478.333 860,-1.66667 -4,-1.66667 -7.36467,3.12976 -12.6466,10.6593 -23.3333,19.6667 -12,65.3333 40.6667,63.6667 45.3333,542.333 138,541.333 148.5,604.833 393.5,605.833 415.5,575.333 493,577.833 497,638.833 587,637.333 596.333,766.667 860.333,767.333"/>
   </object>
  </objectgroup>
  <objectgroup id="13" name="Events">
@@ -4451,6 +4451,20 @@ Keep searching.</property>
     <property name="lightRadius" type="int" value="3"/>
    </properties>
    <point/>
+  </object>
+  <object id="58" x="976" y="100">
+   <properties>
+    <property name="lightColor" value="#6688FF"/>
+    <property name="lightRadius" type="int" value="3"/>
+   </properties>
+   <point/>
+  </object>
+  <object id="60" name="Exit" type="MapTransition" x="1216" y="704" width="32" height="32">
+   <properties>
+    <property name="targetCol" type="int" value="20"/>
+    <property name="targetMap" value="harta"/>
+    <property name="targetRow" type="int" value="20"/>
+   </properties>
   </object>
  </objectgroup>
 </map>

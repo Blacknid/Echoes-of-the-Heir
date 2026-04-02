@@ -134,6 +134,9 @@ public class NPC_Generic extends Entity {
         if (gp.memoryJournal != null) {
             gp.memoryJournal.collect(memoryFragmentId);
         }
+        if ("frag_cave".equals(memoryFragmentId) && gp.questManager != null) {
+            gp.questManager.progress("find_exit", 1);
+        }
 
         // Trigger flashback effect
         if (gp.memoryFlashback != null && memoryFragmentText != null) {

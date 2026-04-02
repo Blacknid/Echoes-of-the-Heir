@@ -1100,17 +1100,33 @@ public class Entity {
 
         int columns = sheet.getWidth() / spriteWidth;
         int rows = sheet.getHeight() / spriteHeight;
+        // Check if there's a partial extra row (e.g. 400px / 128 = 3 but 4th row visible)
+        int remainderH = sheet.getHeight() - rows * spriteHeight;
+        if (remainderH > spriteHeight / 2) {
+            rows++; // include the partial row
+        }
 
         BufferedImage[][] matrix = new BufferedImage[rows][columns];
 
         for (int y = 0; y < rows; y++) {
+            int srcY = y * spriteHeight;
+            int srcH = Math.min(spriteHeight, sheet.getHeight() - srcY);
             for (int x = 0; x < columns; x++) {
-                matrix[y][x] = sheet.getSubimage(
-                        x * spriteWidth,
-                        y * spriteHeight,
-                        spriteWidth,
-                        spriteHeight
-                );
+                if (srcH == spriteHeight) {
+                    matrix[y][x] = sheet.getSubimage(
+                            x * spriteWidth,
+                            srcY,
+                            spriteWidth,
+                            spriteHeight
+                    );
+                } else {
+                    // Partial row: copy into a full-size image
+                    BufferedImage padded = new BufferedImage(spriteWidth, spriteHeight, BufferedImage.TYPE_INT_ARGB);
+                    java.awt.Graphics2D pg = padded.createGraphics();
+                    pg.drawImage(sheet.getSubimage(x * spriteWidth, srcY, spriteWidth, srcH), 0, 0, null);
+                    pg.dispose();
+                    matrix[y][x] = padded;
+                }
             }
         }
 

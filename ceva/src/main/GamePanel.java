@@ -326,7 +326,7 @@ public class GamePanel extends JPanel implements Runnable{
 
     // QUEST SYSTEM
     questManager = new QuestManager(this);
-    questManager.addQuest("find_exit", "Find the Exit", "Search the cave for a way out", 1);
+    questManager.addQuest("find_exit", "Find the Exit", "Retrieve the cave memory fragment", 1);
 
     // MEMORY SYSTEM
     memoryJournal = new data.MemoryJournal();
@@ -738,19 +738,39 @@ public class GamePanel extends JPanel implements Runnable{
             }
 
             if (player.life <= 0) {
-            player.life = 0; // safety clamp
+                // Death-save skills
+                boolean saved = false;
+                if (player.undyingWillUnlocked && player.undyingWillCooldown <= 0) {
+                    player.life = 1;
+                    player.undyingWillCooldown = 5400; // 90 seconds at 60 FPS
+                    player.invincible = true;
+                    ui.addMessage("Undying Will activates!", new java.awt.Color(255, 215, 0));
+                    screenShake.shakeHeavy();
+                    saved = true;
+                } else if (player.secondWindUnlocked && player.secondWindAvailable) {
+                    player.life = Math.max(1, (int)(player.maxLife * 0.3f));
+                    player.secondWindAvailable = false;
+                    player.invincible = true;
+                    ui.addMessage("Second Wind!", new java.awt.Color(100, 200, 100));
+                    screenShake.shakeMedium();
+                    saved = true;
+                }
 
-            if (gameState != gameOverState) {
-                ui.commandNum = 0;
-            }
-            gameState = gameOverState;
+                if (!saved) {
+                    player.life = 0; // safety clamp
 
-            stopMusic();
-            if (!deathSoundPlayed) {
-                playSE(4);
-                deathSoundPlayed = true;
+                    if (gameState != gameOverState) {
+                        ui.commandNum = 0;
+                    }
+                    gameState = gameOverState;
+
+                    stopMusic();
+                    if (!deathSoundPlayed) {
+                        playSE(4);
+                        deathSoundPlayed = true;
+                    }
+                }
             }
-        }
     }
 
     /**

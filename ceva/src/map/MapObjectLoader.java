@@ -558,10 +558,10 @@ public class MapObjectLoader {
         String id = switch (type) {
             case "MON_monster"         -> "mummy";
             case "MON_SkeletonArcher"  -> "skeleton_archer";
-            case "BOSS_WitheredTree"   -> "withered_tree";
-            case "MON_Shade"          -> "shade";
+            case "MON_Shade"           -> "shade";
             case "MON_Inkblot", "Inkblot" -> "inkblot";
-            default                   -> type;
+            case "BOSS_WitheredTree"   -> "withered_tree";
+            default                    -> type;
         };
         Entity m = MonsterFactory.create(gp, id, col, row);
         if (m == null) {
@@ -928,10 +928,10 @@ public class MapObjectLoader {
         String id = switch (type) {
             case "MON_monster"         -> "mummy";
             case "MON_SkeletonArcher"  -> "skeleton_archer";
-            case "BOSS_WitheredTree"   -> "withered_tree";
-            case "MON_Shade"          -> "shade";
+            case "MON_Shade"           -> "shade";
             case "MON_Inkblot", "Inkblot" -> "inkblot";
-            default                   -> type;
+            case "BOSS_WitheredTree"   -> "withered_tree";
+            default                    -> type;
         };
         Entity m = MonsterFactory.create(gp, id, col, row);
         if (m == null) System.out.println("MapObjectLoader: Unknown monster type '" + type + "'");

@@ -29,12 +29,24 @@ public class KeyHandler implements KeyListener {
 
     private int projectileCooldown = 0;
 
+    // Menu navigation key-repeat (bypasses slow OS repeat delay)
+    private boolean menuUp, menuDown, menuLeft, menuRight;
+    private int menuRepeatCounter;
+    private static final int MENU_INITIAL_DELAY = 10; // frames before first repeat (~167ms)
+    private static final int MENU_REPEAT_RATE = 4;    // frames between repeats (~67ms)
+
     public KeyHandler(GamePanel gp) {
         this.gp = gp;
     }
 
     public void keyPressed(KeyEvent e) {
         int code = e.getKeyCode();
+
+        // Track direction keys for menu repeat system
+        if (code == KeyEvent.VK_W || code == KeyEvent.VK_UP)    { menuUp = true;    menuRepeatCounter = MENU_INITIAL_DELAY; }
+        if (code == KeyEvent.VK_S || code == KeyEvent.VK_DOWN)  { menuDown = true;  menuRepeatCounter = MENU_INITIAL_DELAY; }
+        if (code == KeyEvent.VK_A || code == KeyEvent.VK_LEFT)  { menuLeft = true;  menuRepeatCounter = MENU_INITIAL_DELAY; }
+        if (code == KeyEvent.VK_D || code == KeyEvent.VK_RIGHT) { menuRight = true; menuRepeatCounter = MENU_INITIAL_DELAY; }
 
         // TITLE STATE
         if (gp.gameState == GamePanel.titleState) {
@@ -80,10 +92,10 @@ public class KeyHandler implements KeyListener {
 
     public void keyReleased(KeyEvent e) {
         switch (e.getKeyCode()) {
-            case KeyEvent.VK_W, KeyEvent.VK_UP -> upPressed = false;
-            case KeyEvent.VK_S, KeyEvent.VK_DOWN -> downPressed = false;
-            case KeyEvent.VK_A, KeyEvent.VK_LEFT -> leftPressed = false;
-            case KeyEvent.VK_D, KeyEvent.VK_RIGHT -> rightPressed = false;
+            case KeyEvent.VK_W, KeyEvent.VK_UP -> { upPressed = false; menuUp = false; }
+            case KeyEvent.VK_S, KeyEvent.VK_DOWN -> { downPressed = false; menuDown = false; }
+            case KeyEvent.VK_A, KeyEvent.VK_LEFT -> { leftPressed = false; menuLeft = false; }
+            case KeyEvent.VK_D, KeyEvent.VK_RIGHT -> { rightPressed = false; menuRight = false; }
             case KeyEvent.VK_F -> shotKeyPressed = false;
             case KeyEvent.VK_SPACE, KeyEvent.VK_SHIFT -> dashPressed = false;
             case KeyEvent.VK_Z -> shockwavePressed = false;
@@ -738,5 +750,75 @@ public class KeyHandler implements KeyListener {
         // Reduce cooldowns every game tick
         if (projectileCooldown > 0) projectileCooldown--;
         if (teleportCooldown > 0) teleportCooldown--;
+
+        // Menu navigation key repeat
+        if (isInMenuState() && (menuUp || menuDown || menuLeft || menuRight)) {
+            if (menuRepeatCounter > 0) {
+                menuRepeatCounter--;
+            } else {
+                fireMenuNavigation();
+                menuRepeatCounter = MENU_REPEAT_RATE;
+            }
+        }
+    }
+
+    private boolean isInMenuState() {
+        int s = gp.gameState;
+        return s == GamePanel.characterState || s == GamePanel.levelUpState ||
+               s == GamePanel.skillTreeState || s == GamePanel.optionsState ||
+               s == GamePanel.journalState   || s == GamePanel.gameOverState;
+    }
+
+    private void fireMenuNavigation() {
+        int state = gp.gameState;
+
+        if (state == GamePanel.characterState) {
+            if (menuUp    && gp.ui.slotRow > 0) { gp.ui.slotRow--; gp.playSE(SFX.MENU_CURSOR); }
+            if (menuDown  && gp.ui.slotRow < 3) { gp.ui.slotRow++; gp.playSE(SFX.MENU_CURSOR); }
+            if (menuLeft  && gp.ui.slotCol > 0) { gp.ui.slotCol--; gp.playSE(SFX.MENU_CURSOR); }
+            if (menuRight && gp.ui.slotCol < 4) { gp.ui.slotCol++; gp.playSE(SFX.MENU_CURSOR); }
+        }
+        else if (state == GamePanel.levelUpState) {
+            if (menuUp) {
+                gp.player.levelUpChoice--;
+                if (gp.player.levelUpChoice < 0) gp.player.levelUpChoice = 2;
+                gp.playSE(SFX.MENU_SELECT);
+            }
+            if (menuDown) {
+                gp.player.levelUpChoice++;
+                if (gp.player.levelUpChoice > 2) gp.player.levelUpChoice = 0;
+                gp.playSE(SFX.MENU_SELECT);
+            }
+        }
+        else if (state == GamePanel.skillTreeState) {
+            if (menuUp)    { gp.player.skillTree.moveSelection(gp.player, 0, -1); gp.playSE(SFX.MENU_CURSOR); }
+            if (menuDown)  { gp.player.skillTree.moveSelection(gp.player, 0,  1); gp.playSE(SFX.MENU_CURSOR); }
+            if (menuLeft)  { gp.player.skillTree.moveSelection(gp.player, -1, 0); gp.playSE(SFX.MENU_CURSOR); }
+            if (menuRight) { gp.player.skillTree.moveSelection(gp.player,  1, 0); gp.playSE(SFX.MENU_CURSOR); }
+        }
+        else if (state == GamePanel.optionsState) {
+            int maxCmd = switch (gp.ui.subState) { case 0 -> 7; case 3 -> 1; default -> 0; };
+            if (menuUp)   gp.ui.commandNum = (gp.ui.commandNum - 1 + maxCmd + 1) % (maxCmd + 1);
+            if (menuDown) gp.ui.commandNum = (gp.ui.commandNum + 1) % (maxCmd + 1);
+            if (menuLeft)  adjustOptionsVolume(-1);
+            if (menuRight) adjustOptionsVolume(1);
+        }
+        else if (state == GamePanel.journalState) {
+            if (menuUp) {
+                gp.ui.journalSelectedIndex--;
+                if (gp.ui.journalSelectedIndex < 0) gp.ui.journalSelectedIndex = 0;
+            }
+            if (menuDown && gp.memoryJournal != null) {
+                int max = gp.memoryJournal.getAllSorted().size() - 1;
+                gp.ui.journalSelectedIndex++;
+                if (gp.ui.journalSelectedIndex > max) gp.ui.journalSelectedIndex = max;
+            }
+        }
+        else if (state == GamePanel.gameOverState) {
+            if (menuUp || menuDown) {
+                gp.ui.commandNum = 1 - gp.ui.commandNum;
+                gp.playSE(SFX.MENU_SELECT);
+            }
+        }
     }
 }

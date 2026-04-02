@@ -4,3 +4,10 @@ config.txt
 save.dat
 ceva/server/saves.db
 ceva/bin/*
+local_aes.key
+local_save.dat
+Michi-s-adventure.jar
+save.dat
+servers.txt
+config.txt
+.vscode/*

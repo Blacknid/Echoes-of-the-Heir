@@ -39,7 +39,9 @@ public class Projectile extends Entity implements Poolable {
                     int kb = Math.max(1, this.speed / 3);
                     gp.player.knockBack(gp.monster[monsterIndex], kb, worldX, worldY);
                 }
-                generateParticle(user.projectile, gp.monster[monsterIndex]);
+                if (user.projectile != null) {
+                    generateParticle(user.projectile, gp.monster[monsterIndex]);
+                }
                 alive = false;
             }
             // Check NPCs as well (Eye is implemented as an NPC). Only apply
@@ -54,7 +56,9 @@ public class Projectile extends Entity implements Poolable {
                         int damage = this.attack - gp.npc[npcIndex].defense;
                         if (damage < 0) damage = 0;
                         gp.npc[npcIndex].life -= damage;
-                        generateParticle(user.projectile, gp.npc[npcIndex]);
+                        if (user.projectile != null) {
+                            generateParticle(user.projectile, gp.npc[npcIndex]);
+                        }
                         gp.npc[npcIndex].invincible = true;
                         gp.npc[npcIndex].damageReaction();
                         if (gp.npc[npcIndex].life <= 0) {
@@ -80,7 +84,9 @@ public class Projectile extends Entity implements Poolable {
                 gp.player.bleed();
                 gp.screenShake.shakeLight();
                 gp.playSE(SFX.PLAYER_HIT);
-                generateParticle(user.projectile, gp.player);
+                if (user.projectile != null) {
+                    generateParticle(user.projectile, gp.player);
+                }
                 alive = false;
             }
         }
