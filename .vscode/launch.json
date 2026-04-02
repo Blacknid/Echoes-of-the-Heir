@@ -1,21 +1,40 @@
 {
-    "version": "0.2.0",
-    "configurations": [
+  "version": "0.2.0",
+  "configurations": [
+    {
+      "type": "java",
+      "name": "Main",
+      "request": "launch",
+      "mainClass": "main.Main",
+      "classPaths": [
+        "${workspaceFolder}/ceva/bin",
+        "${workspaceFolder}/ceva/src"
+      ],
+      "sourcePaths": [
+        "${workspaceFolder}/ceva/src"
+      ],
+      "cwd": "${workspaceFolder}",
+      "preLaunchTask": "Compile",
+      "vmArgs": "-Dsun.java2d.opengl=True"
+    },
+    {
+      "name": "C/C++ Runner: Debug Session",
+      "type": "cppdbg",
+      "request": "launch",
+      "args": [],
+      "stopAtEntry": false,
+      "externalConsole": true,
+      "cwd": "c:/Michi-s-adventure/ceva/src",
+      "program": "c:/Michi-s-adventure/ceva/src/build/Debug/outDebug",
+      "MIMode": "gdb",
+      "miDebuggerPath": "gdb",
+      "setupCommands": [
         {
-            "type": "java",
-            "name": "Main",
-            "request": "launch",
-            "mainClass": "main.Main",
-            "classPaths": [
-                "${workspaceFolder}/ceva/bin",
-                "${workspaceFolder}/ceva/src"
-            ],
-            "sourcePaths": [
-                "${workspaceFolder}/ceva/src"
-            ],
-            "cwd": "${workspaceFolder}",
-            "preLaunchTask": "Compile",
-            "vmArgs": "-Dsun.java2d.opengl=True"
+          "description": "Enable pretty-printing for gdb",
+          "text": "-enable-pretty-printing",
+          "ignoreFailures": true
         }
-    ]
+      ]
+    }
+  ]
 }

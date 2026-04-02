@@ -42,7 +42,6 @@
     "deathQuestKills": 1
   },
   {
-<<<<<<< HEAD
     "id": "withered_tree",
     "name": "The Withered Tree",
     "maxLife": 80,
@@ -61,7 +60,8 @@
     "deathCoins": 10,
     "deathQuestKills": 1,
     "isBoss": true
-=======
+  },
+  {
     "id": "shade",
     "name": "Shade",
     "maxLife": 4,
@@ -79,6 +79,5 @@
     "fleeDuration": 0,
     "deathCoins": 0,
     "deathQuestKills": 1
->>>>>>> b606fee9f1bb89387e45f5e6c81440e75ec43a77
   }
 ]

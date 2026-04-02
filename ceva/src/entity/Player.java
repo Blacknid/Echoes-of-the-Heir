@@ -80,6 +80,18 @@ public class Player extends Entity {
     public boolean voidSnareUnlocked = false;
     public boolean frostNovaUnlocked = false;
     public boolean overdriveUnlocked = false;
+    public boolean soulReaperUnlocked = false;
+    public boolean berserkerFuryUnlocked = false;
+    public boolean shadowStepUnlocked = false;
+    public boolean manaSiphonUnlocked = false;
+    public boolean manaShieldUnlocked = false;
+    public boolean thornsUnlocked = false;
+    public boolean secondWindUnlocked = false;
+    public boolean secondWindAvailable = true;
+    public boolean vampiricStrikeUnlocked = false;
+    public boolean lastStandUnlocked = false;
+    public boolean undyingWillUnlocked = false;
+    public int undyingWillCooldown = 0;
 
     // In-world level-up animation state
     public int levelUpBannerTimer = 0;
@@ -173,6 +185,18 @@ public class Player extends Entity {
         voidSnareUnlocked = false;
         frostNovaUnlocked = false;
         overdriveUnlocked = false;
+        soulReaperUnlocked = false;
+        berserkerFuryUnlocked = false;
+        shadowStepUnlocked = false;
+        manaSiphonUnlocked = false;
+        manaShieldUnlocked = false;
+        thornsUnlocked = false;
+        secondWindUnlocked = false;
+        secondWindAvailable = true;
+        vampiricStrikeUnlocked = false;
+        lastStandUnlocked = false;
+        undyingWillUnlocked = false;
+        undyingWillCooldown = 0;
         levelUpBannerTimer = 0;
         levelUpBannerText = "";
         shockwaveCooldown = 0;
@@ -323,6 +347,26 @@ public class Player extends Entity {
                 evadeRecovery = EVADE_RECOVERY_FRAMES;
                 spawnDashBurst(false);
                 invincibleCounter = 54; // tight grace period (~6 real i-frames)
+                // Shadow Step: damage nearby enemies at end of dash
+                if (shadowStepUnlocked) {
+                    for (int si = 0; si < gp.monster.length; si++) {
+                        Entity m = gp.monster[si];
+                        if (m != null && m.alive && !m.dying && !m.invincible) {
+                            int sdx = Math.abs(getCenterX() - m.getCenterX());
+                            int sdy = Math.abs(getCenterY() - m.getCenterY());
+                            if (sdx < gp.tileSize * 2 && sdy < gp.tileSize * 2) {
+                                int dmg = Math.max(1, (int)(attack * getTotalMeleeMultiplier()) - m.defense);
+                                m.life -= dmg;
+                                m.invincible = true;
+                                m.hitFlashCounter = 6;
+                                m.damageReaction();
+                                spawnDamageNumber(m, dmg, false);
+                                if (m.life <= 0) killMonster(m);
+                            }
+                        }
+                    }
+                    gp.screenShake.shakeLight();
+                }
             }
         }
         // Post-evade recovery: regain footing
@@ -341,6 +385,7 @@ public class Player extends Entity {
         if (voidSnareCooldown > 0) voidSnareCooldown--;
         if (frostNovaCooldown > 0) frostNovaCooldown--;
         if (overdriveCooldown > 0) overdriveCooldown--;
+        if (undyingWillCooldown > 0) undyingWillCooldown--;
 
         if (overdriveTimer > 0) {
             overdriveTimer--;
@@ -799,6 +844,14 @@ public class Player extends Entity {
 
                 gp.monster[i].invincible = true;
                 gp.monster[i].damageReaction();
+                // Mana Siphon: restore 1 mana on melee hit
+                if (manaSiphonUnlocked && mana < maxMana) {
+                    mana++;
+                }
+                // Vampiric Strike: 15% chance to heal 1 HP on melee hit
+                if (vampiricStrikeUnlocked && Math.random() < 0.15 && life < maxLife) {
+                    life++;
+                }
                 if (gp.monster[i].life <= 0) {
                     killMonster(gp.monster[i]);
                 }
@@ -988,6 +1041,10 @@ public class Player extends Entity {
         int coinDrop = Math.max(1, monster.exp / 2);
         monster.beginDeath(monster.exp, 1, coinDrop);
         gp.screenShake.shakeMedium();
+        // Soul Reaper: heal 1 HP on kill
+        if (soulReaperUnlocked && life < maxLife) {
+            life++;
+        }
     }
 
     /**
@@ -1026,7 +1083,16 @@ public class Player extends Entity {
             }
             gp.playSE(SFX.PLAYER_HIT);
             int damage = gp.monster[i].attack - defense;
+            // Last Stand: +3 defense when below 20% HP
+            if (lastStandUnlocked && life <= maxLife * 0.2f) {
+                damage -= 3;
+            }
             damage = (int)(damage * damageTakenMultiplier);
+            // Mana Shield: spend 2 mana to block 2 damage
+            if (manaShieldUnlocked && mana >= 2 && damage > 1) {
+                mana -= 2;
+                damage = Math.max(1, damage - 2);
+            }
             // Only player bleeds when taking damage (removed generateParticle for monster)
             bleed(); // Generate blood particles on player
             if (damage < 1) {
@@ -1034,6 +1100,14 @@ public class Player extends Entity {
             }
             life -= damage;
             invincible = true;
+            // Thorns: reflect 2 damage to attacker
+            if (thornsUnlocked && gp.monster[i] != null) {
+                gp.monster[i].life -= 2;
+                gp.monster[i].hitFlashCounter = 4;
+                if (gp.monster[i].life <= 0) {
+                    killMonster(gp.monster[i]);
+                }
+            }
 
             // HIT FLASH + SHAKE + HITSTOP when player takes damage
             hitFlashCounter = 6;
@@ -1050,7 +1124,11 @@ public class Player extends Entity {
             // monster hit power is roughly its attack value (smaller)
             int kb = (gp.monster[i].attack + 1) / 2;
             if (kb < 1) kb = 1;
-            knockBack(this, kb, gp.monster[i].worldX, gp.monster[i].worldY);
+            // Last Stand: immune to knockback when below 20% HP
+            if (lastStandUnlocked && life > 0 && life <= maxLife * 0.2f) {
+                kb = 0;
+            }
+            if (kb > 0) knockBack(this, kb, gp.monster[i].worldX, gp.monster[i].worldY);
         }
     }
 
@@ -1233,9 +1311,7 @@ public class Player extends Entity {
                         hasKey++;
                         gp.obj[i] = null;
                         gp.ui.addMessage("You got a key!", Color.WHITE);
-                        if (gp.questManager != null) {
-                            gp.questManager.progress("find_keys", 1);
-                        }
+
                     }
                     case "Tent" -> {
                         gp.playSE(SFX.EQUIP);
@@ -1699,6 +1775,9 @@ public class Player extends Entity {
         if (overdriveTimer > 0) {
             total *= 1.35f;
         }
+        if (berserkerFuryUnlocked && life <= maxLife * 0.3f) {
+            total *= 1.5f;
+        }
         return total;
     }
 
@@ -1732,6 +1811,25 @@ public class Player extends Entity {
                 maxMana += 3;
                 mana = maxMana;
             }
+            case "SOUL_REAPER" -> soulReaperUnlocked = true;
+            case "BERSERKER_FURY" -> berserkerFuryUnlocked = true;
+            case "SHADOW_STEP" -> shadowStepUnlocked = true;
+            case "MOMENTUM" -> {
+                defaultSpeed += 1;
+                speed = defaultSpeed;
+                dashCooldownBonus += 10;
+            }
+            case "MANA_SIPHON" -> manaSiphonUnlocked = true;
+            case "MANA_SHIELD" -> manaShieldUnlocked = true;
+            case "THICK_SKIN" -> defense += 1;
+            case "THORNS" -> thornsUnlocked = true;
+            case "SECOND_WIND" -> {
+                secondWindUnlocked = true;
+                secondWindAvailable = true;
+            }
+            case "VAMPIRIC_STRIKE" -> vampiricStrikeUnlocked = true;
+            case "LAST_STAND" -> lastStandUnlocked = true;
+            case "UNDYING_WILL" -> undyingWillUnlocked = true;
             default -> {
                 return;
             }
