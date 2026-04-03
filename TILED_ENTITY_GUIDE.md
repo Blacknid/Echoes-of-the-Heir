@@ -73,6 +73,7 @@ The `type` property (Tiled 1.8) or `class` attribute (Tiled 1.9+) identifies the
 | `facing` | String | Initial direction: `up` `down` `left` `right` |
 | `id` | String | Persistent object ID (used by quests/save system to track state) |
 | `invisible` | bool | `true` = skip rendering (useful for invisible trigger entities) |
+| `removeOnPickup` | bool | For touch-pickups in the `Objects` layer. `true` = remove the world object after a successful pickup. Default is `true`. |
 
 ---
 
@@ -101,9 +102,34 @@ Place **Point** objects (`P` key in Tiled) for all items.
 | `Mana` | Mana crystal | — |
 | `Arrow` | Arrow ammo | `amount` (int) |
 | `Compas` | Compass item | — |
+| `Item` | Any ItemFactory item | `itemId` (String, recommended), `factoryId` (String, alias), `amount` (int for stackables), `removeOnPickup` (bool) |
 
 #### Loot Names (for Chest `loot` property)
 `Compas` | `Key` | `Potion` | `Boots` | `Gem` | `Sword` | `Shield`
+
+#### Recommended Data-Driven Item Workflow
+
+For new pickups, prefer this pattern instead of adding new Java classes:
+
+```xml
+type   = Item
+itemId = bandage
+amount = 1
+removeOnPickup = true
+```
+
+- `itemId` loads an item from `res/data/items.json`
+- `factoryId` is supported as an alias for `itemId`
+- `removeOnPickup` defaults to `true`, which is what you want for normal pickups like Bandages, Potions, Coins, etc.
+- If you set `removeOnPickup=false`, the object stays on the map after pickup. Use that only when you intentionally want a reusable pickup.
+- Chests also support `lootId` as a future-proof alias for `loot`
+- Legacy object types like `Potion`, `Sword`, `Shield`, `Key` still work
+
+### Best Practice
+
+- Use `type=Item` + `itemId=...` for ordinary floor pickups.
+- Leave `removeOnPickup=true` for those pickups so the player only gets them once.
+- Use `type=Chest` for containers. Chests are interactable objects, not touch-pickups, so they do not need `removeOnPickup` for normal usage.
 
 ---
 
@@ -132,16 +158,21 @@ Place **Point** objects. All NPCs also accept the common entity properties (`fac
 
 | `type` | Creates |
 |---|---|
-| `NPC_Alucard` | Alucard (currently the only NPC type) |
+| `NPC_Alucard` | Alucard-style scripted NPC |
+| `NPC_Generic` | Fully data-driven NPC recommended for new content |
 
 ### NPC Properties
 
 | Property | Tiled Type | Default | Description |
 |---|---|---|---|
+| `sprite` | String | — | Walk-sheet resource path for `NPC_Generic`, without `.png` (example: `/res/npc/Alucard_walking-sheet`) |
+| `idleSprite` | String | — | Optional idle-sheet resource path for `NPC_Generic` |
 | `dialogue0`–`dialogue4` | String | *(built-in)* | Override the **first line** of dialogue set 0–4. Use `\n` for line breaks. Does not replace later lines in that set. |
+| `dialogue_<set>_<line>` | String | — | Full data-driven dialogue lines. Example: `dialogue_2_1 = Thank you.` |
 | `wanderRadius` | int | `0` (free) | Max pixel distance the NPC may wander from its spawn point. `0` = unlimited wander. |
 | `staticNPC` | bool | `false` | `true` = NPC stands still forever — no wander, no pathfinding. Ideal for town signs, stationary quest-givers. |
 | `guardMode` | bool | `false` | Like `staticNPC` but the NPC also turns to face the player every tick. Stays locked until `onPath = true` is set in code (e.g. after a speak/quest trigger). Use for guards, sentinels, or immobile watchers. |
+| `idleDirection` | int | `-1` | Forced idle direction. `0`=down `1`=left `2`=right `3`=up |
 | `walkToCol` | int | `-1` | After the player interacts with this NPC, it walks to this tile column. On arrival it re-enters `guardMode` automatically. Requires `guardMode = true` and the NPC's `speak()` to set `onPath = true`. |
 | `walkToRow` | int | `-1` | Tile row partner of `walkToCol`. Both must be set for the walk to trigger. |
 | `walkToDialogueSet` | int | `-1` | Dialogue set index (0-based) to use permanently after the NPC arrives at `walkTo` destination. Leave at `-1` to keep the existing conditional logic. |
@@ -153,8 +184,105 @@ Place **Point** objects. All NPCs also accept the common entity properties (`fac
 | `name` | String | *(type name)* | Display name shown in the dialogue UI header. |
 | `onSpeakQuestId` | String | — | Quest ID to auto-progress when the player talks to this NPC. Must match a quest added via `QuestManager.addQuest()`. |
 | `onSpeakQuestAmount` | int | `1` | How much to add to the quest counter each time the player talks to this NPC. Requires `onSpeakQuestId` to be set. |
-| `requiredItem` | String | — | Item name the player must have in inventory to trigger the alternate dialogue set (e.g. `Dark Heart`, `Key`). |
-| `requiredItemDialogueSet` | int | `0` | Which dialogue set to use when the player has the required item. Requires `requiredItem` to be set. |
+| `giftItem` | String | — | ItemFactory ID given the first time the player talks to the NPC. Recommended alias for `giveItem`. |
+| `giftDialogueSet` | int | `0` | Dialogue set used when `giftItem` is handed over. Alias for `giveItemDialogueSet`. |
+| `giftQuestId` | String | — | Quest ID added when `giftItem` is given. Alias for `giveItemQuestId`. |
+| `giftQuestName` | String | — | Quest name shown in the log when the quest starts. Alias for `giveItemQuestName`. |
+| `giftQuestDesc` | String | `""` | Quest description shown in the log. Alias for `giveItemQuestDesc`. |
+| `giftQuestTarget` | int | `1` | Quest completion target. Alias for `giveItemQuestTarget`. |
+| `deliveryItem` | String | — | Required item for the return/delivery phase. Recommended alias for `requiredItem`. Can match either inventory item name or ItemFactory `itemId`. |
+| `deliveryDialogueSet` | int | `0` | Dialogue set used when the player returns with `deliveryItem`. Alias for `requiredItemDialogueSet`. |
+| `deliveryConsumeItem` | bool | `false` | Remove the delivered item from inventory when the delivery triggers. Alias for `requiredItemConsumed`. |
+| `deliveryQuestId` | String | — | Quest to progress when the delivery succeeds. Alias for `requiredItemQuestId`. |
+| `deliveryQuestAmount` | int | `1` | Amount added to `deliveryQuestId` when the delivery succeeds. Alias for `requiredItemQuestAmount`. |
+| `deliveryPostDialogueSet` | int | `-1` | Dialogue set used on all future talks after the delivery is complete. Alias for `requiredItemPostQuestSet`. |
+| `deliveryRewardCoins` | int | `0` | Coins granted once when the delivery succeeds. Alias for `requiredItemRewardCoins`. |
+| `deliveryRewardItem` | String | — | ItemFactory ID granted once when the delivery succeeds. Alias for `requiredItemRewardItem`. |
+| `deliveryRewardFragmentId` | String | — | Memory Fragment ID granted once when the delivery succeeds. Alias for `requiredItemRewardFragmentId`. |
+| `giveItem` | String | — | Legacy name for `giftItem` |
+| `giveItemDialogueSet` | int | `0` | Legacy name for `giftDialogueSet` |
+| `giveItemQuestId` | String | — | Legacy name for `giftQuestId` |
+| `giveItemQuestName` | String | — | Legacy name for `giftQuestName` |
+| `giveItemQuestDesc` | String | — | Legacy name for `giftQuestDesc` |
+| `giveItemQuestTarget` | int | `1` | Legacy name for `giftQuestTarget` |
+| `requiredItem` | String | — | Legacy name for `deliveryItem` |
+| `requiredItemDialogueSet` | int | `0` | Legacy name for `deliveryDialogueSet` |
+| `requiredItemConsumed` | bool | `false` | Legacy name for `deliveryConsumeItem` |
+| `requiredItemQuestId` | String | — | Legacy name for `deliveryQuestId` |
+| `requiredItemQuestAmount` | int | `1` | Legacy name for `deliveryQuestAmount` |
+| `requiredItemPostQuestSet` | int | `-1` | Legacy name for `deliveryPostDialogueSet` |
+| `requiredItemRewardCoins` | int | `0` | Legacy name for `deliveryRewardCoins` |
+| `requiredItemRewardItem` | String | — | Legacy name for `deliveryRewardItem` |
+| `requiredItemRewardFragmentId` | String | — | Legacy name for `deliveryRewardFragmentId` |
+| `giveItem2` | String | — | Existing follow-up reward item after walk/help logic finishes |
+| `giveItem2DialogueSet` | int | `-1` | Dialogue set used for `giveItem2` |
+| `dialogueChoices` | String | — | Pipe-separated choice labels, example: `Accept|Refuse` |
+| `choiceNextSet` | String | — | Pipe-separated next dialogue sets, example: `1|4` |
+| `choiceResultKey` | String | — | Stores which choice was made under a reusable key |
+| `memoryFragmentId` | String | — | Registers and awards a fragment from this NPC using the memory system |
+| `memoryFragmentName` | String | `memoryFragmentId` | Display name for the fragment |
+| `memoryText0`–`memoryText4` | String | — | Up to 5 flashback lines for the fragment |
+| `fragmentOrder` | int | `99` | Story ordering position in the Memory Journal |
+| `fragmentSource` | String | NPC name | Source label in the Memory Journal |
+| `fragmentRequiredCount` | int | `0` | Minimum total fragments required before this fragment can be claimed |
+| `fragmentRequiredItem` | String | — | Item needed before this fragment can be claimed |
+| `fragmentRequiredBoss` | int | `-1` | Boss number that must be defeated before this fragment can be claimed |
+| `fragmentRequiredQuest` | String | — | Quest ID that must be complete before this fragment can be claimed |
+
+### Recommended NPC Patterns
+
+#### 1. Simple Static Talker
+
+```xml
+type      = NPC_Generic
+staticNPC = true
+name      = Villager
+sprite    = /res/npc/Alucard_walking-sheet
+dialogue_0_0 = Welcome to the village.
+```
+
+#### 2. Gift Then Return Item Quest
+
+```xml
+type                    = NPC_Generic
+name                    = Sword Giver
+guardMode               = true
+sprite                  = /res/npc/Alucard_walking-sheet
+
+giftItem                = sword_normal
+giftDialogueSet         = 0
+giftQuestId             = sword_giver_bandage
+giftQuestName           = Aid the Sword Giver
+giftQuestDesc           = A wounded traveler needs a bandage.
+giftQuestTarget         = 1
+
+walkToDialogueSet       = 1
+
+deliveryItem            = bandage
+deliveryDialogueSet     = 2
+deliveryConsumeItem     = true
+deliveryQuestId         = sword_giver_bandage
+deliveryPostDialogueSet = 3
+deliveryRewardCoins     = 25
+```
+
+This produces a 4-phase flow:
+- First talk: NPC gives item and starts the quest
+- Waiting phase: NPC asks for the return item
+- Delivery phase: NPC consumes the item and rewards the player
+- Post-quest phase: NPC switches to a permanent completed dialogue
+
+#### 3. Generic Reward Delivery
+
+```xml
+deliveryItem            = bandage
+deliveryConsumeItem     = true
+deliveryRewardCoins     = 10
+deliveryRewardItem      = potion
+deliveryRewardFragmentId = frag_forest
+```
+
+Use any combination of the reward properties. They all fire once when the delivery succeeds.
 
 **Example — a static village elder who advances a quest on first talk:**
 ```

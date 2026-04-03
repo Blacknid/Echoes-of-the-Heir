@@ -137,12 +137,13 @@ public class Lightning {
         float playerTileColF = (float) gp.player.worldX / gp.tileSize;
         float playerTileRowF = (float) gp.player.worldY / gp.tileSize;
 
-        int screenTilesX = (screenWidth  / gp.tileSize) / 2 + 2;
-        int screenTilesY = (screenHeight / gp.tileSize) / 2 + 2;
-        int leftCol   = viewCenterCol - screenTilesX;
-        int rightCol  = viewCenterCol + screenTilesX;
-        int topRow    = viewCenterRow - screenTilesY;
-        int bottomRow = viewCenterRow + screenTilesY;
+        // Compute visible tile range from actual camera position (handles off-center player from clamping)
+        int cameraWX = gp.player.worldX - gp.player.screenX;
+        int cameraWY = gp.player.worldY - gp.player.screenY;
+        int leftCol   = cameraWX / gp.tileSize - 2;
+        int rightCol  = (cameraWX + screenWidth) / gp.tileSize + 2;
+        int topRow    = cameraWY / gp.tileSize - 2;
+        int bottomRow = (cameraWY + screenHeight) / gp.tileSize + 2;
 
         // Pre-compute torch data to avoid inner-loop array access
         int torchCount = 0;

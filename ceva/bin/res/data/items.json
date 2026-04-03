@@ -47,5 +47,14 @@
     "description": "Ancient compass.\nTeleports you to a save point.",
     "sprite": "/res/objects/Compas",
     "solidArea": { "x": 18, "y": 18, "w": 28, "h": 28 }
+  },
+  {
+    "id": "bandage",
+    "name": "Bandage",
+    "type": "buffs",
+    "stackable": true,
+    "description": "Clean cloth wraps.\nUseful for helping the wounded.",
+    "sprite": "/res/objects/Bandage",
+    "solidArea": { "x": 18, "y": 18, "w": 28, "h": 28 }
   }
 ]

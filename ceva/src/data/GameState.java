@@ -64,6 +64,11 @@ public class GameState implements Serializable {
     // NPC / QUEST STATE
     public ArrayList<String> claimedNPCFragments = new ArrayList<>();
     public ArrayList<String> completedSideQuests = new ArrayList<>();
+    public ArrayList<String> questIds = new ArrayList<>();
+    public ArrayList<String> questNames = new ArrayList<>();
+    public ArrayList<String> questDescriptions = new ArrayList<>();
+    public ArrayList<Integer> questProgress = new ArrayList<>();
+    public ArrayList<Integer> questTargets = new ArrayList<>();
     public ArrayList<String> dialogueChoicesMade = new ArrayList<>(); // key=value pairs
 
     // SYNC

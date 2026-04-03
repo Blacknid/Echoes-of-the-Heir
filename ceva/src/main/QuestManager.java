@@ -12,6 +12,22 @@ import java.util.ArrayList;
  */
 public class QuestManager {
 
+    public static class QuestState {
+        public final String id;
+        public final String name;
+        public final String description;
+        public final int current;
+        public final int target;
+
+        public QuestState(String id, String name, String description, int current, int target) {
+            this.id = id;
+            this.name = name;
+            this.description = description;
+            this.current = current;
+            this.target = target;
+        }
+    }
+
     private final GamePanel gp;
     private final ArrayList<Quest> quests = new ArrayList<>();
     private boolean logOpen = false;
@@ -47,11 +63,46 @@ public class QuestManager {
 
     /** Add a new quest. */
     public void addQuest(String id, String name, String description, int target) {
+        addQuest(id, name, description, target, 0, true);
+    }
+
+    public void restoreQuest(String id, String name, String description, int target, int current) {
+        addQuest(id, name, description, target, current, false);
+    }
+
+    public void clearQuests() {
+        quests.clear();
+    }
+
+    public boolean hasQuest(String id) {
         for (Quest q : quests) {
-            if (q.id.equals(id)) return; // don't duplicate
+            if (q.id.equals(id)) return true;
         }
-        quests.add(new Quest(id, name, description, target));
-        gp.ui.addMessage("New quest: " + name, new Color(255, 220, 80));
+        return false;
+    }
+
+    public ArrayList<QuestState> getQuestStates() {
+        ArrayList<QuestState> states = new ArrayList<>();
+        for (Quest q : quests) {
+            states.add(new QuestState(q.id, q.name, q.description, q.current, q.target));
+        }
+        return states;
+    }
+
+    private void addQuest(String id, String name, String description, int target, int current, boolean announce) {
+        for (Quest q : quests) {
+            if (q.id.equals(id)) {
+                q.name = name;
+                q.description = description;
+                q.target = Math.max(1, target);
+                q.current = Math.max(0, Math.min(current, q.target));
+                return;
+            }
+        }
+        Quest q = new Quest(id, name, description, Math.max(1, target));
+        q.current = Math.max(0, Math.min(current, q.target));
+        quests.add(q);
+        if (announce) gp.ui.addMessage("New quest: " + name, new Color(255, 220, 80));
     }
 
     /** Increment progress for a quest by id. Returns true if quest just completed. */

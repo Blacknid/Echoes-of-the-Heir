@@ -8,6 +8,7 @@ import org.w3c.dom.Element;
 import org.w3c.dom.NodeList;
 
 import audio.SFX;
+import data.ItemFactory;
 import data.MonsterFactory;
 import entity.BossMonster;
 import entity.Entity;
@@ -251,6 +252,35 @@ public class MapObjectLoader {
                     int areaW  = (int)(objW * sf);
                     int areaH  = (int)(objH * sf);
 
+                    // Handle rotation for rectangle objects (explicit width/height)
+                    if (areaW > 0 && areaH > 0) {
+                        String rotStr = obj.getAttribute("rotation");
+                        double rotDeg = (rotStr != null && !rotStr.isEmpty())
+                            ? Double.parseDouble(rotStr) : 0.0;
+                        if (rotDeg != 0.0) {
+                            double rad = Math.toRadians(rotDeg);
+                            double cosR = Math.cos(rad);
+                            double sinR = Math.sin(rad);
+                            double[][] corners = {{0,0},{objW,0},{objW,objH},{0,objH}};
+                            double minPX = Double.MAX_VALUE, minPY = Double.MAX_VALUE;
+                            double maxPX = -Double.MAX_VALUE, maxPY = -Double.MAX_VALUE;
+                            for (double[] c : corners) {
+                                double rx = c[0] * cosR - c[1] * sinR;
+                                double ry = c[0] * sinR + c[1] * cosR;
+                                if (rx < minPX) minPX = rx;
+                                if (rx > maxPX) maxPX = rx;
+                                if (ry < minPY) minPY = ry;
+                                if (ry > maxPY) maxPY = ry;
+                            }
+                            worldX += (int)(minPX * sf);
+                            worldY += (int)(minPY * sf);
+                            areaW = (int)((maxPX - minPX) * sf);
+                            areaH = (int)((maxPY - minPY) * sf);
+                            col = worldX / gp.tileSize;
+                            row = worldY / gp.tileSize;
+                        }
+                    }
+
                     // Expand area from polyline/polygon child if present and no explicit size
                     boolean isPolyline = false;
                     if (areaW == 0 && areaH == 0) {
@@ -289,9 +319,9 @@ public class MapObjectLoader {
                                 double px = Double.parseDouble(xy[0]);
                                 double py = Double.parseDouble(xy[1]);
                                 if (hasRotation) {
-                                    // CW rotation in y-down screen space: x'=x·cos+y·sin, y'=-x·sin+y·cos
-                                    double rx = px * cosR + py * sinR;
-                                    double ry = -px * sinR + py * cosR;
+                                    // CW rotation in y-down screen space: x'=x·cos-y·sin, y'=x·sin+y·cos
+                                    double rx = px * cosR - py * sinR;
+                                    double ry = px * sinR + py * cosR;
                                     px = rx; py = ry;
                                 }
                                 if (px < minPX) minPX = px;
@@ -480,6 +510,10 @@ public class MapObjectLoader {
             ? dialogueTrigger.trim() : "";
         // dialogueTriggerDuration: how many frames the message stays (default 300)
         gp.mapManager.pendingDialogueTriggerDuration = getIntProperty(mapEl, "dialogueTriggerDuration", 300);
+
+        // actTitle: large fade-in/fade-out title card shown on map entry (e.g. "Act I: The Awakening Cave")
+        String actTitle = getStringProperty(mapEl, "actTitle", null);
+        gp.mapManager.pendingActTitle = (actTitle != null && !actTitle.isBlank()) ? actTitle.trim() : "";
     }
 
     private void applyMapMusic(String value) {
@@ -500,10 +534,16 @@ public class MapObjectLoader {
     // ---- Entity Factories -----------------------------------------------------
 
     private Entity createObject(String type, Element obj) {
+        String itemId = getFirstStringProperty(obj, null, "itemId", "factoryId");
+        if (itemId != null && !itemId.isBlank()) {
+            Entity item = createFactoryItem(itemId, obj);
+            if (item != null) return item;
+        }
+
         switch (type) {
             case "Chest" -> {
                 OBJ_Chest chest = new OBJ_Chest(gp);
-                String loot = getStringProperty(obj, "loot", "");
+                String loot = getFirstStringProperty(obj, "", "lootId", "loot");
                 if (!loot.isEmpty()) {
                     Entity le = createEntityByName(loot);
                     if (le != null) chest.setLoot(le);
@@ -553,6 +593,7 @@ public class MapObjectLoader {
             case "Potion" -> { OBJ_Potion p = new OBJ_Potion(gp); p.amount = getIntProperty(obj, "amount", 1); return p; }
             case "Key"    -> { OBJ_Key    k = new OBJ_Key(gp);    k.amount = getIntProperty(obj, "amount", 1); return k; }
             case "Arrow"  -> { OBJ_Arrow  a = new OBJ_Arrow(gp);  a.amount = getIntProperty(obj, "amount", 1); return a; }
+            case "Item"   -> { return createFactoryItem(itemId, obj); }
             case "Tent"   -> { return new OBJ_Tent(gp); }
             case "Boots"  -> { return new OBJ_Boots(gp); }
             case "Gem"    -> { return new OBJ_Gem(gp); }
@@ -718,24 +759,48 @@ public class MapObjectLoader {
         }
 
         // requiredItem / requiredItemDialogueSet: switch to a different dialogue when the player has a specific item
-        String reqItem = getStringProperty(obj, "requiredItem", null);
+        String reqItem = getFirstStringProperty(obj, null, "deliveryItem", "requiredItem");
         if (reqItem != null && !reqItem.isBlank()) {
             npc.requiredItem = reqItem;
-            npc.requiredItemDialogueSet = getIntProperty(obj, "requiredItemDialogueSet", 0);
+            npc.requiredItemDialogueSet = getFirstIntProperty(obj, 0, "deliveryDialogueSet", "requiredItemDialogueSet");
         }
 
         // requiredItemConsumed: remove the item from inventory when dialogue switches
-        if (getBoolProperty(obj, "requiredItemConsumed", false)) npc.requiredItemConsumed = true;
+        if (getFirstBoolProperty(obj, false, "deliveryConsumeItem", "requiredItemConsumed")) npc.requiredItemConsumed = true;
+
+        String requiredItemQuestId = getFirstStringProperty(obj, null, "deliveryQuestId", "requiredItemQuestId");
+        if (requiredItemQuestId != null && !requiredItemQuestId.isBlank()) {
+            npc.requiredItemQuestId = requiredItemQuestId;
+            npc.requiredItemQuestAmount = getFirstIntProperty(obj, 1, "deliveryQuestAmount", "requiredItemQuestAmount");
+        }
+        npc.requiredItemPostQuestSet = getFirstIntProperty(obj, -1, "deliveryPostDialogueSet", "requiredItemPostQuestSet");
+        npc.requiredItemRewardCoins = getFirstIntProperty(obj, 0, "deliveryRewardCoins", "requiredItemRewardCoins");
+        String deliveryRewardItem = getFirstStringProperty(obj, null, "deliveryRewardItem", "requiredItemRewardItem");
+        if (deliveryRewardItem != null && !deliveryRewardItem.isBlank()) npc.requiredItemRewardItemId = deliveryRewardItem;
+        String deliveryRewardFragment = getFirstStringProperty(obj, null, "deliveryRewardFragmentId", "requiredItemRewardFragmentId");
+        if (deliveryRewardFragment != null && !deliveryRewardFragment.isBlank()) npc.requiredItemRewardFragmentId = deliveryRewardFragment;
 
         // idleAnimSpeed: ticks between idle animation frame advances (default 24; lower = faster)
         int idleAnimSpeed = getIntProperty(obj, "idleAnimSpeed", -1);
         if (idleAnimSpeed > 0) npc.idleAnimationInterval = idleAnimSpeed;
 
+        // portrait: path to a 96×96 portrait image shown in the dialogue box
+        String portrait = getStringProperty(obj, "portrait", null);
+        if (portrait != null && !portrait.isBlank()) npc.portraitPath = portrait.trim();
+
         // giveItem / giveItemDialogueSet: give an item to the player on first interaction
-        String giveItem = getStringProperty(obj, "giveItem", null);
+        String giveItem = getFirstStringProperty(obj, null, "giftItem", "giveItem");
         if (giveItem != null && !giveItem.isBlank()) {
             npc.giveItemId         = giveItem;
-            npc.giveItemDialogueSet = getIntProperty(obj, "giveItemDialogueSet", 0);
+            npc.giveItemDialogueSet = getFirstIntProperty(obj, 0, "giftDialogueSet", "giveItemDialogueSet");
+        }
+
+        String giveQuestId = getFirstStringProperty(obj, null, "giftQuestId", "giveItemQuestId");
+        if (giveQuestId != null && !giveQuestId.isBlank()) {
+            npc.giveItemQuestId = giveQuestId;
+            npc.giveItemQuestName = getFirstStringProperty(obj, giveQuestId, "giftQuestName", "giveItemQuestName");
+            npc.giveItemQuestDesc = getFirstStringProperty(obj, "", "giftQuestDesc", "giveItemQuestDesc");
+            npc.giveItemQuestTarget = getFirstIntProperty(obj, 1, "giftQuestTarget", "giveItemQuestTarget");
         }
 
         // giveItem2 / giveItem2DialogueSet: give a second item after the NPC finishes walking (post-help)
@@ -747,6 +812,7 @@ public class MapObjectLoader {
 
         int wanderRadius = getIntProperty(obj, "wanderRadius", -1);
         if (wanderRadius > 0) npc.wanderRadius = wanderRadius;
+        npc.syncQuestDrivenNpcState();
         return npc;
     }
 
@@ -840,6 +906,7 @@ public class MapObjectLoader {
         String id = getStringProperty(obj, "id", null);
         if (id != null && !id.isBlank()) entity.objectId = id;
         if (getBoolProperty(obj, "invisible", false)) entity.invisible = true;
+        entity.removeOnPickup = getBoolProperty(obj, "removeOnPickup", entity.removeOnPickup);
     }
 
     // ---- Event Types ----------------------------------------------------------
@@ -1009,7 +1076,7 @@ public class MapObjectLoader {
      * Used for chest loot, generic object fallback, and MonsterArea monster type.
      */
     public Entity createEntityByName(String name) {
-        return switch (name) {
+        Entity entity = switch (name) {
             case "Compas"  -> new OBJ_Compas(gp);
             case "Key"     -> new OBJ_Key(gp);
             case "Potion"  -> new OBJ_Potion(gp);
@@ -1032,6 +1099,28 @@ public class MapObjectLoader {
             }
             default        -> null;
         };
+        if (entity != null) return entity;
+
+        entity = ItemFactory.create(gp, name);
+        if (entity != null) return entity;
+
+        return ItemFactory.create(gp, normalizeItemId(name));
+    }
+
+    private Entity createFactoryItem(String itemId, Element obj) {
+        if (itemId == null || itemId.isBlank()) return null;
+        Entity item = ItemFactory.create(gp, itemId);
+        if (item == null) item = ItemFactory.create(gp, normalizeItemId(itemId));
+        if (item == null) return null;
+
+        int amount = getIntProperty(obj, "amount", 1);
+        if (amount > 1) item.amount = amount;
+        return item;
+    }
+
+    private String normalizeItemId(String raw) {
+        if (raw == null) return "";
+        return raw.trim().toLowerCase().replaceAll("[^a-z0-9]+", "_").replaceAll("^_+|_+$", "");
     }
 
     private Entity createLightMarker(Element obj, boolean eventLayer) {
@@ -1153,10 +1242,27 @@ public class MapObjectLoader {
         return defaultValue;
     }
 
+    private String getFirstStringProperty(Element element, String defaultValue, String... names) {
+        for (String name : names) {
+            String value = getStringProperty(element, name, null);
+            if (value != null && !value.isBlank()) return value;
+        }
+        return defaultValue;
+    }
+
     private int getIntProperty(Element element, String name, int defaultValue) {
         String v = getStringProperty(element, name, null);
         if (v == null || v.isBlank()) return defaultValue;
         try { return Integer.parseInt(v.trim()); } catch (NumberFormatException e) { return defaultValue; }
+    }
+
+    private int getFirstIntProperty(Element element, int defaultValue, String... names) {
+        for (String name : names) {
+            String value = getStringProperty(element, name, null);
+            if (value == null || value.isBlank()) continue;
+            try { return Integer.parseInt(value.trim()); } catch (NumberFormatException ignored) {}
+        }
+        return defaultValue;
     }
 
     private float getFloatProperty(Element element, String name, float defaultValue) {
@@ -1169,5 +1275,14 @@ public class MapObjectLoader {
         String v = getStringProperty(element, name, null);
         if (v == null || v.isBlank()) return defaultValue;
         return Boolean.parseBoolean(v.trim());
+    }
+
+    private boolean getFirstBoolProperty(Element element, boolean defaultValue, String... names) {
+        for (String name : names) {
+            String value = getStringProperty(element, name, null);
+            if (value == null || value.isBlank()) continue;
+            return Boolean.parseBoolean(value.trim());
+        }
+        return defaultValue;
     }
 }

@@ -84,6 +84,7 @@ public class ItemFactory {
         item.type = TYPE_MAP.getOrDefault(typeName, 7);
 
         // Basic properties
+        item.itemId = def.get("id");
         item.name = def.getOrDefault("name", "Item");
         item.description = def.getOrDefault("description", "");
         item.stackable = "true".equals(def.get("stackable"));
@@ -194,9 +195,18 @@ public class ItemFactory {
 
             String value;
             if (valStart < text.length() && text.charAt(valStart) == '"') {
-                int valEnd = text.indexOf('"', valStart + 1);
-                if (valEnd < 0) break;
-                value = text.substring(valStart + 1, valEnd);
+                int valEnd = valStart + 1;
+                while (valEnd < text.length()) {
+                    char vc = text.charAt(valEnd);
+                    if (vc == '\\') { valEnd += 2; continue; }
+                    if (vc == '"') break;
+                    valEnd++;
+                }
+                if (valEnd >= text.length()) break;
+                value = text.substring(valStart + 1, valEnd)
+                        .replace("\\n", "\n").replace("\\t", "\t")
+                        .replace("\\r", "\r").replace("\\\"", "\"")
+                        .replace("\\\\", "\\");
                 i = valEnd + 1;
             } else {
                 int valEnd = valStart;

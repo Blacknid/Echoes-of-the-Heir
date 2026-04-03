@@ -759,15 +759,15 @@ public class GamePanel extends JPanel implements Runnable{
                 if (!saved) {
                     player.life = 0; // safety clamp
 
-                    if (gameState != gameOverState) {
-                        ui.commandNum = 0;
-                    }
-                    gameState = gameOverState;
-
-                    stopMusic();
-                    if (!deathSoundPlayed) {
-                        playSE(4);
-                        deathSoundPlayed = true;
+                    // Start player death animation instead of instant game over
+                    if (!player.playerDying) {
+                        player.playerDying = true;
+                        player.playerDeathCounter = 0;
+                        player.playerDeathFrame = 0;
+                        player.deathDirection = player.direction; // lock facing for death anim
+                        player.attacking = false;
+                        player.knockBack = false;
+                        // Death animation handles the transition to gameOverState
                     }
                 }
             }
@@ -807,7 +807,7 @@ public class GamePanel extends JPanel implements Runnable{
     g2.setTransform(identityTransform);
     // Clear the back buffer to black; without this, ghosting occurs whenever
     // the tile or UI layers don't cover every pixel (e.g. transitions, title screen).
-    g2.setBackground(Color.BLACK);
+    g2.setBackground(mapManager != null ? mapManager.mapBackgroundColor : Color.BLACK);
     g2.clearRect(0, 0, screenWidth, screenHeight);
 
     renderPipeline.drawCurrentState(g2);

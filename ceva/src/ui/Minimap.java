@@ -35,7 +35,7 @@ public class Minimap {
     private static final float FULL_MAP_BG_ALPHA = 0.82f;
 
     // -----------------------------------------------------------------------
-    // GID ranges from harta.tmx tilesets
+    // GID ranges — legacy fallback for maps without tileset name heuristics
     // -----------------------------------------------------------------------
     private static final int GID_GRASS_MIN  = 1;
     private static final int GID_GRASS_MAX  = 12;
@@ -97,8 +97,10 @@ public class Minimap {
             return;
         }
 
-        int w = gp.maxWorldCol * BAKE_PIXELS_PER_TILE;
-        int h = gp.maxWorldRow * BAKE_PIXELS_PER_TILE;
+        int mapCols = gp.tileM.currentMapCols;
+        int mapRows = gp.tileM.currentMapRows;
+        int w = mapCols * BAKE_PIXELS_PER_TILE;
+        int h = mapRows * BAKE_PIXELS_PER_TILE;
         terrainImage = new BufferedImage(w, h, BufferedImage.TYPE_INT_ARGB);
 
         Graphics2D mapG = terrainImage.createGraphics();
@@ -107,8 +109,8 @@ public class Minimap {
 
         for (int l = 0; l < gp.tileM.mapLayers.size(); l++) {
             int[][] layer = gp.tileM.mapLayers.get(l);
-            for (int row = 0; row < gp.maxWorldRow; row++) {
-                for (int col = 0; col < gp.maxWorldCol; col++) {
+            for (int row = 0; row < mapRows; row++) {
+                for (int col = 0; col < mapCols; col++) {
                     int gid = normalizeBakedGid(layer[col][row]);
                     if (gid == 0) continue;
                     Color c = gidToColor(gid, col, row);
@@ -128,8 +130,21 @@ public class Minimap {
         bakedTerrainCache.remove(mapId);
     }
 
-    /** Map a GID to a flat biome colour. Returns null to skip (transparent layers). */
+    /** Map a GID to a flat biome colour. Uses tileset-name heuristics first, legacy GID ranges as fallback. */
     private Color gidToColor(int gid, int col, int row) {
+        // Try tileset-name classification (works across all maps)
+        String biome = gp.tileM.classifyGidBiome(gid);
+        if (biome != null) {
+            return switch (biome) {
+                case "water"  -> ((col + row) % 3 == 0) ? COL_WATER2 : COL_WATER;
+                case "tree"   -> COL_TREE;
+                case "shadow" -> null;
+                case "struct" -> COL_STRUCT;
+                case "grass"  -> ((col ^ row) % 4 == 0) ? COL_GRASS2 : COL_GRASS;
+                default       -> COL_BG;
+            };
+        }
+        // Legacy fallback for maps where classifier returns null
         if (gid >= GID_WATER_MIN  && gid <= GID_WATER_MAX)
             return ((col + row) % 3 == 0) ? COL_WATER2 : COL_WATER;
         if (gid == GID_TREE)
@@ -231,8 +246,8 @@ public class Minimap {
         g2.drawImage(terrainImage, cx - radius, cy - radius, radius * 2, radius * 2, null);
 
         // 3. Entity dots (clipped inside the circle)
-        float scaleX = (float)(radius * 2) / gp.maxWorldCol;
-        float scaleY = (float)(radius * 2) / gp.maxWorldRow;
+        float scaleX = (float)(radius * 2) / gp.tileM.currentMapCols;
+        float scaleY = (float)(radius * 2) / gp.tileM.currentMapRows;
         drawEntities(g2, cx - radius, cy - radius, scaleX, scaleY, largeMode);
 
         // 4. Radial vignette: transparent centre → dark rim

@@ -46,6 +46,8 @@ public class MapManager {
     public String pendingDialogueTrigger = "";
     /** How long (in frames) the spawn dialogue message stays on screen. Default 300. */
     public int pendingDialogueTriggerDuration = 300;
+    /** Act title card text to show on map entry (from actTitle TMX property). */
+    public String pendingActTitle = "";
 
     public boolean loadingGame = false;
 
@@ -150,6 +152,12 @@ public class MapManager {
             pendingDialogueTrigger = "";
         }
 
+        // Show act title card if one was defined for this map
+        if (!pendingActTitle.isEmpty()) {
+            gp.ui.showActTitle(pendingActTitle);
+            pendingActTitle = "";
+        }
+
         doorEntryCol = -1;
         doorEntryRow = -1;
     }
@@ -187,8 +195,8 @@ public class MapManager {
         gp.deathSoundPlayed = false;
 
         if (restart) {
-            currentMapId = "harta";
-            String path = mapRegistry.getOrDefault(currentMapId, "/res/maps/harta.tmx");
+            currentMapId = "Awakening Cave";
+            String path = mapRegistry.getOrDefault(currentMapId, "/res/maps/Awakening_Cave.tmx");
             gp.tileM.mapLayers.clear();
             gp.tileM.loadMapFromTMX(path);
             gp.tileM.loadCollisionLayer(path);

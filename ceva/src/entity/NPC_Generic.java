@@ -184,12 +184,21 @@ public class NPC_Generic extends Entity {
     @Override
     public void speak() {
         facePlayer();
+        syncQuestDrivenNpcState();
 
         // Give item on first interaction
         if (giveItemId != null && !giveItemGiven) {
             Entity item = data.ItemFactory.create(gp, giveItemId);
             if (item != null) gp.player.canObtainItem(item);
             giveItemGiven = true;
+            if (giveItemQuestId != null && gp.questManager != null) {
+                gp.questManager.addQuest(
+                    giveItemQuestId,
+                    giveItemQuestName != null ? giveItemQuestName : giveItemQuestId,
+                    giveItemQuestDesc != null ? giveItemQuestDesc : "",
+                    Math.max(1, giveItemQuestTarget)
+                );
+            }
             startDialogue(this, giveItemDialogueSet);
             return;
         }

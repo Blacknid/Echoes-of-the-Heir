@@ -95,6 +95,7 @@ public class NPC_Alucard extends Entity{
     public void speak() {
 
         facePlayer();
+        syncQuestDrivenNpcState();
 
         // ── ITEM-CONDITIONAL DIALOGUE: override everything if the player has the required item ──
         if (checkRequiredItemDialogue()) return;

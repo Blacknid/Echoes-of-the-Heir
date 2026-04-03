@@ -1309,6 +1309,32 @@ public class TileManager {
     }
 
     /**
+     * Classify a GID for the minimap biome colour.
+     * Returns: "water", "tree", "struct", "grass", "shadow", or null (unknown).
+     * Uses tileset name/path heuristics so it works across any map.
+     */
+    public String classifyGidBiome(int gid) {
+        if (gid <= 0) return null;
+        for (int i = tilesets.size() - 1; i >= 0; i--) {
+            Tileset ts = tilesets.get(i);
+            if (gid >= ts.firstGID && gid < ts.firstGID + ts.tileCount) {
+                String n = (ts.name + " " + ts.sourcePath).toLowerCase();
+                if (n.contains("water") || n.contains("lake") || n.contains("river")) return "water";
+                if (n.contains("tree") || n.contains("forest") || n.contains("canopy")) return "tree";
+                if (n.contains("shadow") || n.contains("overlay") || n.contains("light")) return "shadow";
+                if (n.contains("struct") || n.contains("house") || n.contains("build") || n.contains("castle")
+                    || n.contains("wall") || n.contains("door") || n.contains("bridge") || n.contains("stone")
+                    || n.contains("cave") || n.contains("rock") || n.contains("dungeon")) return "struct";
+                if (n.contains("grass") || n.contains("ground") || n.contains("dirt") || n.contains("path")
+                    || n.contains("floor") || n.contains("terrain") || n.contains("sand")) return "grass";
+                // Fallback: if tileset name has no recognizable keyword, use generic grass
+                return "grass";
+            }
+        }
+        return null;
+    }
+
+    /**
      * Check if any configured collision tile layer has a non-empty tile at the given column/row.
      * Only layers whose name is in collisionTileLayers are checked.
      * By default collisionTileLayers is empty, so this returns false unless you add layer names.

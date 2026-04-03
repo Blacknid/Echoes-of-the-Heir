@@ -1,6 +1,7 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<map version="1.10" tiledversion="1.12.1" orientation="orthogonal" renderorder="right-down" width="40" height="30" tilewidth="32" tileheight="32" infinite="0" nextlayerid="21" nextobjectid="84">
+<map version="1.10" tiledversion="1.12.1" orientation="orthogonal" renderorder="right-down" width="40" height="30" tilewidth="32" tileheight="32" infinite="0" nextlayerid="21" nextobjectid="110">
  <properties>
+  <property name="actTitle" value="Act I: The Awakening Cave"/>
   <property name="ambientLight" type="float" value="0.7"/>
   <property name="dialogueTrigger" value="( Where... am I? )"/>
   <property name="dialogueTriggerDuration" type="int" value="480"/>
@@ -2964,6 +2965,81 @@
     <property name="sortYOffset" type="int" value="64"/>
    </properties>
   </tile>
+  <tile id="321">
+   <properties>
+    <property name="sortYOffset" type="int" value="128"/>
+   </properties>
+  </tile>
+  <tile id="322">
+   <properties>
+    <property name="sortYOffset" type="int" value="128"/>
+   </properties>
+  </tile>
+  <tile id="323">
+   <properties>
+    <property name="sortYOffset" type="int" value="128"/>
+   </properties>
+  </tile>
+  <tile id="342">
+   <properties>
+    <property name="sortYOffset" type="int" value="96"/>
+   </properties>
+  </tile>
+  <tile id="343">
+   <properties>
+    <property name="sortYOffset" type="int" value="96"/>
+   </properties>
+  </tile>
+  <tile id="344">
+   <properties>
+    <property name="sortYOffset" type="int" value="96"/>
+   </properties>
+  </tile>
+  <tile id="345">
+   <properties>
+    <property name="sortYOffset" type="int" value="96"/>
+   </properties>
+  </tile>
+  <tile id="346">
+   <properties>
+    <property name="sortYOffset" type="int" value="96"/>
+   </properties>
+  </tile>
+  <tile id="347">
+   <properties>
+    <property name="sortYOffset" type="int" value="96"/>
+   </properties>
+  </tile>
+  <tile id="363">
+   <properties>
+    <property name="sortYOffset" type="int" value="64"/>
+   </properties>
+  </tile>
+  <tile id="364">
+   <properties>
+    <property name="sortYOffset" type="int" value="64"/>
+   </properties>
+  </tile>
+  <tile id="365">
+   <properties>
+    <property name="sortYOffset" type="int" value="64"/>
+   </properties>
+  </tile>
+  <tile id="366">
+   <properties>
+    <property name="sortYOffset" type="int" value="64"/>
+   </properties>
+  </tile>
+  <tile id="367">
+   <properties>
+    <property name="sortYOffset" type="int" value="64"/>
+   </properties>
+  </tile>
+  <tile id="368">
+   <properties>
+    <property name="sortYOffset" type="int" value="64"/>
+   </properties>
+  </tile>
   <tile id="369">
    <properties>
     <property name="sortYOffset" type="int" value="64"/>
@@ -2972,6 +3048,21 @@
   <tile id="370">
    <properties>
     <property name="sortYOffset" type="int" value="64"/>
+   </properties>
+  </tile>
+  <tile id="384">
+   <properties>
+    <property name="sortYOffset" type="int" value="-40"/>
+   </properties>
+  </tile>
+  <tile id="385">
+   <properties>
+    <property name="sortYOffset" type="int" value="-40"/>
+   </properties>
+  </tile>
+  <tile id="386">
+   <properties>
+    <property name="sortYOffset" type="int" value="-40"/>
    </properties>
   </tile>
   <tile id="472">
@@ -3131,6 +3222,9 @@
   </tile>
  </tileset>
  <tileset firstgid="2988" name="Wisps" tilewidth="32" tileheight="32" tilecount="1044" columns="29">
+  <properties>
+   <property name="foreground" type="bool" value="true"/>
+  </properties>
   <image source="../tiles/AWAKENING CAVE/Wisps.png" width="928" height="1152"/>
   <tile id="1">
    <animation>
@@ -3799,6 +3893,9 @@
  <tileset firstgid="4838" name="water_detilazation_v2" tilewidth="32" tileheight="32" tilecount="2886" columns="37">
   <image source="../tiles/AWAKENING CAVE/water_detilazation_v2.png" width="1184" height="2496"/>
  </tileset>
+ <tileset firstgid="7724" name="ground_grasss" tilewidth="32" tileheight="32" tilecount="742" columns="53">
+  <image source="../tiles/CANVAS VILLAGE/ground_grasss.png" width="1696" height="448"/>
+ </tileset>
  <layer id="1" name="Ground" width="40" height="30">
   <properties>
    <property name="background" type="bool" value="true"/>
@@ -3906,10 +4003,10 @@
  </layer>
  <layer id="4" name="Ground_details" width="40" height="30">
   <data encoding="csv">
-0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1256,1119,1122,1123,1124,1120,
-0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1503,1504,0,0,1234,0,0,0,1277,0,1143,1144,1145,0,
-0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1499,1524,1525,0,0,1255,0,0,0,0,0,1164,1165,1166,0,
-0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1492,0,1520,1513,1514,0,0,1276,0,0,0,0,0,1185,1186,1187,0,
+0,0,0,0,0,0,0,0,0,0,0,8187,8188,8189,8188,8188,8188,8188,8188,8188,8187,8188,8189,0,0,0,0,0,0,0,0,0,0,0,1256,1119,1122,1123,1124,1120,
+0,0,0,0,0,0,0,0,0,0,0,8240,8241,8138,8188,8188,8188,8188,8188,8137,8241,8241,8242,0,0,0,1503,1504,0,0,1234,0,0,0,1277,0,1143,1144,1145,0,
+0,0,0,0,0,0,0,0,0,0,0,0,0,8240,8138,8188,8188,8188,8137,8242,0,0,0,0,0,1499,1524,1525,0,0,1255,0,0,0,0,0,1164,1165,1166,0,
+0,0,0,0,0,0,0,0,0,0,0,0,0,0,8240,8346,8347,8241,8242,0,0,0,0,1492,0,1520,1513,1514,0,0,1276,0,0,0,0,0,1185,1186,1187,0,
 0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1448,1449,0,1453,1454,0,0,0,0,0,0,0,0,0,0,0,0,0,
 0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1469,1470,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
 0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1453,1454,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
@@ -3940,7 +4037,7 @@
  </layer>
  <layer id="5" name="Spawn" width="40" height="30">
   <data encoding="csv">
-0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
+0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,8202,8203,8203,8204,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
 0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
 0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
 0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
@@ -3977,8 +4074,8 @@
    <property name="depthSort" type="bool" value="true"/>
   </properties>
   <data encoding="csv">
-0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1129,1130,0,0,0,0,0,0,0,0,0,0,0,0,0,
-0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1150,1151,0,0,0,0,0,0,0,0,0,0,0,0,0,
+0,0,0,0,0,0,0,0,0,0,0,0,8393,8394,8395,0,0,0,0,8393,8394,8395,0,0,0,1129,1130,0,0,0,0,0,0,0,0,0,0,0,0,0,
+0,0,0,0,0,0,0,0,0,0,0,0,8446,8447,8448,0,0,0,0,8446,8447,8448,0,0,0,1150,1151,0,0,0,0,0,0,0,0,0,0,0,0,0,
 0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1171,1172,0,0,0,0,0,0,0,0,0,0,0,0,0,
 0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1192,1193,0,0,0,0,0,0,0,0,0,0,0,0,0,
 0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,270,269,270,269,270,269,270,269,270,269,270,0,0,
@@ -4181,8 +4278,8 @@
  </layer>
  <layer id="11" name="Objects" width="40" height="30">
   <data encoding="csv">
-0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,2724,2725,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
-0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,2745,2746,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
+0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
+0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
 0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
 0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,2454,2455,
 0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,2475,2476,
@@ -4250,9 +4347,16 @@
  <layer id="9" name="Effects" width="40" height="30">
   <data encoding="csv">
 0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
-0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1552,1553,1554,0,0,0,0,
-0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1583,1584,1585,0,0,0,0,
-0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1614,1615,1616,0,0,0,0,
+0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1610615734,1610615763,1610615792,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1552,1553,1554,0,0,0,0,
+0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1610615733,1610615762,1610615791,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1583,1584,1585,0,0,0,0,
+0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1610615732,1610615761,1610615790,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1614,1615,1616,0,0,0,0,
+0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1610615731,1610615760,1610615789,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
+0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1610615730,1610615759,1610615788,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
+0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1610615729,1610615758,1610615787,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
+0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1610615728,1610615757,1610615786,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
+0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1610615727,1610615756,1610615785,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
+0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1610615726,1610615755,1610615784,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
+0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1610615725,1610615754,1610615783,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
 0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
 0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
 0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
@@ -4265,16 +4369,9 @@
 0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
 0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
 0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
-0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
-0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
-0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
-0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
-0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
-0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
-0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
-0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
-0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
-0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
+0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,2989,2990,2991,2992,2993,2994,2995,2996,2997,2998,0,0,0,0,0,0,0,0,0,0,0,
+0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,3018,3019,3020,3021,3022,3023,3024,3025,3026,3027,0,0,0,0,0,0,0,0,0,0,0,
+0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,3047,3048,3049,3050,3051,3052,3053,3054,3055,3056,0,0,0,0,0,0,0,0,0,0,0,
 0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
 0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
 0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
@@ -4282,28 +4379,53 @@
 </data>
  </layer>
  <objectgroup id="14" name="NPCs">
-  <object id="83" type="NPC_Generic" x="928" y="768">
+  <object id="83" name="Soldier" type="NPC_Generic" x="928" y="768">
    <properties>
-    <property name="dialogue_0_0" value="Uhm... hello?"/>
-    <property name="dialogue_0_1" value="I don't really remember much, but I think I got hurt near here..."/>
-    <property name="dialogue_0_2" value="Please take my sword, it might help you on your journey."/>
-    <property name="dialogue_0_3" value="... Help me later too, I don't want to be alone here."/>
-    <property name="giveItem" value="sword_normal"/>
+    <property name="deliveryConsumeItem" type="bool" value="true"/>
+    <property name="deliveryDialogueSet" type="int" value="2"/>
+    <property name="deliveryItem" value="bandage"/>
+    <property name="deliveryPostDialogueSet" type="int" value="3"/>
+    <property name="deliveryQuestId" value="sword_giver_bandage"/>
+    <property name="deliveryRewardCoins" type="int" value="25"/>
+    <property name="dialogue_0_0" value="...Hey. I was ambushed on the road."/>
+    <property name="dialogue_0_1" value="My arm is useless, and I can't swing anymore."/>
+    <property name="dialogue_0_2" value="Take this sword. Use it better than I can right now."/>
+    <property name="dialogue_0_3" value="If you find a bandage, come back. I still need help."/>
+    <property name="dialogue_1_0" value="You're back... but I still need a bandage."/>
+    <property name="dialogue_1_1" value="Check the roads and abandoned camps nearby."/>
+    <property name="dialogue_1_2" value="I'll hold on a little longer."/>
+    <property name="dialogue_2_0" value="You found one... good."/>
+    <property name="dialogue_2_1" value="This should stop the bleeding."/>
+    <property name="dialogue_2_2" value="Thank you. Here, take these 25 coins for the trouble."/>
+    <property name="dialogue_3_0" value="The bandage helped a lot."/>
+    <property name="dialogue_3_1" value="Keep the sword. You earned it."/>
+    <property name="giftDialogueSet" type="int" value="0"/>
+    <property name="giftItem" value="sword_normal"/>
+    <property name="giftQuestDesc" value="A wounded traveler gave you his sword and asked for a bandage."/>
+    <property name="giftQuestId" value="sword_giver_bandage"/>
+    <property name="giftQuestName" value="Aid the Sword Giver"/>
+    <property name="giftQuestTarget" type="int" value="1"/>
+    <property name="id" value="sword_giver_npc"/>
+    <property name="idleAnimSpeed" type="int" value="12"/>
     <property name="idleDirection" type="int" value="2"/>
     <property name="idleSprite" value="/res/NPC/Tutorial_idle"/>
+    <property name="name" value="Sword Giver"/>
+    <property name="portrait" value="/res/NPC/portraits/soldier.png"/>
     <property name="staticNPC" type="bool" value="true"/>
+    <property name="walkToDialogueSet" type="int" value="1"/>
    </properties>
    <point/>
   </object>
  </objectgroup>
  <objectgroup id="15" name="Monsters"/>
- <objectgroup id="16" name="Objects" visible="0">
-  <object id="25" name="Weapon Chest" type="Chest" x="928" y="32" width="32" height="32">
+ <objectgroup id="16" name="Objects">
+  <object id="84" name="Bandage Pickup" type="Item" x="1152" y="704">
    <properties>
-    <property name="loot" value="Normal Sword"/>
-    <property name="openAnimation" value="/res/objects/chests"/>
-    <property name="openFrames" type="int" value="4"/>
+    <property name="amount" type="int" value="1"/>
+    <property name="itemId" value="bandage"/>
+    <property name="removeOnPickup" type="bool" value="true"/>
    </properties>
+   <point/>
   </object>
  </objectgroup>
  <objectgroup id="17" name="Collision">
@@ -4319,9 +4441,6 @@
   <object id="31" x="1239" y="597.667">
    <polygon points="0,0 0,15 40.3333,16 41,0.666667"/>
   </object>
-  <object id="44" x="683.773" y="38.7727">
-   <polygon points="1.81818,0 43.5,0 43.5,7 1.86364,7"/>
-  </object>
   <object id="45" x="763" y="122.5">
    <polygon points="0,0 -1,19.5 49,20.5 40.5,3.5"/>
   </object>
@@ -4331,8 +4450,8 @@
   <object id="47" x="966" y="105.5">
    <polygon points="0,0 19,0 18.5,-9.5 -1,-11"/>
   </object>
-  <object id="48" x="1241.5" y="135.5">
-   <polygon points="0,0 -0.5,8 19,8.5 19,-3"/>
+  <object id="48" x="1240.59" y="139.5">
+   <polygon points="-0.497792,-3.00017 -0.46875,8.53125 19,8.5 19,-3"/>
   </object>
   <object id="49" x="1096.5" y="37">
    <polygon points="0,0 0,6.5 16,6.5 17,-0.5"/>
@@ -4340,18 +4459,50 @@
   <object id="50" x="1166" y="52">
    <polygon points="0,0 -5.5,19 76,21 70,0"/>
   </object>
+  <object id="98" x="769" y="959">
+   <polyline points="0,0 -0.5,-52.5 32,-52.5 31.0625,-80.25 62.75,-80 62.75,-112.25 95.25,-113 95,-208 127.667,-208.667 127,-272.5 160,-272.5 159.182,-351 159.5,-390.75 144.024,-350.688 53.5588,-351.737 53.7678,-382.573 0.475731,-383.194 0.75,-421.5 -14.6667,-383 -14.3333,-351.333 -47.6667,-351.333 -48,-325.333 -86.75,-323.833 -86.3333,-262.667 -113.333,-262.75 -113,-229.667 -147.583,-229.417 -147,-164 -209.333,-164 -210.667,-99.3333 -243,-99 -243.333,-69 -305.667,-69.3333 -305.667,-39.6667 -336.667,-40 -336.333,1.33333"/>
+  </object>
+  <object id="99" x="1280" y="960">
+   <polyline points="0,0 -1280,0 -1280,-960 0,-960 0,0"/>
+  </object>
+  <object id="100" x="1236.59" y="781.682">
+   <polygon points="-0.497792,-3.00017 -0.46875,8.53125 19,8.5 19,-3"/>
+  </object>
+  <object id="101" x="952.772" y="844.955">
+   <polygon points="-0.497792,-3.00017 -0.46875,8.53125 19,8.5 19,-3"/>
+  </object>
+  <object id="102" x="1112.59" y="941.5">
+   <polygon points="-0.497792,-3.00017 -0.46875,8.53125 19,8.5 19,-3"/>
+  </object>
+  <object id="103" x="1218.45" y="925.212">
+   <polygon points="-1.11288,-5.2116 -1.04796,14.8196 42.4771,14.7654 42.4771,-5.21131"/>
+  </object>
+  <object id="104" x="827.333" y="929.667">
+   <polygon points="-0.782843,-3.12199 -0.737176,8.87761 29.88,8.84515 29.88,-3.12181"/>
+  </object>
+  <object id="105" x="947.45" y="669.212">
+   <polygon points="-1.11288,-5.2116 -1.04796,14.8196 42.4771,14.7654 42.4771,-5.21131"/>
+  </object>
+  <object id="106" x="1222.9" y="706.271">
+   <polygon points="-0.808374,-3.52057 -0.761217,10.011 30.8545,9.97441 30.8545,-3.52038"/>
+  </object>
+  <object id="107" x="976.467" y="935.153">
+   <polygon points="-0.957134,-3.40296 -0.9013,9.67659 36.5325,9.6412 36.5325,-3.40277"/>
+  </object>
+  <object id="108" x="1006.97" y="621.153">
+   <polygon points="-0.957134,-3.40296 -0.9013,9.67659 27.7825,9.8912 27.7825,-3.40277"/>
+  </object>
  </objectgroup>
  <objectgroup id="13" name="Events">
   <object id="23" name="Slime spawner" type="SpawnZone" x="864" y="364.8">
    <properties>
-    <property name="activationRange" type="int" value="3"/>
+    <property name="activationRange" type="int" value="4"/>
     <property name="confined" type="bool" value="true"/>
-    <property name="interval" type="int" value="120"/>
-    <property name="lootFragment" value="frag_cave"/>
+    <property name="interval" type="int" value="240"/>
     <property name="lootItem" value="Key"/>
-    <property name="maxAmount" type="int" value="3"/>
+    <property name="maxAmount" type="int" value="1"/>
     <property name="monster" value="inkblot"/>
-    <property name="totalLimit" type="int" value="5"/>
+    <property name="totalLimit" type="int" value="2"/>
    </properties>
    <polygon points="0,0 0,76.8 32,76.8 32,115.2 224,115.2 224,76.8 352,76.8 384,76.8 384,0 352,0 352,-38.4 160,-38.4 160,-76.8 32,-76.8 32,-38.4 0,-38.4"/>
   </object>
@@ -4439,14 +4590,7 @@
    </properties>
    <point/>
   </object>
-  <object id="58" x="976" y="100">
-   <properties>
-    <property name="lightColor" value="#6688FF"/>
-    <property name="lightRadius" type="int" value="3"/>
-   </properties>
-   <point/>
-  </object>
-  <object id="78" name="SpawnPoint" type="SpawnPoint" x="1120" y="861">
+  <object id="78" name="SpawnPoint" type="SpawnPoint" x="1104" y="885.667">
    <point/>
   </object>
   <object id="80" name="Req. Sword" type="LevelGate" x="1120" y="544">
@@ -4468,7 +4612,71 @@ Keep searching.</property>
   <object id="82" type="LevelGate" x="777" y="319.333" width="32" height="128">
    <properties>
     <property name="message" value="You haven't completed the Combat Tutorial yet."/>
-    <property name="requiredFragment" value="frag_cave"/>
+    <property name="requiredItem" value="Key"/>
+   </properties>
+  </object>
+  <object id="85" name="Ambient Light" type="Lighting" x="496" y="19.9997">
+   <properties>
+    <property name="lightColor" value="#ffffffff"/>
+    <property name="lightRadius" type="int" value="8"/>
+   </properties>
+   <point/>
+  </object>
+  <object id="86" name="Ambient Light" type="Lighting" x="528" y="19.9997">
+   <properties>
+    <property name="lightColor" value="#ffffffff"/>
+    <property name="lightRadius" type="int" value="8"/>
+   </properties>
+   <point/>
+  </object>
+  <object id="87" name="Ambient Light" type="Lighting" x="560" y="19.9997">
+   <properties>
+    <property name="lightColor" value="#ffffffff"/>
+    <property name="lightRadius" type="int" value="8"/>
+   </properties>
+   <point/>
+  </object>
+  <object id="88" name="Ambient Light" type="Lighting" x="528" y="51.9997">
+   <properties>
+    <property name="lightColor" value="#ffffffff"/>
+    <property name="lightRadius" type="int" value="8"/>
+   </properties>
+   <point/>
+  </object>
+  <object id="89" name="Ambient Light" type="Lighting" x="560" y="51.9997">
+   <properties>
+    <property name="lightColor" value="#ffffffff"/>
+    <property name="lightRadius" type="int" value="8"/>
+   </properties>
+   <point/>
+  </object>
+  <object id="90" name="Ambient Light" type="Lighting" x="592" y="19.9997">
+   <properties>
+    <property name="lightColor" value="#ffffffff"/>
+    <property name="lightRadius" type="int" value="8"/>
+   </properties>
+   <point/>
+  </object>
+  <object id="96" type="DialogueTrigger" x="864" y="800" width="384" height="32">
+   <properties>
+    <property name="message">I can't remember anything... Just fragments... 
+like a dream I can't hold.</property>
+    <property name="oneShot" type="bool" value="true"/>
+   </properties>
+  </object>
+  <object id="97" type="DialogueTrigger" x="768" y="320" width="128" height="32" rotation="90">
+   <properties>
+    <property name="message">This place... it's drawn. 
+The walls look painted.</property>
+    <property name="oneShot" type="bool" value="true"/>
+   </properties>
+  </object>
+  <object id="109" name="Tutorial ( Done )" type="MapTransition" x="480" y="0" width="128" height="32">
+   <properties>
+    <property name="requiredFragment" value="bandage"/>
+    <property name="targetCol" type="int" value="33"/>
+    <property name="targetMap" value="harta"/>
+    <property name="targetRow" type="int" value="27"/>
    </properties>
   </object>
  </objectgroup>

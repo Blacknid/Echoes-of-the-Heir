@@ -14,6 +14,7 @@ import javax.crypto.spec.SecretKeySpec;
 import entity.Entity;
 import main.GamePanel;
 import main.Main;
+import main.QuestManager;
 import object.OBJ_Book;
 import object.OBJ_Boots;
 import object.OBJ_Chest;
@@ -93,7 +94,30 @@ public class SaveLoad {
             case "Wood_Shield": return new OBJ_Shield_Wood(gp);
             case "Normal Sword": return new OBJ_Sword_Normal(gp);
         }
-        return null;
+        Entity item = ItemFactory.create(gp, name);
+        if (item != null) return item;
+        return ItemFactory.create(gp, normalizeItemId(name));
+    }
+
+    private String normalizeItemId(String raw) {
+        if (raw == null) return "";
+        return raw.trim().toLowerCase().replaceAll("[^a-z0-9]+", "_").replaceAll("^_+|_+$", "");
+    }
+
+    private String serializeEntityId(Entity entity) {
+        if (entity == null) return "NA";
+        if (entity.itemId != null && !entity.itemId.isBlank()) return entity.itemId;
+        return entity.name;
+    }
+
+    private String escapeValue(String value) {
+        if (value == null) return "";
+        return value.replace("\\", "\\\\").replace("\n", "\\n");
+    }
+
+    private String unescapeValue(String value) {
+        if (value == null) return "";
+        return value.replace("\\n", "\n").replace("\\\\", "\\");
     }
 
     // =========================
@@ -152,11 +176,21 @@ public class SaveLoad {
 
         // Inventory
         for (Entity e : gp.player.inventory) {
-            gs.itemNames.add(e.name);
+            gs.itemNames.add(serializeEntityId(e));
             gs.itemAmounts.add(e.amount);
         }
         gs.currentWeaponSlot = gp.player.getCurrentWeaponSlot();
         gs.currentShieldSlot = gp.player.getCurrentShieldSlot();
+
+        if (gp.questManager != null) {
+            for (QuestManager.QuestState quest : gp.questManager.getQuestStates()) {
+                gs.questIds.add(quest.id);
+                gs.questNames.add(quest.name);
+                gs.questDescriptions.add(quest.description);
+                gs.questProgress.add(quest.current);
+                gs.questTargets.add(quest.target);
+            }
+        }
 
         // Objects on map (chests, doors, etc.)
         int size = gp.obj.length;
@@ -172,11 +206,11 @@ public class SaveLoad {
                 gs.mapObjectLootName[i] = "NA";
                 continue;
             }
-            gs.mapObjectNames[i]  = gp.obj[i].name;
+            gs.mapObjectNames[i]  = serializeEntityId(gp.obj[i]);
             gs.mapObjectWorldX[i] = gp.obj[i].worldX;
             gs.mapObjectWorldY[i] = gp.obj[i].worldY;
             gs.mapObjectOpened[i] = gp.obj[i].opened;
-            gs.mapObjectLootName[i] = gp.obj[i].loot != null ? gp.obj[i].loot.name : "NA";
+            gs.mapObjectLootName[i] = gp.obj[i].loot != null ? serializeEntityId(gp.obj[i].loot) : "NA";
         }
 
         // MEMORY FRAGMENTS
@@ -227,8 +261,21 @@ public class SaveLoad {
             // INVENTORY
             sb.append("inventory.size=").append(gp.player.inventory.size()).append('\n');
             for (int i = 0; i < gp.player.inventory.size(); i++) {
-                sb.append("inventory.").append(i).append(".name=").append(gp.player.inventory.get(i).name).append('\n');
+                sb.append("inventory.").append(i).append(".name=").append(serializeEntityId(gp.player.inventory.get(i))).append('\n');
                 sb.append("inventory.").append(i).append(".amount=").append(gp.player.inventory.get(i).amount).append('\n');
+            }
+
+            if (gp.questManager != null) {
+                ArrayList<QuestManager.QuestState> quests = gp.questManager.getQuestStates();
+                sb.append("quests.size=").append(quests.size()).append('\n');
+                for (int i = 0; i < quests.size(); i++) {
+                    QuestManager.QuestState quest = quests.get(i);
+                    sb.append("quests.").append(i).append(".id=").append(escapeValue(quest.id)).append('\n');
+                    sb.append("quests.").append(i).append(".name=").append(escapeValue(quest.name)).append('\n');
+                    sb.append("quests.").append(i).append(".desc=").append(escapeValue(quest.description)).append('\n');
+                    sb.append("quests.").append(i).append(".current=").append(quest.current).append('\n');
+                    sb.append("quests.").append(i).append(".target=").append(quest.target).append('\n');
+                }
             }
 
             // OBJECTS ON MAP
@@ -239,11 +286,11 @@ public class SaveLoad {
                     sb.append("obj.").append(i).append(".name=NA\n");
                     continue;
                 }
-                sb.append("obj.").append(i).append(".name=").append(gp.obj[i].name).append('\n');
+                sb.append("obj.").append(i).append(".name=").append(serializeEntityId(gp.obj[i])).append('\n');
                 sb.append("obj.").append(i).append(".worldX=").append(gp.obj[i].worldX).append('\n');
                 sb.append("obj.").append(i).append(".worldY=").append(gp.obj[i].worldY).append('\n');
                 sb.append("obj.").append(i).append(".opened=").append(gp.obj[i].opened).append('\n');
-                String lootName = gp.obj[i].loot != null ? gp.obj[i].loot.name : "NA";
+                String lootName = gp.obj[i].loot != null ? serializeEntityId(gp.obj[i].loot) : "NA";
                 sb.append("obj.").append(i).append(".loot=").append(lootName).append('\n');
             }
 
@@ -343,6 +390,20 @@ public class SaveLoad {
                 if (item != null) {
                     item.amount = Integer.parseInt(map.getOrDefault("inventory." + i + ".amount", "1"));
                     gp.player.inventory.add(item);
+                }
+            }
+
+            if (gp.questManager != null && map.containsKey("quests.size")) {
+                gp.questManager.clearQuests();
+                int questSize = Integer.parseInt(map.getOrDefault("quests.size", "0"));
+                for (int i = 0; i < questSize; i++) {
+                    String questId = unescapeValue(map.get("quests." + i + ".id"));
+                    if (questId.isBlank()) continue;
+                    String questName = unescapeValue(map.getOrDefault("quests." + i + ".name", questId));
+                    String questDesc = unescapeValue(map.getOrDefault("quests." + i + ".desc", ""));
+                    int current = Integer.parseInt(map.getOrDefault("quests." + i + ".current", "0"));
+                    int target = Integer.parseInt(map.getOrDefault("quests." + i + ".target", "1"));
+                    gp.questManager.restoreQuest(questId, questName, questDesc, target, current);
                 }
             }
 
@@ -449,6 +510,23 @@ public class SaveLoad {
             if (item == null) continue;
             item.amount = Math.max(1, state.itemAmounts.get(i));
             gp.player.inventory.add(item);
+        }
+
+        if (gp.questManager != null && state.questIds != null && !state.questIds.isEmpty()) {
+            gp.questManager.clearQuests();
+            int questSize = Math.min(
+                Math.min(state.questIds.size(), state.questNames.size()),
+                Math.min(state.questDescriptions.size(), Math.min(state.questProgress.size(), state.questTargets.size()))
+            );
+            for (int i = 0; i < questSize; i++) {
+                gp.questManager.restoreQuest(
+                    state.questIds.get(i),
+                    state.questNames.get(i),
+                    state.questDescriptions.get(i),
+                    state.questTargets.get(i),
+                    state.questProgress.get(i)
+                );
+            }
         }
 
         // CURRENT EQUIPMENT
@@ -611,6 +689,13 @@ public class SaveLoad {
             gs.mapObjectWorldY = toIntArray(extractJsonIntArray(json, "mapObjectWorldY"));
             gs.mapObjectLootName = extractJsonStringArray(json, "mapObjectLootName").toArray(new String[0]);
             gs.mapObjectOpened = toBooleanArray(extractJsonBooleanArray(json, "mapObjectOpened"));
+
+            // QUESTS
+            gs.questIds = extractJsonStringArray(json, "questIds");
+            gs.questNames = extractJsonStringArray(json, "questNames");
+            gs.questDescriptions = extractJsonStringArray(json, "questDescriptions");
+            gs.questProgress = extractJsonIntArray(json, "questProgress");
+            gs.questTargets = extractJsonIntArray(json, "questTargets");
 
             gs.timestamp = extractJsonLong(json, "timestamp", 0L);
             return gs;

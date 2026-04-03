@@ -211,6 +211,7 @@ public class Entity {
     public int lightRadius = 0;
     public java.awt.Color lightColor = null; // custom light tint (null = default orange)
     public boolean eventLayerLight = false; // transient static light loaded from the TMX Events layer
+    public boolean removeOnPickup = true;   // for touch-pickups in the Objects layer; remove from world after a successful pickup
 
     // TILED / EDITOR METADATA
     public String objectId = null;      // persistent ID set from Tiled 'id' property
@@ -220,6 +221,7 @@ public class Entity {
     public Rectangle confinementZone = null; // if set, monster cannot leave this rectangle (world pixels)
     public boolean staticNPC = false;   // NPC never wanders or follows paths — stays in place
     public boolean guardMode  = false;  // Static from spawn; faces the player every tick. Set onPath=true to unlock movement.
+    public String portraitPath = null;  // optional portrait image path (e.g. "/res/NPC/alucard_portrait.png")
     public int walkToCol = -1;          // after interaction: walk to this tile column, then re-enter guardMode (-1 = unused)
     public int walkToRow = -1;          // after interaction: walk to this tile row
     public int walkToDialogueSet = -1;  // dialogue set to use after arriving at walkTo destination (-1 = keep existing logic)
@@ -235,10 +237,20 @@ public class Entity {
     public String requiredItem = null;          // item name the player must have to trigger alternate dialogue
     public int    requiredItemDialogueSet = -1; // which dialogue set to use when the player has the item
     public boolean requiredItemConsumed = false; // if true, the item is removed from inventory on delivery
+    public String requiredItemQuestId = null;   // quest id progressed when required item is delivered
+    public int    requiredItemQuestAmount = 1;  // how much to add on delivery
+    public int    requiredItemPostQuestSet = -1; // dialogue set used after the delivery phase is complete
+    public int    requiredItemRewardCoins = 0;  // coin reward granted on delivery
+    public String requiredItemRewardItemId = null; // ItemFactory id granted on delivery
+    public String requiredItemRewardFragmentId = null; // MemoryJournal id granted on delivery
 
     public String  giveItemId          = null;  // ItemFactory id to give on first interaction
     public int     giveItemDialogueSet  = 0;    // dialogue set played while giving
     public boolean giveItemGiven        = false; // true after item was given once
+    public String  giveItemQuestId      = null; // quest added when the first gift is given
+    public String  giveItemQuestName    = null;
+    public String  giveItemQuestDesc    = null;
+    public int     giveItemQuestTarget  = 1;
 
     public String  giveItem2Id         = null;  // ItemFactory id to give after NPC finishes helping (post-walk)
     public int     giveItem2DialogueSet = -1;   // dialogue set played while giving item 2 (-1 = use walkToDialogueSet)
@@ -267,6 +279,7 @@ public class Entity {
     // ITEM ATTRIBUTES
     public int attackValue; //pentru arme: cat adauga la atac cand e echipata
     public int defenseValue; //pentru scuturi: cat adauga la aparare cand e echipat
+    public String itemId = null; // stable ItemFactory identifier for save/load and Tiled references
     public String description = "";
     public int useCost; //DOAR pentru consumabile: cat mana consuma cand e folosita
     public boolean stackable = false; //daca un item poate fi adunat intr-un stack de n iteme
@@ -330,12 +343,69 @@ public class Entity {
      * Call at the top of speak() — returns true if the item dialogue was triggered.
      */
     protected boolean checkRequiredItemDialogue() {
-        if (requiredItem != null && requiredItemDialogueSet >= 0
-                && gp.player.searchItemInInventory(requiredItem) != 999) {
-            startDialogue(this, requiredItemDialogueSet);
+        if (requiredItem != null && requiredItemDialogueSet >= 0) {
+            int itemIndex = gp.player.searchItemInInventory(requiredItem);
+            if (itemIndex == 999) return false;
+
+            if (requiredItemConsumed && itemIndex < gp.player.inventory.size()) {
+                Entity item = gp.player.inventory.get(itemIndex);
+                if (item.amount > 1) item.amount--;
+                else gp.player.inventory.remove(itemIndex);
+            }
+
+            if (requiredItemQuestId != null && gp.questManager != null) {
+                gp.questManager.progress(requiredItemQuestId, Math.max(1, requiredItemQuestAmount));
+            }
+
+            if (requiredItemRewardCoins > 0) {
+                gp.player.coin += requiredItemRewardCoins;
+                gp.ui.addMessage("Received " + requiredItemRewardCoins + " coins!", COIN_MSG_COLOR);
+            }
+
+            if (requiredItemRewardItemId != null) {
+                Entity rewardItem = data.ItemFactory.create(gp, requiredItemRewardItemId);
+                if (rewardItem != null) {
+                    if (gp.player.canObtainItem(rewardItem)) {
+                        gp.ui.addMessage("Received " + rewardItem.name + "!", Color.WHITE);
+                    } else {
+                        gp.ui.addMessage("Inventory full. Could not receive " + rewardItem.name + ".", Color.WHITE);
+                    }
+                }
+            }
+
+            if (requiredItemRewardFragmentId != null && gp.memoryJournal != null) {
+                data.MemoryJournal.MemoryFragment fragment = gp.memoryJournal.collect(requiredItemRewardFragmentId);
+                if (fragment == null && !gp.memoryJournal.has(requiredItemRewardFragmentId)) {
+                    gp.memoryJournal.addById(requiredItemRewardFragmentId);
+                    gp.ui.addMessage("Memory fragment received: " + requiredItemRewardFragmentId, Color.WHITE);
+                } else if (fragment != null) {
+                    gp.ui.addMessage("Memory fragment received: " + fragment.name, Color.WHITE);
+                }
+            }
+
+            int deliveryDialogueSet = requiredItemDialogueSet;
+            if (requiredItemPostQuestSet >= 0) walkToDialogueSet = requiredItemPostQuestSet;
+            requiredItemDialogueSet = -1;
+            requiredItem = null;
+            startDialogue(this, deliveryDialogueSet);
             return true;
         }
         return false;
+    }
+    public void syncQuestDrivenNpcState() {
+        if (gp == null || gp.questManager == null) return;
+
+        if (giveItemQuestId != null && gp.questManager.hasQuest(giveItemQuestId)) {
+            giveItemGiven = true;
+        }
+
+        String completionQuestId = (requiredItemQuestId != null && !requiredItemQuestId.isBlank())
+                ? requiredItemQuestId : giveItemQuestId;
+        if (completionQuestId != null && gp.questManager.isComplete(completionQuestId)) {
+            giveItemGiven = true;
+            if (requiredItemPostQuestSet >= 0) walkToDialogueSet = requiredItemPostQuestSet;
+            requiredItemDialogueSet = -1;
+        }
     }
     public void setLoot(Entity loot) {}
     public void facePlayer() {
