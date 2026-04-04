@@ -6,16 +6,13 @@ import main.GamePanel;
 
 public class OBJ_Potion extends Entity {
 
-    GamePanel gp;
     int value = 5;
 
     public OBJ_Potion ( GamePanel gp ) {
 
         super(gp);
 
-        this.gp = gp;
-
-        type = type_consumable;
+        type = Entity.TYPE_CONSUMABLE;
         stackable = true;
         name = "Potion";
         down1 = setup("/res/objects/Potion", gp.tileSize, gp.tileSize);
@@ -29,16 +26,17 @@ public class OBJ_Potion extends Entity {
         solidAreaDefaultX = solidArea.x;
         solidAreaDefaultY = solidArea.y;
 
-        setDialogue();
+        initDialogue();
 
     }
 
-    public void setDialogue() {
+    private void initDialogue() {
 
         ensureDialogues()[0][0] = "Your life is already full.";
 
     }
 
+    @Override
     public boolean use(Entity entity) { 
     
     if (gp.player.life >= gp.player.maxLife) {

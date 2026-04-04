@@ -16,19 +16,14 @@ import entity.NPC_Alucard;
 import entity.NPC_Generic;
 import main.GamePanel;
 import object.OBJ_Arrow;
-import object.OBJ_Book;
-import object.OBJ_Boots;
 import object.OBJ_Chest;
 import object.OBJ_Coins;
-import object.OBJ_Compas;
 import object.OBJ_Door;
 import object.OBJ_Gem;
 import object.OBJ_Heart;
 import object.OBJ_Key;
 import object.OBJ_ManaCrystal;
 import object.OBJ_Potion;
-import object.OBJ_Shield_Wood;
-import object.OBJ_Sword_Normal;
 import object.OBJ_Tent;
 import object.OBJ_Torch;
 import object.OBJ_Tower;
@@ -595,15 +590,15 @@ public class MapObjectLoader {
             case "Arrow"  -> { OBJ_Arrow  a = new OBJ_Arrow(gp);  a.amount = getIntProperty(obj, "amount", 1); return a; }
             case "Item"   -> { return createFactoryItem(itemId, obj); }
             case "Tent"   -> { return new OBJ_Tent(gp); }
-            case "Boots"  -> { return new OBJ_Boots(gp); }
+            case "Boots"  -> { return ItemFactory.create(gp, "boots"); }
             case "Gem"    -> { return new OBJ_Gem(gp); }
-            case "Book"   -> { return new OBJ_Book(gp); }
+            case "Book"   -> { return ItemFactory.create(gp, "spell_book"); }
             case "Tower"  -> { return new OBJ_Tower(gp); }
-            case "Sword"  -> { return new OBJ_Sword_Normal(gp); }
-            case "Shield" -> { return new OBJ_Shield_Wood(gp); }
+            case "Sword"  -> { return ItemFactory.create(gp, "sword_normal"); }
+            case "Shield" -> { return ItemFactory.create(gp, "shield_wood"); }
             case "Heart"  -> { return new OBJ_Heart(gp); }
             case "Mana"   -> { return new OBJ_ManaCrystal(gp); }
-            case "Compas" -> { return new OBJ_Compas(gp); }
+            case "Compas" -> { return ItemFactory.create(gp, "compas"); }
             case "Light", "Lighting" -> { return createLightMarker(obj, false); }
             default -> {
                 Entity e = createEntityByName(type);
@@ -943,6 +938,14 @@ public class MapObjectLoader {
                 EventHandler.DialogueData shared = new EventHandler.DialogueData(msg, speaker, one);
                 gp.eHandler.registerDialogueTrigger(worldX, worldY, ew, eh, shared);
             }
+            case "ThoughtTrigger" -> {
+                String msg    = getStringProperty(obj, "message", "...").replace("\\n", "\n");
+                boolean one   = getBoolProperty(obj, "oneShot", true);
+                int linger    = getIntProperty(obj, "linger", 120);
+                int delay     = getIntProperty(obj, "delay", 0);
+                EventHandler.ThoughtData data = new EventHandler.ThoughtData(msg, one, linger, delay);
+                gp.eHandler.registerThoughtTrigger(worldX, worldY, ew, eh, data);
+            }
             case "LevelGate" -> {
                 int    min   = getIntProperty(obj, "minLevel", 0);
                 String msg   = getStringProperty(obj, "message",
@@ -967,6 +970,12 @@ public class MapObjectLoader {
                 boolean one   = getBoolProperty(obj, "oneShot", true);
                 if (!qId.isEmpty())
                     gp.eHandler.registerQuestTrigger(worldX, worldY, ew, eh, qId, prog, one);
+            }
+            case "FragmentTrigger" -> {
+                String  fId  = getStringProperty(obj, "fragmentId", "");
+                boolean one  = getBoolProperty(obj, "oneShot", true);
+                if (!fId.isEmpty())
+                    gp.eHandler.registerFragmentTrigger(worldX, worldY, ew, eh, fId, one);
             }
             case "SpawnPoint" -> {
                 // Always record this as the default map spawn position
@@ -1077,24 +1086,24 @@ public class MapObjectLoader {
      */
     public Entity createEntityByName(String name) {
         Entity entity = switch (name) {
-            case "Compas"  -> new OBJ_Compas(gp);
+            case "Compas"  -> ItemFactory.create(gp, "compas");
             case "Key"     -> new OBJ_Key(gp);
             case "Potion"  -> new OBJ_Potion(gp);
-            case "Boots"   -> new OBJ_Boots(gp);
+            case "Boots"   -> ItemFactory.create(gp, "boots");
             case "Gem"     -> new OBJ_Gem(gp);
-            case "Sword", "Normal Sword"   -> new OBJ_Sword_Normal(gp);
-            case "Shield", "Wood Shield"  -> new OBJ_Shield_Wood(gp);
+            case "Sword", "Normal Sword"   -> ItemFactory.create(gp, "sword_normal");
+            case "Shield", "Wood Shield"   -> ItemFactory.create(gp, "shield_wood");
             case "Heart"   -> new OBJ_Heart(gp);
             case "Mana"    -> new OBJ_ManaCrystal(gp);
             case "Arrow"   -> new OBJ_Arrow(gp);
             case "Torch"   -> new OBJ_Torch(gp);
-            case "Book"    -> new OBJ_Book(gp);
+            case "Book"    -> ItemFactory.create(gp, "spell_book");
             case "Coins"   -> new OBJ_Coins(gp);
             case "Tower"   -> new OBJ_Tower(gp);
             case "Tent"    -> new OBJ_Tent(gp);
             case "Light"   -> {
                 Entity l = new Entity(gp);
-                l.name = "Light"; l.type = Entity.type_utility; l.lightSource = true; l.lightRadius = 4; l.collision = false;
+                l.name = "Light"; l.type = Entity.TYPE_UTILITY; l.lightSource = true; l.lightRadius = 4; l.collision = false;
                 yield l;
             }
             default        -> null;
@@ -1126,7 +1135,7 @@ public class MapObjectLoader {
     private Entity createLightMarker(Element obj, boolean eventLayer) {
         Entity light = new Entity(gp);
         light.name = "Light";
-        light.type = Entity.type_utility;  // never picked up or interacted with
+        light.type = Entity.TYPE_UTILITY;  // never picked up or interacted with
         light.lightSource = true;
         light.lightRadius = getIntProperty(obj, "lightRadius", 4);
         String colorHex = getStringProperty(obj, "lightColor", null);
@@ -1173,22 +1182,6 @@ public class MapObjectLoader {
     }
 
     // ---- Utilities ------------------------------------------------------------
-
-    @FunctionalInterface interface TileAction { void accept(int col, int row); }
-
-    /** Calls action for every tile covered by a Tiled object (point or rectangle). */
-    private void forEachTile(int col, int row, int worldX, int worldY,
-                             int areaW, int areaH, TileAction action) {
-        if (areaW <= 0 || areaH <= 0) { action.accept(col, row); return; }
-        int ts = gp.tileSize;
-        int startCol = worldX / ts;
-        int endCol   = (worldX + areaW - 1) / ts;
-        int startRow = worldY / ts;
-        int endRow   = (worldY + areaH - 1) / ts;
-        for (int c = startCol; c <= endCol; c++)
-            for (int r = startRow; r <= endRow; r++)
-                action.accept(c, r);
-    }
 
     private int firstFreeSlot(Entity[] arr) {
         for (int i = 0; i < arr.length; i++) if (arr[i] == null) return i;

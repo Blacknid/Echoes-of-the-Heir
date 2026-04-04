@@ -75,6 +75,21 @@ public class Minimap {
     private static final java.awt.Font MAP_HINT_FONT  = new java.awt.Font("Georgia", java.awt.Font.PLAIN, 11);
     private static final Color VIEWPORT_COLOR= new Color(255, 255, 255, 80);
 
+    // OPTIMIZATION: Pre-allocated border strokes and colors (avoid per-frame allocation)
+    private static final BasicStroke BORDER_OUTER_STROKE = new BasicStroke(BORDER_WIDTH + 3 + 4); // large mode
+    private static final BasicStroke BORDER_MID_STROKE   = new BasicStroke(BORDER_WIDTH + 4);
+    private static final BasicStroke BORDER_INNER_STROKE = new BasicStroke(1.8f);
+    private static final BasicStroke BORDER_HIGHLIGHT_STROKE = new BasicStroke(1.0f);
+    private static final BasicStroke BORDER_OUTER_STROKE_SM = new BasicStroke(BORDER_WIDTH + 3);
+    private static final BasicStroke BORDER_MID_STROKE_SM   = new BasicStroke(BORDER_WIDTH);
+    private static final Color BORDER_OUTER_COLOR    = new Color(6, 5, 3);
+    private static final Color BORDER_MID_COLOR      = new Color(55, 42, 22);
+    private static final Color BORDER_INNER_COLOR    = new Color(140, 108, 55, 210);
+    private static final Color BORDER_HIGHLIGHT_COLOR= new Color(85, 68, 36, 110);
+
+    // OPTIMIZATION: Cached vignette overlay images keyed by radius
+    private final HashMap<Integer, BufferedImage> vignetteCache = new HashMap<>();
+
     // -----------------------------------------------------------------------
     // Bake detail
     // -----------------------------------------------------------------------
@@ -193,7 +208,7 @@ public class Minimap {
 
         // Dark backdrop
         g2.setComposite(AlphaComposite.getInstance(AlphaComposite.SRC_OVER, FULL_MAP_BG_ALPHA));
-        g2.setColor(new Color(4, 3, 2));
+        g2.setColor(COL_BG);
         g2.fillRect(0, 0, gp.screenWidth, gp.screenHeight);
         g2.setComposite(AlphaComposite.getInstance(AlphaComposite.SRC_OVER, 1f));
 
@@ -250,38 +265,47 @@ public class Minimap {
         float scaleY = (float)(radius * 2) / gp.tileM.currentMapRows;
         drawEntities(g2, cx - radius, cy - radius, scaleX, scaleY, largeMode);
 
-        // 4. Radial vignette: transparent centre → dark rim
-        float[] vigFracs  = { 0.50f, 1.0f };
-        Color[] vigColors = { new Color(0, 0, 0, 0), new Color(0, 0, 0, 215) };
-        g2.setPaint(new RadialGradientPaint(cx, cy, radius, vigFracs, vigColors));
-        g2.fillOval(cx - radius, cy - radius, radius * 2, radius * 2);
+        // 4. Radial vignette: transparent centre → dark rim (cached to avoid RadialGradientPaint per frame)
+        BufferedImage vig = vignetteCache.get(radius);
+        if (vig == null) {
+            int diam = radius * 2;
+            vig = new BufferedImage(diam, diam, BufferedImage.TYPE_INT_ARGB);
+            Graphics2D vg = vig.createGraphics();
+            float[] vigFracs  = { 0.50f, 1.0f };
+            Color[] vigColors = { new Color(0, 0, 0, 0), new Color(0, 0, 0, 215) };
+            vg.setPaint(new RadialGradientPaint(radius, radius, radius, vigFracs, vigColors));
+            vg.fillOval(0, 0, diam, diam);
+            vg.dispose();
+            vignetteCache.put(radius, vig);
+        }
+        g2.drawImage(vig, cx - radius, cy - radius, null);
 
         // Restore clip before drawing border
         g2.setClip(savedClip);
 
-        // 5. Ornate ring border  (DST wood-frame style: dark outer / earthy brown / amber inner rim)
+        // 5. Ornate ring border (DST wood-frame style: dark outer / earthy brown / amber inner rim)
         int bw = largeMode ? BORDER_WIDTH + 4 : BORDER_WIDTH;
 
         // Outer dark body
-        g2.setStroke(new BasicStroke(bw + 3));
-        g2.setColor(new Color(6, 5, 3));
+        g2.setStroke(largeMode ? BORDER_OUTER_STROKE : BORDER_OUTER_STROKE_SM);
+        g2.setColor(BORDER_OUTER_COLOR);
         g2.drawOval(cx - radius - bw / 2, cy - radius - bw / 2,
                     radius * 2 + bw, radius * 2 + bw);
 
         // Mid earthy-brown layer
-        g2.setStroke(new BasicStroke(bw));
-        g2.setColor(new Color(55, 42, 22));
+        g2.setStroke(largeMode ? BORDER_MID_STROKE : BORDER_MID_STROKE_SM);
+        g2.setColor(BORDER_MID_COLOR);
         g2.drawOval(cx - radius - bw / 2, cy - radius - bw / 2,
                     radius * 2 + bw, radius * 2 + bw);
 
         // Bright amber inner rim
-        g2.setStroke(new BasicStroke(1.8f));
-        g2.setColor(new Color(140, 108, 55, 210));
+        g2.setStroke(BORDER_INNER_STROKE);
+        g2.setColor(BORDER_INNER_COLOR);
         g2.drawOval(cx - radius + 1, cy - radius + 1, radius * 2 - 2, radius * 2 - 2);
 
         // Faint outer highlight
-        g2.setStroke(new BasicStroke(1.0f));
-        g2.setColor(new Color(85, 68, 36, 110));
+        g2.setStroke(BORDER_HIGHLIGHT_STROKE);
+        g2.setColor(BORDER_HIGHLIGHT_COLOR);
         g2.drawOval(cx - radius - bw, cy - radius - bw,
                     radius * 2 + bw * 2, radius * 2 + bw * 2);
 

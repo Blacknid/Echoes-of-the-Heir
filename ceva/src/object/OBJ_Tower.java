@@ -1,9 +1,10 @@
 package object;
 
-import entity.Entity;
-import entity.Eye;
 import java.awt.Graphics2D;
 import java.awt.image.BufferedImage;
+
+import entity.Entity;
+import entity.Eye;
 import main.GamePanel;
 
 public class OBJ_Tower extends Entity {
@@ -15,7 +16,7 @@ public class OBJ_Tower extends Entity {
         super(gp);
         this.gpRef = gp;
 
-        type = type_obstacle;
+        type = TYPE_OBSTACLE;
         name = "Tower";
         description = "A tall, imposing tower.\nBlocks the way.\nCame from under the eye";
         collision = true; // Player cannot walk through it

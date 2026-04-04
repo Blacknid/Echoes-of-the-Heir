@@ -38,6 +38,7 @@ import ui.CutsceneManager;
 import ui.Minimap;
 import ui.RenderPipeline;
 import ui.ScreenShake;
+import ui.ThoughtBubble;
 import ui.UI;
 import util.ObjectPool;
 
@@ -139,6 +140,9 @@ public class GamePanel extends JPanel implements Runnable{
     // MEMORY SYSTEM
     public data.MemoryJournal memoryJournal;
     public environment.MemoryFlashback memoryFlashback;
+
+    // THOUGHT BUBBLE (non-blocking inner monologue)
+    public ThoughtBubble thoughts;
 
     // STORY PROGRESS
     public boolean boss1Defeated;
@@ -279,6 +283,7 @@ public class GamePanel extends JPanel implements Runnable{
         }
     }
     mobSpawner = new MobSpawner(this);
+    thoughts = new ThoughtBubble(this);
     gameState = titleState;
 
     // MULTIPLAYER: initialize client and server list
@@ -326,7 +331,6 @@ public class GamePanel extends JPanel implements Runnable{
 
     // QUEST SYSTEM
     questManager = new QuestManager(this);
-    questManager.addQuest("find_exit", "Find the Exit", "Retrieve the cave memory fragment", 1);
 
     // MEMORY SYSTEM
     memoryJournal = new data.MemoryJournal();
@@ -444,11 +448,11 @@ public class GamePanel extends JPanel implements Runnable{
         if (enabled) {
             System.setProperty("sun.java2d.vsync", "True");
             FPS = monitorRefreshRate;
-            System.out.println("[V-SYNC] Enabled - Game synced to monitor refresh rate");
+            System.out.println("[V-SYNC] Enabled - Game synced to monitor refresh rate (" + monitorRefreshRate + " Hz)");
         } else {
             System.setProperty("sun.java2d.vsync", "False");
-            FPS = 60;
-            System.out.println("[V-SYNC] Disabled - Render target set to " + FPS + " FPS");
+            FPS = 0; // Uncapped — render as fast as possible
+            System.out.println("[V-SYNC] Disabled - Render target UNCAPPED");
         }
     }
 
@@ -488,7 +492,8 @@ public class GamePanel extends JPanel implements Runnable{
         final double updateInterval = 1_000_000_000.0 / TARGET_UPS;
         double updateDelta = 0;
         double renderDelta = 0;
-        double drawInterval = 1_000_000_000.0 / Math.max(30, FPS);
+        double drawInterval = (FPS > 0) ? 1_000_000_000.0 / Math.max(30, FPS) : 0;
+        boolean uncapped = (FPS <= 0);
         long lastTime = System.nanoTime();
         long currentTime;
         long timer = 0;
@@ -505,9 +510,12 @@ public class GamePanel extends JPanel implements Runnable{
             // Only recalculate draw interval when FPS target changes (e.g. V-Sync toggle)
             if (cachedFPS != FPS) {
                 cachedFPS = FPS;
-                drawInterval = 1_000_000_000.0 / Math.max(30, cachedFPS);
+                uncapped = (cachedFPS <= 0);
+                drawInterval = uncapped ? 0 : 1_000_000_000.0 / Math.max(30, cachedFPS);
             }
-            renderDelta += elapsed / drawInterval;
+            if (!uncapped) {
+                renderDelta += elapsed / drawInterval;
+            }
 
             timer += elapsed;
             lastTime = currentTime;
@@ -520,14 +528,17 @@ public class GamePanel extends JPanel implements Runnable{
                 updateDelta--;
             }
 
-            if (renderDelta >= 1) {
+            // Render: uncapped mode renders every loop iteration, capped mode uses delta
+            if (uncapped || renderDelta >= 1) {
                 synchronized (this) {
                     drawToTempScreen();
                 }
                 repaint();
                 frameCount++;
-                renderDelta -= 1;
-                if (renderDelta > 1) renderDelta = 1; // cap to prevent frame debt spiral
+                if (!uncapped) {
+                    renderDelta -= 1;
+                    if (renderDelta > 1) renderDelta = 1;
+                }
             }
 
             if(timer >= 1_000_000_000) {
@@ -537,20 +548,24 @@ public class GamePanel extends JPanel implements Runnable{
                 timer = 0;
             }
 
-            // Smart sleep: only Thread.sleep when there's enough headroom,
-            // otherwise spin-wait to avoid Windows ~15 ms sleep granularity.
-            long now = System.nanoTime();
-            long nextFrame = lastTime + (long) drawInterval;
-            long remaining = nextFrame - now;
-            if (remaining > 2_000_000) { // >2 ms headroom → safe to sleep 1 ms
-                try {
-                    Thread.sleep(1);
-                } catch (InterruptedException e) {
-                    Thread.currentThread().interrupt();
-                    break;
+            // Smart sleep: only when capped and there's enough headroom
+            if (!uncapped) {
+                long now = System.nanoTime();
+                long nextFrame = lastTime + (long) drawInterval;
+                long remaining = nextFrame - now;
+                if (remaining > 2_000_000) {
+                    try {
+                        Thread.sleep(1);
+                    } catch (InterruptedException e) {
+                        Thread.currentThread().interrupt();
+                        break;
+                    }
+                } else if (remaining > 0) {
+                    Thread.onSpinWait();
                 }
-            } else if (remaining > 0) {
-                Thread.onSpinWait(); // CPU-friendly busy-wait hint
+            } else {
+                // Uncapped: yield briefly to prevent 100% CPU core usage
+                Thread.onSpinWait();
             }
 
         }
@@ -558,7 +573,8 @@ public class GamePanel extends JPanel implements Runnable{
 
     @Override
     protected void paintComponent(Graphics g) {
-        super.paintComponent(g);
+        // OPTIMIZATION: Skip super.paintComponent() — it fills background which we overwrite
+        // with tempScreen anyway. Saves one full-screen fill per frame.
         synchronized (this) {
             if (tempScreen != null) {
                 g.drawImage(tempScreen, 0, 0, getWidth(), getHeight(), null);
@@ -584,6 +600,9 @@ public class GamePanel extends JPanel implements Runnable{
             }
             return; // freeze everything else during flashback
         }
+
+        // THOUGHT BUBBLE: ticks during play and cutscene states
+        if (thoughts != null) thoughts.update();
 
         if(gameState == playState) {
             // Refresh viewport cache once per frame

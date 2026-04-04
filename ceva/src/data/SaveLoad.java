@@ -2,6 +2,8 @@ package data;
 
 import java.io.FileInputStream;
 import java.io.FileOutputStream;
+import java.nio.charset.StandardCharsets;
+import java.security.GeneralSecurityException;
 import java.security.SecureRandom;
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -15,16 +17,11 @@ import entity.Entity;
 import main.GamePanel;
 import main.Main;
 import main.QuestManager;
-import object.OBJ_Book;
-import object.OBJ_Boots;
 import object.OBJ_Chest;
-import object.OBJ_Compas;
 import object.OBJ_Door;
 import object.OBJ_Gem;
 import object.OBJ_Key;
 import object.OBJ_Potion;
-import object.OBJ_Shield_Wood;
-import object.OBJ_Sword_Normal;
 
 public class SaveLoad {
 
@@ -49,12 +46,12 @@ public class SaveLoad {
     // =========================
     // CRYPTO HELPERS
     // =========================
-    private byte[] encrypt(String plaintext) throws Exception {
+    private byte[] encrypt(String plaintext) throws GeneralSecurityException {
         byte[] iv = new byte[16];
         new SecureRandom().nextBytes(iv);
         Cipher cipher = Cipher.getInstance("AES/CBC/PKCS5Padding");
         cipher.init(Cipher.ENCRYPT_MODE, new SecretKeySpec(SAVE_KEY, "AES"), new IvParameterSpec(iv));
-        byte[] enc = cipher.doFinal(plaintext.getBytes("UTF-8"));
+        byte[] enc = cipher.doFinal(plaintext.getBytes(StandardCharsets.UTF_8));
         // File layout: [16-byte IV][ciphertext]
         byte[] out = new byte[16 + enc.length];
         System.arraycopy(iv,  0, out,  0, 16);
@@ -62,9 +59,9 @@ public class SaveLoad {
         return out;
     }
 
-    private String decrypt(byte[] data) throws Exception {
+    private String decrypt(byte[] data) throws GeneralSecurityException {
         if (data.length < 17) {
-            throw new Exception("Save file is corrupted or too short");
+            throw new GeneralSecurityException("Save file is corrupted or too short");
         }
         byte[] iv = new byte[16];
         System.arraycopy(data, 0, iv, 0, 16);
@@ -72,7 +69,7 @@ public class SaveLoad {
         System.arraycopy(data, 16, enc, 0, enc.length);
         Cipher cipher = Cipher.getInstance("AES/CBC/PKCS5Padding");
         cipher.init(Cipher.DECRYPT_MODE, new SecretKeySpec(SAVE_KEY, "AES"), new IvParameterSpec(iv));
-        return new String(cipher.doFinal(enc), "UTF-8");
+        return new String(cipher.doFinal(enc), StandardCharsets.UTF_8);
     }
 
     // =========================
@@ -83,17 +80,31 @@ public class SaveLoad {
         if (name == null || name.equals("NA")) return null;
 
         switch (name) {
-            case "Spell book": return new OBJ_Book(gp);
-            case "Boots": return new OBJ_Boots(gp);
-            case "Chest": return new OBJ_Chest(gp);
-            case "Door": return new OBJ_Door(gp);
-            case "Gem": return new OBJ_Gem(gp);
-            case "Key": return new OBJ_Key(gp);
-            case "Compas": return new OBJ_Compas(gp);
-            case "Potion": return new OBJ_Potion(gp);
-            case "Wood_Shield": return new OBJ_Shield_Wood(gp);
-            case "Normal Sword": return new OBJ_Sword_Normal(gp);
+            case "Chest" -> {
+                return new OBJ_Chest(gp);
+            }
+            case "Door" -> {
+                return new OBJ_Door(gp);
+            }
+            case "Gem" -> {
+                return new OBJ_Gem(gp);
+            }
+            case "Key" -> {
+                return new OBJ_Key(gp);
+            }
+            case "Potion" -> {
+                return new OBJ_Potion(gp);
+            }
+            default -> {
+            }
         }
+
+        if ("Spell book".equals(name)) return ItemFactory.create(gp, "spell_book");
+        if ("Boots".equals(name)) return ItemFactory.create(gp, "boots");
+        if ("Compas".equals(name)) return ItemFactory.create(gp, "compas");
+        if ("Wood_Shield".equals(name)) return ItemFactory.create(gp, "shield_wood");
+        if ("Normal Sword".equals(name)) return ItemFactory.create(gp, "sword_normal");
+
         Entity item = ItemFactory.create(gp, name);
         if (item != null) return item;
         return ItemFactory.create(gp, normalizeItemId(name));
@@ -134,8 +145,8 @@ public class SaveLoad {
             if (!result.ok()) {
                 System.out.println(result.message());
             }
-        } catch (Exception e) {
-            e.printStackTrace();
+        } catch (RuntimeException e) {
+            System.out.println("Cloud save failed: " + e.getMessage());
             System.out.println("Save Exception!");
         }
     }
@@ -320,8 +331,8 @@ public class SaveLoad {
                 fos.write(encrypted);
             }
 
-        } catch (Exception e) {
-            e.printStackTrace();
+        } catch (java.io.IOException | java.security.GeneralSecurityException | RuntimeException e) {
+            System.out.println("Save to disk failed: " + e.getMessage());
             System.out.println("Save Exception!");
         }
     }
@@ -344,7 +355,7 @@ public class SaveLoad {
             } else if (!result.ok()) {
                 System.out.println(result.message());
             }
-        } catch (Exception e) {
+        } catch (RuntimeException e) {
             System.out.println("Cloud load failed, falling back to local save: " + e.getMessage());
         }
 
@@ -464,8 +475,8 @@ public class SaveLoad {
             gp.storyAct = Integer.parseInt(map.getOrDefault("storyAct", "0"));
             gp.endingChosen = Integer.parseInt(map.getOrDefault("endingChosen", "0"));
 
-        } catch (Exception e) {
-            e.printStackTrace();
+        } catch (java.io.IOException | java.security.GeneralSecurityException | RuntimeException e) {
+            System.out.println("Load from disk failed: " + e.getMessage());
             System.out.println("Load Exception!");
         }
     }
@@ -624,7 +635,7 @@ public class SaveLoad {
             return parsed instanceof GameState gs ? gs : null;
         } catch (ClassNotFoundException e) {
             return null;
-        } catch (Exception e) {
+        } catch (ReflectiveOperationException | SecurityException e) {
             System.out.println("Cloud JSON parse (Gson) failed: " + e.getMessage());
             return null;
         }
@@ -640,7 +651,7 @@ public class SaveLoad {
             return parsed instanceof GameState gs ? gs : null;
         } catch (ClassNotFoundException e) {
             return null;
-        } catch (Exception e) {
+        } catch (ReflectiveOperationException | SecurityException e) {
             System.out.println("Cloud JSON parse (Jackson) failed: " + e.getMessage());
             return null;
         }
@@ -684,10 +695,10 @@ public class SaveLoad {
             gs.currentShieldSlot = extractJsonInt(json, "currentShieldSlot", 1);
 
             // OBJECTS ON MAP
-            gs.mapObjectNames = extractJsonStringArray(json, "mapObjectNames").toArray(new String[0]);
+            gs.mapObjectNames = extractJsonStringArray(json, "mapObjectNames").toArray(String[]::new);
             gs.mapObjectWorldX = toIntArray(extractJsonIntArray(json, "mapObjectWorldX"));
             gs.mapObjectWorldY = toIntArray(extractJsonIntArray(json, "mapObjectWorldY"));
-            gs.mapObjectLootName = extractJsonStringArray(json, "mapObjectLootName").toArray(new String[0]);
+            gs.mapObjectLootName = extractJsonStringArray(json, "mapObjectLootName").toArray(String[]::new);
             gs.mapObjectOpened = toBooleanArray(extractJsonBooleanArray(json, "mapObjectOpened"));
 
             // QUESTS
@@ -700,7 +711,7 @@ public class SaveLoad {
             gs.timestamp = extractJsonLong(json, "timestamp", 0L);
             return gs;
 
-        } catch (Exception e) {
+        } catch (RuntimeException e) {
             System.out.println("Cloud JSON parse (fallback) failed: " + e.getMessage());
             return null;
         }
@@ -804,7 +815,7 @@ public class SaveLoad {
         if (raw == null) return fallback;
         try {
             return Integer.parseInt(raw);
-        } catch (Exception e) {
+        } catch (NumberFormatException e) {
             return fallback;
         }
     }
@@ -814,7 +825,7 @@ public class SaveLoad {
         if (raw == null) return fallback;
         try {
             return Long.parseLong(raw);
-        } catch (Exception e) {
+        } catch (NumberFormatException e) {
             return fallback;
         }
     }
@@ -861,8 +872,9 @@ public class SaveLoad {
         ArrayList<String> tokens = splitJsonArray(raw);
         for (String token : tokens) {
             try {
-                out.add(Integer.parseInt(token.trim()));
-            } catch (Exception ignored) {}
+                out.add(Integer.valueOf(token.trim()));
+            } catch (NumberFormatException ignored) {
+            }
         }
         return out;
     }

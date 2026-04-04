@@ -14,7 +14,7 @@ public class OBJ_Tent extends Entity {
         super(gp);
         this.gp = gp;
 
-        type = type_consumable;
+        type = TYPE_CONSUMABLE;
         name = "Tent";
         down1 = setup("/res/objects/tent", gp.tileSize, gp.tileSize);
         description = "Use to sleep.\nRestores HP & MP.";

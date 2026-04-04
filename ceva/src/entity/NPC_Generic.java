@@ -142,7 +142,7 @@ public class NPC_Generic extends Entity {
                         }
                     }
                 }
-            } catch (Exception e) {
+            } catch (java.io.IOException | RuntimeException e) {
                 System.out.println("NPC_Generic: Failed to load idle sprite '" + idleSpritePath + "': " + e.getMessage());
             }
         }
@@ -192,12 +192,7 @@ public class NPC_Generic extends Entity {
             if (item != null) gp.player.canObtainItem(item);
             giveItemGiven = true;
             if (giveItemQuestId != null && gp.questManager != null) {
-                gp.questManager.addQuest(
-                    giveItemQuestId,
-                    giveItemQuestName != null ? giveItemQuestName : giveItemQuestId,
-                    giveItemQuestDesc != null ? giveItemQuestDesc : "",
-                    Math.max(1, giveItemQuestTarget)
-                );
+                gp.questManager.addQuest(giveItemQuestId);
             }
             startDialogue(this, giveItemDialogueSet);
             return;

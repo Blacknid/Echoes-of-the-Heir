@@ -52,10 +52,10 @@ public class MapManager {
     public boolean loadingGame = false;
 
     // MAP ENTITY STORAGE: Preserve entity states when switching between maps
-    private Map<String, Entity[]> savedObjects = new HashMap<>();
-    private Map<String, Entity[]> savedNPCs = new HashMap<>();
-    private Map<String, Entity[]> savedMonsters = new HashMap<>();
-    private Map<String, interactiveTile[]> savedITiles = new HashMap<>();
+    private final Map<String, Entity[]> savedObjects = new HashMap<>();
+    private final Map<String, Entity[]> savedNPCs = new HashMap<>();
+    private final Map<String, Entity[]> savedMonsters = new HashMap<>();
+    private final Map<String, interactiveTile[]> savedITiles = new HashMap<>();
 
     public MapManager(GamePanel gp) {
         this.gp = gp;

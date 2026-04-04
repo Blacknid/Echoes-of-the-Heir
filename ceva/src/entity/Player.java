@@ -1410,14 +1410,14 @@ public class Player extends Entity {
             if (gp.obj[i].lightSource) return;
 
             // PICKUP ONLY OBJECTS
-            if (gp.obj[i].type == type_pickupOnly) {
+            if (gp.obj[i].type == TYPE_PICKUP_ONLY) {
                 attackCanceled = true;
                 if (gp.obj[i].use(this)) {
                     gp.obj[i] = null;
                 } else return;
             }
             // INTERACTABLE OBJECTS (chests, doors, etc.)
-            else if (gp.obj[i].type == type_obstacle) {
+            else if (gp.obj[i].type == TYPE_OBSTACLE) {
                 if(keyH.enterPressed) {
                     attackCanceled = true;
                     gp.obj[i].interact();
@@ -1532,17 +1532,17 @@ public class Player extends Entity {
         if (itemIndex < inventory.size()) {
             Entity selectedItem = inventory.get(itemIndex);
 
-            if (selectedItem.type == type_sword || selectedItem.type == type_book) {
+            if (selectedItem.type == TYPE_SWORD || selectedItem.type == TYPE_BOOK) {
                 currentWeapon = selectedItem;
                 attack = getAttack();
                 gp.ui.addMessage("Equipped " + selectedItem.name + "!", Color.WHITE);
                 gp.playSE(SFX.MONSTER_HIT); // equip sound
-            } else if (selectedItem.type == type_shield) {
+            } else if (selectedItem.type == TYPE_SHIELD) {
                 currentShield = selectedItem;
                 defense = getDefense();
                 gp.ui.addMessage("Equipped " + selectedItem.name + "!", Color.WHITE);
                 gp.playSE(SFX.MONSTER_HIT);
-            } else if (selectedItem.type == type_consumable) {
+            } else if (selectedItem.type == TYPE_CONSUMABLE) {
                 attackCanceled = true;
                 if (selectedItem.use(this) && !"Potion".equals(selectedItem.name)) {
                     gp.ui.addMessage("Used " + selectedItem.name + ".", Color.WHITE);

@@ -24,7 +24,7 @@ public class OBJ_Chest extends Entity {
     public OBJ_Chest(GamePanel gp) {
         super(gp);
 
-        type = type_obstacle;
+        type = TYPE_OBSTACLE;
         name = "Chest";
         image  = setup("/res/objects/Chest_closed", gp.tileSize, gp.tileSize);
         image1 = setup("/res/objects/Chest_opened", gp.tileSize, gp.tileSize);

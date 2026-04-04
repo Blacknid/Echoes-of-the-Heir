@@ -62,6 +62,21 @@ public class EnvironmentManager {
         lightning = new Lightning(gp);
     }
 
+    /** Get the player light radius (in tiles). */
+    public int getPlayerLightRadius() {
+        return lightning != null ? lightning.playerLightRadius : 7;
+    }
+
+    /**
+     * Set the player light radius (in tiles). Clamped to [1, 30].
+     * The new mask is generated automatically on next draw.
+     */
+    public void setPlayerLightRadius(int radiusTiles) {
+        if (lightning != null) {
+            lightning.playerLightRadius = Math.max(1, Math.min(30, radiusTiles));
+        }
+    }
+
     public void update() {
         // Day/night cycle — skip when ambient light is pinned OR weatherCycle is disabled
         if (pinnedFilterAlpha >= 0f) {

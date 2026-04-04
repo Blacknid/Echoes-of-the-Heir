@@ -1,7 +1,8 @@
 package object;
 
-import entity.Entity;
 import java.awt.image.BufferedImage;
+
+import entity.Entity;
 import main.GamePanel;
 
 public class OBJ_Torch extends Entity {
@@ -9,7 +10,7 @@ public class OBJ_Torch extends Entity {
     public OBJ_Torch(GamePanel gp) {
         super(gp);
 
-        type = type_obstacle;
+        type = TYPE_OBSTACLE;
         name = "Torch";
         
         // 1. LIGHTING PROPERTIES

@@ -254,6 +254,7 @@ public class UI {
             drawPlayerLife();
             drawMessage();
             drawLevelUpBanner();
+            if (gp.thoughts != null) gp.thoughts.draw(g2);
         }
 
         // PAUSE STATE
@@ -302,6 +303,7 @@ public class UI {
 
         if ( gp.gameState == GamePanel.cutsceneState ) {
             drawDialogueScreen();
+            if (gp.thoughts != null) gp.thoughts.draw(g2);
         }
 
         // JOURNAL STATE
@@ -2220,8 +2222,8 @@ public class UI {
         if (itemIndex < gp.player.inventory.size()) {
             Entity itemForHint = gp.player.inventory.get(itemIndex);
             if (itemForHint != null) {
-                if (itemForHint.type == Entity.type_consumable) actionHint = "Use (ENTER)";
-                else if (itemForHint.type == Entity.type_sword || itemForHint.type == Entity.type_shield || itemForHint.type == Entity.type_book) actionHint = "Equip (ENTER)";
+                if (itemForHint.type == Entity.TYPE_CONSUMABLE) actionHint = "Use (ENTER)";
+                else if (itemForHint.type == Entity.TYPE_SWORD || itemForHint.type == Entity.TYPE_SHIELD || itemForHint.type == Entity.TYPE_BOOK) actionHint = "Equip (ENTER)";
             }
         }
 
@@ -2263,10 +2265,10 @@ public class UI {
                 // Stat comparison for equipment
                 int statY = iconY + gp.tileSize / 2 + 24;
                 g2.setFont(cachedFont(Font.PLAIN, 18F));
-                if (item.type == Entity.type_sword && item.attackValue != 0) {
+                if (item.type == Entity.TYPE_SWORD && item.attackValue != 0) {
                     int diff = item.attackValue - (gp.player.currentWeapon != null ? gp.player.currentWeapon.attackValue : 0);
                     drawStatComparison(iconX + gp.tileSize + 10, statY, "ATK " + item.attackValue, diff, item == gp.player.currentWeapon);
-                } else if (item.type == Entity.type_shield && item.defenseValue != 0) {
+                } else if (item.type == Entity.TYPE_SHIELD && item.defenseValue != 0) {
                     int diff = item.defenseValue - (gp.player.currentShield != null ? gp.player.currentShield.defenseValue : 0);
                     drawStatComparison(iconX + gp.tileSize + 10, statY, "DEF " + item.defenseValue, diff, item == gp.player.currentShield);
                 }

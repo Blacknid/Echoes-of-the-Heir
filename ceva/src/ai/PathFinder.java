@@ -134,7 +134,7 @@ public class PathFinder {
         // Check obstacle entities
         for (int i = 0; i < gp.obj.length; i++) {
             Entity obj = gp.obj[i];
-            if (obj != null && obj.collision && obj.type == Entity.type_obstacle) {
+            if (obj != null && obj.collision && obj.type == Entity.TYPE_OBSTACLE) {
                 tempHitbox.setBounds(
                         obj.worldX + obj.solidArea.x,
                         obj.worldY + obj.solidArea.y,

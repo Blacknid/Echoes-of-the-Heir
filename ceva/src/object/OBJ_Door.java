@@ -22,7 +22,7 @@ public class OBJ_Door extends Entity {
         super(gp);
         this.gp = gp;
 
-        type = type_obstacle;
+        type = TYPE_OBSTACLE;
         name = "Door";
         down1 = setup("/res/objects/Door", gp.tileSize, gp.tileSize);
         collision = true;

@@ -15,10 +15,6 @@ public class Entity {
 
     protected GamePanel gp;
 
-    // PATHFINDING...nu este ideal sa le avem aici, dar e mai bine decat sa aruncam cu 10000000 de parametri incolo si incoace
-    int pathUpdateCounter = 0;
-    int pathUpdateInterval = 10;
-
     // PER-ENTITY PATH CACHE — recalculate only when the goal tile changes
     private final java.util.ArrayList<int[]> cachedWaypoints = new java.util.ArrayList<>();
     private int waypointIdx      = 0;
@@ -112,6 +108,7 @@ public class Entity {
     // OPTIMIZATION: Reusable flash image to avoid per-frame BufferedImage allocation
     private BufferedImage hitFlashBuffer;
     private int hitFlashBufferW, hitFlashBufferH;
+    private java.awt.Graphics2D hitFlashG2; // OPTIMIZATION: cached Graphics2D for hit flash overlay
 
 
 
@@ -173,18 +170,18 @@ public class Entity {
 
     // TYPE CONSTANTS
     public int type;
-    public static final int type_player = 0;
-    public static final int type_npc = 1;
-    public static final int type_monster = 2;
-    public static final int type_sword = 3;
-    public static final int type_book = 4;
-    public static final int type_shield = 5;
-    public static final int type_consumable = 6;
-    public static final int type_pickupOnly = 7;
-    public static final int type_obstacle = 8;
-    public static final int type_buffs = 9;
-    public static final int type_ending = 10;
-    public static final int type_utility = 11;
+    public static final int TYPE_PLAYER = 0;
+    public static final int TYPE_NPC = 1;
+    public static final int TYPE_MONSTER = 2;
+    public static final int TYPE_SWORD = 3;
+    public static final int TYPE_BOOK = 4;
+    public static final int TYPE_SHIELD = 5;
+    public static final int TYPE_CONSUMABLE = 6;
+    public static final int TYPE_PICKUP_ONLY = 7;
+    public static final int TYPE_OBSTACLE = 8;
+    public static final int TYPE_BUFFS = 9;
+    public static final int TYPE_ENDING = 10;
+    public static final int TYPE_UTILITY = 11;
 
 
 
@@ -409,12 +406,13 @@ public class Entity {
     }
     public void setLoot(Entity loot) {}
     public void facePlayer() {
-        switch (gp.player.direction) {
-            case DIR_UP:    direction = DIR_DOWN;  break;
-            case DIR_DOWN:  direction = DIR_UP;    break;
-            case DIR_LEFT:  direction = DIR_RIGHT; break;
-            case DIR_RIGHT: direction = DIR_LEFT;  break;
-        }
+        direction = switch (gp.player.direction) {
+            case DIR_UP -> DIR_DOWN;
+            case DIR_DOWN -> DIR_UP;
+            case DIR_LEFT -> DIR_RIGHT;
+            case DIR_RIGHT -> DIR_LEFT;
+            default -> direction;
+        };
     }
     /** Turns this entity to face toward the player's actual position, ignoring the player's facing direction. */
     public void faceTowardPlayer() {
@@ -462,7 +460,7 @@ public class Entity {
         gp.cChecker.checkEntity(this, gp.monster);
         boolean contactPlayer = gp.cChecker.checkPlayer(this);
 
-        if (type == type_monster && contactPlayer && !gp.player.invincible) {
+        if (type == TYPE_MONSTER && contactPlayer && !gp.player.invincible) {
             
             gp.playSE(SFX.PLAYER_HIT);
 
@@ -490,12 +488,10 @@ public class Entity {
         return size;
     }
     public int getParticleSpeed() {
-        int speed = 0; // pixels per frame
-        return speed;
+        return 0;
     }
     public int getParticleMaxLife() {
-        int maxLife = 0; // frames
-        return maxLife;
+        return 0;
     }
     public int getParticleStyle() {
         return Particle.STYLE_DEFAULT;
@@ -504,14 +500,14 @@ public class Entity {
 
         Color color = generator.getParticleColor();
         int size = generator.getParticleSize();
-        int speed = generator.getParticleSpeed();
-        int maxLife = generator.getParticleMaxLife();
+        int particleSpeed = generator.getParticleSpeed();
+        int particleMaxLife = generator.getParticleMaxLife();
         int style = generator.getParticleStyle();
 
         // OPTIMIZATION: Use particle pool instead of creating new objects
         // Position particles at the TARGET location (where hit occurred), not the generator
         Particle p1 = gp.particlePool.get();
-        p1.setWithPosition(generator, target, color, size, speed, maxLife, -1, -1, style);
+        p1.setWithPosition(generator, target, color, size, particleSpeed, particleMaxLife, -1, -1, style);
         gp.particleList.add(p1);
         
         Particle p2 = gp.particlePool.get();
@@ -597,10 +593,12 @@ public class Entity {
         if (!collisionOn && !onPath && !staticNPC && !guardMode) {
             int moveSpeed = slowed ? Math.max(1, speed / 2) : speed;
             switch (direction) {
-                case DIR_UP:    worldY -= moveSpeed; break;
-                case DIR_DOWN:  worldY += moveSpeed; break;
-                case DIR_LEFT:  worldX -= moveSpeed; break;
-                case DIR_RIGHT: worldX += moveSpeed; break;
+                case DIR_UP -> worldY -= moveSpeed;
+                case DIR_DOWN -> worldY += moveSpeed;
+                case DIR_LEFT -> worldX -= moveSpeed;
+                case DIR_RIGHT -> worldX += moveSpeed;
+                default -> {
+                }
             }
         }
         
@@ -632,12 +630,13 @@ public class Entity {
                 // Pick a new random direction to wander away from the edge
                 actionLockCounter = 0;
                 onPath = false;
-                switch (direction) {
-                    case DIR_UP:    direction = DIR_DOWN;  break;
-                    case DIR_DOWN:  direction = DIR_UP;    break;
-                    case DIR_LEFT:  direction = DIR_RIGHT; break;
-                    case DIR_RIGHT: direction = DIR_LEFT;  break;
-                }
+                direction = switch (direction) {
+                    case DIR_UP -> DIR_DOWN;
+                    case DIR_DOWN -> DIR_UP;
+                    case DIR_LEFT -> DIR_RIGHT;
+                    case DIR_RIGHT -> DIR_LEFT;
+                    default -> direction;
+                };
             }
         }
 
@@ -763,7 +762,7 @@ public class Entity {
             }
 
             // Monster HP Bar
-            if (type == type_monster && hpBarOn) {
+            if (type == TYPE_MONSTER && hpBarOn) {
                 double oneScale = (double)gp.tileSize / maxLife;
                 double hpBarValue = oneScale * life;
 
@@ -812,7 +811,7 @@ public class Entity {
             }
 
             // HIT FLASH: tint sprite white when recently damaged
-            // OPTIMIZATION: Reuse a single buffer instead of allocating a new BufferedImage every frame
+            // OPTIMIZATION: Reuse a single buffer and cached Graphics2D instead of createGraphics() every frame
             if (hitFlashCounter > 0 && currentSprite != null) {
                 float flashAlpha = Math.min(1f, hitFlashCounter / (float) HIT_FLASH_DURATION * 0.8f);
                 int sprW = currentSprite.getWidth();
@@ -822,8 +821,10 @@ public class Entity {
                     hitFlashBufferW = sprW;
                     hitFlashBufferH = sprH;
                     hitFlashBuffer = new BufferedImage(sprW, sprH, BufferedImage.TYPE_INT_ARGB);
+                    if (hitFlashG2 != null) hitFlashG2.dispose();
+                    hitFlashG2 = hitFlashBuffer.createGraphics();
                 }
-                java.awt.Graphics2D fg = hitFlashBuffer.createGraphics();
+                java.awt.Graphics2D fg = hitFlashG2;
                 // Clear previous contents
                 fg.setComposite(AlphaComposite.Clear);
                 fg.fillRect(0, 0, hitFlashBufferW, hitFlashBufferH);
@@ -833,7 +834,6 @@ public class Entity {
                 fg.setComposite(AlphaComposite.getInstance(AlphaComposite.SRC_ATOP, flashAlpha));
                 fg.setColor(Color.WHITE);
                 fg.fillRect(0, 0, sprW, sprH);
-                fg.dispose();
                 g2.drawImage(hitFlashBuffer, screenX, screenY, gp.tileSize, gp.tileSize, null);
             }
             
@@ -965,7 +965,7 @@ public class Entity {
 
         deathRewardsQueued = false;
 
-        if (type == type_monster) {
+        if (type == TYPE_MONSTER) {
             if (name != null) {
                 gp.ui.addMessage("Killed the " + name + "!", Color.WHITE);
             }
@@ -983,13 +983,13 @@ public class Entity {
         g2.setComposite(AlphaComposite.getInstance(AlphaComposite.SRC_OVER, alphaValue));
     }
     public BufferedImage setup(String imagePath, int width, int height) {
-        BufferedImage image = null;
+        BufferedImage scaledImage = null;
         try {
-            image = ResourceCache.loadScaledImage(imagePath + ".png", width, height);
+            scaledImage = ResourceCache.loadScaledImage(imagePath + ".png", width, height);
         } catch(IOException e) {
-            e.printStackTrace();
+            System.out.println("Entity: failed to load image '" + imagePath + ".png': " + e.getMessage());
         }
-        return image;
+        return scaledImage;
     }
     public int getDetected(Entity user, Entity target[], String targetName) {
         int index = 999;
@@ -998,10 +998,12 @@ public class Entity {
         int nextWorldY = user.getTopY();
 
         switch (user.direction) {
-            case DIR_UP:    nextWorldY = user.getTopY() - gp.player.speed; break;
-            case DIR_DOWN:  nextWorldY = user.getBottomY() + gp.player.speed; break;
-            case DIR_LEFT:  nextWorldX = user.getLeftX() - gp.player.speed; break;
-            case DIR_RIGHT: nextWorldX = user.getRightX() + gp.player.speed; break;
+            case DIR_UP -> nextWorldY = user.getTopY() - gp.player.speed;
+            case DIR_DOWN -> nextWorldY = user.getBottomY() + gp.player.speed;
+            case DIR_LEFT -> nextWorldX = user.getLeftX() - gp.player.speed;
+            case DIR_RIGHT -> nextWorldX = user.getRightX() + gp.player.speed;
+            default -> {
+            }
         }
 
         int col = nextWorldX / gp.tileSize;

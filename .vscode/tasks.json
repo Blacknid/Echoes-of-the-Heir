@@ -2,6 +2,16 @@
     "version": "2.0.0",
     "tasks": [
         {
+            "label": "Sync Resources",
+            "type": "shell",
+            "command": "robocopy \"${workspaceFolder}/ceva/src/res\" \"${workspaceFolder}/ceva/bin/res\" /E /MIR /NJH /NJS /NFL /NDL ; if ($LASTEXITCODE -le 7) { exit 0 }",
+            "presentation": {
+                "reveal": "silent",
+                "close": true
+            },
+            "problemMatcher": []
+        },
+        {
             "label": "Compile",
             "type": "shell",
             "command": "javac -d \"${workspaceFolder}/ceva/bin\" -sourcepath \"${workspaceFolder}/ceva/src\" \"${workspaceFolder}/ceva/src/main/Main.java\"",
@@ -9,6 +19,7 @@
                 "kind": "build",
                 "isDefault": true
             },
+            "dependsOn": ["Sync Resources"],
             "presentation": {
                 "reveal": "silent",
                 "close": true

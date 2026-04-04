@@ -14,7 +14,7 @@ public class OBJ_Gem extends Entity {
         super(gp);
         this.gp = gp;
 
-        type = type_pickupOnly;
+        type = TYPE_PICKUP_ONLY;
         name = objName;
         down1 = setup("/res/objects/Gem", gp.tileSize, gp.tileSize);
         description = "Dark Heart of an\nancient castle.";

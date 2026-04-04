@@ -56,6 +56,8 @@ public class EventHandler {
     final List<PixelEvent<QuestTriggerData>> questTriggers     = new ArrayList<>();
     final List<PixelEvent<String>>           cameraShakes      = new ArrayList<>();
     final List<PixelEvent<MemoryGateData>>   memoryGates       = new ArrayList<>();
+    final List<PixelEvent<ThoughtData>>      thoughtTriggers   = new ArrayList<>();
+    final List<PixelEvent<FragmentTriggerData>> fragmentTriggers  = new ArrayList<>();
 
     // ---- Spawn zones ---------------------------------------------------------
     final List<SpawnZoneData> spawnZones = new ArrayList<>();
@@ -87,6 +89,14 @@ public class EventHandler {
         DialogueData(String m, String s, boolean one) { message=m; oneShot=one; triggered=false; }
     }
 
+    static class ThoughtData {
+        String message; boolean oneShot, triggered;
+        int linger, delay;
+        ThoughtData(String m, boolean one, int linger, int delay) {
+            message=m; oneShot=one; triggered=false; this.linger=linger; this.delay=delay;
+        }
+    }
+
     private static class LevelGateData {
         int col, row, minLevel;
         String blockedMessage, targetMap, spawnId;
@@ -111,6 +121,11 @@ public class EventHandler {
     private static class QuestTriggerData {
         String questId; int progress; boolean oneShot, triggered;
         QuestTriggerData(String qid, int p, boolean one) { questId=qid; progress=p; oneShot=one; triggered=false; }
+    }
+
+    private static class FragmentTriggerData {
+        String fragmentId; boolean oneShot, triggered;
+        FragmentTriggerData(String fid, boolean one) { fragmentId=fid; oneShot=one; triggered=false; }
     }
 
     static class SpawnZoneData {
@@ -179,6 +194,8 @@ public class EventHandler {
         questTriggers.clear();
         cameraShakes.clear();
         memoryGates.clear();
+        thoughtTriggers.clear();
+        fragmentTriggers.clear();
         namedSpawnPoints.clear();
         spawnZones.clear();
         canTouchEvent = true;
@@ -269,6 +286,14 @@ public class EventHandler {
         cameraShakes.add(new PixelEvent<>(wx, wy, w, h, intensity));
     }
 
+    public void registerThoughtTrigger(int wx, int wy, int w, int h, ThoughtData data) {
+        thoughtTriggers.add(new PixelEvent<>(wx, wy, w, h, data));
+    }
+
+    public void registerFragmentTrigger(int wx, int wy, int w, int h, String fragmentId, boolean oneShot) {
+        fragmentTriggers.add(new PixelEvent<>(wx, wy, w, h, new FragmentTriggerData(fragmentId, oneShot)));
+    }
+
     public void registerSpawnZone(int worldX, int worldY, int areaW, int areaH,
                                    String monsterType, int maxAmount, int intervalFrames,
                                    boolean confined, int activationRange,
@@ -312,10 +337,7 @@ public class EventHandler {
                     if (frag != null && gp.memoryFlashback != null) {
                         gp.memoryFlashback.trigger(frag);
                     }
-                    // Collecting frag_cave marks "Find the Exit" as complete
-                    if ("frag_cave".equals(zone.lootFragment) && gp.questManager != null) {
-                        gp.questManager.progress("find_exit", 1);
-                    }
+
                 }
                 continue; // zone is complete, nothing left to spawn
             }
@@ -445,6 +467,13 @@ public class EventHandler {
             }
         }
 
+        for (PixelEvent<ThoughtData> pe : thoughtTriggers) {
+            ThoughtData td = pe.data;
+            if ((!td.oneShot || !td.triggered) && playerRect.intersects(pe.hitbox)) {
+                triggerThought(td);
+            }
+        }
+
         for (PixelEvent<CheckpointData> pe : checkpoints) {
             if (playerRect.intersects(pe.hitbox)) {
                 triggerCheckpoint(pe.data);
@@ -456,6 +485,14 @@ public class EventHandler {
             QuestTriggerData qt = pe.data;
             if ((!qt.oneShot || !qt.triggered) && playerRect.intersects(pe.hitbox)) {
                 triggerQuestEvent(qt);
+                return;
+            }
+        }
+
+        for (PixelEvent<FragmentTriggerData> pe : fragmentTriggers) {
+            FragmentTriggerData ft = pe.data;
+            if ((!ft.oneShot || !ft.triggered) && playerRect.intersects(pe.hitbox)) {
+                triggerFragmentEvent(ft);
                 return;
             }
         }
@@ -516,6 +553,13 @@ public class EventHandler {
         gp.gameState = GamePanel.dialogueState;
         if (data.oneShot) data.triggered = true;
         touchConsumed();
+    }
+
+    private void triggerThought(ThoughtData data) {
+        if (gp.thoughts == null) return;
+        gp.thoughts.show(data.message, data.linger, data.delay);
+        if (data.oneShot) data.triggered = true;
+        // No touchConsumed() — thoughts are non-blocking, player keeps walking
     }
 
     /** @return true if the player was blocked (consume touch), false if passed silently. */
@@ -625,6 +669,29 @@ public class EventHandler {
             gp.questManager.progress(qt.questId, qt.progress);
         }
         if (qt.oneShot) qt.triggered = true;
+        touchConsumed();
+    }
+
+    private void triggerFragmentEvent(FragmentTriggerData ft) {
+        if (gp.memoryJournal == null) return;
+        if (gp.memoryJournal.has(ft.fragmentId)) {
+            // Already collected — mark triggered and move on silently
+            ft.triggered = true;
+            touchConsumed();
+            return;
+        }
+        data.MemoryJournal.MemoryFragment frag = gp.memoryJournal.collect(ft.fragmentId);
+        if (frag == null) {
+            // Not registered via NPC — collect by id anyway (creates placeholder)
+            gp.memoryJournal.addById(ft.fragmentId);
+            frag = gp.memoryJournal.getFragment(ft.fragmentId);
+        }
+        if (frag != null && gp.memoryFlashback != null) {
+            gp.memoryFlashback.trigger(frag);
+        }
+        gp.ui.addMessage("Memory fragment found: " + ft.fragmentId,
+            new java.awt.Color(180, 140, 255));
+        if (ft.oneShot) ft.triggered = true;
         touchConsumed();
     }
 
