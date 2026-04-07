@@ -15,10 +15,6 @@ public class Entity {
 
     protected GamePanel gp;
 
-    // PATHFINDING...nu este ideal sa le avem aici, dar e mai bine decat sa aruncam cu 10000000 de parametri incolo si incoace
-    int pathUpdateCounter = 0;
-    int pathUpdateInterval = 10;
-
     // PER-ENTITY PATH CACHE — recalculate only when the goal tile changes
     private final java.util.ArrayList<int[]> cachedWaypoints = new java.util.ArrayList<>();
     private int waypointIdx      = 0;
@@ -62,7 +58,13 @@ public class Entity {
     
     public int direction = DIR_DOWN;
 
-
+    // IDLE ANIMATION
+    public int idleDirection = -1;          // -1 = use current direction; >= 0 = forced idle dir
+    public int idleSpriteNum = 1;
+    public int idleSpriteCounter = 0;
+    private int idleFrameDirection = 1;
+    public int idleAnimationInterval = 24;  // ticks between idle frame advances (~0.4 s at 60 UPS)
+    protected boolean entityIdle = true;
 
     // COUNTERS
     public int spriteCounter = 0;
@@ -106,6 +108,7 @@ public class Entity {
     // OPTIMIZATION: Reusable flash image to avoid per-frame BufferedImage allocation
     private BufferedImage hitFlashBuffer;
     private int hitFlashBufferW, hitFlashBufferH;
+    private java.awt.Graphics2D hitFlashG2; // OPTIMIZATION: cached Graphics2D for hit flash overlay
 
 
 
@@ -167,18 +170,18 @@ public class Entity {
 
     // TYPE CONSTANTS
     public int type;
-    public static final int type_player = 0;
-    public static final int type_npc = 1;
-    public static final int type_monster = 2;
-    public static final int type_sword = 3;
-    public static final int type_book = 4;
-    public static final int type_shield = 5;
-    public static final int type_consumable = 6;
-    public static final int type_pickupOnly = 7;
-    public static final int type_obstacle = 8;
-    public static final int type_buffs = 9;
-    public static final int type_ending = 10;
-    public static final int type_utility = 11;
+    public static final int TYPE_PLAYER = 0;
+    public static final int TYPE_NPC = 1;
+    public static final int TYPE_MONSTER = 2;
+    public static final int TYPE_SWORD = 3;
+    public static final int TYPE_BOOK = 4;
+    public static final int TYPE_SHIELD = 5;
+    public static final int TYPE_CONSUMABLE = 6;
+    public static final int TYPE_PICKUP_ONLY = 7;
+    public static final int TYPE_OBSTACLE = 8;
+    public static final int TYPE_BUFFS = 9;
+    public static final int TYPE_ENDING = 10;
+    public static final int TYPE_UTILITY = 11;
 
 
 
@@ -205,6 +208,7 @@ public class Entity {
     public int lightRadius = 0;
     public java.awt.Color lightColor = null; // custom light tint (null = default orange)
     public boolean eventLayerLight = false; // transient static light loaded from the TMX Events layer
+    public boolean removeOnPickup = true;   // for touch-pickups in the Objects layer; remove from world after a successful pickup
 
     // TILED / EDITOR METADATA
     public String objectId = null;      // persistent ID set from Tiled 'id' property
@@ -214,6 +218,7 @@ public class Entity {
     public Rectangle confinementZone = null; // if set, monster cannot leave this rectangle (world pixels)
     public boolean staticNPC = false;   // NPC never wanders or follows paths — stays in place
     public boolean guardMode  = false;  // Static from spawn; faces the player every tick. Set onPath=true to unlock movement.
+    public String portraitPath = null;  // optional portrait image path (e.g. "/res/NPC/alucard_portrait.png")
     public int walkToCol = -1;          // after interaction: walk to this tile column, then re-enter guardMode (-1 = unused)
     public int walkToRow = -1;          // after interaction: walk to this tile row
     public int walkToDialogueSet = -1;  // dialogue set to use after arriving at walkTo destination (-1 = keep existing logic)
@@ -229,6 +234,24 @@ public class Entity {
     public String requiredItem = null;          // item name the player must have to trigger alternate dialogue
     public int    requiredItemDialogueSet = -1; // which dialogue set to use when the player has the item
     public boolean requiredItemConsumed = false; // if true, the item is removed from inventory on delivery
+    public String requiredItemQuestId = null;   // quest id progressed when required item is delivered
+    public int    requiredItemQuestAmount = 1;  // how much to add on delivery
+    public int    requiredItemPostQuestSet = -1; // dialogue set used after the delivery phase is complete
+    public int    requiredItemRewardCoins = 0;  // coin reward granted on delivery
+    public String requiredItemRewardItemId = null; // ItemFactory id granted on delivery
+    public String requiredItemRewardFragmentId = null; // MemoryJournal id granted on delivery
+
+    public String  giveItemId          = null;  // ItemFactory id to give on first interaction
+    public int     giveItemDialogueSet  = 0;    // dialogue set played while giving
+    public boolean giveItemGiven        = false; // true after item was given once
+    public String  giveItemQuestId      = null; // quest added when the first gift is given
+    public String  giveItemQuestName    = null;
+    public String  giveItemQuestDesc    = null;
+    public int     giveItemQuestTarget  = 1;
+
+    public String  giveItem2Id         = null;  // ItemFactory id to give after NPC finishes helping (post-walk)
+    public int     giveItem2DialogueSet = -1;   // dialogue set played while giving item 2 (-1 = use walkToDialogueSet)
+    public boolean giveItem2Given       = false; // true after item 2 was given
 
     // ── MEMORY FRAGMENT SYSTEM ──
     public String   
@@ -253,6 +276,7 @@ public class Entity {
     // ITEM ATTRIBUTES
     public int attackValue; //pentru arme: cat adauga la atac cand e echipata
     public int defenseValue; //pentru scuturi: cat adauga la aparare cand e echipat
+    public String itemId = null; // stable ItemFactory identifier for save/load and Tiled references
     public String description = "";
     public int useCost; //DOAR pentru consumabile: cat mana consuma cand e folosita
     public boolean stackable = false; //daca un item poate fi adunat intr-un stack de n iteme
@@ -316,21 +340,79 @@ public class Entity {
      * Call at the top of speak() — returns true if the item dialogue was triggered.
      */
     protected boolean checkRequiredItemDialogue() {
-        if (requiredItem != null && requiredItemDialogueSet >= 0
-                && gp.player.searchItemInInventory(requiredItem) != 999) {
-            startDialogue(this, requiredItemDialogueSet);
+        if (requiredItem != null && requiredItemDialogueSet >= 0) {
+            int itemIndex = gp.player.searchItemInInventory(requiredItem);
+            if (itemIndex == 999) return false;
+
+            if (requiredItemConsumed && itemIndex < gp.player.inventory.size()) {
+                Entity item = gp.player.inventory.get(itemIndex);
+                if (item.amount > 1) item.amount--;
+                else gp.player.inventory.remove(itemIndex);
+            }
+
+            if (requiredItemQuestId != null && gp.questManager != null) {
+                gp.questManager.progress(requiredItemQuestId, Math.max(1, requiredItemQuestAmount));
+            }
+
+            if (requiredItemRewardCoins > 0) {
+                gp.player.coin += requiredItemRewardCoins;
+                gp.ui.addMessage("Received " + requiredItemRewardCoins + " coins!", COIN_MSG_COLOR);
+            }
+
+            if (requiredItemRewardItemId != null) {
+                Entity rewardItem = data.ItemFactory.create(gp, requiredItemRewardItemId);
+                if (rewardItem != null) {
+                    if (gp.player.canObtainItem(rewardItem)) {
+                        gp.ui.addMessage("Received " + rewardItem.name + "!", Color.WHITE);
+                    } else {
+                        gp.ui.addMessage("Inventory full. Could not receive " + rewardItem.name + ".", Color.WHITE);
+                    }
+                }
+            }
+
+            if (requiredItemRewardFragmentId != null && gp.memoryJournal != null) {
+                data.MemoryJournal.MemoryFragment fragment = gp.memoryJournal.collect(requiredItemRewardFragmentId);
+                if (fragment == null && !gp.memoryJournal.has(requiredItemRewardFragmentId)) {
+                    gp.memoryJournal.addById(requiredItemRewardFragmentId);
+                    gp.ui.addMessage("Memory fragment received: " + requiredItemRewardFragmentId, Color.WHITE);
+                } else if (fragment != null) {
+                    gp.ui.addMessage("Memory fragment received: " + fragment.name, Color.WHITE);
+                }
+            }
+
+            int deliveryDialogueSet = requiredItemDialogueSet;
+            if (requiredItemPostQuestSet >= 0) walkToDialogueSet = requiredItemPostQuestSet;
+            requiredItemDialogueSet = -1;
+            requiredItem = null;
+            startDialogue(this, deliveryDialogueSet);
             return true;
         }
         return false;
     }
+    public void syncQuestDrivenNpcState() {
+        if (gp == null || gp.questManager == null) return;
+
+        if (giveItemQuestId != null && gp.questManager.hasQuest(giveItemQuestId)) {
+            giveItemGiven = true;
+        }
+
+        String completionQuestId = (requiredItemQuestId != null && !requiredItemQuestId.isBlank())
+                ? requiredItemQuestId : giveItemQuestId;
+        if (completionQuestId != null && gp.questManager.isComplete(completionQuestId)) {
+            giveItemGiven = true;
+            if (requiredItemPostQuestSet >= 0) walkToDialogueSet = requiredItemPostQuestSet;
+            requiredItemDialogueSet = -1;
+        }
+    }
     public void setLoot(Entity loot) {}
     public void facePlayer() {
-        switch (gp.player.direction) {
-            case DIR_UP:    direction = DIR_DOWN;  break;
-            case DIR_DOWN:  direction = DIR_UP;    break;
-            case DIR_LEFT:  direction = DIR_RIGHT; break;
-            case DIR_RIGHT: direction = DIR_LEFT;  break;
-        }
+        direction = switch (gp.player.direction) {
+            case DIR_UP -> DIR_DOWN;
+            case DIR_DOWN -> DIR_UP;
+            case DIR_LEFT -> DIR_RIGHT;
+            case DIR_RIGHT -> DIR_LEFT;
+            default -> direction;
+        };
     }
     /** Turns this entity to face toward the player's actual position, ignoring the player's facing direction. */
     public void faceTowardPlayer() {
@@ -378,7 +460,7 @@ public class Entity {
         gp.cChecker.checkEntity(this, gp.monster);
         boolean contactPlayer = gp.cChecker.checkPlayer(this);
 
-        if (type == type_monster && contactPlayer && !gp.player.invincible) {
+        if (type == TYPE_MONSTER && contactPlayer && !gp.player.invincible) {
             
             gp.playSE(SFX.PLAYER_HIT);
 
@@ -406,12 +488,10 @@ public class Entity {
         return size;
     }
     public int getParticleSpeed() {
-        int speed = 0; // pixels per frame
-        return speed;
+        return 0;
     }
     public int getParticleMaxLife() {
-        int maxLife = 0; // frames
-        return maxLife;
+        return 0;
     }
     public int getParticleStyle() {
         return Particle.STYLE_DEFAULT;
@@ -420,14 +500,14 @@ public class Entity {
 
         Color color = generator.getParticleColor();
         int size = generator.getParticleSize();
-        int speed = generator.getParticleSpeed();
-        int maxLife = generator.getParticleMaxLife();
+        int particleSpeed = generator.getParticleSpeed();
+        int particleMaxLife = generator.getParticleMaxLife();
         int style = generator.getParticleStyle();
 
         // OPTIMIZATION: Use particle pool instead of creating new objects
         // Position particles at the TARGET location (where hit occurred), not the generator
         Particle p1 = gp.particlePool.get();
-        p1.setWithPosition(generator, target, color, size, speed, maxLife, -1, -1, style);
+        p1.setWithPosition(generator, target, color, size, particleSpeed, particleMaxLife, -1, -1, style);
         gp.particleList.add(p1);
         
         Particle p2 = gp.particlePool.get();
@@ -513,10 +593,12 @@ public class Entity {
         if (!collisionOn && !onPath && !staticNPC && !guardMode) {
             int moveSpeed = slowed ? Math.max(1, speed / 2) : speed;
             switch (direction) {
-                case DIR_UP:    worldY -= moveSpeed; break;
-                case DIR_DOWN:  worldY += moveSpeed; break;
-                case DIR_LEFT:  worldX -= moveSpeed; break;
-                case DIR_RIGHT: worldX += moveSpeed; break;
+                case DIR_UP -> worldY -= moveSpeed;
+                case DIR_DOWN -> worldY += moveSpeed;
+                case DIR_LEFT -> worldX -= moveSpeed;
+                case DIR_RIGHT -> worldX += moveSpeed;
+                default -> {
+                }
             }
         }
         
@@ -548,12 +630,13 @@ public class Entity {
                 // Pick a new random direction to wander away from the edge
                 actionLockCounter = 0;
                 onPath = false;
-                switch (direction) {
-                    case DIR_UP:    direction = DIR_DOWN;  break;
-                    case DIR_DOWN:  direction = DIR_UP;    break;
-                    case DIR_LEFT:  direction = DIR_RIGHT; break;
-                    case DIR_RIGHT: direction = DIR_LEFT;  break;
-                }
+                direction = switch (direction) {
+                    case DIR_UP -> DIR_DOWN;
+                    case DIR_DOWN -> DIR_UP;
+                    case DIR_LEFT -> DIR_RIGHT;
+                    case DIR_RIGHT -> DIR_LEFT;
+                    default -> direction;
+                };
             }
         }
 
@@ -574,6 +657,11 @@ public class Entity {
         }
 
         if (movedThisFrame) {
+            entityIdle = false;
+            idleSpriteNum = 1;
+            idleSpriteCounter = 0;
+            idleFrameDirection = 1;
+
             spriteCounter++;
             if (spriteCounter > animationFrameInterval) {
                 int maxWalkFrames = Math.max(1, Math.min(walkFrameCount, 8));
@@ -599,6 +687,32 @@ public class Entity {
             spriteNum = 1;
             spriteCounter = 0;
             walkFrameDirection = 1;
+            entityIdle = true;
+
+            // Cycle idle animation if idle frames are available
+            if (idleFrames != null) {
+                int dir = (idleDirection >= 0) ? idleDirection : direction;
+                if (dir >= 0 && dir < idleFrames.length && idleFrames[dir] != null && idleFrames[dir].length > 0) {
+                    idleSpriteCounter++;
+                    if (idleSpriteCounter > idleAnimationInterval) {
+                        int maxIdle = idleFrames[dir].length;
+                        if (maxIdle == 1) {
+                            idleSpriteNum = 1;
+                        } else {
+                            idleSpriteNum += idleFrameDirection;
+                            if (idleSpriteNum >= maxIdle) {
+                                idleSpriteNum = maxIdle;
+                                idleFrameDirection = -1;
+                            }
+                            if (idleSpriteNum <= 1) {
+                                idleSpriteNum = 1;
+                                idleFrameDirection = 1;
+                            }
+                        }
+                        idleSpriteCounter = 0;
+                    }
+                }
+            }
         }
 
         if (invincible) {
@@ -630,13 +744,25 @@ public class Entity {
             int drawW = (int)(gp.tileSize * spriteScale);
             int drawH = (int)(gp.tileSize * spriteScale);
 
-            currentSprite = getWalkFrameImage(direction, spriteNum);
+            // Use idle animation when standing still and idle frames exist
+            if (entityIdle && idleFrames != null) {
+                int idleDir = (idleDirection >= 0) ? idleDirection : direction;
+                if (idleDir >= 0 && idleDir < idleFrames.length && idleFrames[idleDir] != null) {
+                    int idx = idleSpriteNum - 1;
+                    if (idx >= 0 && idx < idleFrames[idleDir].length) {
+                        currentSprite = idleFrames[idleDir][idx];
+                    }
+                }
+            }
+            if (currentSprite == null) {
+                currentSprite = getWalkFrameImage(direction, spriteNum);
+            }
             if (currentSprite == null) {
                 currentSprite = getWalkFrameImage(direction, 1);
             }
 
             // Monster HP Bar
-            if (type == type_monster && hpBarOn) {
+            if (type == TYPE_MONSTER && hpBarOn) {
                 double oneScale = (double)gp.tileSize / maxLife;
                 double hpBarValue = oneScale * life;
 
@@ -685,7 +811,7 @@ public class Entity {
             }
 
             // HIT FLASH: tint sprite white when recently damaged
-            // OPTIMIZATION: Reuse a single buffer instead of allocating a new BufferedImage every frame
+            // OPTIMIZATION: Reuse a single buffer and cached Graphics2D instead of createGraphics() every frame
             if (hitFlashCounter > 0 && currentSprite != null) {
                 float flashAlpha = Math.min(1f, hitFlashCounter / (float) HIT_FLASH_DURATION * 0.8f);
                 int sprW = currentSprite.getWidth();
@@ -695,8 +821,10 @@ public class Entity {
                     hitFlashBufferW = sprW;
                     hitFlashBufferH = sprH;
                     hitFlashBuffer = new BufferedImage(sprW, sprH, BufferedImage.TYPE_INT_ARGB);
+                    if (hitFlashG2 != null) hitFlashG2.dispose();
+                    hitFlashG2 = hitFlashBuffer.createGraphics();
                 }
-                java.awt.Graphics2D fg = hitFlashBuffer.createGraphics();
+                java.awt.Graphics2D fg = hitFlashG2;
                 // Clear previous contents
                 fg.setComposite(AlphaComposite.Clear);
                 fg.fillRect(0, 0, hitFlashBufferW, hitFlashBufferH);
@@ -706,7 +834,6 @@ public class Entity {
                 fg.setComposite(AlphaComposite.getInstance(AlphaComposite.SRC_ATOP, flashAlpha));
                 fg.setColor(Color.WHITE);
                 fg.fillRect(0, 0, sprW, sprH);
-                fg.dispose();
                 g2.drawImage(hitFlashBuffer, screenX, screenY, gp.tileSize, gp.tileSize, null);
             }
             
@@ -838,7 +965,7 @@ public class Entity {
 
         deathRewardsQueued = false;
 
-        if (type == type_monster) {
+        if (type == TYPE_MONSTER) {
             if (name != null) {
                 gp.ui.addMessage("Killed the " + name + "!", Color.WHITE);
             }
@@ -856,13 +983,13 @@ public class Entity {
         g2.setComposite(AlphaComposite.getInstance(AlphaComposite.SRC_OVER, alphaValue));
     }
     public BufferedImage setup(String imagePath, int width, int height) {
-        BufferedImage image = null;
+        BufferedImage scaledImage = null;
         try {
-            image = ResourceCache.loadScaledImage(imagePath + ".png", width, height);
+            scaledImage = ResourceCache.loadScaledImage(imagePath + ".png", width, height);
         } catch(IOException e) {
-            e.printStackTrace();
+            System.out.println("Entity: failed to load image '" + imagePath + ".png': " + e.getMessage());
         }
-        return image;
+        return scaledImage;
     }
     public int getDetected(Entity user, Entity target[], String targetName) {
         int index = 999;
@@ -871,10 +998,12 @@ public class Entity {
         int nextWorldY = user.getTopY();
 
         switch (user.direction) {
-            case DIR_UP:    nextWorldY = user.getTopY() - gp.player.speed; break;
-            case DIR_DOWN:  nextWorldY = user.getBottomY() + gp.player.speed; break;
-            case DIR_LEFT:  nextWorldX = user.getLeftX() - gp.player.speed; break;
-            case DIR_RIGHT: nextWorldX = user.getRightX() + gp.player.speed; break;
+            case DIR_UP -> nextWorldY = user.getTopY() - gp.player.speed;
+            case DIR_DOWN -> nextWorldY = user.getBottomY() + gp.player.speed;
+            case DIR_LEFT -> nextWorldX = user.getLeftX() - gp.player.speed;
+            case DIR_RIGHT -> nextWorldX = user.getRightX() + gp.player.speed;
+            default -> {
+            }
         }
 
         int col = nextWorldX / gp.tileSize;

@@ -13,6 +13,8 @@ set SRC_DIR=%ROOT%\src
 set BIN_DIR=%ROOT%\bin
 set DEPLOY_DIR=%ROOT%\deploy
 set OUTPUT_DIR=%ROOT%\output
+set LIB_DIR=%ROOT%\lib
+set LIBS=%LIB_DIR%\jl-1.0.1.jar;%LIB_DIR%\tritonus-share-0.3.7.jar;%LIB_DIR%\mp3spi-1.9.5.jaroutput
 
 echo ============================================
 echo   Michi's Adventure Build Pipeline v%VERSION%
@@ -37,7 +39,7 @@ mkdir "%BIN_DIR%"
 mkdir "%DEPLOY_DIR%"
 
 :: Compiles all sub-packages in src
-javac -d "%BIN_DIR%" -sourcepath "%SRC_DIR%" %SRC_DIR%\main\*.java
+javac -cp "%LIBS%" -d "%BIN_DIR%" -sourcepath "%SRC_DIR%" %SRC_DIR%\main\*.java
 if %ERRORLEVEL% NEQ 0 (echo [FAIL] Compilation failed! & pause & exit /b 1)
 echo   [OK] Compilation succeeded.
 
@@ -45,6 +47,11 @@ echo [2/5] Copying resources...
 :: Copy res/ tree into bin/ so JAR includes sprites, maps, sounds, JSON data
 xcopy "%SRC_DIR%\res" "%BIN_DIR%\res" /E /I /Q /Y >nul 2>&1
 if %ERRORLEVEL% NEQ 0 (echo [WARN] Resource copy had issues, continuing...)
+:: Extract MP3SPI libs into bin so the fat JAR includes them
+for %%f in ("%LIB_DIR%\*.jar") do (
+    pushd "%BIN_DIR%" & jar xf "%%f" & popd
+)
+del /Q "%BIN_DIR%\META-INF\*.SF" "%BIN_DIR%\META-INF\*.DSA" "%BIN_DIR%\META-INF\*.RSA" >nul 2>&1
 echo   [OK] Resources copied.
 
 echo [3/5] Building JAR...

@@ -1,6 +1,5 @@
 package ui;
 
-import java.awt.AlphaComposite;
 import java.awt.BasicStroke;
 import java.awt.Color;
 import java.awt.Composite;
@@ -91,8 +90,11 @@ public class RenderPipeline {
 
         collectRenderableEntities();
 
-        // Trim to actual count so sort works on a real list (avoids subList heap alloc)
-        while (entityList.size() > entityListIndex) entityList.remove(entityList.size() - 1);
+        // OPTIMIZATION: Trim to actual count using subList().clear() — O(1) range remove
+        // instead of repeated remove() which is O(n) for each element removed.
+        if (entityList.size() > entityListIndex) {
+            entityList.subList(entityListIndex, entityList.size()).clear();
+        }
         entityList.sort(renderSorter);
 
         // TILE PARTICLES

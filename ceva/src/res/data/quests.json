@@ -1,0 +1,68 @@
+[
+  {
+    "id": "find_exit",
+    "name": "Find the Exit",
+    "description": "Find the exit of the cave and escape",
+    "target": 1,
+    "autoStart": true,
+    "rewardCoins": 0,
+    "rewardItemId": "",
+    "rewardFragmentId": "",
+    "chainQuestId": "talk_to_elder"
+  },
+  {
+    "id": "talk_to_elder",
+    "name": "Talk to the Elder",
+    "description": "Seek out the village elder",
+    "target": 1,
+    "autoStart": false,
+    "rewardCoins": 0,
+    "rewardItemId": "",
+    "rewardFragmentId": "",
+    "chainQuestId": "gather_herbs"
+  },
+  {
+    "id": "gather_herbs",
+    "name": "Gather Herbs",
+    "description": "Collect 3 herbs for the elder",
+    "target": 3,
+    "autoStart": false,
+    "rewardCoins": 50,
+    "rewardItemId": "iron_sword",
+    "rewardFragmentId": "",
+    "chainQuestId": "return_to_elder"
+  },
+  {
+    "id": "return_to_elder",
+    "name": "Return to the Elder",
+    "description": "Bring the herbs back",
+    "target": 1,
+    "autoStart": false,
+    "rewardCoins": 100,
+    "rewardItemId": "",
+    "rewardFragmentId": "frag_cave",
+    "chainQuestId": ""
+  },
+  {
+    "id": "sword_giver_bandage",
+    "name": "Aid the Sword Giver",
+    "description": "A wounded traveler gave you his sword, \nand asked for a bandage.",
+    "target": 1,
+    "autoStart": false,
+    "rewardCoins": 25,
+    "rewardItemId": "",
+    "rewardFragmentId": "",
+    "chainQuestId": "meet_hurt_soldier"
+  },
+  {
+    "id": "meet_hurt_soldier",
+    "name": "Meet the Hurt Soldier",
+    "description": "Meet the hurt soldier at his house.",
+    "target": 1,
+    "autoStart": false,
+    "rewardCoins": 100,
+    "rewardItemId": "",
+    "rewardFragmentId": "",
+    "chainQuestId": ""
+  }
+]

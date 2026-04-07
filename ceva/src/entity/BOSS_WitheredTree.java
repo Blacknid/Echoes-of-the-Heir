@@ -1,11 +1,11 @@
 package entity;
 
 import java.awt.AlphaComposite;
+import java.awt.BasicStroke;
 import java.awt.Color;
 import java.awt.Font;
 import java.awt.FontMetrics;
 import java.awt.Graphics2D;
-import java.awt.BasicStroke;
 import java.awt.Stroke;
 import java.awt.image.BufferedImage;
 import java.util.Random;
@@ -25,6 +25,13 @@ import main.GamePanel;
  *   - Whirlwind Fury: rapid spinning multi-hit combo (Phase 3 only)
  */
 public class BOSS_WitheredTree extends Entity {
+
+    // OPTIMIZATION: Pre-allocated fonts/strokes/colors for boss HP bar (avoid per-frame allocation)
+    private static final Font BOSS_NAME_FONT = new Font("SansSerif", Font.BOLD, 16);
+    private static final Font BOSS_PHASE_FONT = new Font("SansSerif", Font.ITALIC, 12);
+    private static final BasicStroke BOSS_BAR_STROKE = new BasicStroke(2f);
+    private static final Color BOSS_BAR_BORDER_COLOR = new Color(160, 140, 100);
+    private static final Color BOSS_NAME_SHADOW = new Color(0, 0, 0, 180);
 
     // Phase thresholds (fraction of maxLife remaining)
     private static final float PHASE_2_THRESHOLD = 0.66f;
@@ -143,6 +150,7 @@ public class BOSS_WitheredTree extends Entity {
     // Hit flash buffer (reused to avoid allocation per frame)
     private BufferedImage bossFlashBuffer;
     private int bossFlashW, bossFlashH;
+    private Graphics2D bossFlashG2; // OPTIMIZATION: cached Graphics2D for flash overlay
 
     private static final Random rng = new Random();
 
@@ -187,7 +195,7 @@ public class BOSS_WitheredTree extends Entity {
     public BOSS_WitheredTree(GamePanel gp) {
         super(gp);
 
-        type = type_monster;
+        type = TYPE_MONSTER;
         name = "The Withered Tree";
         collision = true;
 
@@ -233,12 +241,12 @@ public class BOSS_WitheredTree extends Entity {
             // Sheet rows: DOWN(0), RIGHT(1), LEFT(2), UP(3)
             // Game dirs:  DOWN(0), LEFT(1),  RIGHT(2), UP(3)
             // Swap rows 1 & 2 so sprites match direction constants
-            phaseWalkFrames[p]   = swapLeftRight(loadSpriteMatrix(ws + "_Walk_with_shadow",   SPRITE_SIZE, SPRITE_SIZE));
-            phaseIdleFrames[p]   = swapLeftRight(loadSpriteMatrix(ws + "_Idle_with_shadow",   SPRITE_SIZE, SPRITE_SIZE));
-            phaseAttackFrames[p] = swapLeftRight(loadSpriteMatrix(ws + "_Attack_with_shadow", SPRITE_SIZE, SPRITE_SIZE));
-            phaseHurtFrames[p]   = swapLeftRight(loadSpriteMatrix(ws + "_Hurt_with_shadow",   SPRITE_SIZE, SPRITE_SIZE));
-            phaseDeathFrames[p]  = swapLeftRight(loadSpriteMatrix(ws + "_Death_with_shadow",  SPRITE_SIZE, SPRITE_SIZE));
-            phaseSwingFrames[p]  = swapLeftRight(loadSpriteMatrix(base + "/Parts/" + prefixes[p] + "_Attack_swing", SPRITE_SIZE, SPRITE_SIZE));
+            phaseWalkFrames[p]   = swapLeftRight(loadSpriteMatrix(base + "/With_shadow/" + prefixes[p] + "_Walk_with_shadow",   SPRITE_SIZE, SPRITE_SIZE));
+            phaseIdleFrames[p]   = swapLeftRight(loadSpriteMatrix(base + "/With_shadow/" + prefixes[p] + "_Idle_with_shadow",   SPRITE_SIZE, SPRITE_SIZE));
+            phaseAttackFrames[p] = swapLeftRight(loadSpriteMatrix(base + "/With_shadow/" + prefixes[p] + "_Attack_with_shadow", SPRITE_SIZE, SPRITE_SIZE));
+            phaseHurtFrames[p]   = swapLeftRight(loadSpriteMatrix(base + "/With_shadow/" + prefixes[p] + "_Hurt_with_shadow",   SPRITE_SIZE, SPRITE_SIZE));
+            phaseDeathFrames[p]  = swapLeftRight(loadSpriteMatrix(base + "/With_shadow/" + prefixes[p] + "_Death_with_shadow",  SPRITE_SIZE, SPRITE_SIZE));
+           // phaseSwingFrames[p]  = swapLeftRight(loadSpriteMatrix(base + "/Parts/" + prefixes[p] + "_Attack_swing", SPRITE_SIZE, SPRITE_SIZE));
         }
 
         // Load leaf projectile frames from Ent2's leaves spritesheet
@@ -1432,8 +1440,10 @@ public class BOSS_WitheredTree extends Entity {
                 bossFlashW = sprW;
                 bossFlashH = sprH;
                 bossFlashBuffer = new BufferedImage(sprW, sprH, BufferedImage.TYPE_INT_ARGB);
+                if (bossFlashG2 != null) bossFlashG2.dispose();
+                bossFlashG2 = bossFlashBuffer.createGraphics();
             }
-            Graphics2D fg = bossFlashBuffer.createGraphics();
+            Graphics2D fg = bossFlashG2;
             fg.setComposite(AlphaComposite.Clear);
             fg.fillRect(0, 0, bossFlashW, bossFlashH);
             fg.setComposite(AlphaComposite.SrcOver);
@@ -1441,7 +1451,6 @@ public class BOSS_WitheredTree extends Entity {
             fg.setComposite(AlphaComposite.getInstance(AlphaComposite.SRC_ATOP, flashAlpha));
             fg.setColor(Color.WHITE);
             fg.fillRect(0, 0, sprW, sprH);
-            fg.dispose();
             int drawX = bossCX - drawSize / 2;
             int drawY = bossCY - drawSize / 2;
             g2.drawImage(bossFlashBuffer, drawX, drawY, drawSize, drawSize, null);
@@ -1627,17 +1636,17 @@ public class BOSS_WitheredTree extends Entity {
 
         // Border — thicker, more dramatic
         Stroke oldStroke = g2.getStroke();
-        g2.setStroke(new BasicStroke(2f));
-        g2.setColor(new Color(160, 140, 100));
+        g2.setStroke(BOSS_BAR_STROKE);
+        g2.setColor(BOSS_BAR_BORDER_COLOR);
         g2.drawRoundRect(barX - 1, barY - 1, barWidth + 2, barHeight + 2, 4, 4);
         g2.setStroke(oldStroke);
 
         // Boss name + phase subtitle
-        g2.setFont(g2.getFont().deriveFont(Font.BOLD, 16f));
+        g2.setFont(BOSS_NAME_FONT);
         FontMetrics fm = g2.getFontMetrics();
 
         // Drop shadow
-        g2.setColor(new Color(0, 0, 0, 180));
+        g2.setColor(BOSS_NAME_SHADOW);
         int textX = barX + (barWidth - fm.stringWidth(name)) / 2;
         g2.drawString(name, textX + 1, barY - 7);
         // Main text
@@ -1646,7 +1655,7 @@ public class BOSS_WitheredTree extends Entity {
 
         // Phase subtitle / enrage label
         if (phaseNameTimer > 0 && phaseNameAlpha > 0) {
-            g2.setFont(g2.getFont().deriveFont(Font.ITALIC, 12f));
+            g2.setFont(BOSS_PHASE_FONT);
             FontMetrics fm2 = g2.getFontMetrics();
             String phaseName = enraged ? "ENRAGED!" : PHASE_NAMES[currentPhase];
             Color labelColor = enraged ? PHASE_RED : barColor;

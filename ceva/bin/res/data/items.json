@@ -1,35 +1,107 @@
 [
   {
-    "id": "sword_normal",
-    "name": "Normal Sword",
+    "id": "wooden_sword",
+    "name": "Wooden Sword",
     "type": "sword",
     "attackValue": 1,
     "knockBackPower": 2,
     "attackAreaW": 36,
     "attackAreaH": 36,
     "description": "A basic sword.\nReliable and light.",
-    "sprite": "/res/objects/sword_normal",
+    "sprite": "/res/weapons/Wooden Sword",
     "solidArea": { "x": 16, "y": 16, "w": 32, "h": 32 }
   },
   {
-    "id": "spell_book",
-    "name": "Spell book",
-    "type": "book",
+    "id": "iron_sword",
+    "name": "Iron Sword",
+    "type": "sword",
     "attackValue": 2,
-    "knockBackPower": 3,
-    "attackAreaW": 30,
-    "attackAreaH": 30,
-    "description": "Spellbook.\nContains Fireball.",
-    "sprite": "/res/objects/Book",
+    "knockBackPower": 2,
+    "attackAreaW": 36,
+    "attackAreaH": 36,
+    "description": "A sturdy sword.\nHeavier but stronger.",
+    "sprite": "/res/weapons/Iron Sword",
     "solidArea": { "x": 16, "y": 16, "w": 32, "h": 32 }
   },
   {
-    "id": "shield_wood",
-    "name": "Wood_Shield",
+    "id": "knight_blade",
+    "name": "Knight Blade",
+    "type": "sword",
+    "attackValue": 3,
+    "knockBackPower": 3,
+    "attackAreaW": 40,
+    "attackAreaH": 40,
+    "description": "A knight's sword.\nCrafted for battle.",
+    "sprite": "/res/weapons/Knight's Blade",
+    "solidArea": { "x": 16, "y": 16, "w": 32, "h": 32 }
+  },
+  {
+    "id": "royal_scepter",
+    "name": "Royal Scepter",
+    "type": "sword",
+    "attackValue": 4,
+    "knockBackPower": 3,
+    "attackAreaW": 42,
+    "attackAreaH": 42,
+    "description": "A royal scepter.\nPowerful and reliable.",
+    "sprite": "/res/weapons/Royal Scepter",
+    "solidArea": { "x": 16, "y": 16, "w": 32, "h": 32 }
+  },
+  {
+    "id": "shadow_blade",
+    "name": "Shadow Blade",
+    "type": "sword",
+    "attackValue": 6,
+    "knockBackPower": 4,
+    "attackAreaW": 42,
+    "attackAreaH": 46,
+    "description": "A shadowy blade.\nStrikes with dark power.",
+    "sprite": "/res/weapons/Shadow Blade",
+    "solidArea": { "x": 16, "y": 16, "w": 32, "h": 32 }
+  },
+  {
+    "id": "wooden_shield",
+    "name": "Wooden Shield",
     "type": "shield",
     "defenseValue": 1,
-    "description": "Wooden shield.\nMinor protection.",
-    "sprite": "/res/objects/shield_wood",
+    "description": "A battered wooden shield.\nOffers minimal protection.",
+    "sprite": "/res/shields/Wooden Shield",
+    "solidArea": { "x": 16, "y": 16, "w": 32, "h": 32 }
+  },
+  {
+    "id": "iron_shield",
+    "name": "Iron Shield",
+    "type": "shield",
+    "defenseValue": 2,
+    "description": "A sturdy iron shield.\nOffers good protection.",
+    "sprite": "/res/shields/Iron Shield",
+    "solidArea": { "x": 16, "y": 16, "w": 32, "h": 32 }
+  },
+  {
+    "id": "knight_shield",
+    "name": "Knight Shield",
+    "type": "shield",
+    "defenseValue": 3,
+    "description": "A knight's shield.\nGives excellent protection.",
+    "sprite": "/res/shields/Knight's Shield",
+    "solidArea": { "x": 16, "y": 16, "w": 32, "h": 32 }
+  },
+  {
+    "id": "golden_locket",
+    "name": "Golden Locket",
+    "type": "shield",
+    "defenseValue": 3,
+    "description": "A golden locket.\nAn old family heirloom.\nOffering buffing properties.",
+    "sprite": "/res/shields/Golden Locket",
+    "solidArea": { "x": 16, "y": 16, "w": 32, "h": 32 }
+  },
+  {
+    "id": "canvas_guard",
+    "name": "Canvas Guard",
+    "type": "shield",
+    "defenseValue": 5,
+    "description": "A battered canvas guard.\nHistory unknown.",
+    "sprite": "/res/shields/Canvas Guard",
     "solidArea": { "x": 16, "y": 16, "w": 32, "h": 32 }
   },
   {
@@ -46,6 +118,15 @@
     "type": "buffs",
     "description": "Ancient compass.\nTeleports you to a save point.",
     "sprite": "/res/objects/Compas",
+    "solidArea": { "x": 18, "y": 18, "w": 28, "h": 28 }
+  },
+  {
+    "id": "bandage",
+    "name": "Bandage",
+    "type": "buffs",
+    "stackable": true,
+    "description": "Clean cloth wraps.\nUseful for helping the wounded.",
+    "sprite": "/res/quest_items/Bandage",
     "solidArea": { "x": 18, "y": 18, "w": 28, "h": 28 }
   }
 ]

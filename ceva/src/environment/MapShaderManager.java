@@ -286,7 +286,8 @@ public class MapShaderManager {
 
     public void update() {
         tick++;
-        updateParticles();
+        // NOTE: updateParticles() removed — drawAmbientParticles() is disabled,
+        // so particle computation was wasted CPU every frame.
         updateWeather();
     }
 

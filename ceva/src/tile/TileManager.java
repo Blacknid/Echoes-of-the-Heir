@@ -80,6 +80,8 @@ public class TileManager {
     // Pixel offset for infinite maps (after shifting chunks to start at 0,0)
     int mapOffsetPixelsX = 0;
     int mapOffsetPixelsY = 0;
+    // Background color for void areas outside the map (parsed from TMX backgroundcolor)
+    public Color mapBackgroundColor = new Color(20, 18, 22);
 
     // ── OPTIMIZATION: AlphaComposite cache — eliminates ~880 allocations/frame ──
     private static final HashMap<Float, AlphaComposite> alphaCompositeCache = new HashMap<>();
@@ -465,6 +467,21 @@ public class TileManager {
 
             resetCollisionConfig();
             applyMapCollisionProperties(mapRoot);
+
+            // Parse TMX background color (e.g. "#1a1216" or "#ff1a1216")
+            String bgAttr = mapRoot.getAttribute("backgroundcolor");
+            if (bgAttr != null && bgAttr.startsWith("#") && bgAttr.length() >= 7) {
+                try {
+                    String hex = bgAttr.substring(1);
+                    if (hex.length() == 6) {
+                        mapBackgroundColor = new Color(Integer.parseInt(hex, 16));
+                    } else if (hex.length() == 8) {
+                        // ARGB format from Tiled
+                        int argb = (int) Long.parseLong(hex, 16);
+                        mapBackgroundColor = new Color(argb, true);
+                    }
+                } catch (NumberFormatException ignored) {}
+            }
 
             // Detect infinite map
             boolean infinite = "1".equals(mapRoot.getAttribute("infinite"));
@@ -1126,6 +1143,9 @@ public class TileManager {
         if (origComposite != null) g2.setComposite(origComposite);
     }
 
+    // OPTIMIZATION: Reusable AffineTransform — avoids allocation per flipped tile per frame
+    private final AffineTransform reusableFlipAT = new AffineTransform();
+
     /**
      * Build an AffineTransform for the 7 Tiled flip/rotate combinations.
      * H  = mirror left/right
@@ -1138,30 +1158,36 @@ public class TileManager {
         boolean fV = (flags & 2) != 0;
         boolean fD = (flags & 4) != 0;
         // Matrix elements: [m00 m10 m01 m11 tx ty]  (column-major AffineTransform order)
-        // AffineTransform(m00, m10, m01, m11, tx, ty)
-        if ( fD &&  fH && !fV) return new AffineTransform( 0,  1, -1,  0, sx + w, sy);         // 90° CW
-        if ( fD && !fH &&  fV) return new AffineTransform( 0, -1,  1,  0, sx,     sy + h);      // 90° CCW
-        if (!fD &&  fH &&  fV) return new AffineTransform(-1,  0,  0, -1, sx + w, sy + h);      // 180°
-        if ( fD &&  fH &&  fV) return new AffineTransform( 0, -1, -1,  0, sx + w, sy + h);      // 270° CW / 90° CCW flipped
-        if (!fD &&  fH && !fV) return new AffineTransform(-1,  0,  0,  1, sx + w, sy);          // flip H
-        if (!fD && !fH &&  fV) return new AffineTransform( 1,  0,  0, -1, sx,     sy + h);      // flip V
-        /* fD && !fH && !fV */ return new AffineTransform( 0,  1,  1,  0, sx,     sy);          // transpose / anti-diagonal
+        if ( fD &&  fH && !fV) reusableFlipAT.setTransform( 0,  1, -1,  0, sx + w, sy);         // 90° CW
+        else if ( fD && !fH &&  fV) reusableFlipAT.setTransform( 0, -1,  1,  0, sx,     sy + h);      // 90° CCW
+        else if (!fD &&  fH &&  fV) reusableFlipAT.setTransform(-1,  0,  0, -1, sx + w, sy + h);      // 180°
+        else if ( fD &&  fH &&  fV) reusableFlipAT.setTransform( 0, -1, -1,  0, sx + w, sy + h);      // 270° CW
+        else if (!fD &&  fH && !fV) reusableFlipAT.setTransform(-1,  0,  0,  1, sx + w, sy);          // flip H
+        else if (!fD && !fH &&  fV) reusableFlipAT.setTransform( 1,  0,  0, -1, sx,     sy + h);      // flip V
+        else /* fD && !fH && !fV */ reusableFlipAT.setTransform( 0,  1,  1,  0, sx,     sy);          // transpose
+        return reusableFlipAT;
     }
 
     public void drawBackground(Graphics2D g2) {
+        // Fill void areas outside the map with the map's background color
+        g2.setColor(mapBackgroundColor);
+        g2.fillRect(0, 0, gp.screenWidth, gp.screenHeight);
+
         // Draw image layers behind all tile layers
         drawImageLayers(g2);
 
-        for (VisibleTileDraw visibleTile : backgroundVisibleTiles) {
-            drawTile(g2, visibleTile);
+        // OPTIMIZATION: indexed loop avoids Iterator allocation from for-each on ArrayList
+        for (int i = 0, n = backgroundVisibleTiles.size(); i < n; i++) {
+            drawTile(g2, backgroundVisibleTiles.get(i));
         }
 
         drawPathOverlay(g2);
     }
 
     public void drawForeground(Graphics2D g2) {
-        for (VisibleTileDraw visibleTile : foregroundVisibleTiles) {
-            drawTile(g2, visibleTile);
+        // OPTIMIZATION: indexed loop avoids Iterator allocation
+        for (int i = 0, n = foregroundVisibleTiles.size(); i < n; i++) {
+            drawTile(g2, foregroundVisibleTiles.get(i));
         }
     }
 
@@ -1306,6 +1332,32 @@ public class TileManager {
     private boolean isWaterTileset(String name, String path) {
         String normalized = (name + " " + path).toLowerCase();
         return normalized.contains("water");
+    }
+
+    /**
+     * Classify a GID for the minimap biome colour.
+     * Returns: "water", "tree", "struct", "grass", "shadow", or null (unknown).
+     * Uses tileset name/path heuristics so it works across any map.
+     */
+    public String classifyGidBiome(int gid) {
+        if (gid <= 0) return null;
+        for (int i = tilesets.size() - 1; i >= 0; i--) {
+            Tileset ts = tilesets.get(i);
+            if (gid >= ts.firstGID && gid < ts.firstGID + ts.tileCount) {
+                String n = (ts.name + " " + ts.sourcePath).toLowerCase();
+                if (n.contains("water") || n.contains("lake") || n.contains("river")) return "water";
+                if (n.contains("tree") || n.contains("forest") || n.contains("canopy")) return "tree";
+                if (n.contains("shadow") || n.contains("overlay") || n.contains("light")) return "shadow";
+                if (n.contains("struct") || n.contains("house") || n.contains("build") || n.contains("castle")
+                    || n.contains("wall") || n.contains("door") || n.contains("bridge") || n.contains("stone")
+                    || n.contains("cave") || n.contains("rock") || n.contains("dungeon")) return "struct";
+                if (n.contains("grass") || n.contains("ground") || n.contains("dirt") || n.contains("path")
+                    || n.contains("floor") || n.contains("terrain") || n.contains("sand")) return "grass";
+                // Fallback: if tileset name has no recognizable keyword, use generic grass
+                return "grass";
+            }
+        }
+        return null;
     }
 
     /**

@@ -8,6 +8,7 @@ import org.w3c.dom.Element;
 import org.w3c.dom.NodeList;
 
 import audio.SFX;
+import data.ItemFactory;
 import data.MonsterFactory;
 import entity.BossMonster;
 import entity.Entity;
@@ -15,19 +16,14 @@ import entity.NPC_Alucard;
 import entity.NPC_Generic;
 import main.GamePanel;
 import object.OBJ_Arrow;
-import object.OBJ_Book;
-import object.OBJ_Boots;
 import object.OBJ_Chest;
 import object.OBJ_Coins;
-import object.OBJ_Compas;
 import object.OBJ_Door;
 import object.OBJ_Gem;
 import object.OBJ_Heart;
 import object.OBJ_Key;
 import object.OBJ_ManaCrystal;
 import object.OBJ_Potion;
-import object.OBJ_Shield_Wood;
-import object.OBJ_Sword_Normal;
 import object.OBJ_Tent;
 import object.OBJ_Torch;
 import object.OBJ_Tower;
@@ -251,16 +247,49 @@ public class MapObjectLoader {
                     int areaW  = (int)(objW * sf);
                     int areaH  = (int)(objH * sf);
 
+                    // Handle rotation for rectangle objects (explicit width/height)
+                    if (areaW > 0 && areaH > 0) {
+                        String rotStr = obj.getAttribute("rotation");
+                        double rotDeg = (rotStr != null && !rotStr.isEmpty())
+                            ? Double.parseDouble(rotStr) : 0.0;
+                        if (rotDeg != 0.0) {
+                            double rad = Math.toRadians(rotDeg);
+                            double cosR = Math.cos(rad);
+                            double sinR = Math.sin(rad);
+                            double[][] corners = {{0,0},{objW,0},{objW,objH},{0,objH}};
+                            double minPX = Double.MAX_VALUE, minPY = Double.MAX_VALUE;
+                            double maxPX = -Double.MAX_VALUE, maxPY = -Double.MAX_VALUE;
+                            for (double[] c : corners) {
+                                double rx = c[0] * cosR - c[1] * sinR;
+                                double ry = c[0] * sinR + c[1] * cosR;
+                                if (rx < minPX) minPX = rx;
+                                if (rx > maxPX) maxPX = rx;
+                                if (ry < minPY) minPY = ry;
+                                if (ry > maxPY) maxPY = ry;
+                            }
+                            worldX += (int)(minPX * sf);
+                            worldY += (int)(minPY * sf);
+                            areaW = (int)((maxPX - minPX) * sf);
+                            areaH = (int)((maxPY - minPY) * sf);
+                            col = worldX / gp.tileSize;
+                            row = worldY / gp.tileSize;
+                        }
+                    }
+
                     // Expand area from polyline/polygon child if present and no explicit size
+                    boolean isPolyline = false;
                     if (areaW == 0 && areaH == 0) {
                         String polyPoints = null;
                         NodeList polylines = obj.getElementsByTagName("polyline");
-                        if (polylines.getLength() > 0)
+                        if (polylines.getLength() > 0) {
                             polyPoints = ((Element) polylines.item(0)).getAttribute("points");
+                            isPolyline = true;
+                        }
                         if (polyPoints == null || polyPoints.isEmpty()) {
                             NodeList polygons = obj.getElementsByTagName("polygon");
                             if (polygons.getLength() > 0)
                                 polyPoints = ((Element) polygons.item(0)).getAttribute("points");
+                            isPolyline = false;
                         }
                         if (polyPoints != null && !polyPoints.isEmpty()) {
                             // Tiled stores rotation in degrees, clockwise in screen space (y-down).
@@ -277,16 +306,17 @@ public class MapObjectLoader {
                                 cosR = Math.cos(rad);
                                 sinR = Math.sin(rad);
                             }
-                            double minPX = 0, minPY = 0, maxPX = 0, maxPY = 0;
+                            double minPX = Double.MAX_VALUE, minPY = Double.MAX_VALUE;
+                            double maxPX = -Double.MAX_VALUE, maxPY = -Double.MAX_VALUE;
                             for (String pt : polyPoints.trim().split("\\s+")) {
                                 String[] xy = pt.split(",");
                                 if (xy.length < 2) continue;
                                 double px = Double.parseDouble(xy[0]);
                                 double py = Double.parseDouble(xy[1]);
                                 if (hasRotation) {
-                                    // CW rotation in y-down screen space: x'=x·cos+y·sin, y'=-x·sin+y·cos
-                                    double rx = px * cosR + py * sinR;
-                                    double ry = -px * sinR + py * cosR;
+                                    // CW rotation in y-down screen space: x'=x·cos-y·sin, y'=x·sin+y·cos
+                                    double rx = px * cosR - py * sinR;
+                                    double ry = px * sinR + py * cosR;
                                     px = rx; py = ry;
                                 }
                                 if (px < minPX) minPX = px;
@@ -294,8 +324,8 @@ public class MapObjectLoader {
                                 if (py < minPY) minPY = py;
                                 if (py > maxPY) maxPY = py;
                             }
-                            areaW = Math.max(gp.tileSize, (int)((maxPX - minPX) * sf));
-                            areaH = Math.max(gp.tileSize, (int)((maxPY - minPY) * sf));
+                            areaW = (int)((maxPX - minPX) * sf);
+                            areaH = (int)((maxPY - minPY) * sf);
                             // Adjust origin to top-left of bounding box
                             worldX += (int)(minPX * sf);
                             worldY += (int)(minPY * sf);
@@ -374,6 +404,21 @@ public class MapObjectLoader {
                                 applyCommonProperties(light, obj);
                                 gp.obj[objIdx++] = light;
                                 continue;
+                            }
+                            // For polyline events, ensure the thin dimension is at
+                            // least half a tile so the barrier is practical to collide with.
+                            if (isPolyline) {
+                                int minThickness = gp.tileSize / 2;
+                                if (areaW < minThickness) {
+                                    int expand = minThickness - areaW;
+                                    worldX -= expand / 2;
+                                    areaW = minThickness;
+                                }
+                                if (areaH < minThickness) {
+                                    int expand = minThickness - areaH;
+                                    worldY -= expand / 2;
+                                    areaH = minThickness;
+                                }
                             }
                             loadEvent(type, obj, col, row, worldX, worldY, areaW, areaH);
                         }
@@ -460,6 +505,10 @@ public class MapObjectLoader {
             ? dialogueTrigger.trim() : "";
         // dialogueTriggerDuration: how many frames the message stays (default 300)
         gp.mapManager.pendingDialogueTriggerDuration = getIntProperty(mapEl, "dialogueTriggerDuration", 300);
+
+        // actTitle: large fade-in/fade-out title card shown on map entry (e.g. "Act I: The Awakening Cave")
+        String actTitle = getStringProperty(mapEl, "actTitle", null);
+        gp.mapManager.pendingActTitle = (actTitle != null && !actTitle.isBlank()) ? actTitle.trim() : "";
     }
 
     private void applyMapMusic(String value) {
@@ -480,10 +529,16 @@ public class MapObjectLoader {
     // ---- Entity Factories -----------------------------------------------------
 
     private Entity createObject(String type, Element obj) {
+        String itemId = getFirstStringProperty(obj, null, "itemId", "factoryId");
+        if (itemId != null && !itemId.isBlank()) {
+            Entity item = createFactoryItem(itemId, obj);
+            if (item != null) return item;
+        }
+
         switch (type) {
             case "Chest" -> {
                 OBJ_Chest chest = new OBJ_Chest(gp);
-                String loot = getStringProperty(obj, "loot", "");
+                String loot = getFirstStringProperty(obj, "", "lootId", "loot");
                 if (!loot.isEmpty()) {
                     Entity le = createEntityByName(loot);
                     if (le != null) chest.setLoot(le);
@@ -533,16 +588,17 @@ public class MapObjectLoader {
             case "Potion" -> { OBJ_Potion p = new OBJ_Potion(gp); p.amount = getIntProperty(obj, "amount", 1); return p; }
             case "Key"    -> { OBJ_Key    k = new OBJ_Key(gp);    k.amount = getIntProperty(obj, "amount", 1); return k; }
             case "Arrow"  -> { OBJ_Arrow  a = new OBJ_Arrow(gp);  a.amount = getIntProperty(obj, "amount", 1); return a; }
+            case "Item"   -> { return createFactoryItem(itemId, obj); }
             case "Tent"   -> { return new OBJ_Tent(gp); }
-            case "Boots"  -> { return new OBJ_Boots(gp); }
+            case "Boots"  -> { return ItemFactory.create(gp, "boots"); }
             case "Gem"    -> { return new OBJ_Gem(gp); }
-            case "Book"   -> { return new OBJ_Book(gp); }
+            case "Book"   -> { return ItemFactory.create(gp, "spell_book"); }
             case "Tower"  -> { return new OBJ_Tower(gp); }
-            case "Sword"  -> { return new OBJ_Sword_Normal(gp); }
-            case "Shield" -> { return new OBJ_Shield_Wood(gp); }
+            case "Sword"  -> { return ItemFactory.create(gp, "sword_normal"); }
+            case "Shield" -> { return ItemFactory.create(gp, "shield_wood"); }
             case "Heart"  -> { return new OBJ_Heart(gp); }
             case "Mana"   -> { return new OBJ_ManaCrystal(gp); }
-            case "Compas" -> { return new OBJ_Compas(gp); }
+            case "Compas" -> { return ItemFactory.create(gp, "compas"); }
             case "Light", "Lighting" -> { return createLightMarker(obj, false); }
             default -> {
                 Entity e = createEntityByName(type);
@@ -601,9 +657,12 @@ public class MapObjectLoader {
             case "NPC_Alucard" -> new NPC_Alucard(gp);
             case "NPC_Generic" -> {
                 NPC_Generic g = new NPC_Generic(gp);
-                // sprite path
+                // sprite path (walk sheet)
                 String sprite = getStringProperty(obj, "sprite", null);
                 if (sprite != null && !sprite.isBlank()) g.spritePath = sprite;
+                // idle sprite path
+                String idleSprite = getStringProperty(obj, "idleSprite", null);
+                if (idleSprite != null && !idleSprite.isBlank()) g.idleSpritePath = idleSprite;
                 g.getImage();
                 // data-driven dialogue: dialogue_S_L (set S, line L)
                 loadDataDrivenDialogues(g, obj);
@@ -639,6 +698,10 @@ public class MapObjectLoader {
 
         // guardMode: static from spawn AND faces the player every tick; unlocked by setting onPath=true
         if (getBoolProperty(obj, "guardMode", false)) npc.guardMode = true;
+
+        // idleDirection: force a direction while idle (0=down, 1=left, 2=right, 3=up)
+        int idleDir = getIntProperty(obj, "idleDirection", -1);
+        if (idleDir >= 0) npc.idleDirection = idleDir;
 
         // walkToCol / walkToRow: after the player interacts, NPC walks to this tile then re-enters guardMode
         int wCol = getIntProperty(obj, "walkToCol", -1);
@@ -691,17 +754,60 @@ public class MapObjectLoader {
         }
 
         // requiredItem / requiredItemDialogueSet: switch to a different dialogue when the player has a specific item
-        String reqItem = getStringProperty(obj, "requiredItem", null);
+        String reqItem = getFirstStringProperty(obj, null, "deliveryItem", "requiredItem");
         if (reqItem != null && !reqItem.isBlank()) {
             npc.requiredItem = reqItem;
-            npc.requiredItemDialogueSet = getIntProperty(obj, "requiredItemDialogueSet", 0);
+            npc.requiredItemDialogueSet = getFirstIntProperty(obj, 0, "deliveryDialogueSet", "requiredItemDialogueSet");
         }
 
         // requiredItemConsumed: remove the item from inventory when dialogue switches
-        if (getBoolProperty(obj, "requiredItemConsumed", false)) npc.requiredItemConsumed = true;
+        if (getFirstBoolProperty(obj, false, "deliveryConsumeItem", "requiredItemConsumed")) npc.requiredItemConsumed = true;
+
+        String requiredItemQuestId = getFirstStringProperty(obj, null, "deliveryQuestId", "requiredItemQuestId");
+        if (requiredItemQuestId != null && !requiredItemQuestId.isBlank()) {
+            npc.requiredItemQuestId = requiredItemQuestId;
+            npc.requiredItemQuestAmount = getFirstIntProperty(obj, 1, "deliveryQuestAmount", "requiredItemQuestAmount");
+        }
+        npc.requiredItemPostQuestSet = getFirstIntProperty(obj, -1, "deliveryPostDialogueSet", "requiredItemPostQuestSet");
+        npc.requiredItemRewardCoins = getFirstIntProperty(obj, 0, "deliveryRewardCoins", "requiredItemRewardCoins");
+        String deliveryRewardItem = getFirstStringProperty(obj, null, "deliveryRewardItem", "requiredItemRewardItem");
+        if (deliveryRewardItem != null && !deliveryRewardItem.isBlank()) npc.requiredItemRewardItemId = deliveryRewardItem;
+        String deliveryRewardFragment = getFirstStringProperty(obj, null, "deliveryRewardFragmentId", "requiredItemRewardFragmentId");
+        if (deliveryRewardFragment != null && !deliveryRewardFragment.isBlank()) npc.requiredItemRewardFragmentId = deliveryRewardFragment;
+
+        // idleAnimSpeed: ticks between idle animation frame advances (default 24; lower = faster)
+        int idleAnimSpeed = getIntProperty(obj, "idleAnimSpeed", -1);
+        if (idleAnimSpeed > 0) npc.idleAnimationInterval = idleAnimSpeed;
+
+        // portrait: path to a 96×96 portrait image shown in the dialogue box
+        String portrait = getStringProperty(obj, "portrait", null);
+        if (portrait != null && !portrait.isBlank()) npc.portraitPath = portrait.trim();
+
+        // giveItem / giveItemDialogueSet: give an item to the player on first interaction
+        String giveItem = getFirstStringProperty(obj, null, "giftItem", "giveItem");
+        if (giveItem != null && !giveItem.isBlank()) {
+            npc.giveItemId         = giveItem;
+            npc.giveItemDialogueSet = getFirstIntProperty(obj, 0, "giftDialogueSet", "giveItemDialogueSet");
+        }
+
+        String giveQuestId = getFirstStringProperty(obj, null, "giftQuestId", "giveItemQuestId");
+        if (giveQuestId != null && !giveQuestId.isBlank()) {
+            npc.giveItemQuestId = giveQuestId;
+            npc.giveItemQuestName = getFirstStringProperty(obj, giveQuestId, "giftQuestName", "giveItemQuestName");
+            npc.giveItemQuestDesc = getFirstStringProperty(obj, "", "giftQuestDesc", "giveItemQuestDesc");
+            npc.giveItemQuestTarget = getFirstIntProperty(obj, 1, "giftQuestTarget", "giveItemQuestTarget");
+        }
+
+        // giveItem2 / giveItem2DialogueSet: give a second item after the NPC finishes walking (post-help)
+        String giveItem2 = getStringProperty(obj, "giveItem2", null);
+        if (giveItem2 != null && !giveItem2.isBlank()) {
+            npc.giveItem2Id          = giveItem2;
+            npc.giveItem2DialogueSet  = getIntProperty(obj, "giveItem2DialogueSet", -1);
+        }
 
         int wanderRadius = getIntProperty(obj, "wanderRadius", -1);
         if (wanderRadius > 0) npc.wanderRadius = wanderRadius;
+        npc.syncQuestDrivenNpcState();
         return npc;
     }
 
@@ -795,12 +901,17 @@ public class MapObjectLoader {
         String id = getStringProperty(obj, "id", null);
         if (id != null && !id.isBlank()) entity.objectId = id;
         if (getBoolProperty(obj, "invisible", false)) entity.invisible = true;
+        entity.removeOnPickup = getBoolProperty(obj, "removeOnPickup", entity.removeOnPickup);
     }
 
     // ---- Event Types ----------------------------------------------------------
 
     private void loadEvent(String type, Element obj, int col, int row,
                            int worldX, int worldY, int areaW, int areaH) {
+        // Default event dimensions: if no area, use one tile
+        int ew = (areaW > 0) ? areaW : gp.tileSize;
+        int eh = (areaH > 0) ? areaH : gp.tileSize;
+
         switch (type) {
             case "MapTransition" -> {
                 String tMap   = getStringProperty(obj, "targetMap", "");
@@ -808,30 +919,32 @@ public class MapObjectLoader {
                 int    tRow   = getIntProperty(obj, "targetRow", 5);
                 String spawnId = getStringProperty(obj, "spawnId", "");
                 if (!tMap.isEmpty()) {
-                    forEachTile(col, row, worldX, worldY, areaW, areaH, (tc, tr) ->
-                        gp.eHandler.registerMapTransition(tc, tr, tMap, tCol, tRow, spawnId));
+                    gp.eHandler.registerMapTransition(worldX, worldY, ew, eh,
+                        tMap, tCol, tRow, spawnId);
                 }
             }
             case "HealingPool" -> {
-                forEachTile(col, row, worldX, worldY, areaW, areaH, (tc, tr) ->
-                    gp.eHandler.registerHealingPool(tc, tr));
+                gp.eHandler.registerHealingPool(worldX, worldY, ew, eh);
             }
             case "DamageTrap" -> {
                 int     damage     = getIntProperty(obj, "damage", 1);
                 boolean repeatable = getBoolProperty(obj, "repeatable", true);
-                forEachTile(col, row, worldX, worldY, areaW, areaH, (tc, tr) ->
-                    gp.eHandler.registerDamageTrap(tc, tr, damage, repeatable));
+                gp.eHandler.registerDamageTrap(worldX, worldY, ew, eh, damage, repeatable);
             }
             case "DialogueTrigger" -> {
                 String msg    = getStringProperty(obj, "message", "...").replace("\\n", "\n");
                 String speaker = getStringProperty(obj, "speaker", "");
                 boolean one   = getBoolProperty(obj, "oneShot", true);
-                // Create ONE shared instance so all covered tiles share the same oneShot flag;
-                // without this, each tile would have its own 'triggered' bool and a one-shot
-                // trigger could fire more than once (once per tile the player steps on).
                 EventHandler.DialogueData shared = new EventHandler.DialogueData(msg, speaker, one);
-                forEachTile(col, row, worldX, worldY, areaW, areaH, (tc, tr) ->
-                    gp.eHandler.registerDialogueTrigger(tc, tr, shared));
+                gp.eHandler.registerDialogueTrigger(worldX, worldY, ew, eh, shared);
+            }
+            case "ThoughtTrigger" -> {
+                String msg    = getStringProperty(obj, "message", "...").replace("\\n", "\n");
+                boolean one   = getBoolProperty(obj, "oneShot", true);
+                int linger    = getIntProperty(obj, "linger", 120);
+                int delay     = getIntProperty(obj, "delay", 0);
+                EventHandler.ThoughtData data = new EventHandler.ThoughtData(msg, one, linger, delay);
+                gp.eHandler.registerThoughtTrigger(worldX, worldY, ew, eh, data);
             }
             case "LevelGate" -> {
                 int    min   = getIntProperty(obj, "minLevel", 0);
@@ -844,18 +957,25 @@ public class MapObjectLoader {
                 String reqItem = getStringProperty(obj, "requiredItem", "");
                 boolean consume = getBoolProperty(obj, "consumeItem", false);
                 String reqFrag = getStringProperty(obj, "requiredFragment", "");
-                forEachTile(col, row, worldX, worldY, areaW, areaH, (tc, tr) ->
-                    gp.eHandler.registerLevelGate(tc, tr, min, msg, tMap, tCol, tRow, sid, reqItem, consume, reqFrag));
+                gp.eHandler.registerLevelGate(worldX, worldY, ew, eh,
+                    min, msg, tMap, tCol, tRow, sid, reqItem, consume, reqFrag);
             }
             case "Checkpoint" -> {
                 boolean silent = getBoolProperty(obj, "silent", false);
-                gp.eHandler.registerCheckpoint(col, row, silent);
+                gp.eHandler.registerCheckpoint(worldX, worldY, ew, eh, silent);
             }
             case "QuestTrigger" -> {
                 String  qId   = getStringProperty(obj, "questId", "");
                 int     prog  = getIntProperty(obj, "progress", 1);
                 boolean one   = getBoolProperty(obj, "oneShot", true);
-                if (!qId.isEmpty()) gp.eHandler.registerQuestTrigger(col, row, qId, prog, one);
+                if (!qId.isEmpty())
+                    gp.eHandler.registerQuestTrigger(worldX, worldY, ew, eh, qId, prog, one);
+            }
+            case "FragmentTrigger" -> {
+                String  fId  = getStringProperty(obj, "fragmentId", "");
+                boolean one  = getBoolProperty(obj, "oneShot", true);
+                if (!fId.isEmpty())
+                    gp.eHandler.registerFragmentTrigger(worldX, worldY, ew, eh, fId, one);
             }
             case "SpawnPoint" -> {
                 // Always record this as the default map spawn position
@@ -871,7 +991,7 @@ public class MapObjectLoader {
             }
             case "CameraShake" -> {
                 String intensity = getStringProperty(obj, "intensity", "medium");
-                gp.eHandler.registerCameraShake(col, row, intensity);
+                gp.eHandler.registerCameraShake(worldX, worldY, ew, eh, intensity);
             }
             case "SpawnZone" -> {
                 String monType  = getStringProperty(obj, "monster",   "MON_monster");
@@ -911,8 +1031,8 @@ public class MapObjectLoader {
                 int    tCol = getIntProperty(obj, "targetCol", 5);
                 int    tRow = getIntProperty(obj, "targetRow", 5);
                 String sid  = getStringProperty(obj, "spawnId", "");
-                forEachTile(col, row, worldX, worldY, areaW, areaH, (tc, tr) ->
-                    gp.eHandler.registerMemoryGate(tc, tr, req, msg, tMap, tCol, tRow, sid));
+                gp.eHandler.registerMemoryGate(worldX, worldY, ew, eh,
+                    req, msg, tMap, tCol, tRow, sid);
             }
             default -> System.out.println("MapObjectLoader: Unknown event '" + type + "'");
         }
@@ -965,35 +1085,57 @@ public class MapObjectLoader {
      * Used for chest loot, generic object fallback, and MonsterArea monster type.
      */
     public Entity createEntityByName(String name) {
-        return switch (name) {
-            case "Compas"  -> new OBJ_Compas(gp);
+        Entity entity = switch (name) {
+            case "Compas"  -> ItemFactory.create(gp, "compas");
             case "Key"     -> new OBJ_Key(gp);
             case "Potion"  -> new OBJ_Potion(gp);
-            case "Boots"   -> new OBJ_Boots(gp);
+            case "Boots"   -> ItemFactory.create(gp, "boots");
             case "Gem"     -> new OBJ_Gem(gp);
-            case "Sword", "Normal Sword"   -> new OBJ_Sword_Normal(gp);
-            case "Shield", "Wood Shield"  -> new OBJ_Shield_Wood(gp);
+            case "Sword", "Normal Sword"   -> ItemFactory.create(gp, "sword_normal");
+            case "Shield", "Wood Shield"   -> ItemFactory.create(gp, "shield_wood");
             case "Heart"   -> new OBJ_Heart(gp);
             case "Mana"    -> new OBJ_ManaCrystal(gp);
             case "Arrow"   -> new OBJ_Arrow(gp);
             case "Torch"   -> new OBJ_Torch(gp);
-            case "Book"    -> new OBJ_Book(gp);
+            case "Book"    -> ItemFactory.create(gp, "spell_book");
             case "Coins"   -> new OBJ_Coins(gp);
             case "Tower"   -> new OBJ_Tower(gp);
             case "Tent"    -> new OBJ_Tent(gp);
             case "Light"   -> {
                 Entity l = new Entity(gp);
-                l.name = "Light"; l.type = Entity.type_utility; l.lightSource = true; l.lightRadius = 4; l.collision = false;
+                l.name = "Light"; l.type = Entity.TYPE_UTILITY; l.lightSource = true; l.lightRadius = 4; l.collision = false;
                 yield l;
             }
             default        -> null;
         };
+        if (entity != null) return entity;
+
+        entity = ItemFactory.create(gp, name);
+        if (entity != null) return entity;
+
+        return ItemFactory.create(gp, normalizeItemId(name));
+    }
+
+    private Entity createFactoryItem(String itemId, Element obj) {
+        if (itemId == null || itemId.isBlank()) return null;
+        Entity item = ItemFactory.create(gp, itemId);
+        if (item == null) item = ItemFactory.create(gp, normalizeItemId(itemId));
+        if (item == null) return null;
+
+        int amount = getIntProperty(obj, "amount", 1);
+        if (amount > 1) item.amount = amount;
+        return item;
+    }
+
+    private String normalizeItemId(String raw) {
+        if (raw == null) return "";
+        return raw.trim().toLowerCase().replaceAll("[^a-z0-9]+", "_").replaceAll("^_+|_+$", "");
     }
 
     private Entity createLightMarker(Element obj, boolean eventLayer) {
         Entity light = new Entity(gp);
         light.name = "Light";
-        light.type = Entity.type_utility;  // never picked up or interacted with
+        light.type = Entity.TYPE_UTILITY;  // never picked up or interacted with
         light.lightSource = true;
         light.lightRadius = getIntProperty(obj, "lightRadius", 4);
         String colorHex = getStringProperty(obj, "lightColor", null);
@@ -1040,18 +1182,6 @@ public class MapObjectLoader {
     }
 
     // ---- Utilities ------------------------------------------------------------
-
-    @FunctionalInterface interface TileAction { void accept(int col, int row); }
-
-    /** Calls action for every tile covered by a Tiled object (point or rectangle). */
-    private void forEachTile(int col, int row, int worldX, int worldY,
-                             int areaW, int areaH, TileAction action) {
-        if (areaW <= 0 || areaH <= 0) { action.accept(col, row); return; }
-        int ts = gp.tileSize;
-        for (int dx = 0; dx < areaW; dx += ts)
-            for (int dy = 0; dy < areaH; dy += ts)
-                action.accept((worldX + dx) / ts, (worldY + dy) / ts);
-    }
 
     private int firstFreeSlot(Entity[] arr) {
         for (int i = 0; i < arr.length; i++) if (arr[i] == null) return i;
@@ -1105,10 +1235,27 @@ public class MapObjectLoader {
         return defaultValue;
     }
 
+    private String getFirstStringProperty(Element element, String defaultValue, String... names) {
+        for (String name : names) {
+            String value = getStringProperty(element, name, null);
+            if (value != null && !value.isBlank()) return value;
+        }
+        return defaultValue;
+    }
+
     private int getIntProperty(Element element, String name, int defaultValue) {
         String v = getStringProperty(element, name, null);
         if (v == null || v.isBlank()) return defaultValue;
         try { return Integer.parseInt(v.trim()); } catch (NumberFormatException e) { return defaultValue; }
+    }
+
+    private int getFirstIntProperty(Element element, int defaultValue, String... names) {
+        for (String name : names) {
+            String value = getStringProperty(element, name, null);
+            if (value == null || value.isBlank()) continue;
+            try { return Integer.parseInt(value.trim()); } catch (NumberFormatException ignored) {}
+        }
+        return defaultValue;
     }
 
     private float getFloatProperty(Element element, String name, float defaultValue) {
@@ -1121,5 +1268,14 @@ public class MapObjectLoader {
         String v = getStringProperty(element, name, null);
         if (v == null || v.isBlank()) return defaultValue;
         return Boolean.parseBoolean(v.trim());
+    }
+
+    private boolean getFirstBoolProperty(Element element, boolean defaultValue, String... names) {
+        for (String name : names) {
+            String value = getStringProperty(element, name, null);
+            if (value == null || value.isBlank()) continue;
+            return Boolean.parseBoolean(value.trim());
+        }
+        return defaultValue;
     }
 }

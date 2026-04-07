@@ -20,7 +20,7 @@ public class Eye extends Entity {
         super(gp);
 
         name = "Eye";
-        type = type_monster;
+        type = TYPE_MONSTER;
         direction = DIR_DOWN;
         collision = false; // Player can walk through
         speed = 0;

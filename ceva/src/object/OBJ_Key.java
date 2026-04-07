@@ -6,14 +6,11 @@ import main.GamePanel;
 
 public class OBJ_Key extends Entity{
 
-    GamePanel gp;
-
     public OBJ_Key(GamePanel gp) {
 
         super(gp);
-        this.gp = gp;
 
-        type = type_consumable;
+        type = TYPE_CONSUMABLE;
         stackable = true;
         name = "Key";
         down1 = setup("/res/objects/Key", gp.tileSize, gp.tileSize);
@@ -27,11 +24,11 @@ public class OBJ_Key extends Entity{
         solidAreaDefaultX = solidArea.x;
         solidAreaDefaultY = solidArea.y;
 
-        setDialogue();
+        initDialogue();
 
     }
 
-    public void setDialogue() {
+    private void initDialogue() {
     
         ensureDialogues()[0][0] = "You use the " + name + " to open the door.";
         ensureDialogues()[1][0] = "You use the " + name + " to open the chest.";
@@ -39,6 +36,7 @@ public class OBJ_Key extends Entity{
     
     }
 
+        @Override
     public boolean use(Entity entity) {
 
         int doorIndex = getDetected(entity, gp.obj, "Door");
@@ -67,7 +65,7 @@ public class OBJ_Key extends Entity{
                     chest.down1 = chest.image1;
                     chest.opened = true;
                     chest.collision = true;
-                    if (chest.loot.name == "Compas") {
+                    if ("Compas".equals(chest.loot.name)) {
                         gp.teleportation = true;
                     }
                 }

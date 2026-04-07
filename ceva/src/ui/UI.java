@@ -68,6 +68,14 @@ public class UI {
     private float gameOverAlpha = 0f;  // fade-in for game over screen
     private float pauseAlpha = 0f;     // fade-in for pause overlay
 
+    // ── ACT TITLE CARD ──
+    private String actTitleText = null;
+    private int actTitleTimer = 0;
+    private static final int ACT_TITLE_FADE_IN  = 60;   // 1 sec
+    private static final int ACT_TITLE_HOLD     = 120;  // 2 sec
+    private static final int ACT_TITLE_FADE_OUT = 60;   // 1 sec
+    private static final int ACT_TITLE_TOTAL    = ACT_TITLE_FADE_IN + ACT_TITLE_HOLD + ACT_TITLE_FADE_OUT;
+
     // ── HUD COLORS (modern pixel-game palette) ──
     private static final Color HP_BAR_BG      = new Color(50, 12, 18, 220);
     private static final Color HP_BAR_FILL    = new Color(230, 55, 70);
@@ -246,6 +254,7 @@ public class UI {
             drawPlayerLife();
             drawMessage();
             drawLevelUpBanner();
+            if (gp.thoughts != null) gp.thoughts.draw(g2);
         }
 
         // PAUSE STATE
@@ -294,11 +303,17 @@ public class UI {
 
         if ( gp.gameState == GamePanel.cutsceneState ) {
             drawDialogueScreen();
+            if (gp.thoughts != null) gp.thoughts.draw(g2);
         }
 
         // JOURNAL STATE
         if ( gp.gameState == GamePanel.journalState ) {
             drawJournalScreen();
+        }
+
+        // ACT TITLE CARD (overlays on top of any game state)
+        if (actTitleTimer > 0) {
+            drawActTitle();
         }
 
         if( gameFinished ) {
@@ -339,6 +354,56 @@ public class UI {
             }
     } 
 }
+    /** Trigger an act title card to fade in, hold, and fade out. Called from MapManager after map load. */
+    public void showActTitle(String title) {
+        if (title == null || title.isBlank()) return;
+        actTitleText = title;
+        actTitleTimer = ACT_TITLE_TOTAL;
+    }
+
+    private void drawActTitle() {
+        if (actTitleText == null) return;
+        int elapsed = ACT_TITLE_TOTAL - actTitleTimer;
+        actTitleTimer--;
+
+        // Compute alpha: fade in → hold → fade out
+        float alpha;
+        if (elapsed < ACT_TITLE_FADE_IN) {
+            alpha = (float) elapsed / ACT_TITLE_FADE_IN;
+        } else if (elapsed < ACT_TITLE_FADE_IN + ACT_TITLE_HOLD) {
+            alpha = 1f;
+        } else {
+            alpha = 1f - (float)(elapsed - ACT_TITLE_FADE_IN - ACT_TITLE_HOLD) / ACT_TITLE_FADE_OUT;
+        }
+        alpha = Math.max(0f, Math.min(1f, alpha));
+
+        java.awt.Composite saved = g2.getComposite();
+        g2.setComposite(AlphaComposite.getInstance(AlphaComposite.SRC_OVER, alpha));
+
+        // Semi-transparent dark banner across center
+        int bannerH = 80;
+        int bannerY = gp.screenHeight / 2 - bannerH / 2;
+        g2.setColor(cachedColor(0, 0, 0, 160));
+        g2.fillRect(0, bannerY, gp.screenWidth, bannerH);
+
+        // Title text — large serif font, warm cream
+        g2.setFont(cachedFont(Font.BOLD | Font.ITALIC, 36F));
+        g2.setColor(cachedColor(240, 220, 170));
+        int tw = (int) cachedFM().getStringBounds(actTitleText, g2).getWidth();
+        int tx = gp.screenWidth / 2 - tw / 2;
+        int ty = gp.screenHeight / 2 + 12;
+        // Text shadow
+        g2.setColor(cachedColor(0, 0, 0, 180));
+        g2.drawString(actTitleText, tx + 2, ty + 2);
+        // Main text
+        g2.setColor(cachedColor(240, 220, 170));
+        g2.drawString(actTitleText, tx, ty);
+
+        g2.setComposite(saved);
+
+        if (actTitleTimer <= 0) actTitleText = null;
+    }
+
     public void drawPlayerLife() {
 
         animTick++;
@@ -1412,6 +1477,53 @@ public class UI {
         int hx = getXforCenteredText(hint);
         g2.drawString(hint, hx, gp.screenHeight - gp.tileSize * 2);
     }
+
+    // ── PORTRAIT CACHE — lazy-load NPC portraits ──
+    private final HashMap<String, BufferedImage> portraitCache = new HashMap<>();
+    private BufferedImage getPortrait(String path) {
+        if (path == null) return null;
+        BufferedImage img = portraitCache.get(path);
+        if (img != null) return img;
+        try {
+            img = ImageIO.read(getClass().getResourceAsStream(path));
+            if (img != null) {
+                img = UtilityTool.scaleImage(img, 96, 96);
+                portraitCache.put(path, img);
+            }
+        } catch (Exception e) {
+            System.out.println("UI: Failed to load portrait: " + path);
+            portraitCache.put(path, null);
+        }
+        return portraitCache.get(path);
+    }
+
+    /** Word-wrap text to fit within maxWidth pixels using the given font. Respects existing \n as hard breaks. */
+    private java.util.List<String> wrapText(String text, Font font, int maxWidth) {
+        java.util.List<String> lines = new java.util.ArrayList<>();
+        FontMetrics fm = cachedFM(font);
+        for (String paragraph : text.split("\n")) {
+            if (paragraph.isEmpty()) { lines.add(""); continue; }
+            String[] words = paragraph.split(" ");
+            StringBuilder current = new StringBuilder();
+            for (String word : words) {
+                if (current.length() == 0) {
+                    current.append(word);
+                } else {
+                    String test = current + " " + word;
+                    if (fm.stringWidth(test) > maxWidth) {
+                        lines.add(current.toString());
+                        current = new StringBuilder(word);
+                    } else {
+                        current.append(" ").append(word);
+                    }
+                }
+            }
+            if (current.length() > 0) lines.add(current.toString());
+        }
+        if (lines.isEmpty()) lines.add("");
+        return lines;
+    }
+
     public void drawDialogueScreen() {
 
         if (npc == null) return;
@@ -1446,6 +1558,26 @@ public class UI {
         g2.setFont(cachedFont(Font.PLAIN, 28F));
         x += gp.tileSize;
         y += gp.tileSize;
+
+        // ── NPC PORTRAIT (if available) ──
+        int portraitOffset = 0;
+        if (npc.portraitPath != null) {
+            BufferedImage portrait = getPortrait(npc.portraitPath);
+            if (portrait != null) {
+                int portraitX = x - 4;
+                int portraitY = y - 8;
+                // Dark background behind portrait
+                g2.setColor(cachedColor(15, 12, 8, 200));
+                g2.fillRoundRect(portraitX - 4, portraitY - 4, 104, 104, 8, 8);
+                g2.drawImage(portrait, portraitX, portraitY, null);
+                // Thin border
+                g2.setColor(cachedColor(120, 100, 60, 180));
+                g2.setStroke(STROKE_1);
+                g2.drawRoundRect(portraitX - 4, portraitY - 4, 104, 104, 8, 8);
+                portraitOffset = 112;
+            }
+        }
+        int textX = x + portraitOffset;
 
         if ( npc.ensureDialogues()[npc.dialogueSet][npc.dialogueIndex] != null ) {
 
@@ -1503,15 +1635,18 @@ public class UI {
             }
         }
 
-        // ── DRAW TEXT with shadow ──
-        g2.setColor(Color.white);
-        for ( String line : currentDialogue.split("\n")) {
+        // ── DRAW TEXT with shadow (auto word-wrapped) ──
+        Font dialogueFont = cachedFont(Font.PLAIN, 28F);
+        g2.setFont(dialogueFont);
+        int textMaxWidth = width - gp.tileSize * 2 - portraitOffset - 16;
+        java.util.List<String> wrappedLines = wrapText(currentDialogue, dialogueFont, textMaxWidth);
+        for (String line : wrappedLines) {
             // text shadow
             g2.setColor(cachedColor(0, 0, 0, 100));
-            g2.drawString(line, x + 2, y + 2);
+            g2.drawString(line, textX + 2, y + 2);
             // main text
             g2.setColor(cachedColor(230, 225, 215));
-            g2.drawString(line, x, y);
+            g2.drawString(line, textX, y);
             y += 40;
         }
 
@@ -1676,83 +1811,105 @@ public class UI {
     public void drawGameOverScreen() {
 
         // Fade-in animation
-        if (gameOverAlpha < 1f) gameOverAlpha += 0.03f;
+        if (gameOverAlpha < 1f) gameOverAlpha += 0.02f;
         if (gameOverAlpha > 1f) gameOverAlpha = 1f;
 
-        // ── DARK OVERLAY with red tint ──
-        g2.setColor(cachedColor(30, 0, 0, (int)(180 * gameOverAlpha)));
+        float a = gameOverAlpha;
+
+        // ── DARK OVERLAY — deep charcoal, no red tint ──
+        g2.setColor(cachedColor(12, 10, 14, (int)(210 * a)));
         g2.fillRect(0, 0, gp.screenWidth, gp.screenHeight);
 
-        // ── VIGNETTE EFFECT (darker edges) ──
-        int vigAlpha = (int)(100 * gameOverAlpha);
-        for (int i = 0; i < 4; i++) {
-            int a = Math.max(0, vigAlpha - i * 20);
-            g2.setColor(cachedColor(0, 0, 0, a));
-            g2.fillRect(0, 0, gp.screenWidth, gp.tileSize / 2 * (4 - i)); // top
-            g2.fillRect(0, gp.screenHeight - gp.tileSize / 2 * (4 - i), gp.screenWidth, gp.tileSize / 2 * (4 - i)); // bottom
+        // ── VIGNETTE EFFECT (soft, dark edges) ──
+        int vigAlpha = (int)(120 * a);
+        for (int i = 0; i < 5; i++) {
+            int va = Math.max(0, vigAlpha - i * 22);
+            g2.setColor(cachedColor(0, 0, 0, va));
+            int band = gp.tileSize / 2 * (5 - i);
+            g2.fillRect(0, 0, gp.screenWidth, band);
+            g2.fillRect(0, gp.screenHeight - band, gp.screenWidth, band);
+            g2.fillRect(0, 0, band, gp.screenHeight);
+            g2.fillRect(gp.screenWidth - band, 0, band, gp.screenHeight);
         }
+
+        // ── HORIZONTAL DIVIDER LINE — thin ember line across center area ──
+        float linePulse = (float)((Math.sin(animTick * 0.04) + 1.0) * 0.5);
+        int lineAlpha = (int)((40 + 30 * linePulse) * a);
+        int lineY = gp.screenHeight / 2 - gp.tileSize;
+        int lineMargin = gp.tileSize * 3;
+        g2.setColor(cachedColor(180, 120, 80, lineAlpha));
+        g2.setStroke(STROKE_1);
+        g2.drawLine(lineMargin, lineY, gp.screenWidth - lineMargin, lineY);
 
         int x;
         int y;
         String text;
 
-        // ── "GAME OVER" TITLE with shake + pulse ──
-        float titlePulse = (float)((Math.sin(animTick * 0.05) + 1.0) * 0.5);
-        int shakeX = (int)(Math.sin(animTick * 0.3) * 2 * (1f - gameOverAlpha)); // shake fades out
+        // ── "YOU DIED" TITLE — elegant, muted gold/bone color ──
+        float titlePulse = (float)((Math.sin(animTick * 0.035) + 1.0) * 0.5);
 
-        g2.setFont(cachedFont(Font.BOLD, 96f));
-        text = "Game Over";
-        x = getXforCenteredText(text) + shakeX;
-        y = gp.tileSize * 4;
+        g2.setFont(cachedFont(Font.BOLD, 84f));
+        text = "YOU DIED";
+        x = getXforCenteredText(text);
+        y = gp.screenHeight / 2 - gp.tileSize * 2;
 
-        // deep shadow
-        g2.setColor(cachedColor(80, 0, 0, (int)(200 * gameOverAlpha)));
-        g2.drawString(text, x + 4, y + 4);
-        // red glow
-        g2.setColor(cachedColor(200, 40, 40, (int)((100 + 60 * titlePulse) * gameOverAlpha)));
-        g2.drawString(text, x + 2, y + 2);
-        // main text
-        int rr = (int)(200 + 55 * titlePulse);
-        g2.setColor(cachedColor(Math.min(255, rr), 50, 50, (int)(255 * gameOverAlpha)));
+        // soft shadow
+        g2.setColor(cachedColor(20, 15, 10, (int)(180 * a)));
+        g2.drawString(text, x + 3, y + 3);
+        // warm glow layer
+        int glowR = (int)(160 + 40 * titlePulse);
+        int glowG = (int)(110 + 25 * titlePulse);
+        int glowB = (int)(60 + 15 * titlePulse);
+        g2.setColor(cachedColor(glowR, glowG, glowB, (int)(80 * a)));
+        g2.drawString(text, x + 1, y + 1);
+        // main text — warm bone/parchment
+        int mainR = (int)(200 + 30 * titlePulse);
+        int mainG = (int)(170 + 20 * titlePulse);
+        g2.setColor(cachedColor(Math.min(255, mainR), Math.min(255, mainG), 130, (int)(255 * a)));
         g2.drawString(text, x, y);
 
         // ── SUBTITLE ──
-        g2.setFont(cachedFont(Font.PLAIN, 22f));
-        g2.setColor(cachedColor(180, 150, 140, (int)(180 * gameOverAlpha)));
-        String sub = "The darkness claims another soul...";
+        g2.setFont(cachedFont(Font.PLAIN, 20f));
+        g2.setColor(cachedColor(140, 125, 110, (int)(160 * a)));
+        String sub = "The echoes fade into silence...";
         int subX = getXforCenteredText(sub);
-        g2.drawString(sub, subX, y + 50);
+        g2.drawString(sub, subX, y + 48);
 
-        // ── BUTTONS ──
-        g2.setFont(cachedFont(Font.BOLD, 42f));
+        // ── LOWER DIVIDER LINE ──
+        int line2Y = y + 70;
+        g2.setColor(cachedColor(180, 120, 80, (int)(30 * a)));
+        g2.drawLine(lineMargin, line2Y, gp.screenWidth - lineMargin, line2Y);
+
+        // ── BUTTONS — refined, minimal ──
+        g2.setFont(cachedFont(Font.BOLD, 36f));
         String[] opts = {"Retry", "Quit"};
         int buttonW = gp.tileSize * 5;
-        int buttonH = gp.tileSize;
+        int buttonH = (int)(gp.tileSize * 0.9);
         int buttonX = gp.screenWidth / 2 - buttonW / 2;
-        y += gp.tileSize * 4;
+        y = line2Y + gp.tileSize;
 
         for (int i = 0; i < opts.length; i++) {
             text = opts[i];
-            int btnY = y + i * (buttonH + 16);
-            int rectY = btnY - buttonH + 18;
+            int btnY = y + i * (buttonH + 20);
+            int rectY = btnY - buttonH + 16;
             boolean sel = (commandNum == i);
 
             if (sel) {
-                // highlighted button
-                g2.setColor(cachedColor(150, 30, 30, (int)(80 * gameOverAlpha)));
-                g2.fillRoundRect(buttonX, rectY, buttonW, buttonH, 20, 20);
-                g2.setColor(cachedColor(220, 60, 60, (int)(180 * gameOverAlpha)));
+                // warm highlight
+                g2.setColor(cachedColor(80, 55, 30, (int)(90 * a)));
+                g2.fillRoundRect(buttonX, rectY, buttonW, buttonH, 14, 14);
+                g2.setColor(cachedColor(200, 160, 100, (int)(160 * a)));
                 g2.setStroke(STROKE_25);
-                g2.drawRoundRect(buttonX, rectY, buttonW, buttonH, 20, 20);
-                g2.setColor(cachedColor(255, 200, 180, (int)(255 * gameOverAlpha)));
+                g2.drawRoundRect(buttonX, rectY, buttonW, buttonH, 14, 14);
+                g2.setColor(cachedColor(245, 225, 190, (int)(255 * a)));
             } else {
-                // dim button
-                g2.setColor(cachedColor(40, 15, 15, (int)(100 * gameOverAlpha)));
-                g2.fillRoundRect(buttonX, rectY, buttonW, buttonH, 20, 20);
-                g2.setColor(cachedColor(120, 80, 80, (int)(120 * gameOverAlpha)));
+                // dim muted
+                g2.setColor(cachedColor(25, 22, 18, (int)(100 * a)));
+                g2.fillRoundRect(buttonX, rectY, buttonW, buttonH, 14, 14);
+                g2.setColor(cachedColor(90, 75, 60, (int)(100 * a)));
                 g2.setStroke(STROKE_1);
-                g2.drawRoundRect(buttonX, rectY, buttonW, buttonH, 20, 20);
-                g2.setColor(cachedColor(160, 130, 130, (int)(200 * gameOverAlpha)));
+                g2.drawRoundRect(buttonX, rectY, buttonW, buttonH, 14, 14);
+                g2.setColor(cachedColor(130, 115, 100, (int)(180 * a)));
             }
 
             int txtX = getXforCenteredText(text);
@@ -2065,8 +2222,8 @@ public class UI {
         if (itemIndex < gp.player.inventory.size()) {
             Entity itemForHint = gp.player.inventory.get(itemIndex);
             if (itemForHint != null) {
-                if (itemForHint.type == Entity.type_consumable) actionHint = "Use (ENTER)";
-                else if (itemForHint.type == Entity.type_sword || itemForHint.type == Entity.type_shield || itemForHint.type == Entity.type_book) actionHint = "Equip (ENTER)";
+                if (itemForHint.type == Entity.TYPE_CONSUMABLE) actionHint = "Use (ENTER)";
+                else if (itemForHint.type == Entity.TYPE_SWORD || itemForHint.type == Entity.TYPE_SHIELD || itemForHint.type == Entity.TYPE_BOOK) actionHint = "Equip (ENTER)";
             }
         }
 
@@ -2108,10 +2265,10 @@ public class UI {
                 // Stat comparison for equipment
                 int statY = iconY + gp.tileSize / 2 + 24;
                 g2.setFont(cachedFont(Font.PLAIN, 18F));
-                if (item.type == Entity.type_sword && item.attackValue != 0) {
+                if (item.type == Entity.TYPE_SWORD && item.attackValue != 0) {
                     int diff = item.attackValue - (gp.player.currentWeapon != null ? gp.player.currentWeapon.attackValue : 0);
                     drawStatComparison(iconX + gp.tileSize + 10, statY, "ATK " + item.attackValue, diff, item == gp.player.currentWeapon);
-                } else if (item.type == Entity.type_shield && item.defenseValue != 0) {
+                } else if (item.type == Entity.TYPE_SHIELD && item.defenseValue != 0) {
                     int diff = item.defenseValue - (gp.player.currentShield != null ? gp.player.currentShield.defenseValue : 0);
                     drawStatComparison(iconX + gp.tileSize + 10, statY, "DEF " + item.defenseValue, diff, item == gp.player.currentShield);
                 }

@@ -62,6 +62,13 @@ public class KeyHandler implements KeyListener {
         }
         // DIALOGUE / CUTSCENE STATE
         else if (gp.gameState == GamePanel.dialogueState || gp.gameState == GamePanel.cutsceneState) {
+            // Allow skipping the awakening cutscene with Escape or Enter
+            if (gp.gameState == GamePanel.cutsceneState
+                    && gp.csManager.sceneNum == gp.csManager.awakening
+                    && (code == KeyEvent.VK_ESCAPE || code == KeyEvent.VK_ENTER)) {
+                gp.csManager.skipAwakening();
+                return;
+            }
             handleDialogueState(code);
         }
         // JOURNAL STATE
@@ -162,9 +169,9 @@ public class KeyHandler implements KeyListener {
             }
             if (code == KeyEvent.VK_ENTER) {
                 switch (gp.ui.commandNum) {
-                    case 0 -> { gp.player.setPlayerStats(4, 2, 1, 4, 3); startGame(); } 
-                    case 1 -> { gp.player.setPlayerStats(2, 1, 3, 5, 2); startGame(); }
-                    case 2 -> { gp.player.setPlayerStats(3, 1, 2, 5, 5); startGame(); }
+                    case 0 -> { gp.player.setPlayerStats(4, 2, 1, 4, 3); startNewGame(); } 
+                    case 1 -> { gp.player.setPlayerStats(2, 1, 3, 5, 2); startNewGame(); }
+                    case 2 -> { gp.player.setPlayerStats(3, 1, 2, 5, 5); startNewGame(); }
                     case 3 -> { gp.ui.titleScreenState = 0; gp.ui.commandNum = 0; gp.playSE(SFX.MENU_SELECT); }
                 }
             }
@@ -190,6 +197,13 @@ public class KeyHandler implements KeyListener {
         // Apply music and weather from the TMX map's properties
         String path = gp.mapManager.mapRegistry.getOrDefault(gp.mapManager.currentMapId, "/res/maps/harta.tmx");
         gp.mapObjectLoader.loadMapProperties(path);
+    }
+
+    private void startNewGame() {
+        // Enter cutscene state — the Awakening scene handles the rest
+        gp.gameState = GamePanel.cutsceneState;
+        gp.csManager.sceneNum = gp.csManager.awakening;
+        gp.csManager.scenePhase = 0;
     }
 
     // ── MULTIPLAYER BROWSER ──

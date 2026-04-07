@@ -42,13 +42,29 @@ public class Player extends Entity {
     private static final float[] DASH_ALPHAS = {0.28f, 0.16f, 0.07f};
     private static final int[] DASH_OFFSETS = {5, 10, 15};
 
+    // ── HIT / DEATH ANIMATION ──
+    public BufferedImage[][] hitFrames;    // getHit sprite sheet [dir][frame]
+    public BufferedImage[][] deathFrames;  // death sprite sheet  [dir][frame]
+    public boolean playerDying = false;     // death animation in progress
+    public int playerDeathCounter = 0;      // tick counter for death anim
+    public int playerDeathFrame = 0;        // current death frame index
+    public int hitAnimCounter = 0;          // tick counter for hit anim
+    public int hitAnimFrame = 0;            // current hit frame index
+    public int hitAnimDirection = DIR_DOWN;  // locked facing direction for hit anim
+    public int deathDirection = DIR_DOWN;    // locked facing direction for death anim
+    private static final int HIT_ANIM_SPEED = 6;     // ticks per hit frame
+    private static final int DEATH_ANIM_SPEED = 10;   // ticks per death frame
+    private static final int DEATH_HOLD_DELAY = 60;   // hold last frame before game over
+    private static final int DEATH_TOTAL_FRAMES = 5;  // frames in death sheet per direction
+    private static final int HIT_TOTAL_FRAMES = 4;    // frames in hit sheet per direction
+
     // Constants
     public final int maxInventorySize = 20;
 
     // Instance variables
     KeyHandler keyH;
-    public final int screenX;
-    public final int screenY;
+    public int screenX;
+    public int screenY;
     public ArrayList<Entity> inventory = new ArrayList<>();
     public int hasKey = 0;
     public int hasArtefact = 0;
@@ -168,14 +184,14 @@ public class Player extends Entity {
         level = 1;
         maxLife = 3;
         life = maxLife;
-        strenght = 10;
+        strenght = 2;
         dexterity = 1;
         exp = 0;
         nextLevelExp = 5;
         coin = 0;
         maxMana = 3;
         mana = maxMana;
-        skillPoints = 12;
+        skillPoints = 100;
         meleeDamageMultiplier = 1f;
         damageTakenMultiplier = 1f;
         dashUnlocked = false;
@@ -212,6 +228,8 @@ public class Player extends Entity {
         getPlayerImages();
         getPlayerIdleImages();
         getPlayerAttackImages();
+        getPlayerHitImages();
+        getPlayerDeathImages();
         setItems();
         setDialogue();
     }
@@ -250,6 +268,12 @@ public class Player extends Entity {
     public void restoreLifeAndMana() {
         life = maxLife;
         mana = maxMana;
+        // Reset death animation state
+        playerDying = false;
+        playerDeathCounter = 0;
+        playerDeathFrame = 0;
+        hitAnimCounter = 0;
+        hitAnimFrame = 0;
     }
 
     // Image loading methods
@@ -290,6 +314,26 @@ public class Player extends Entity {
         attackFrames[DIR_RIGHT][4] = setup("/res/player/b.attack/right/r5", gp.tileSize * 2, gp.tileSize);
     }
 
+    public void getPlayerHitImages() {
+        int[] framesPerRow = {4, 4, 4, 4}; // sheet rows: down, left, up, right
+        BufferedImage[][] frames = loadSheetVariable("/res/player/Player_getHit", framesPerRow);
+        hitFrames = new BufferedImage[4][];
+        hitFrames[DIR_UP]    = frames[0]; // row 0 = up
+        hitFrames[DIR_RIGHT] = frames[3]; // row 1 = right
+        hitFrames[DIR_DOWN]  = frames[1]; // row 2 = down
+        hitFrames[DIR_LEFT]  = frames[2]; // row 3 = left
+    }
+
+    public void getPlayerDeathImages() {
+        int[] framesPerRow = {5, 5, 5, 5}; // sheet rows: up, down, left, right
+        BufferedImage[][] frames = loadSheetVariable("/res/player/Player_death", framesPerRow);
+        deathFrames = new BufferedImage[4][];
+        deathFrames[DIR_DOWN]  = frames[0]; // row 0 = down
+        deathFrames[DIR_RIGHT] = frames[2]; // row 2 = right
+        deathFrames[DIR_UP]    = frames[1]; // row 1 = up
+        deathFrames[DIR_LEFT]  = frames[3]; // row 3 = left
+    }
+
     public void getPlayerIdleImages() {
         int[] framesPerRow = {6, 6, 6, 6}; // sheet rows: up, down, left, right
         BufferedImage[][] frames = loadSheetVariable("/res/player/Player_idle-sheet", framesPerRow);
@@ -305,6 +349,39 @@ public class Player extends Entity {
     public void update() {
         if (levelUpBannerTimer > 0) {
             levelUpBannerTimer--;
+        }
+
+        // ── PLAYER DEATH ANIMATION ──
+        if (playerDying) {
+            playerDeathCounter++;
+            int frameIndex = playerDeathCounter / DEATH_ANIM_SPEED;
+            if (frameIndex < DEATH_TOTAL_FRAMES) {
+                playerDeathFrame = frameIndex;
+            } else {
+                playerDeathFrame = DEATH_TOTAL_FRAMES - 1; // hold last frame
+                // After holding the last frame for DEATH_HOLD_DELAY, trigger game over
+                int holdTick = playerDeathCounter - (DEATH_TOTAL_FRAMES * DEATH_ANIM_SPEED);
+                if (holdTick >= DEATH_HOLD_DELAY) {
+                    if (gp.gameState != GamePanel.gameOverState) {
+                        gp.ui.commandNum = 0;
+                    }
+                    gp.gameState = GamePanel.gameOverState;
+                    gp.stopMusic();
+                    if (!gp.deathSoundPlayed) {
+                        gp.playSE(4);
+                        gp.deathSoundPlayed = true;
+                    }
+                }
+            }
+            return; // block all movement/combat during death
+        }
+
+        // ── HIT ANIMATION COUNTER ──
+        if (hitAnimCounter > 0) {
+            hitAnimCounter--;
+            hitAnimFrame = (HIT_TOTAL_FRAMES - 1) - (hitAnimCounter / HIT_ANIM_SPEED);
+            if (hitAnimFrame >= HIT_TOTAL_FRAMES) hitAnimFrame = HIT_TOTAL_FRAMES - 1;
+            if (hitAnimFrame < 0) hitAnimFrame = 0;
         }
 
         // Cancel attack if in dialogue or cutscene
@@ -619,6 +696,40 @@ public class Player extends Entity {
                     invincible = false;
                     invincibleCounter = 0;
                 }
+            }
+        }
+
+        // CAMERA EDGE CLAMPING: prevent the camera from scrolling past map boundaries
+        int mapPixelW = gp.tileM.currentMapCols * gp.tileSize;
+        int mapPixelH = gp.tileM.currentMapRows * gp.tileSize;
+        int defaultScreenX = gp.screenWidth / 2 - (gp.tileSize / 2);
+        int defaultScreenY = gp.screenHeight / 2 - (gp.tileSize / 2);
+
+        if (mapPixelW <= gp.screenWidth) {
+            // Map narrower than screen: center horizontally
+            screenX = worldX + (gp.screenWidth - mapPixelW) / 2;
+        } else {
+            int camX = worldX - defaultScreenX;
+            if (camX < 0) {
+                screenX = worldX;
+            } else if (camX > mapPixelW - gp.screenWidth) {
+                screenX = worldX - (mapPixelW - gp.screenWidth);
+            } else {
+                screenX = defaultScreenX;
+            }
+        }
+
+        if (mapPixelH <= gp.screenHeight) {
+            // Map shorter than screen: center vertically
+            screenY = worldY + (gp.screenHeight - mapPixelH) / 2;
+        } else {
+            int camY = worldY - defaultScreenY;
+            if (camY < 0) {
+                screenY = worldY;
+            } else if (camY > mapPixelH - gp.screenHeight) {
+                screenY = worldY - (mapPixelH - gp.screenHeight);
+            } else {
+                screenY = defaultScreenY;
             }
         }
     }
@@ -1130,6 +1241,9 @@ public class Player extends Entity {
 
             // HIT FLASH + SHAKE + HITSTOP when player takes damage
             hitFlashCounter = 6;
+            hitAnimCounter = HIT_TOTAL_FRAMES * HIT_ANIM_SPEED; // start hit sprite animation
+            hitAnimFrame = 0;
+            hitAnimDirection = direction; // lock current facing for hit animation
             gp.screenShake.shakeMedium();
             gp.triggerHitstop(3);
             // compute knockback direction away from the monster
@@ -1296,14 +1410,14 @@ public class Player extends Entity {
             if (gp.obj[i].lightSource) return;
 
             // PICKUP ONLY OBJECTS
-            if (gp.obj[i].type == type_pickupOnly) {
+            if (gp.obj[i].type == TYPE_PICKUP_ONLY) {
                 attackCanceled = true;
                 if (gp.obj[i].use(this)) {
                     gp.obj[i] = null;
                 } else return;
             }
             // INTERACTABLE OBJECTS (chests, doors, etc.)
-            else if (gp.obj[i].type == type_obstacle) {
+            else if (gp.obj[i].type == TYPE_OBSTACLE) {
                 if(keyH.enterPressed) {
                     attackCanceled = true;
                     gp.obj[i].interact();
@@ -1314,7 +1428,9 @@ public class Player extends Entity {
             else if (canObtainItem(gp.obj[i])) {
                 attackCanceled = true;
                 gp.playSE(SFX.EQUIP);
-                String objectName = gp.obj[i].name;
+                Entity pickedObject = gp.obj[i];
+                String objectName = pickedObject.name;
+                int pickedAmount = Math.max(1, pickedObject.amount);
                 switch (objectName) {
                     case "Potion" -> {
                         gp.obj[i] = null;
@@ -1338,12 +1454,25 @@ public class Player extends Entity {
                     case "Tent" -> {
                         gp.playSE(SFX.EQUIP);
                         gp.ui.addMessage("You got a tent!", Color.WHITE);
+                        break;
                     }
                     case "Spell book" -> {
                         gp.playSE(SFX.EQUIP);
                         gp.obj[i] = null;
                         gp.ui.addMessage("You got a new weapon!", Color.WHITE);
+                        break;
                     }
+                    default -> {
+                        if (pickedAmount > 1) {
+                            gp.ui.addMessage("You got " + pickedAmount + " " + objectName + "!", Color.WHITE);
+                        } else {
+                            gp.ui.addMessage("You got " + objectName + "!", Color.WHITE);
+                        }
+                        break;
+                    }
+                }
+                if (pickedObject.removeOnPickup && gp.obj[i] == pickedObject) {
+                    gp.obj[i] = null;
                 }
             }
         }
@@ -1403,17 +1532,17 @@ public class Player extends Entity {
         if (itemIndex < inventory.size()) {
             Entity selectedItem = inventory.get(itemIndex);
 
-            if (selectedItem.type == type_sword || selectedItem.type == type_book) {
+            if (selectedItem.type == TYPE_SWORD || selectedItem.type == TYPE_BOOK) {
                 currentWeapon = selectedItem;
                 attack = getAttack();
                 gp.ui.addMessage("Equipped " + selectedItem.name + "!", Color.WHITE);
                 gp.playSE(SFX.MONSTER_HIT); // equip sound
-            } else if (selectedItem.type == type_shield) {
+            } else if (selectedItem.type == TYPE_SHIELD) {
                 currentShield = selectedItem;
                 defense = getDefense();
                 gp.ui.addMessage("Equipped " + selectedItem.name + "!", Color.WHITE);
                 gp.playSE(SFX.MONSTER_HIT);
-            } else if (selectedItem.type == type_consumable) {
+            } else if (selectedItem.type == TYPE_CONSUMABLE) {
                 attackCanceled = true;
                 if (selectedItem.use(this) && !"Potion".equals(selectedItem.name)) {
                     gp.ui.addMessage("Used " + selectedItem.name + ".", Color.WHITE);
@@ -1431,7 +1560,9 @@ public class Player extends Entity {
     public int searchItemInInventory(String itemName) {
         int itemIndex = 999;
         for (int i = 0; i < inventory.size(); i++) {
-            if (inventory.get(i).name.equals(itemName)) {
+            Entity item = inventory.get(i);
+            if (item.name.equalsIgnoreCase(itemName)
+                    || (item.itemId != null && item.itemId.equalsIgnoreCase(itemName))) {
                 itemIndex = i;
                 break;
             }
@@ -1445,11 +1576,12 @@ public class Player extends Entity {
             return false;
         }
         boolean canObtain = false;
+        int pickupAmount = Math.max(1, item.amount);
         // CHECK IF ITEM IS STACKABLE
         if (item.stackable) {
             int index = searchItemInInventory(item.name);
             if (index != 999) {
-                inventory.get(index).amount++;
+                inventory.get(index).amount += pickupAmount;
                 canObtain = true;
             } else {
                 if (inventory.size() != maxInventorySize) {
@@ -1500,6 +1632,28 @@ public class Player extends Entity {
     // Rendering methods
     @Override
     public void draw(Graphics2D g2) {
+        // ── DEATH ANIMATION ──
+        if (playerDying) {
+            int drawX = screenX;
+            int drawY = screenY;
+            BufferedImage deathImg = null;
+            if (deathFrames != null && deathDirection >= 0 && deathDirection < deathFrames.length
+                    && deathFrames[deathDirection] != null && playerDeathFrame < deathFrames[deathDirection].length) {
+                deathImg = deathFrames[deathDirection][playerDeathFrame];
+            }
+            if (deathImg != null) {
+                // Fade out during the hold phase (after all frames played)
+                int holdTick = playerDeathCounter - (DEATH_TOTAL_FRAMES * DEATH_ANIM_SPEED);
+                if (holdTick > 0) {
+                    float fadeAlpha = Math.max(0.15f, 1f - (holdTick / (float) DEATH_HOLD_DELAY));
+                    g2.setComposite(AlphaComposite.getInstance(AlphaComposite.SRC_OVER, fadeAlpha));
+                }
+                g2.drawImage(deathImg, drawX, drawY, gp.tileSize, gp.tileSize, null);
+                g2.setComposite(AlphaComposite.getInstance(AlphaComposite.SRC_OVER, 1f));
+            }
+            return;
+        }
+
         BufferedImage image;
         int tempScreenX = screenX;
         int tempScreenY = screenY;
@@ -1556,6 +1710,9 @@ public class Player extends Entity {
                 }
                 g2.setComposite(savedTrail);
             }
+        } else if (hitAnimCounter > 0 && hitFrames != null && hitAnimDirection >= 0 && hitAnimDirection < hitFrames.length
+                   && hitFrames[hitAnimDirection] != null && hitAnimFrame < hitFrames[hitAnimDirection].length) {
+            image = hitFrames[hitAnimDirection][hitAnimFrame];
         } else if (!movingThisFrame) {
             image = getIdleFrame(direction, frame);
         } else {

@@ -74,7 +74,7 @@ public class MonsterFactory {
         }
 
         Entity m = new Entity(gp);
-        m.type = Entity.type_monster;
+        m.type = Entity.TYPE_MONSTER;
         m.collision = true;
         m.worldX = col * gp.tileSize;
         m.worldY = row * gp.tileSize;

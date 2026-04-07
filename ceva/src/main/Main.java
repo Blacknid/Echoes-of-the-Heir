@@ -24,6 +24,12 @@ public class Main {
         System.setProperty("sun.java2d.opengl", "True");
         // Force immediate hardware acceleration (skip default warmup)
         System.setProperty("sun.java2d.accthreshold", "0");
+        // Enable managed image caching — allows BufferedImages to be cached in VRAM
+        System.setProperty("sun.java2d.managedimages", "true");
+        // Reduce the number of software-rendered copies before promoting to VRAM
+        System.setProperty("sun.java2d.translaccel", "true");
+        // Disable Marlin anti-aliasing sub-pixel rendering for faster shape fills
+        System.setProperty("sun.java2d.renderer.useSimpleStroke", "true");
 
         window = new JFrame();
         window.setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);

@@ -20,26 +20,26 @@ public class Lightning {
     public int dayState;
     
     // OPTIMIZATION: Single offscreen image for the darkness pass.
-    // All tile darkness values are written into this pixel array, then blitted
-    // with ONE g2.drawImage() call instead of ~450 individual fillRect calls.
     private BufferedImage darknessOverlay;
-    private int[] darknessPixels;   // direct reference to overlay's backing int[] (ARGB)
+    private int[] darknessPixels;
     private int overlayWidth = 0, overlayHeight = 0;
 
-    // OPTIMIZATION: Pre-computed squared distance lookup for player light
-    private static final int LIGHT_RADIUS = 7;
-    
+    // OPTIMIZATION: Cached Graphics2D for the darkness overlay — avoids createGraphics() every frame
+    private Graphics2D overlayG2;
+
+    // Player light radius in tiles — change this to increase or decrease the player's visible area.
+    // Minimum: 1 tile, recommended range: 3–15.
+    public int playerLightRadius = 3;
+
     // OPTIMIZATION: Pre-computed alpha lookup table for player light
-    // Index by (distSq * 100), maps squared distance to alpha [0..1]
-    // Max squared distance we care about = LIGHT_RADIUS^2 = 49
-    private static final int LIGHT_LUT_SIZE = 50; // 0..49
+    private static final int LIGHT_LUT_SIZE = 50;
     private final float[] lightAlphaLUT = new float[LIGHT_LUT_SIZE + 1];
 
     // ===================== COLORED LIGHT REGISTRY =====================
     private static final int MAX_LIGHTS = 20;
     public int[] lightWX = new int[MAX_LIGHTS];
     public int[] lightWY = new int[MAX_LIGHTS];
-    public int[] lightRadiusPx = new int[MAX_LIGHTS];   // radius in pixels
+    public int[] lightRadiusPx = new int[MAX_LIGHTS];
     public Color[] lightColor = new Color[MAX_LIGHTS];
     public float[] lightIntensity = new float[MAX_LIGHTS];
     public int lightCount = 0;
@@ -47,8 +47,16 @@ public class Lightning {
     // Gradient image cache keyed by (r << 48 | g << 40 | b << 32 | radiusPx)
     private final HashMap<Long, BufferedImage> gradientCache = new HashMap<>();
 
+    // OPTIMIZATION: Pre-rendered DstOut light masks — eliminates RadialGradientPaint per frame.
+    // RadialGradientPaint falls back to software rasterization in Java2D and is the #1 FPS killer.
+    // Key = radiusPx, Value = pre-rendered white radial gradient for DstOut punching.
+    private final HashMap<Integer, BufferedImage> dstOutLightCache = new HashMap<>();
+
+    // OPTIMIZATION: Reusable Point2D — avoids allocation per light per frame
+    private final Point2D.Float reusableCenter = new Point2D.Float();
+
     // OPTIMIZATION: AlphaComposite cache — avoids per-light allocation each frame
-    private static final int ALPHA_CACHE_SIZE = 101; // 0..100 → alpha 0.00..1.00
+    private static final int ALPHA_CACHE_SIZE = 101;
     private static final AlphaComposite[] alphaCache = new AlphaComposite[ALPHA_CACHE_SIZE];
     static {
         for (int i = 0; i < ALPHA_CACHE_SIZE; i++) {
@@ -64,17 +72,47 @@ public class Lightning {
     /** Allocate (or re-allocate on resize) the darkness overlay image. */
     private void ensureOverlay(int w, int h) {
         if (darknessOverlay != null && overlayWidth == w && overlayHeight == h) return;
+        // Dispose old cached Graphics2D
+        if (overlayG2 != null) { overlayG2.dispose(); overlayG2 = null; }
         darknessOverlay = new BufferedImage(w, h, BufferedImage.TYPE_INT_ARGB);
         darknessPixels  = ((DataBufferInt) darknessOverlay.getRaster().getDataBuffer()).getData();
         overlayWidth    = w;
         overlayHeight   = h;
+        // Create and cache the overlay's Graphics2D
+        overlayG2 = darknessOverlay.createGraphics();
+    }
+
+    /**
+     * Get (or create) a pre-rendered radial light mask for DstOut punching.
+     * This replaces per-frame RadialGradientPaint usage with a single cached drawImage.
+     */
+    private BufferedImage getDstOutLight(int radiusPx) {
+        BufferedImage img = dstOutLightCache.get(radiusPx);
+        if (img != null) return img;
+
+        int diameter = radiusPx * 2;
+        img = new BufferedImage(diameter, diameter, BufferedImage.TYPE_INT_ARGB);
+        Graphics2D ig = img.createGraphics();
+        Point2D center = new Point2D.Float(radiusPx, radiusPx);
+        float[] dist = {0.0f, 0.35f, 0.7f, 1.0f};
+        Color[] colors = {
+            new Color(255, 255, 255, 255),
+            new Color(255, 255, 255, 220),
+            new Color(255, 255, 255, 100),
+            new Color(255, 255, 255, 0)
+        };
+        RadialGradientPaint rgp = new RadialGradientPaint(center, radiusPx, dist, colors);
+        ig.setPaint(rgp);
+        ig.fillOval(0, 0, diameter, diameter);
+        ig.dispose();
+        dstOutLightCache.put(radiusPx, img);
+        return img;
     }
 
     public Lightning(GamePanel gp2) {
         this.gp = gp2;
-        // Pre-compute light alpha: alpha = sqrt(distSq) / LIGHT_RADIUS
         for (int i = 0; i <= LIGHT_LUT_SIZE; i++) {
-            lightAlphaLUT[i] = (float) Math.sqrt(i) / LIGHT_RADIUS;
+            lightAlphaLUT[i] = (float) Math.sqrt(i) / playerLightRadius;
         }
     }
 
@@ -126,102 +164,43 @@ public class Lightning {
         // Ensure the overlay image matches current screen size (lazy alloc / handles resizes)
         ensureOverlay(screenWidth, screenHeight);
 
-        // Clear overlay to fully transparent — one bulk array fill instead of skipping tiles
-        Arrays.fill(darknessPixels, 0);
+        // Fill entire overlay with uniform max darkness
+        int darkArgb = ((int)(currentMaxDarkness * 255 + 0.5f)) << 24;
+        Arrays.fill(darknessPixels, darkArgb);
 
-        // Viewport center in tile coords (player is always centered)
-        int viewCenterCol = gp.player.worldX / gp.tileSize;
-        int viewCenterRow = gp.player.worldY / gp.tileSize;
+        // OPTIMIZATION: Reuse cached Graphics2D on the overlay instead of createGraphics() per frame
+        Graphics2D og = overlayG2;
+        og.setComposite(AlphaComposite.DstOut);
 
-        // Sub-tile fractional player position for smooth light centering
-        float playerTileColF = (float) gp.player.worldX / gp.tileSize;
-        float playerTileRowF = (float) gp.player.worldY / gp.tileSize;
+        // ── PLAYER LIGHT — uses pre-rendered cached mask (no RadialGradientPaint per frame) ──
+        int playerSX = gp.player.screenX + gp.tileSize / 2;
+        int playerSY = gp.player.screenY + gp.tileSize / 2;
+        int lightPx  = playerLightRadius * gp.tileSize;
 
-        int screenTilesX = (screenWidth  / gp.tileSize) / 2 + 2;
-        int screenTilesY = (screenHeight / gp.tileSize) / 2 + 2;
-        int leftCol   = viewCenterCol - screenTilesX;
-        int rightCol  = viewCenterCol + screenTilesX;
-        int topRow    = viewCenterRow - screenTilesY;
-        int bottomRow = viewCenterRow + screenTilesY;
+        BufferedImage playerMask = getDstOutLight(lightPx);
+        og.drawImage(playerMask, playerSX - lightPx, playerSY - lightPx, null);
 
-        // Pre-compute torch data to avoid inner-loop array access
-        int torchCount = 0;
-        int[]   torchCol       = new int[gp.obj.length];
-        int[]   torchRow       = new int[gp.obj.length];
-        int[]   torchRadiusSq  = new int[gp.obj.length];
-        float[] torchRadiusInv = new float[gp.obj.length];
+        // ── TORCH LIGHTS — uses same pre-rendered cached masks ──
+        int playerWorldX = gp.player.worldX;
+        int playerWorldY = gp.player.worldY;
+        int playerScreenX = gp.player.screenX;
+        int playerScreenY = gp.player.screenY;
+
         for (int i = 0; i < gp.obj.length; i++) {
-            if (gp.obj[i] != null && gp.obj[i].lightSource && gp.obj[i].lightRadius > 0) {
-                torchCol[torchCount]       = gp.obj[i].worldX / gp.tileSize;
-                torchRow[torchCount]       = gp.obj[i].worldY / gp.tileSize;
-                torchRadiusSq[torchCount]  = gp.obj[i].lightRadius * gp.obj[i].lightRadius;
-                torchRadiusInv[torchCount] = 1.0f / gp.obj[i].lightRadius;
-                torchCount++;
-            }
+            if (gp.obj[i] == null || !gp.obj[i].lightSource || gp.obj[i].lightRadius <= 0) continue;
+
+            int tx = gp.obj[i].worldX - playerWorldX + playerScreenX + gp.tileSize / 2;
+            int ty = gp.obj[i].worldY - playerWorldY + playerScreenY + gp.tileSize / 2;
+            int tRad = gp.obj[i].lightRadius * gp.tileSize;
+
+            // Frustum cull
+            if (tx + tRad < 0 || tx - tRad > screenWidth || ty + tRad < 0 || ty - tRad > screenHeight) continue;
+
+            BufferedImage torchMask = getDstOutLight(tRad);
+            og.drawImage(torchMask, tx - tRad, ty - tRad, null);
         }
 
-        int   tileSize     = gp.tileSize;
-        int   playerWorldX = gp.player.worldX;
-        int   playerWorldY = gp.player.worldY;
-        int   playerScreenX= gp.player.screenX;
-        int   playerScreenY= gp.player.screenY;
-        int   maxAlpha     = Math.min(255, (int)(currentMaxDarkness * 255 + 0.5f));
-
-        for (int col = leftCol; col <= rightCol; col++) {
-            for (int row = topRow; row <= bottomRow; row++) {
-
-                int screenX = col * tileSize - playerWorldX + playerScreenX;
-                int screenY = row * tileSize - playerWorldY + playerScreenY;
-
-                // Early frustum cull — skip tiles fully outside the screen
-                if (screenX + tileSize <= 0 || screenX >= screenWidth ||
-                    screenY + tileSize <= 0 || screenY >= screenHeight) continue;
-
-                // Player light alpha via LUT (avoids sqrt per tile)
-                float distX  = col - playerTileColF;
-                float distY  = row - playerTileRowF;
-                float distSq = distX * distX + distY * distY;
-                float darknessAlpha;
-                int   distSqInt = (int)(distSq + 0.5f);
-                if (distSqInt <= LIGHT_LUT_SIZE) {
-                    darknessAlpha = lightAlphaLUT[distSqInt];
-                } else {
-                    darknessAlpha = 1.0f;
-                }
-
-                // Torch lights
-                for (int t = 0; t < torchCount; t++) {
-                    float tDx    = col - torchCol[t];
-                    float tDy    = row - torchRow[t];
-                    float tDistSq= tDx * tDx + tDy * tDy;
-                    if (tDistSq >= torchRadiusSq[t] && darknessAlpha <= 1.0f) continue;
-                    float torchAlpha = (float) Math.sqrt(tDistSq) * torchRadiusInv[t];
-                    if (torchAlpha < darknessAlpha) darknessAlpha = torchAlpha;
-                }
-
-                if (darknessAlpha <= 0f) continue; // fully lit — nothing to write
-
-                // Convert to 0-255 alpha, clamped to max darkness
-                int alpha = (int)((darknessAlpha >= currentMaxDarkness ? currentMaxDarkness : darknessAlpha) * 255 + 0.5f);
-                if (alpha <= 0) continue;
-                if (alpha > maxAlpha) alpha = maxAlpha;
-
-                // Pure black pixel with computed alpha
-                int argb = (alpha << 24);
-
-                // Clamp tile rect to screen bounds, then fill via Arrays.fill per row
-                // (bulk array writes — far faster than individual Java2D draw calls)
-                int x0 = Math.max(0, screenX);
-                int y0 = Math.max(0, screenY);
-                int x1 = Math.min(screenWidth,  screenX + tileSize);
-                int y1 = Math.min(screenHeight, screenY + tileSize);
-                for (int py = y0; py < y1; py++) {
-                    Arrays.fill(darknessPixels, py * screenWidth + x0, py * screenWidth + x1, argb);
-                }
-            }
-        }
-
-        // ONE draw call blits the entire darkness layer — replaces ~450 fillRect calls
+        // ONE draw call blits the entire darkness layer
         g2.drawImage(darknessOverlay, 0, 0, null);
 
         // ===================== COLORED LIGHT PASS (unchanged) =====================
@@ -233,10 +212,10 @@ public class Lightning {
                 int rad = lightRadiusPx[i];
                 if (lx + rad < 0 || lx - rad > screenWidth || ly + rad < 0 || ly - rad > screenHeight) continue;
                 BufferedImage grad = getGradient(lightColor[i], rad);
-                float alpha = lightIntensity[i] * currentMaxDarkness;
-                if (alpha > 1f) alpha = 1f;
-                if (alpha < 0.01f) continue;
-                g2.setComposite(cachedAlpha(alpha));
+                float a = lightIntensity[i] * currentMaxDarkness;
+                if (a > 1f) a = 1f;
+                if (a < 0.01f) continue;
+                g2.setComposite(cachedAlpha(a));
                 g2.drawImage(grad, lx - rad, ly - rad, null);
             }
             g2.setComposite(saved);
