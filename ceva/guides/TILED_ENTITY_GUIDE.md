@@ -11,12 +11,19 @@ The game engine reads your `.tmx` files at runtime and applies all values automa
 You edit a .tmx file in Tiled
         ↓
 Map Properties  →  music, weather, lighting, spawn point
+Tile Layers     →  render bucket (background / depth / foreground)  ← REQUIRED
 Object Layers   →  entities, monsters, NPCs, events, spawn points
-Tile Layers     →  animated tiles, flip flags, opacity, tint
 Image Layers    →  background images with parallax
         ↓
+Drop the .tmx into res/maps/ → auto-discovered at startup
 Everything appears in-game — no Java changes needed
 ```
+
+> **Important — what changed:** The engine no longer guesses layer order or tileset roles
+> from their names. Every tile layer **must** have an explicit `render` property
+> (`background`, `depth`, or `foreground`). Maps are auto-discovered from `res/maps/`
+> — you no longer register them in Java. Object layer names are case-insensitive.
+> `MON_*` prefixes are deprecated in favor of `monsters.json` IDs.
 
 ---
 
@@ -63,6 +70,8 @@ Each map can have these named Object Layers (right-click Layers → New → Obje
 | `InteractiveTiles` | Breakable pots, coin piles | `gp.iTile[30]` |
 | `Events` | Triggers, transitions, spawn points | EventHandler |
 | `Collision` | Rectangles/polygons/ellipses for solid walls | TileManager |
+
+> **Case-insensitive:** Layer names are matched case-insensitively. `monsters`, `Monsters`, `MONSTERS` all work. Aliases are also supported: `mobs`, `mob`, `enemies` → Monsters; `object` → Objects; `npc` → NPCs; `interactive`, `interacttiles` → InteractiveTiles; `event`, `triggers` → Events.
 
 The `type` property (Tiled 1.8) or `class` attribute (Tiled 1.9+) identifies the entity.
 
@@ -142,16 +151,33 @@ removeOnPickup = true
 
 Place **Point** objects. All monsters also accept the common entity properties.
 
-| `type` | Creates | Extra Properties |
-|---|---|---|
-| `MON_monster` | Basic melee (Mummy) | `level` (int), `aggroRange` (int px), `wanderRadius` (int px) |
-| `MON_SkeletonArcher` | Ranged skeleton | `level` (int), `aggroRange` (int px), `wanderRadius` (int px) |
-| `MON_Shade` | Shade melee | `level` (int), `aggroRange` (int px), `wanderRadius` (int px) |
-| `MON_Inkblot` / `Inkblot` | Tutorial slime | `level` (int), `aggroRange` (int px), `wanderRadius` (int px) |
-| `BOSS_WitheredTree` | Withered Tree boss | `level` (int), `aggroRange` (int px), `wanderRadius` (int px) |
-| *(any `monsters.json` id)* | Data-driven monster | `level` (int), `aggroRange` (int px), `wanderRadius` (int px) |
+### Monster Types
 
-Valid data-driven monster IDs (from `res/data/monsters.json`): `painted_crab`, `drowned_sketch`, `shade_wolf`, `canvas_moth`, `hollow_stump`, `painted_guard`, `portrait_ghost`, `ink_knight`, `inkblot`, `withered_tree`.
+Use the **`monsters.json` ID** as the object type. This is the recommended approach:
+
+| `type` (recommended) | Creates | Extra Properties |
+|---|---|---|
+| `mummy` | Basic melee enemy | `level`, `aggroRange`, `wanderRadius` |
+| `skeleton_archer` | Ranged skeleton | `level`, `aggroRange`, `wanderRadius` |
+| `shade` | Shade melee | `level`, `aggroRange`, `wanderRadius` |
+| `inkblot` | Tutorial slime | `level`, `aggroRange`, `wanderRadius` |
+| `withered_tree` | Withered Tree boss | `level`, `aggroRange`, `wanderRadius` |
+| `painted_crab` | Data-driven crab | `level`, `aggroRange`, `wanderRadius` |
+| `drowned_sketch` | Data-driven sketch | `level`, `aggroRange`, `wanderRadius` |
+| `shade_wolf` | Data-driven wolf | `level`, `aggroRange`, `wanderRadius` |
+| `canvas_moth` | Data-driven moth | `level`, `aggroRange`, `wanderRadius` |
+| `hollow_stump` | Data-driven stump | `level`, `aggroRange`, `wanderRadius` |
+| `painted_guard` | Data-driven guard | `level`, `aggroRange`, `wanderRadius` |
+| `portrait_ghost` | Data-driven ghost | `level`, `aggroRange`, `wanderRadius` |
+| `ink_knight` | Data-driven knight | `level`, `aggroRange`, `wanderRadius` |
+| *(any other `monsters.json` id)* | Data-driven monster | `level`, `aggroRange`, `wanderRadius` |
+
+> **Deprecated prefixes:** The old `MON_*` and `BOSS_*` prefixes still work but print deprecation warnings at startup. Update your maps when convenient:
+> - `MON_monster` → `mummy`
+> - `MON_SkeletonArcher` → `skeleton_archer`
+> - `MON_Shade` → `shade`
+> - `MON_Inkblot` / `Inkblot` → `inkblot`
+> - `BOSS_WitheredTree` → `withered_tree`
 
 ### Monster Common Properties
 
@@ -189,6 +215,7 @@ Place **Point** objects. All NPCs also accept the common entity properties (`fac
 
 | Property | Tiled Type | Default | Description |
 |---|---|---|---|
+| `npcId` | String | — | Links this Tiled object to an entry in `res/data/npcs.json`. When set, **all** NPC config (name, sprite, portrait, dialogues, states) comes from JSON. Only `type = NPC_Generic` + `npcId` are needed in Tiled. See [NPC_JSON_GUIDE.md](NPC_JSON_GUIDE.md). |
 | `sprite` | String | — | Walk-sheet resource path for `NPC_Generic`, without `.png` (example: `/res/npc/Alucard_walking-sheet`) |
 | `idleSprite` | String | — | Optional idle-sheet resource path for `NPC_Generic` |
 | `dialogue0`–`dialogue4` | String | *(built-in)* | Override the **first line** of dialogue set 0–4. Use `\n` for line breaks. Does not replace later lines in that set. |
@@ -210,6 +237,9 @@ Place **Point** objects. All NPCs also accept the common entity properties (`fac
 | `name` | String | *(type name)* | Display name shown in the dialogue UI header. |
 | `onSpeakQuestId` | String | — | Quest ID to auto-progress when the player talks to this NPC. Must match a quest added via `QuestManager.addQuest()`. |
 | `onSpeakQuestAmount` | int | `1` | How much to add to the quest counter each time the player talks to this NPC. Requires `onSpeakQuestId` to be set. |
+
+> **Legacy (Tiled-only NPCs):** The following gift/delivery properties apply only to NPCs **without** `npcId`. For JSON-driven NPCs (recommended), define all quest logic in `quests.json` steps and `npcs.json` dialogues instead. See [QUEST_GUIDE.md](QUEST_GUIDE.md).
+
 | `giftItem` | String | — | ItemFactory ID given the first time the player talks to the NPC. Recommended alias for `giveItem`. |
 | `giftDialogueSet` | int | `0` | Dialogue set used when `giftItem` is handed over. Alias for `giveItemDialogueSet`. |
 | `giftQuestId` | String | — | Quest ID added when `giftItem` is given. Alias for `giveItemQuestId`. |
@@ -257,6 +287,18 @@ Place **Point** objects. All NPCs also accept the common entity properties (`fac
 
 ### Recommended NPC Patterns
 
+#### 0. JSON-driven NPC (Recommended)
+
+For any NPC with quest logic, dialogues, or state changes, define everything in JSON and reference it with a single Tiled property:
+
+```xml
+type  = NPC_Generic
+npcId = your_npc_id
+```
+
+All name, sprite, portrait, dialogues, quest steps, and states come from `res/data/npcs.json` and `res/data/quests.json`. No other Tiled properties are needed.
+See [NPC_JSON_GUIDE.md](NPC_JSON_GUIDE.md) for the full JSON format.
+
 #### 1. Simple Static Talker
 
 ```xml
@@ -267,7 +309,9 @@ sprite    = /res/npc/Alucard_walking-sheet
 dialogue_0_0 = Welcome to the village.
 ```
 
-#### 2. Gift Then Return Item Quest
+#### 2. Gift Then Return Item Quest (Legacy — Tiled-only)
+
+> **Prefer the JSON approach (Pattern 0) for new NPCs.** This pattern is kept for backward compatibility with older Tiled-native NPCs.
 
 ```xml
 type                    = NPC_Generic
@@ -455,10 +499,51 @@ Door B → Dungeon1, spawnId = back_entrance
 
 ## Layer Properties (Tile Layers)
 
-In the **Layers** panel, select a tile layer and open its properties:
+### Render Bucket — REQUIRED on every tile layer
+
+Every tile layer **must** have a `render` custom property that tells the engine how to draw it. The engine does **not** guess from the layer name.
+
+| `render` value | Behavior | Use for |
+|---|---|---|
+| `background` | Drawn first, behind all entities | Ground, floors, water, roads, shadows |
+| `depth` | Depth-sorted against entities (interleaved by Y) | Walls, trees, fences, buildings — anything the player walks behind/in front of |
+| `foreground` | Drawn last, on top of all entities | Ceilings, rooftops, canopy, cave overhangs |
+
+**How to set it in Tiled:**
+
+1. Open the **Tiled project** (`MichiAdventure.tiled-project`) so custom types are loaded
+2. Select a tile layer in the Layers panel
+3. In the Properties panel, set the **Class** to `GameLayer`
+4. A `render` dropdown appears → pick `background`, `depth`, or `foreground`
+
+Or manually: Properties → Add Property → name: `render`, type: String, propertytype: `RenderBucket`, value: `background`/`depth`/`foreground`.
+
+> **Fallback:** If a layer has no `render` property, the engine checks legacy boolean properties (`background`, `depthSort`, `foreground`) in that order. If none are set, it defaults to **background** and logs a warning. Always set `render` explicitly on new maps.
+
+#### Typical layer setup
+
+```
+Layer (top to bottom in Tiled)       render
+──────────────────────────────────────────────
+Ceiling_Tiles                        foreground
+Canopy                               foreground
+Trees                                depth
+Buildings                            depth
+Walls                                depth
+Fence                                depth
+Decorations                          depth
+Shadows                              background
+Ground_Details                       background
+Ground                               background
+```
+
+> **Rule of thumb:** If the player should walk behind it → `depth`. If it's always below the player → `background`. If it's always above → `foreground`.
+
+### Other Layer Properties
 
 | Attribute | Description |
 |---|---|
+| `collision` | `true` = all non-zero tiles in this layer are solid (from GameLayer class) |
 | `parallaxx` / `parallaxy` | Parallax scroll factor (1.0 = normal, 0.5 = half speed) |
 | `opacity` | 0.0 (invisible) to 1.0 (fully opaque) |
 | `tintcolor` | Tint color in `#aarrggbb` or `#rrggbb` format |
@@ -545,7 +630,9 @@ These override the tileset-level settings for that specific tile only.
 
 > **Note:** For animated tiles, always set `depthSort` on the **base frame** (the tile placed in the map layer). The engine automatically uses the base tile's properties for all animation frames.
 
-**Priority order when multiple flags are set:** `foreground` > `background` > `depthSort` > normal background tile.
+**Priority order when multiple flags are set:** Per-tile `foreground` > per-tile `background` > per-tile `depthSort` > layer bucket > default background.
+
+> **Per-tile overrides the layer:** If a tile has an explicit property set (e.g. `background=true`), it will be drawn in that bucket regardless of what the containing layer's `render` is set to. This lets you have a mostly-`depth` layer where a few floor-tile types are forced to `background`, or a mostly-`foreground` layer where a few tiles are `depth`-sorted instead.
 
 > **Tip:** Use `depthSort` on individual tiles instead of enabling it for the whole tileset — this gives you per-object control without affecting the rest of the tileset.
 
@@ -553,24 +640,24 @@ These override the tileset-level settings for that specific tile only.
 
 ## Tileset Render Order
 
-**Why the Tiled layer panel order doesn't control draw order:** The engine sorts all tiles by `renderOrder` first, then by world Y. The layer order in Tiled is only a tiebreaker when two tiles share the same `renderOrder` *and* the same Y position.
+Within a single render bucket (e.g. all `depth` layers), tiles are sorted by **world Y** for depth interleaving with entities. If two tiles share the same Y, the `renderOrder` property acts as a tiebreaker.
 
-To control draw order, set the `renderOrder` **custom property on the tileset** (select the tileset root in Tiled → Custom Properties → add `renderOrder` as int):
+Set `renderOrder` on the **tileset root** in Tiled (select the tileset → Custom Properties → add `renderOrder` as int):
 
-| renderOrder value | Where it draws | Built-in tilesets that use it |
-|---|---|---|
-| 5 | Water / deep background | `water` tilesets (auto-detected by name) |
-| 10 | Below shadows | Good for floor decals, ground overlays |
-| 15 | Shadows | `Shadows` tileset (auto-detected by name) |
-| **16** | **Just above shadows** ← **default for new tilesets** | All unknown tilesets |
-| 20 | Trees / decorations | `tree`, `decor`, `foliage` tilesets |
-| 25 | Fences / buildings / walls | `fence`, `build`, `house`, `tower`, `wall` |
-| 30+ | Custom — above all built-ins | Set manually |
+| renderOrder | Effect |
+|---|---|
+| `0` | **Default** — draws at normal priority |
+| `10` | Below other tilesets at the same Y |
+| `20` | Above most tilesets at the same Y |
+| `30+` | Custom high priority |
 
-**Quick reference — what to set on your new tileset:**
-- New tileset should appear **above shadows** → leave `renderOrder` unset (default is 16, automatic)
-- New tileset should appear **below shadows** → set `renderOrder = 10`
-- New tileset should appear **above trees** → set `renderOrder = 30`
+> **No auto-detection:** The engine no longer guesses render order from tileset names. If you don't set `renderOrder`, it defaults to **0**. Set it explicitly when you need specific draw order between tilesets.
+
+### Tileset `depthSort` property
+
+Set `depthSort = true` on a tileset to make **all** its tiles depth-sorted (interleaved with entities by Y). This is separate from the layer-level `render = depth` — both the layer and the tileset can independently mark tiles for depth sorting.
+
+> **Default is `false`.** The engine no longer guesses from tileset names like "tree" or "fence". Set it explicitly.
 
 ---
 
@@ -622,26 +709,72 @@ Registered collision template: 'Tree_Collision'
 ## Adding a New Map
 
 1. **Create the TMX** in Tiled (File → New Map → Tile size 32×32)
-2. **Set map properties** (music, weather, spawnCol, etc.)
-3. **Register it** in `GamePanel.setupGame()`:
-   ```java
-   registerMap("Dungeon1", "/res/maps/Dungeon1.tmx");
-   ```
-4. **Add the object layers**: Objects, Monsters, NPCs, InteractiveTiles, Events, Collision
-5. **Place entities** with Point objects and type/class values
-6. **Add a Door or MapTransition** on another map to connect to it
+2. **Open the Tiled project** (`MichiAdventure.tiled-project`) so custom types are available
+3. **Set map properties** (music, weather, spawnCol, etc.)
+4. **Add tile layers** — set `render` = `background`/`depth`/`foreground` on **every** tile layer (see [Layer Properties](#layer-properties-tile-layers))
+5. **Add object layers**: Objects, Monsters, NPCs, InteractiveTiles, Events, Collision
+6. **Place entities** with Point objects and type/class values
+7. **Save the `.tmx` to `res/maps/`** — the engine auto-discovers it at startup
+
+**How auto-discovery works:**
+- At startup the engine scans `res/maps/` for all `.tmx` files
+- The **map ID** is derived from the filename (lowercased, without extension): `Dungeon1.tmx` → `dungeon1`
+- You can override the ID by adding a `mapId` string property in **Map → Properties**
+- Use this map ID in Door `destination` and MapTransition `targetMap` properties
+- Works from both the filesystem (IDE/dev) and inside a JAR (release builds)
+
+> **No Java registration needed.** Just drop the `.tmx` file into `res/maps/` and it's available. The old `registerMap()` method still exists for edge cases but is no longer required.
+
+**Example — connecting two maps:**
+```
+Map: overworld.tmx   (auto ID = "overworld")
+  Door object:
+    destination = dungeon1
+    spawnId     = entrance_south
+
+Map: dungeon1.tmx    (auto ID = "dungeon1")
+  SpawnPoint event:
+    id = entrance_south
+```
 
 ---
 
 ## Adding a New Entity Type
 
-1. Create `OBJ_Axe.java` (or `MON_Orc.java`, etc.) in the right package
+1. Create `OBJ_Axe.java` (or a new monster class, etc.) in the right package
 2. Open `MapObjectLoader.java`, find `createObject()` (or `createMonster()`)
 3. Add a new case:
    ```java
    case "Axe" -> { return new OBJ_Axe(gp); }
    ```
 4. Now use `type` = `Axe` in Tiled — zero other changes needed
+
+---
+
+## Tiled Project Setup
+
+The file `res/MichiAdventure.tiled-project` defines custom property types so Tiled shows dropdowns and classes instead of raw strings. **Open it in Tiled** (File → Open File or Project) before editing maps.
+
+### Custom Types Defined
+
+| Type | Kind | Used On | Members |
+|---|---|---|---|
+| `RenderBucket` | Enum (string) | Layers, Tiles | Values: `auto`, `background`, `depth`, `foreground` |
+| `GameLayer` | Class | Tile layers | `render` (RenderBucket), `collision` (bool) |
+| `GameTile` | Class | Individual tiles | `render` (RenderBucket), `sortYOffset` (int) |
+
+**Using GameLayer on a tile layer:**
+1. Select the layer in the Layers panel
+2. In Properties, set **Class** = `GameLayer`
+3. The `render` dropdown and `collision` checkbox appear automatically
+
+**Using GameTile on a tile in a tileset:**
+1. Open the tileset editor (double-click the tileset)
+2. Select a tile
+3. Set **Class** = `GameTile`
+4. The `render` dropdown and `sortYOffset` field appear
+
+> **`auto` value:** If `render` is left as `auto` (the default for the class), the engine treats it the same as if the property is unset — it falls back to legacy booleans, then to `background`. Always pick an explicit value for new content.
 
 ---
 
@@ -663,13 +796,14 @@ Objects (point)      Chest                      loot/lootId, opened, requiredIte
                                                 removeOnPickup
                      Tower                       (spawns Eye on top)
 
-Monsters (point)     MON_monster                level, aggroRange, wanderRadius,
+Monsters (point)     mummy                      level, aggroRange, wanderRadius,
                                                 bossId, phase2Threshold, phase2SpeedBoost
-                     MON_SkeletonArcher          (same as above)
-                     MON_Shade                   (same as above)
-                     MON_Inkblot / Inkblot       (same as above)
-                     BOSS_WitheredTree            (same as above)
+                     skeleton_archer             (same as above)
+                     shade                       (same as above)
+                     inkblot                     (same as above)
+                     withered_tree               (same as above)
                      (any monsters.json id)      (same as above)
+                     MON_* / BOSS_*              DEPRECATED — still works, logs warning
 Monsters (rect)      MonsterArea                monster, count, level
 
 NPCs (point)         NPC_Alucard                dialogue0-4, wanderRadius, staticNPC,
@@ -729,4 +863,4 @@ Tiled stores object positions in pixels at the map's native tile size.
 
 ---
 
-*Guide version: 4.0 — added: ThoughtTrigger, MemoryGate, Light/Lighting (Objects + Events), all data-driven monsters (monsters.json IDs), MON_Shade, MON_Inkblot, BOSS_WitheredTree, boss properties (bossId, phase2Threshold, phase2SpeedBoost), expanded Chest properties (requiredItem, consumeItem, openAnimation, openFrames), expanded LevelGate (requiredItem, consumeItem, requiredFragment), expanded SpawnZone (confined, activationRange, totalLimit, lootItem, lootFragment), NPC portrait + idleAnimSpeed, map properties weatherCycle / dialogueTrigger / dialogueTriggerDuration / actTitle. Previous: animated tiles, flip flags, image layers, layer opacity/tint, area events, named spawn points, default SpawnPoint, map properties, MonsterArea, CameraShake, LevelGate, DialogueTrigger, Checkpoint, QuestTrigger, QuestDefinition, SpawnZone, MobSpawnerZone, per-tile depthSort/foreground/background/sortYOffset, NPC extended properties, collision templates.*
+*Guide version: 5.0 — **Map system overhaul:** explicit render buckets required on all tile layers (no more name-based guessing), auto-discovery of maps from res/maps/ (no Java registration), case-insensitive object layer matching with aliases, MON_*/BOSS_* prefixes deprecated in favor of monsters.json IDs, tileset renderOrder/depthSort defaults to 0/false (no name heuristics), Tiled project custom types documented (RenderBucket, GameLayer, GameTile). Previous: ThoughtTrigger, MemoryGate, Light/Lighting, data-driven monsters, boss properties, expanded Chest/LevelGate/SpawnZone properties, NPC portrait + idleAnimSpeed, map properties, animated tiles, flip flags, image layers, layer opacity/tint, area events, named spawn points, collision templates.*

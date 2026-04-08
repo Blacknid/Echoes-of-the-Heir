@@ -1,0 +1,424 @@
+{
+    "activeFile": "maps/Awakening_Cave.tmx",
+    "expandedProjectPaths": [
+    ],
+    "fileStates": {
+        "": {
+            "scaleInDock": 1,
+            "scaleInEditor": 1
+        },
+        "C:/Users/cstyl/Downloads/Tiled_files/Characters ΓÇö ╨║╨╛╨┐╨╕╤Å.tmx": {
+            "scale": 1,
+            "selectedLayer": 0,
+            "viewCenter": {
+                "x": -270,
+                "y": -246.5
+            }
+        },
+        "C:/Users/cstyl/Downloads/Tiled_files/Characters ΓÇö ╨║╨╛╨┐╨╕╤Å.tmx#Archer1_with_shadow": {
+            "scaleInDock": 1
+        },
+        "C:/Users/cstyl/Downloads/Tiled_files/Characters ΓÇö ╨║╨╛╨┐╨╕╤Å.tmx#Archer2_with_shadow": {
+            "scaleInDock": 1
+        },
+        "C:/Users/cstyl/Downloads/Tiled_files/Characters ΓÇö ╨║╨╛╨┐╨╕╤Å.tmx#Archer3_with_shadow": {
+            "scaleInDock": 1
+        },
+        "C:/Users/cstyl/Downloads/Tiled_files/Characters ΓÇö ╨║╨╛╨┐╨╕╤Å.tmx#Aristocrat_man": {
+            "scaleInDock": 1
+        },
+        "C:/Users/cstyl/Downloads/Tiled_files/Characters ΓÇö ╨║╨╛╨┐╨╕╤Å.tmx#Aristocrat_old_man": {
+            "scaleInDock": 1
+        },
+        "C:/Users/cstyl/Downloads/Tiled_files/Characters ΓÇö ╨║╨╛╨┐╨╕╤Å.tmx#Arrow": {
+            "scaleInDock": 1
+        },
+        "C:/Users/cstyl/Downloads/Tiled_files/Characters ΓÇö ╨║╨╛╨┐╨╕╤Å.tmx#Attacked_Manequin1_with_shadow": {
+            "scaleInDock": 1
+        },
+        "C:/Users/cstyl/Downloads/Tiled_files/Characters ΓÇö ╨║╨╛╨┐╨╕╤Å.tmx#Attacked_Manequin1_without_shadow": {
+            "scaleInDock": 1
+        },
+        "C:/Users/cstyl/Downloads/Tiled_files/Characters ΓÇö ╨║╨╛╨┐╨╕╤Å.tmx#Attacked_Manequin2_with_shadow": {
+            "scaleInDock": 1
+        },
+        "C:/Users/cstyl/Downloads/Tiled_files/Characters ΓÇö ╨║╨╛╨┐╨╕╤Å.tmx#Attacked_Manequin2_without_shadow": {
+            "scaleInDock": 1
+        },
+        "C:/Users/cstyl/Downloads/Tiled_files/Characters ΓÇö ╨║╨╛╨┐╨╕╤Å.tmx#Attacked_Manequin3_with_shadow": {
+            "scaleInDock": 1
+        },
+        "C:/Users/cstyl/Downloads/Tiled_files/Characters ΓÇö ╨║╨╛╨┐╨╕╤Å.tmx#Attacked_Manequin3_without_shadow": {
+            "scaleInDock": 1
+        },
+        "C:/Users/cstyl/Downloads/Tiled_files/Characters ΓÇö ╨║╨╛╨┐╨╕╤Å.tmx#Attacked_Manequin4_with_shadow": {
+            "scaleInDock": 1
+        },
+        "C:/Users/cstyl/Downloads/Tiled_files/Characters ΓÇö ╨║╨╛╨┐╨╕╤Å.tmx#Attacked_Manequin4_without_shadow": {
+            "scaleInDock": 1
+        },
+        "C:/Users/cstyl/Downloads/Tiled_files/Characters ΓÇö ╨║╨╛╨┐╨╕╤Å.tmx#Attacked_Manequin5_with_shadow": {
+            "scaleInDock": 1
+        },
+        "C:/Users/cstyl/Downloads/Tiled_files/Characters ΓÇö ╨║╨╛╨┐╨╕╤Å.tmx#Attacked_Manequin5_without_shadow": {
+            "scaleInDock": 1
+        },
+        "C:/Users/cstyl/Downloads/Tiled_files/Characters ΓÇö ╨║╨╛╨┐╨╕╤Å.tmx#Fighter_halberd_without_shadow": {
+            "scaleInDock": 1
+        },
+        "C:/Users/cstyl/Downloads/Tiled_files/Characters ΓÇö ╨║╨╛╨┐╨╕╤Å.tmx#Fighter_sit1": {
+            "scaleInDock": 1
+        },
+        "C:/Users/cstyl/Downloads/Tiled_files/Characters ΓÇö ╨║╨╛╨┐╨╕╤Å.tmx#Fighter_sit2": {
+            "scaleInDock": 1
+        },
+        "C:/Users/cstyl/Downloads/Tiled_files/Characters ΓÇö ╨║╨╛╨┐╨╕╤Å.tmx#Fighter_sword1_with_shadow": {
+            "scaleInDock": 1
+        },
+        "C:/Users/cstyl/Downloads/Tiled_files/Characters ΓÇö ╨║╨╛╨┐╨╕╤Å.tmx#Fighter_sword1_without_shadow": {
+            "scaleInDock": 1
+        },
+        "C:/Users/cstyl/Downloads/Tiled_files/Characters ΓÇö ╨║╨╛╨┐╨╕╤Å.tmx#Fighter_sword2_with_shadow": {
+            "scaleInDock": 1
+        },
+        "C:/Users/cstyl/Downloads/Tiled_files/Characters ΓÇö ╨║╨╛╨┐╨╕╤Å.tmx#Fighter_sword2_without_shadow": {
+            "scaleInDock": 1
+        },
+        "C:/Users/cstyl/Downloads/Tiled_files/Characters ΓÇö ╨║╨╛╨┐╨╕╤Å.tmx#Fighter_sword3_with_shadow": {
+            "scaleInDock": 1
+        },
+        "C:/Users/cstyl/Downloads/Tiled_files/Characters ΓÇö ╨║╨╛╨┐╨╕╤Å.tmx#Fighter_sword3_without_shadow": {
+            "scaleInDock": 1
+        },
+        "C:/Users/cstyl/Downloads/Tiled_files/Characters ΓÇö ╨║╨╛╨┐╨╕╤Å.tmx#Fighter_sword4_with_shadow": {
+            "scaleInDock": 1
+        },
+        "C:/Users/cstyl/Downloads/Tiled_files/Characters ΓÇö ╨║╨╛╨┐╨╕╤Å.tmx#Fighter_sword4_without_shadow": {
+            "scaleInDock": 1
+        },
+        "C:/Users/cstyl/Downloads/Tiled_files/Characters ΓÇö ╨║╨╛╨┐╨╕╤Å.tmx#Fighter_sword5_with_shadow": {
+            "scaleInDock": 1
+        },
+        "C:/Users/cstyl/Downloads/Tiled_files/Characters ΓÇö ╨║╨╛╨┐╨╕╤Å.tmx#Fighter_sword5_without_shadow": {
+            "scaleInDock": 1
+        },
+        "C:/Users/cstyl/Downloads/Tiled_files/Characters ΓÇö ╨║╨╛╨┐╨╕╤Å.tmx#Fighter_sword_shield_without_shadow": {
+            "scaleInDock": 1
+        },
+        "C:/Users/cstyl/Downloads/Tiled_files/Characters ΓÇö ╨║╨╛╨┐╨╕╤Å.tmx#Servant_girl_with_shadow": {
+            "scaleInDock": 1
+        },
+        "C:/Users/cstyl/Downloads/Tiled_files/Characters ΓÇö ╨║╨╛╨┐╨╕╤Å.tmx#Shadow_fighter_sword": {
+            "scaleInDock": 1
+        },
+        "C:/Users/cstyl/Downloads/Tiled_files/Characters ΓÇö ╨║╨╛╨┐╨╕╤Å.tmx#Trainer_without_shadow": {
+            "scaleInDock": 1
+        },
+        "C:/Users/cstyl/Downloads/Tiled_files/Characters ΓÇö ╨║╨╛╨┐╨╕╤Å.tmx#Walls_street": {
+            "scaleInDock": 1
+        },
+        "C:/Users/cstyl/Downloads/Tiled_files/Characters ΓÇö ╨║╨╛╨┐╨╕╤Å.tmx#shadow_manequin": {
+            "scaleInDock": 1
+        },
+        "C:/Users/cstyl/Downloads/Tiled_files/Characters ΓÇö ╨║╨╛╨┐╨╕╤Å.tmx#spots": {
+            "scaleInDock": 1
+        },
+        "C:/Users/cstyl/Downloads/Tiled_files/Characters ΓÇö ╨║╨╛╨┐╨╕╤Å.tmx#для анимации чх200": {
+            "scaleInDock": 1
+        },
+        "C:/Users/cstyl/Downloads/Tiled_files/Characters ΓÇö ╨║╨╛╨┐╨╕╤Å.tmx#для скринов — копия": {
+            "scaleInDock": 1
+        },
+        "C:/Users/cstyl/Downloads/Tiled_files/Training_ground.tmx": {
+            "scale": 2,
+            "selectedLayer": 0,
+            "viewCenter": {
+                "x": 432.5,
+                "y": 103.25
+            }
+        },
+        "C:/Users/cstyl/Downloads/Tiled_files/Training_ground.tmx#Archer1_with_shadow": {
+            "scaleInDock": 1
+        },
+        "C:/Users/cstyl/Downloads/Tiled_files/Training_ground.tmx#Archer2_with_shadow": {
+            "scaleInDock": 1
+        },
+        "C:/Users/cstyl/Downloads/Tiled_files/Training_ground.tmx#Archer3_with_shadow": {
+            "scaleInDock": 1
+        },
+        "C:/Users/cstyl/Downloads/Tiled_files/Training_ground.tmx#Aristocrat_man": {
+            "scaleInDock": 1
+        },
+        "C:/Users/cstyl/Downloads/Tiled_files/Training_ground.tmx#Aristocrat_old_man": {
+            "scaleInDock": 1
+        },
+        "C:/Users/cstyl/Downloads/Tiled_files/Training_ground.tmx#Arrow": {
+            "scaleInDock": 1
+        },
+        "C:/Users/cstyl/Downloads/Tiled_files/Training_ground.tmx#Attacked_Manequin1_with_shadow": {
+            "scaleInDock": 1
+        },
+        "C:/Users/cstyl/Downloads/Tiled_files/Training_ground.tmx#Attacked_Manequin2_with_shadow": {
+            "scaleInDock": 1
+        },
+        "C:/Users/cstyl/Downloads/Tiled_files/Training_ground.tmx#Attacked_Manequin3_with_shadow": {
+            "scaleInDock": 1
+        },
+        "C:/Users/cstyl/Downloads/Tiled_files/Training_ground.tmx#Attacked_Manequin4_with_shadow": {
+            "scaleInDock": 1
+        },
+        "C:/Users/cstyl/Downloads/Tiled_files/Training_ground.tmx#Attacked_Manequin5_with_shadow": {
+            "scaleInDock": 1
+        },
+        "C:/Users/cstyl/Downloads/Tiled_files/Training_ground.tmx#Decorative_cracks": {
+            "scaleInDock": 1
+        },
+        "C:/Users/cstyl/Downloads/Tiled_files/Training_ground.tmx#Fighter_halberd_with_shadow": {
+            "scaleInDock": 1
+        },
+        "C:/Users/cstyl/Downloads/Tiled_files/Training_ground.tmx#Fighter_sit1": {
+            "scaleInDock": 1
+        },
+        "C:/Users/cstyl/Downloads/Tiled_files/Training_ground.tmx#Fighter_sit2": {
+            "scaleInDock": 1
+        },
+        "C:/Users/cstyl/Downloads/Tiled_files/Training_ground.tmx#Fighter_sword1_with_shadow": {
+            "scaleInDock": 1
+        },
+        "C:/Users/cstyl/Downloads/Tiled_files/Training_ground.tmx#Fighter_sword2_with_shadow": {
+            "scaleInDock": 1
+        },
+        "C:/Users/cstyl/Downloads/Tiled_files/Training_ground.tmx#Fighter_sword3_with_shadow": {
+            "scaleInDock": 1
+        },
+        "C:/Users/cstyl/Downloads/Tiled_files/Training_ground.tmx#Fighter_sword4_with_shadow": {
+            "scaleInDock": 1
+        },
+        "C:/Users/cstyl/Downloads/Tiled_files/Training_ground.tmx#Fighter_sword5_with_shadow": {
+            "scaleInDock": 1
+        },
+        "C:/Users/cstyl/Downloads/Tiled_files/Training_ground.tmx#Fighter_sword_shield_with_shadow": {
+            "scaleInDock": 1
+        },
+        "C:/Users/cstyl/Downloads/Tiled_files/Training_ground.tmx#Objects": {
+            "scaleInDock": 1
+        },
+        "C:/Users/cstyl/Downloads/Tiled_files/Training_ground.tmx#Servant_girl_with_shadow": {
+            "scaleInDock": 1
+        },
+        "C:/Users/cstyl/Downloads/Tiled_files/Training_ground.tmx#Trainer_with_shadow": {
+            "scaleInDock": 1
+        },
+        "C:/Users/cstyl/Downloads/Tiled_files/Training_ground.tmx#Walls_street": {
+            "scaleInDock": 1
+        },
+        "C:/Users/cstyl/Downloads/Tiled_files/Training_ground.tmx#spots": {
+            "scaleInDock": 1
+        },
+        "C:/Users/cstyl/Downloads/Tiled_foles/Boats_fish_characters.tmx": {
+            "scale": 1.64580078125,
+            "selectedLayer": 0,
+            "viewCenter": {
+                "x": 255.80252773986828,
+                "y": -0.30380347712571165
+            }
+        },
+        "C:/Users/cstyl/Downloads/Tiled_foles/Boats_fish_characters.tmx#Boat1": {
+            "scaleInDock": 1
+        },
+        "C:/Users/cstyl/Downloads/Tiled_foles/Boats_fish_characters.tmx#Boat2": {
+            "scaleInDock": 1
+        },
+        "C:/Users/cstyl/Downloads/Tiled_foles/Boats_fish_characters.tmx#Boy_amazed": {
+            "scaleInDock": 1
+        },
+        "C:/Users/cstyl/Downloads/Tiled_foles/Boats_fish_characters.tmx#Boy_looking": {
+            "scaleInDock": 1
+        },
+        "C:/Users/cstyl/Downloads/Tiled_foles/Boats_fish_characters.tmx#Boy_shadow": {
+            "scaleInDock": 1
+        },
+        "C:/Users/cstyl/Downloads/Tiled_foles/Boats_fish_characters.tmx#Boy_weaves": {
+            "scaleInDock": 1
+        },
+        "C:/Users/cstyl/Downloads/Tiled_foles/Boats_fish_characters.tmx#Cobold_on_floor": {
+            "scaleInDock": 1
+        },
+        "C:/Users/cstyl/Downloads/Tiled_foles/Boats_fish_characters.tmx#Cobold_on_shark": {
+            "scaleInDock": 1
+        },
+        "C:/Users/cstyl/Downloads/Tiled_foles/Boats_fish_characters.tmx#Cobold_shadow": {
+            "scaleInDock": 1
+        },
+        "C:/Users/cstyl/Downloads/Tiled_foles/Boats_fish_characters.tmx#Fish1": {
+            "scaleInDock": 1
+        },
+        "C:/Users/cstyl/Downloads/Tiled_foles/Boats_fish_characters.tmx#Fish3": {
+            "scaleInDock": 1
+        },
+        "C:/Users/cstyl/Downloads/Tiled_foles/Boats_fish_characters.tmx#Fisherman_boat1_idle": {
+            "scaleInDock": 1
+        },
+        "C:/Users/cstyl/Downloads/Tiled_foles/Boats_fish_characters.tmx#Fisherman_boat1_throws": {
+            "scaleInDock": 1
+        },
+        "C:/Users/cstyl/Downloads/Tiled_foles/Boats_fish_characters.tmx#Old_man_idle": {
+            "scaleInDock": 1
+        },
+        "C:/Users/cstyl/Downloads/Tiled_foles/Boats_fish_characters.tmx#Old_man_orders": {
+            "scaleInDock": 1
+        },
+        "C:/Users/cstyl/Downloads/Tiled_foles/Boats_fish_characters.tmx#Old_man_shadow": {
+            "scaleInDock": 1
+        },
+        "C:/Users/cstyl/Downloads/Tiled_foles/Boats_fish_characters.tmx#Seller_gramma": {
+            "scaleInDock": 1
+        },
+        "C:/Users/cstyl/Downloads/Tiled_foles/Boats_fish_characters.tmx#Small_boat_v1_1": {
+            "scaleInDock": 1
+        },
+        "C:/Users/cstyl/Downloads/Tiled_foles/Boats_fish_characters.tmx#Small_boat_v2_1-Sheet": {
+            "scaleInDock": 1
+        },
+        "maps/Awakening_Cave.tmx": {
+            "expandedObjectLayers": [
+                13
+            ],
+            "scale": 2,
+            "selectedLayer": 21,
+            "viewCenter": {
+                "x": 981.5,
+                "y": 920.75
+            }
+        },
+        "maps/Awakening_Cave.tmx#Details": {
+            "scaleInDock": 1,
+            "scaleInEditor": 1
+        },
+        "maps/Awakening_Cave.tmx#Ground_walls": {
+            "scaleInDock": 1
+        },
+        "maps/Awakening_Cave.tmx#Objects": {
+            "scaleInDock": 1
+        },
+        "maps/Awakening_Cave.tmx#Shinies_animation": {
+            "scaleInDock": 1
+        },
+        "maps/Awakening_Cave.tmx#Totem_animation": {
+            "scaleInDock": 1
+        },
+        "maps/Awakening_Cave.tmx#Walls_shinies": {
+            "scaleInDock": 1,
+            "scaleInEditor": 1
+        },
+        "maps/Awakening_Cave.tmx#Water_coasts": {
+            "scaleInDock": 1
+        },
+        "maps/Awakening_Cave.tmx#Wisps": {
+            "scaleInDock": 1
+        },
+        "maps/Awakening_Cave.tmx#ground_grasss": {
+            "scaleInDock": 1,
+            "scaleInEditor": 1
+        },
+        "maps/Awakening_Cave.tmx#water_detilazation_v2": {
+            "scaleInDock": 1
+        },
+        "maps/Canvas_Village.tmx": {
+            "expandedGroupLayers": [
+                45,
+                50,
+                31,
+                43
+            ],
+            "expandedObjectLayers": [
+                4,
+                12,
+                8
+            ],
+            "scale": 1,
+            "selectedLayer": 26,
+            "viewCenter": {
+                "x": 1762,
+                "y": 2073.5
+            }
+        },
+        "maps/Canvas_Village.tmx#Archer": {
+            "scaleInDock": 1
+        },
+        "maps/Canvas_Village.tmx#Arrow": {
+            "scaleInDock": 1
+        },
+        "maps/Canvas_Village.tmx#Blacksmith_Exterior": {
+            "scaleInDock": 0.5
+        },
+        "maps/Canvas_Village.tmx#Boat1": {
+            "scaleInDock": 0.75
+        },
+        "maps/Canvas_Village.tmx#Details": {
+            "scaleInDock": 1,
+            "scaleInEditor": 1
+        },
+        "maps/Canvas_Village.tmx#Exterior_objetcs": {
+            "scaleInDock": 0.75
+        },
+        "maps/Canvas_Village.tmx#Exterior_tiles": {
+            "scaleInDock": 0.75
+        },
+        "maps/Canvas_Village.tmx#Ground_walls": {
+            "scaleInDock": 1,
+            "scaleInEditor": 3
+        },
+        "maps/Canvas_Village.tmx#Objects": {
+            "scaleInDock": 0.5
+        },
+        "maps/Canvas_Village.tmx#Trees_rocks": {
+            "scaleInDock": 1,
+            "scaleInEditor": 1
+        },
+        "maps/Canvas_Village.tmx#Walls_street": {
+            "scaleInDock": 0.75,
+            "scaleInEditor": 1
+        },
+        "maps/Canvas_Village.tmx#Water_coasts": {
+            "scaleInDock": 0.75,
+            "scaleInEditor": 3
+        },
+        "maps/Canvas_Village.tmx#fence": {
+            "scaleInDock": 1
+        },
+        "maps/Canvas_Village.tmx#ground_grasss": {
+            "scaleInDock": 1
+        },
+        "maps/Canvas_Village.tmx#piles": {
+            "scaleInDock": 1,
+            "scaleInEditor": 1
+        },
+        "maps/water_detilazation_v2.tsx": {
+            "scaleInDock": 0.75,
+            "scaleInEditor": 1
+        },
+        "tiles/water.tsx": {
+            "scaleInEditor": 1
+        }
+    },
+    "frame.defaultDuration": 120,
+    "last.imagePath": "C:/Users/cstyl/Documents/Michi-s-adventure/ceva/src/res/tiles/CANVAS VILLAGE/Square Market/Training",
+    "openFiles": [
+        "maps/Canvas_Village.tmx",
+        "maps/Awakening_Cave.tmx"
+    ],
+    "project": "MichiAdventure.tiled-project",
+    "property.type": "bool",
+    "recentFiles": [
+        "C:/Users/cstyl/Downloads/Tiled_files/Training_ground.tmx",
+        "C:/Users/cstyl/Downloads/Tiled_files/Characters ΓÇö ╨║╨╛╨┐╨╕╤Å.tmx",
+        "tiles/water.tsx",
+        "C:/Users/cstyl/Downloads/Tiled_foles/Boats_fish_characters.tmx",
+        "maps/water_detilazation_v2.tsx",
+        "maps/Canvas_Village.tmx",
+        "maps/Awakening_Cave.tmx"
+    ],
+    "tileset.embedInMap": true,
+    "tileset.lastUsedFormat": "tsx"
+}

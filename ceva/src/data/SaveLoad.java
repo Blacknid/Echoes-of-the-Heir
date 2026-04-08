@@ -200,6 +200,8 @@ public class SaveLoad {
                 gs.questDescriptions.add(quest.description);
                 gs.questProgress.add(quest.current);
                 gs.questTargets.add(quest.target);
+                gs.questCurrentSteps.add(quest.currentStep);
+                gs.questStepProgress.add(quest.stepProgress);
             }
         }
 
@@ -286,6 +288,8 @@ public class SaveLoad {
                     sb.append("quests.").append(i).append(".desc=").append(escapeValue(quest.description)).append('\n');
                     sb.append("quests.").append(i).append(".current=").append(quest.current).append('\n');
                     sb.append("quests.").append(i).append(".target=").append(quest.target).append('\n');
+                    sb.append("quests.").append(i).append(".step=").append(quest.currentStep).append('\n');
+                    sb.append("quests.").append(i).append(".stepProgress=").append(quest.stepProgress).append('\n');
                 }
             }
 
@@ -414,7 +418,9 @@ public class SaveLoad {
                     String questDesc = unescapeValue(map.getOrDefault("quests." + i + ".desc", ""));
                     int current = Integer.parseInt(map.getOrDefault("quests." + i + ".current", "0"));
                     int target = Integer.parseInt(map.getOrDefault("quests." + i + ".target", "1"));
-                    gp.questManager.restoreQuest(questId, questName, questDesc, target, current);
+                    int step = Integer.parseInt(map.getOrDefault("quests." + i + ".step", "-1"));
+                    int stepProg = Integer.parseInt(map.getOrDefault("quests." + i + ".stepProgress", "0"));
+                    gp.questManager.restoreQuest(questId, questName, questDesc, target, current, step, stepProg);
                 }
             }
 
@@ -535,7 +541,11 @@ public class SaveLoad {
                     state.questNames.get(i),
                     state.questDescriptions.get(i),
                     state.questTargets.get(i),
-                    state.questProgress.get(i)
+                    state.questProgress.get(i),
+                    (state.questCurrentSteps != null && i < state.questCurrentSteps.size())
+                        ? state.questCurrentSteps.get(i) : -1,
+                    (state.questStepProgress != null && i < state.questStepProgress.size())
+                        ? state.questStepProgress.get(i) : 0
                 );
             }
         }
@@ -707,6 +717,8 @@ public class SaveLoad {
             gs.questDescriptions = extractJsonStringArray(json, "questDescriptions");
             gs.questProgress = extractJsonIntArray(json, "questProgress");
             gs.questTargets = extractJsonIntArray(json, "questTargets");
+            gs.questCurrentSteps = extractJsonIntArray(json, "questCurrentSteps");
+            gs.questStepProgress = extractJsonIntArray(json, "questStepProgress");
 
             gs.timestamp = extractJsonLong(json, "timestamp", 0L);
             return gs;

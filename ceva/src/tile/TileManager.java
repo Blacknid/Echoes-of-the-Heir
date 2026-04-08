@@ -57,6 +57,8 @@ public class TileManager {
         public float opacity = 1f;
         public java.awt.Color tintColor = null; // null = no tint
         public String name = "";
+        public int globalLayerIndex;    // position in the full Tiled layer stack
+        public boolean foreground = false; // true = draw above entities
     }
     /** Ordered list of image layers (parsed alongside tile layers, drawn behind background tiles). */
     public ArrayList<ImageLayerData> imageLayers = new ArrayList<>();
@@ -203,6 +205,14 @@ public class TileManager {
     public ArrayList<Boolean> layerBackground = new ArrayList<>();
     public ArrayList<Boolean> layerDepthSort  = new ArrayList<>();
     public ArrayList<Boolean> layerForeground = new ArrayList<>();
+    // New: unified render bucket from Tiled "render" enum property ("auto"/"background"/"depth"/"foreground")
+    // null or "auto" means the engine decides. Takes priority over legacy booleans when set.
+    public ArrayList<String> layerRenderBucket = new ArrayList<>();
+    // Global layer index for each tile layer (accounts for interleaved image/group layers)
+    public ArrayList<Integer> layerGlobalIndex = new ArrayList<>();
+    // Per-tile-layer pixel offsets (from Tiled offsetx/offsety, already scaled to game pixels)
+    public ArrayList<Float> layerOffsetX = new ArrayList<>();
+    public ArrayList<Float> layerOffsetY = new ArrayList<>();
     // (layerOpacity and layerTint declared above near ImageLayerData)
 
     // Collision shapes (from Tiled objectgroup layers — rectangles, rotated rects, polygons, ellipses)
@@ -358,30 +368,64 @@ public class TileManager {
             for (int i = 0; i < tilesetNodes.getLength(); i++) {
                 Element tilesetElement = (Element) tilesetNodes.item(i);
                 Element imageElement = (Element) tilesetElement.getElementsByTagName("image").item(0);
+
+                // metaElement holds tilewidth/tileheight/tilecount/columns/name.
+                // For external .tsx references these come from the tsx root, not the tmx tileset stub.
+                Element metaElement = tilesetElement;
+                String tsxBaseDir = null;
+
                 if (imageElement == null) {
-                    continue;
+                    // External .tsx reference: <tileset firstgid="N" source="../tiles/foo.tsx"/>
+                    String tsxSource = tilesetElement.getAttribute("source");
+                    if (tsxSource == null || tsxSource.isEmpty()) continue;
+                    String tsxPath = toResourcePath(tsxSource);
+                    if (tsxPath == null) {
+                        System.out.println("Skipping external tileset (cannot resolve): " + tsxSource);
+                        continue;
+                    }
+                    // Base dir for resolving the tsx's own image path
+                    int lastSlash = tsxPath.lastIndexOf('/');
+                    tsxBaseDir = lastSlash >= 0 ? tsxPath.substring(0, lastSlash + 1) : "/res/tiles/";
+                    Document tsxDoc = parseXmlResource(tsxPath);
+                    if (tsxDoc == null) {
+                        System.out.println("Skipping external tileset (cannot load): " + tsxPath);
+                        continue;
+                    }
+                    metaElement = tsxDoc.getDocumentElement();
+                    imageElement = (Element) metaElement.getElementsByTagName("image").item(0);
+                    if (imageElement == null) {
+                        System.out.println("Skipping external tileset (no image in tsx): " + tsxPath);
+                        continue;
+                    }
                 }
 
                 String source = imageElement.getAttribute("source");
-                String resourcePath = toResourcePath(source);
+                String resourcePath;
+                if (tsxBaseDir != null) {
+                    // Resolve image path relative to the tsx file's directory
+                    String normalized = source.replace('\\', '/').replaceFirst("^(\\.\\./)+", "");
+                    resourcePath = tsxBaseDir + normalized;
+                } else {
+                    resourcePath = toResourcePath(source);
+                }
                 if (resourcePath == null) {
-                    System.out.println("Skipping external tileset source: " + source);
+                    System.out.println("Skipping tileset source: " + source);
                     continue;
                 }
 
                 addTileset(
                     resourcePath,
                     Integer.parseInt(tilesetElement.getAttribute("firstgid")),
-                    Integer.parseInt(tilesetElement.getAttribute("tilewidth")),
-                    Integer.parseInt(tilesetElement.getAttribute("tileheight")),
-                    Integer.parseInt(tilesetElement.getAttribute("tilecount")),
-                    Integer.parseInt(tilesetElement.getAttribute("columns")),
-                    tilesetElement.getAttribute("name"),
-                    getTilesetRenderOrder(tilesetElement, resourcePath),
-                    getTilesetDepthSort(tilesetElement, resourcePath),
-                    getTilesetForeground(tilesetElement)
+                    Integer.parseInt(metaElement.getAttribute("tilewidth")),
+                    Integer.parseInt(metaElement.getAttribute("tileheight")),
+                    Integer.parseInt(metaElement.getAttribute("tilecount")),
+                    Integer.parseInt(metaElement.getAttribute("columns")),
+                    metaElement.getAttribute("name"),
+                    getTilesetRenderOrder(metaElement, resourcePath),
+                    getTilesetDepthSort(metaElement, resourcePath),
+                    getTilesetForeground(metaElement)
                 );
-                applyPerTileProperties(tilesets.get(tilesets.size() - 1), tilesetElement);
+                applyPerTileProperties(tilesets.get(tilesets.size() - 1), metaElement);
             }
 
             rebuildTileLookup();
@@ -441,8 +485,12 @@ public class TileManager {
             layerBackground.clear();
             layerDepthSort.clear();
             layerForeground.clear();
+            layerRenderBucket.clear();
             layerOpacity.clear();
             layerTint.clear();
+            layerGlobalIndex.clear();
+            layerOffsetX.clear();
+            layerOffsetY.clear();
             imageLayers.clear();
 
             Document doc = parseXmlResource(path);
@@ -509,152 +557,14 @@ public class TileManager {
             mapOffsetPixelsX = offsetX * tileSize;
             mapOffsetPixelsY = offsetY * tileSize;
 
-            NodeList layers = doc.getElementsByTagName("layer");
-            for (int l = 0; l < layers.getLength(); l++) {
-                Element layer = (Element) layers.item(l);
-                String layerName = layer.getAttribute("name");
-                Element data = (Element) layer.getElementsByTagName("data").item(0);
-                float parallaxX = getFloatAttribute(layer, "parallaxx", 1.0f);
-                float parallaxY = getFloatAttribute(layer, "parallaxy", 1.0f);
-                float opacity   = getFloatAttribute(layer, "opacity", 1.0f);
-                Color tint      = parseTintColor(layer.getAttribute("tintcolor"));
+            // Walk all children of <map> in Tiled document order so that tile layers,
+            // image layers, and group layers are processed in the exact stacking order
+            // the user set up in the Tiled editor.
+            int[] globalLayerIdx = {0};
+            processLayerChildren(mapRoot, globalLayerIdx, infinite, offsetX, offsetY,
+                                 1f, null, 0f, 0f);
 
-                boolean isBackground = false;
-                boolean isDepthSort  = false;
-                boolean isForeground = false;
-                boolean isCollision  = false;
-                NodeList layerProps = layer.getChildNodes();
-                for (int lp = 0; lp < layerProps.getLength(); lp++) {
-                    if (layerProps.item(lp) instanceof Element) {
-                        Element child = (Element) layerProps.item(lp);
-                        if ("properties".equals(child.getTagName())) {
-                            NodeList propList = child.getElementsByTagName("property");
-                            for (int pp = 0; pp < propList.getLength(); pp++) {
-                                Element prop = (Element) propList.item(pp);
-                                String propName = prop.getAttribute("name");
-                                if ("background".equals(propName)) {
-                                    isBackground = "true".equalsIgnoreCase(prop.getAttribute("value"));
-                                } else if ("depthSort".equals(propName)) {
-                                    isDepthSort = "true".equalsIgnoreCase(prop.getAttribute("value"));
-                                } else if ("foreground".equals(propName)) {
-                                    isForeground = "true".equalsIgnoreCase(prop.getAttribute("value"));
-                                } else if ("collision".equals(propName)) {
-                                    isCollision = "true".equalsIgnoreCase(prop.getAttribute("value"));
-                                }
-                            }
-                        }
-                    }
-                }
-                if (isCollision && !layerName.isBlank()) {
-                    collisionTileLayers.add(layerName);
-                }
-
-                int[][] layerMap  = new int[gp.maxWorldCol][gp.maxWorldRow];
-                byte[][] flipMap  = new byte[gp.maxWorldCol][gp.maxWorldRow];
-
-                NodeList chunks = data.getElementsByTagName("chunk");
-                if (chunks.getLength() > 0) {
-                    // Infinite map: parse each chunk and place tiles at offset position
-                    for (int c = 0; c < chunks.getLength(); c++) {
-                        Element chunk = (Element) chunks.item(c);
-                        int cx = Integer.parseInt(chunk.getAttribute("x")) + offsetX;
-                        int cy = Integer.parseInt(chunk.getAttribute("y")) + offsetY;
-                        int cw = Integer.parseInt(chunk.getAttribute("width"));
-                        String csv = chunk.getTextContent().trim().replaceAll("\\s+", "");
-                        String[] numbers = csv.split(",");
-                        int col = 0, row = 0;
-                        for (String numStr : numbers) {
-                            if (numStr.isEmpty()) continue;
-                            long raw = Long.parseLong(numStr.trim());
-                            int gid = (int) (raw & GID_MASK);
-                            byte flip = extractFlipFlags(raw);
-                            int mapCol = cx + col;
-                            int mapRow = cy + row;
-                            if (mapCol >= 0 && mapCol < gp.maxWorldCol && mapRow >= 0 && mapRow < gp.maxWorldRow) {
-                                layerMap[mapCol][mapRow] = gid;
-                                flipMap[mapCol][mapRow]  = flip;
-                            }
-                            col++;
-                            if (col == cw) {
-                                col = 0;
-                                row++;
-                            }
-                        }
-                    }
-                } else {
-                    // Normal flat CSV
-                    String layerWidthStr = layer.getAttribute("width");
-                    int layerWidth = (layerWidthStr != null && !layerWidthStr.isEmpty())
-                            ? Integer.parseInt(layerWidthStr) : gp.maxWorldCol;
-                    String csv = data.getTextContent().trim().replaceAll("\\s+", "");
-                    String[] numbers = csv.split(",");
-                    int col = 0, row = 0;
-                    for (String numStr : numbers) {
-                        if (numStr.isEmpty()) continue;
-                        long raw = Long.parseLong(numStr.trim());
-                        int gid  = (int) (raw & GID_MASK);
-                        byte flip = extractFlipFlags(raw);
-                        if (col < gp.maxWorldCol && row < gp.maxWorldRow) {
-                            layerMap[col][row] = gid;
-                            flipMap[col][row]  = flip;
-                        }
-                        col++;
-                        if (col == layerWidth) {
-                            col = 0;
-                            row++;
-                            if (row >= gp.maxWorldRow) break;
-                        }
-                    }
-                }
-
-                mapLayers.add(layerMap);
-                mapFlipLayers.add(flipMap);
-                layerNames.add(layerName);
-                layerParallaxX.add(parallaxX);
-                layerParallaxY.add(parallaxY);
-                layerBackground.add(isBackground);
-                layerDepthSort.add(isDepthSort);
-                layerForeground.add(isForeground);
-                layerOpacity.add(opacity);
-                layerTint.add(tint);
-            }
-
-            // ---- Parse <imagelayer> elements ----
-            double sf = (double) tileSize / mapTileSize;
-            NodeList imagelayerNodes = doc.getElementsByTagName("imagelayer");
-            for (int i = 0; i < imagelayerNodes.getLength(); i++) {
-                Element ilEl = (Element) imagelayerNodes.item(i);
-                Element imgEl = (Element) ilEl.getElementsByTagName("image").item(0);
-                if (imgEl == null) continue;
-                String srcRaw = imgEl.getAttribute("source");
-                String srcPath = toResourcePath(srcRaw);
-                if (srcPath == null) {
-                    System.out.println("Skipping imagelayer — cannot resolve source: " + srcRaw);
-                    continue;
-                }
-                BufferedImage rawImage;
-                try {
-                    rawImage = ResourceCache.loadImage(srcPath);
-                } catch (java.io.IOException imageError) {
-                    System.out.println("Skipping imagelayer — file not found: " + srcPath);
-                    continue;
-                }
-
-                ImageLayerData ild = new ImageLayerData();
-                ild.name      = ilEl.getAttribute("name");
-                ild.worldX    = (float) (getFloatAttribute(ilEl, "offsetx", 0f) * sf + mapOffsetPixelsX);
-                ild.worldY    = (float) (getFloatAttribute(ilEl, "offsety", 0f) * sf + mapOffsetPixelsY);
-                ild.parallaxX = getFloatAttribute(ilEl, "parallaxx", 1f);
-                ild.parallaxY = getFloatAttribute(ilEl, "parallaxy", 1f);
-                ild.opacity   = getFloatAttribute(ilEl, "opacity",   1f);
-                ild.tintColor = parseTintColor(ilEl.getAttribute("tintcolor"));
-                // Scale image to match game tileSize
-                int scaledW = Math.max(1, (int) Math.round(rawImage.getWidth()  * sf));
-                int scaledH = Math.max(1, (int) Math.round(rawImage.getHeight() * sf));
-                ild.image = ResourceCache.loadScaledImage(srcPath, scaledW, scaledH);
-                imageLayers.add(ild);
-                System.out.println("Loaded imagelayer: " + ild.name + " @ (" + ild.worldX + "," + ild.worldY + ")");
-            }
+            logLayerClassification();
 
             System.out.println("Loaded " + mapLayers.size() + " tile layers, "
                 + imageLayers.size() + " image layers (mapTileSize=" + mapTileSize + "px)");
@@ -662,6 +572,278 @@ public class TileManager {
             System.out.println("Failed to load map: " + path);
             e.printStackTrace(System.out);
         }
+    }
+
+    /**
+     * Log the classification of every loaded layer for debugging.
+     * Classification is determined ONLY by explicit Tiled properties:
+     *   - "render" enum property (RenderBucket): background | depth | foreground
+     *   - Legacy boolean properties: background, depthSort, foreground
+     * No name-based heuristics. Layers without a render property default to background.
+     */
+    private void logLayerClassification() {
+        System.out.println("=== LAYER CLASSIFICATION ===");
+        for (int l = 0; l < mapLayers.size(); l++) {
+            String name   = l < layerNames.size() ? layerNames.get(l) : "?";
+            String bucket = l < layerRenderBucket.size() ? layerRenderBucket.get(l) : null;
+            boolean expBg = l < layerBackground.size() && layerBackground.get(l);
+            boolean expDs = l < layerDepthSort.size()  && layerDepthSort.get(l);
+            boolean expFg = l < layerForeground.size() && layerForeground.get(l);
+
+            String classification;
+            if ("foreground".equals(bucket))      classification = "FOREGROUND (render enum)";
+            else if ("background".equals(bucket)) classification = "BACKGROUND (render enum)";
+            else if ("depth".equals(bucket))      classification = "DEPTH (render enum)";
+            else if (expFg)                       classification = "FOREGROUND (legacy bool)";
+            else if (expDs)                       classification = "DEPTH (legacy bool)";
+            else if (expBg)                       classification = "BACKGROUND (legacy bool)";
+            else {
+                classification = "BACKGROUND (default — no render property set)";
+                System.out.println("  WARN: Layer " + l + " \"" + name + "\" has no 'render' property, defaulting to background");
+            }
+            System.out.println("  Layer " + l + " \"" + name + "\" -> " + classification);
+        }
+        System.out.println("===========================");
+    }
+
+    /**
+     * Recursively walk the child elements of a TMX container (map root or group)
+     * in document order, processing tile layers, image layers, and groups.
+     * This preserves the exact visual stacking order from the Tiled editor.
+     *
+     * @param parent        the container element ({@code <map>} or {@code <group>})
+     * @param globalIdx     single-element array holding the next global layer index (mutable counter)
+     * @param infinite      whether the map uses infinite chunks
+     * @param offsetX       tile offset for infinite maps (shift to 0,0)
+     * @param offsetY       tile offset for infinite maps (shift to 0,0)
+     * @param parentOpacity composed opacity from parent group(s), 1.0 = fully opaque
+     * @param parentTint    composed tint from parent group(s), null = no tint
+     * @param parentOffX    accumulated X offset from parent groups (Tiled pixels, unscaled)
+     * @param parentOffY    accumulated Y offset from parent groups (Tiled pixels, unscaled)
+     */
+    private void processLayerChildren(Element parent, int[] globalIdx,
+                                      boolean infinite, int offsetX, int offsetY,
+                                      float parentOpacity, Color parentTint,
+                                      float parentOffX, float parentOffY) {
+        NodeList children = parent.getChildNodes();
+        for (int i = 0; i < children.getLength(); i++) {
+            if (!(children.item(i) instanceof Element)) continue;
+            Element child = (Element) children.item(i);
+            String tag = child.getTagName();
+
+            // Skip invisible layers (Tiled visible attribute: absent or "1" = visible, "0" = hidden)
+            String visAttr = child.getAttribute("visible");
+            if ("0".equals(visAttr)) continue;
+
+            switch (tag) {
+                case "layer":
+                    parseTileLayerElement(child, globalIdx[0]++, infinite, offsetX, offsetY,
+                                         parentOpacity, parentTint, parentOffX, parentOffY);
+                    break;
+                case "imagelayer":
+                    parseImageLayerElement(child, globalIdx[0]++, parentOpacity, parentTint,
+                                           parentOffX, parentOffY);
+                    break;
+                case "group":
+                    float groupOpacity = getFloatAttribute(child, "opacity", 1f) * parentOpacity;
+                    Color groupTint = composeTint(parentTint, parseTintColor(child.getAttribute("tintcolor")));
+                    float groupOffX = parentOffX + getFloatAttribute(child, "offsetx", 0f);
+                    float groupOffY = parentOffY + getFloatAttribute(child, "offsety", 0f);
+                    processLayerChildren(child, globalIdx, infinite, offsetX, offsetY,
+                                        groupOpacity, groupTint, groupOffX, groupOffY);
+                    break;
+                // objectgroup handled separately (collision, entities)
+            }
+        }
+    }
+
+    /** Parse a single {@code <layer>} element and add its tile data to the layer lists. */
+    private void parseTileLayerElement(Element layer, int globalIndex,
+                                       boolean infinite, int offsetX, int offsetY,
+                                       float parentOpacity, Color parentTint,
+                                       float parentOffX, float parentOffY) {
+        String layerName = layer.getAttribute("name");
+        Element data = (Element) layer.getElementsByTagName("data").item(0);
+        if (data == null) return;
+
+        double sf = (double) tileSize / mapTileSize;
+        float parallaxX = getFloatAttribute(layer, "parallaxx", 1.0f);
+        float parallaxY = getFloatAttribute(layer, "parallaxy", 1.0f);
+        float opacity   = getFloatAttribute(layer, "opacity", 1.0f) * parentOpacity;
+        Color tint      = composeTint(parentTint, parseTintColor(layer.getAttribute("tintcolor")));
+        float layerOffX = parentOffX + getFloatAttribute(layer, "offsetx", 0f);
+        float layerOffY = parentOffY + getFloatAttribute(layer, "offsety", 0f);
+
+        boolean isBackground = false;
+        boolean isDepthSort  = false;
+        boolean isForeground = false;
+        boolean isCollision  = false;
+        String renderBucket  = null; // from "render" enum property (RenderBucket)
+        NodeList layerProps = layer.getChildNodes();
+        for (int lp = 0; lp < layerProps.getLength(); lp++) {
+            if (layerProps.item(lp) instanceof Element) {
+                Element child = (Element) layerProps.item(lp);
+                if ("properties".equals(child.getTagName())) {
+                    NodeList propList = child.getElementsByTagName("property");
+                    for (int pp = 0; pp < propList.getLength(); pp++) {
+                        Element prop = (Element) propList.item(pp);
+                        String propName = prop.getAttribute("name");
+                        if ("render".equals(propName)) {
+                            renderBucket = prop.getAttribute("value").trim().toLowerCase();
+                        } else if ("background".equals(propName)) {
+                            isBackground = "true".equalsIgnoreCase(prop.getAttribute("value"));
+                        } else if ("depthSort".equals(propName)) {
+                            isDepthSort = "true".equalsIgnoreCase(prop.getAttribute("value"));
+                        } else if ("foreground".equals(propName)) {
+                            isForeground = "true".equalsIgnoreCase(prop.getAttribute("value"));
+                        } else if ("collision".equals(propName)) {
+                            isCollision = "true".equalsIgnoreCase(prop.getAttribute("value"));
+                        }
+                    }
+                }
+            }
+        }
+        if (isCollision && !layerName.isBlank()) {
+            collisionTileLayers.add(layerName);
+        }
+
+        int[][] layerMap  = new int[gp.maxWorldCol][gp.maxWorldRow];
+        byte[][] flipMap  = new byte[gp.maxWorldCol][gp.maxWorldRow];
+
+        NodeList chunks = data.getElementsByTagName("chunk");
+        if (chunks.getLength() > 0) {
+            for (int c = 0; c < chunks.getLength(); c++) {
+                Element chunk = (Element) chunks.item(c);
+                int cx = Integer.parseInt(chunk.getAttribute("x")) + offsetX;
+                int cy = Integer.parseInt(chunk.getAttribute("y")) + offsetY;
+                int cw = Integer.parseInt(chunk.getAttribute("width"));
+                String csv = chunk.getTextContent().trim().replaceAll("\\s+", "");
+                String[] numbers = csv.split(",");
+                int col = 0, row = 0;
+                for (String numStr : numbers) {
+                    if (numStr.isEmpty()) continue;
+                    long raw = Long.parseLong(numStr.trim());
+                    int gid = (int) (raw & GID_MASK);
+                    byte flip = extractFlipFlags(raw);
+                    int mapCol = cx + col;
+                    int mapRow = cy + row;
+                    if (mapCol >= 0 && mapCol < gp.maxWorldCol && mapRow >= 0 && mapRow < gp.maxWorldRow) {
+                        layerMap[mapCol][mapRow] = gid;
+                        flipMap[mapCol][mapRow]  = flip;
+                    }
+                    col++;
+                    if (col == cw) {
+                        col = 0;
+                        row++;
+                    }
+                }
+            }
+        } else {
+            String layerWidthStr = layer.getAttribute("width");
+            int layerWidth = (layerWidthStr != null && !layerWidthStr.isEmpty())
+                    ? Integer.parseInt(layerWidthStr) : gp.maxWorldCol;
+            String csv = data.getTextContent().trim().replaceAll("\\s+", "");
+            String[] numbers = csv.split(",");
+            int col = 0, row = 0;
+            for (String numStr : numbers) {
+                if (numStr.isEmpty()) continue;
+                long raw = Long.parseLong(numStr.trim());
+                int gid  = (int) (raw & GID_MASK);
+                byte flip = extractFlipFlags(raw);
+                if (col < gp.maxWorldCol && row < gp.maxWorldRow) {
+                    layerMap[col][row] = gid;
+                    flipMap[col][row]  = flip;
+                }
+                col++;
+                if (col == layerWidth) {
+                    col = 0;
+                    row++;
+                    if (row >= gp.maxWorldRow) break;
+                }
+            }
+        }
+
+        mapLayers.add(layerMap);
+        mapFlipLayers.add(flipMap);
+        layerNames.add(layerName);
+        layerParallaxX.add(parallaxX);
+        layerParallaxY.add(parallaxY);
+        layerBackground.add(isBackground);
+        layerDepthSort.add(isDepthSort);
+        layerForeground.add(isForeground);
+        layerRenderBucket.add(renderBucket);
+        layerOpacity.add(opacity);
+        layerTint.add(tint);
+        layerGlobalIndex.add(globalIndex);
+        layerOffsetX.add((float)(layerOffX * sf));
+        layerOffsetY.add((float)(layerOffY * sf));
+    }
+
+    /** Parse a single {@code <imagelayer>} element and add it to imageLayers. */
+    private void parseImageLayerElement(Element ilEl, int globalIndex,
+                                        float parentOpacity, Color parentTint,
+                                        float parentOffX, float parentOffY) {
+        Element imgEl = (Element) ilEl.getElementsByTagName("image").item(0);
+        if (imgEl == null) return;
+        String srcRaw = imgEl.getAttribute("source");
+        String srcPath = toResourcePath(srcRaw);
+        if (srcPath == null) {
+            System.out.println("Skipping imagelayer — cannot resolve source: " + srcRaw);
+            return;
+        }
+        BufferedImage rawImage;
+        try {
+            rawImage = ResourceCache.loadImage(srcPath);
+        } catch (java.io.IOException imageError) {
+            System.out.println("Skipping imagelayer — file not found: " + srcPath);
+            return;
+        }
+
+        double sf = (double) tileSize / mapTileSize;
+        float layerOffX = parentOffX + getFloatAttribute(ilEl, "offsetx", 0f);
+        float layerOffY = parentOffY + getFloatAttribute(ilEl, "offsety", 0f);
+
+        ImageLayerData ild = new ImageLayerData();
+        ild.name      = ilEl.getAttribute("name");
+        ild.worldX    = (float) (layerOffX * sf + mapOffsetPixelsX);
+        ild.worldY    = (float) (layerOffY * sf + mapOffsetPixelsY);
+        ild.parallaxX = getFloatAttribute(ilEl, "parallaxx", 1f);
+        ild.parallaxY = getFloatAttribute(ilEl, "parallaxy", 1f);
+        ild.opacity   = getFloatAttribute(ilEl, "opacity", 1f) * parentOpacity;
+        ild.tintColor = composeTint(parentTint, parseTintColor(ilEl.getAttribute("tintcolor")));
+        ild.globalLayerIndex = globalIndex;
+        // Read "render" enum property (RenderBucket) — takes priority over legacy "foreground" boolean
+        String renderProp = getStringProperty(ilEl, "render", null);
+        if (renderProp != null && !renderProp.isBlank()) {
+            String r = renderProp.trim().toLowerCase();
+            ild.foreground = "foreground".equals(r);
+        } else {
+            String fgProp = getStringProperty(ilEl, "foreground", null);
+            ild.foreground = fgProp != null && Boolean.parseBoolean(fgProp.trim());
+        }
+
+        int scaledW = Math.max(1, (int) Math.round(rawImage.getWidth()  * sf));
+        int scaledH = Math.max(1, (int) Math.round(rawImage.getHeight() * sf));
+        try {
+            ild.image = ResourceCache.loadScaledImage(srcPath, scaledW, scaledH);
+        } catch (java.io.IOException scaleError) {
+            System.out.println("Failed to scale imagelayer: " + srcPath);
+            ild.image = rawImage;
+        }
+        imageLayers.add(ild);
+        System.out.println("Loaded imagelayer[" + globalIndex + "]: " + ild.name
+            + " @ (" + ild.worldX + "," + ild.worldY + ")");
+    }
+
+    /** Compose two tint colors (null = no tint). Multiplies RGB channels when both are present. */
+    private static Color composeTint(Color parent, Color child) {
+        if (child == null) return parent;
+        if (parent == null) return child;
+        float r = (parent.getRed()   / 255f) * (child.getRed()   / 255f);
+        float g = (parent.getGreen() / 255f) * (child.getGreen() / 255f);
+        float b = (parent.getBlue()  / 255f) * (child.getBlue()  / 255f);
+        float a = (parent.getAlpha() / 255f) * (child.getAlpha() / 255f);
+        return new Color(r, g, b, a);
     }
 
     // ---------------- Load Collision Layer ----------------
@@ -1008,15 +1190,8 @@ public class TileManager {
         foregroundVisibleTiles.clear();
         poolIndex = 0;
 
-        // Find the first layer explicitly marked depthSort — layers at or above it
+        // Use pre-computed firstAutoDepthLayerIdx — layers at or above it
         // auto-promote to depth-sort so they interleave correctly with entities.
-        int firstDepthLayerIdx = Integer.MAX_VALUE;
-        for (int i = 0; i < mapLayers.size(); i++) {
-            if (i < layerDepthSort.size() && layerDepthSort.get(i)) {
-                firstDepthLayerIdx = i;
-                break;
-            }
-        }
 
         for (int layerIndex = 0; layerIndex < mapLayers.size(); layerIndex++) {
             int[][] map = mapLayers.get(layerIndex);
@@ -1025,9 +1200,35 @@ public class TileManager {
             float py      = getLayerFloat(layerParallaxY, layerIndex, 1.0f);
             float opacity = getLayerFloat(layerOpacity, layerIndex, 1.0f);
             Color tint    = layerIndex < layerTint.size()      ? layerTint.get(layerIndex)       : null;
-            boolean forceBackground = layerIndex < layerBackground.size() && layerBackground.get(layerIndex);
-            boolean forceDepthSort = layerIndex < layerDepthSort.size() && layerDepthSort.get(layerIndex);
-            boolean forceForeground = layerIndex < layerForeground.size() && layerForeground.get(layerIndex);
+            float offX    = getLayerFloat(layerOffsetX, layerIndex, 0f);
+            float offY    = getLayerFloat(layerOffsetY, layerIndex, 0f);
+            int glIdx     = layerIndex < layerGlobalIndex.size() ? layerGlobalIndex.get(layerIndex) : layerIndex;
+
+            // === Resolve layer bucket using explicit properties ONLY ===
+            // Priority: render enum > legacy booleans > default (background)
+            // No name-based heuristics. No auto-promote.
+            String bucket = layerIndex < layerRenderBucket.size() ? layerRenderBucket.get(layerIndex) : null;
+            boolean forceForeground = false;
+            boolean forceBackground = false;
+            boolean forceDepthSort  = false;
+
+            if ("foreground".equals(bucket)) {
+                forceForeground = true;
+            } else if ("background".equals(bucket)) {
+                forceBackground = true;
+            } else if ("depth".equals(bucket)) {
+                forceDepthSort = true;
+            } else if (bucket == null || "auto".equals(bucket)) {
+                // No render enum set — check legacy booleans only
+                boolean legacyBg = layerIndex < layerBackground.size() && layerBackground.get(layerIndex);
+                boolean legacyDs = layerIndex < layerDepthSort.size() && layerDepthSort.get(layerIndex);
+                boolean legacyFg = layerIndex < layerForeground.size() && layerForeground.get(layerIndex);
+
+                if (legacyFg)      forceForeground = true;
+                else if (legacyBg) forceBackground = true;
+                else if (legacyDs) forceDepthSort  = true;
+                // else: no property → defaults to background
+            }
 
             for (int worldRow = minRow; worldRow <= maxRow; worldRow++) {
                 for (int worldCol = minCol; worldCol <= maxCol; worldCol++) {
@@ -1052,10 +1253,10 @@ public class TileManager {
 
                     VisibleTileDraw visibleTile = getPooledTileDraw();
                     visibleTile.image       = currentTile.image;
-                    visibleTile.worldX      = worldX;
-                    visibleTile.screenBaseY = screenBaseY;
-                    visibleTile.screenX     = Math.round(worldX      - cameraWorldX * px);
-                    visibleTile.screenY     = Math.round(screenBaseY - cameraWorldY * py);
+                    visibleTile.worldX      = worldX + Math.round(offX);
+                    visibleTile.screenBaseY = screenBaseY + Math.round(offY);
+                    visibleTile.screenX     = Math.round(worldX + offX - cameraWorldX * px);
+                    visibleTile.screenY     = Math.round(screenBaseY + offY - cameraWorldY * py);
                     visibleTile.parallaxX   = px;
                     visibleTile.parallaxY   = py;
                     visibleTile.baseWorldY  = worldY;
@@ -1065,8 +1266,9 @@ public class TileManager {
                     visibleTile.opacity     = opacity;
                     visibleTile.tint        = tint;
                     visibleTile.flipFlags   = (flipMap != null) ? flipMap[worldCol][worldRow] : 0;
-                    // Use layerIndex as renderOrder so Tiled layer order is always respected
-                    visibleTile.renderOrder = layerIndex;
+                    // Use global layer index so Tiled layer order is always respected,
+                    // even when image layers or group layers are interleaved
+                    visibleTile.renderOrder = glIdx;
 
                     // sortY = bottom edge of this tile + sortYOffset.
                     // sortYOffset values are in GAME pixels (not Tiled pixels) — no scaling needed.
@@ -1075,31 +1277,27 @@ public class TileManager {
                     int sortYOff = (gidToSortYOffset != null && gid < gidToSortYOffset.length) ? gidToSortYOffset[gid] : 0;
                     visibleTile.sortY = worldY + tileSize + sortYOff;
 
-                    // Per-tile properties override layer-level settings
+                    // Per-tile bucket overrides — read from gid lookup arrays
                     boolean isTileForeground = (gidToForeground != null && gid < gidToForeground.length && gidToForeground[gid]);
-                    boolean isTileDepthSort  = (gidToDepthSort  != null && gid < gidToDepthSort.length  && gidToDepthSort[gid]);
                     boolean isTileBackground = (gidToBackground != null && gid < gidToBackground.length && gidToBackground[gid]);
+                    boolean isTileDepth      = (gidToDepthSort  != null && gid < gidToDepthSort.length  && gidToDepthSort[gid]);
 
                     // Classification priority:
-                    // 1. Per-tile foreground always wins
-                    // 2. Per-tile depthSort (including sortYOffset) overrides everything
-                    // 3. Per-tile background overrides layer-level settings
-                    // 4. Layer-level foreground
-                    // 5. Layer-level background (only if layer is below depth-sort layers)
-                    // 6. Layer-level depthSort
-                    // 7. Auto-promote: layers at/above first depth-sort layer → depth-sort
-                    // 8. Default: background
+                    // 1. Per-tile explicit properties always override the layer bucket.
+                    //    foreground > background > depthSort (per-tile)
+                    // 2. If no per-tile override, use the layer bucket.
+                    // 3. Default → background.
                     if (isTileForeground) {
                         foregroundVisibleTiles.add(visibleTile);
-                    } else if (isTileDepthSort) {
-                        depthVisibleTiles.add(visibleTile);
                     } else if (isTileBackground) {
                         backgroundVisibleTiles.add(visibleTile);
+                    } else if (isTileDepth) {
+                        depthVisibleTiles.add(visibleTile);
                     } else if (forceForeground) {
                         foregroundVisibleTiles.add(visibleTile);
                     } else if (forceBackground) {
                         backgroundVisibleTiles.add(visibleTile);
-                    } else if (forceDepthSort || layerIndex >= firstDepthLayerIdx) {
+                    } else if (forceDepthSort) {
                         depthVisibleTiles.add(visibleTile);
                     } else {
                         backgroundVisibleTiles.add(visibleTile);
@@ -1173,21 +1371,81 @@ public class TileManager {
         g2.setColor(mapBackgroundColor);
         g2.fillRect(0, 0, gp.screenWidth, gp.screenHeight);
 
-        // Draw image layers behind all tile layers
-        drawImageLayers(g2);
+        // Interleave non-foreground image layers with background tiles based on their
+        // global layer index, so image layers appear at the correct Tiled stack position.
+        int imgCursor = 0;
+        int numImg = imageLayers.size();
+        int cameraWorldX = gp.player.worldX - gp.player.screenX;
+        int cameraWorldY = gp.player.worldY - gp.player.screenY;
+        int lastDrawnOrder = Integer.MIN_VALUE;
 
-        // OPTIMIZATION: indexed loop avoids Iterator allocation from for-each on ArrayList
         for (int i = 0, n = backgroundVisibleTiles.size(); i < n; i++) {
-            drawTile(g2, backgroundVisibleTiles.get(i));
+            VisibleTileDraw vtd = backgroundVisibleTiles.get(i);
+            // When crossing into a new renderOrder group, draw pending image layers
+            if (vtd.renderOrder != lastDrawnOrder) {
+                while (imgCursor < numImg) {
+                    ImageLayerData ild = imageLayers.get(imgCursor);
+                    if (ild.foreground) { imgCursor++; continue; }
+                    if (ild.globalLayerIndex >= vtd.renderOrder) break;
+                    drawSingleImageLayer(g2, ild, cameraWorldX, cameraWorldY);
+                    imgCursor++;
+                }
+                lastDrawnOrder = vtd.renderOrder;
+            }
+            drawTile(g2, vtd);
+        }
+
+        // Draw remaining non-foreground image layers
+        while (imgCursor < numImg) {
+            ImageLayerData ild = imageLayers.get(imgCursor++);
+            if (!ild.foreground) {
+                drawSingleImageLayer(g2, ild, cameraWorldX, cameraWorldY);
+            }
         }
 
         drawPathOverlay(g2);
     }
 
     public void drawForeground(Graphics2D g2) {
-        // OPTIMIZATION: indexed loop avoids Iterator allocation
+        // Fast path: no foreground image layers — just draw tiles
+        boolean hasFgImages = false;
+        for (int j = 0; j < imageLayers.size(); j++) {
+            if (imageLayers.get(j).foreground) { hasFgImages = true; break; }
+        }
+        if (!hasFgImages) {
+            for (int i = 0, n = foregroundVisibleTiles.size(); i < n; i++) {
+                drawTile(g2, foregroundVisibleTiles.get(i));
+            }
+            return;
+        }
+
+        // Interleave foreground image layers with foreground tiles by globalLayerIndex
+        int cameraWorldX = gp.player.worldX - gp.player.screenX;
+        int cameraWorldY = gp.player.worldY - gp.player.screenY;
+        int imgCursor = 0;
+        int numImg = imageLayers.size();
+        int lastOrder = Integer.MIN_VALUE;
+
         for (int i = 0, n = foregroundVisibleTiles.size(); i < n; i++) {
-            drawTile(g2, foregroundVisibleTiles.get(i));
+            VisibleTileDraw vtd = foregroundVisibleTiles.get(i);
+            if (vtd.renderOrder != lastOrder) {
+                while (imgCursor < numImg) {
+                    ImageLayerData ild = imageLayers.get(imgCursor);
+                    if (!ild.foreground) { imgCursor++; continue; }
+                    if (ild.globalLayerIndex >= vtd.renderOrder) break;
+                    drawSingleImageLayer(g2, ild, cameraWorldX, cameraWorldY);
+                    imgCursor++;
+                }
+                lastOrder = vtd.renderOrder;
+            }
+            drawTile(g2, vtd);
+        }
+        // Draw remaining foreground image layers
+        while (imgCursor < numImg) {
+            ImageLayerData ild = imageLayers.get(imgCursor++);
+            if (ild.foreground) {
+                drawSingleImageLayer(g2, ild, cameraWorldX, cameraWorldY);
+            }
         }
     }
 
@@ -1203,30 +1461,26 @@ public class TileManager {
         drawTile(g2, depthVisibleTiles.get(index));
     }
 
-    /** Draw all image layers (rendered behind background tile layers). */
-    private void drawImageLayers(Graphics2D g2) {
-        if (imageLayers.isEmpty()) return;
-        int cameraWorldX = gp.player.worldX - gp.player.screenX;
-        int cameraWorldY = gp.player.worldY - gp.player.screenY;
-        for (ImageLayerData ild : imageLayers) {
-            if (ild.image == null) continue;
-            int sx = Math.round(ild.worldX - cameraWorldX * ild.parallaxX);
-            int sy = Math.round(ild.worldY - cameraWorldY * ild.parallaxY);
-            Composite orig = null;
-            if (ild.opacity < 0.999f) {
-                orig = g2.getComposite();
-                g2.setComposite(cachedAlpha(ild.opacity));
-            }
-            g2.drawImage(ild.image, sx, sy, null);
-            if (ild.tintColor != null) {
-                Composite c = g2.getComposite();
-                g2.setComposite(cachedAlpha(0.4f * ild.opacity));
-                g2.setColor(ild.tintColor);
-                g2.fillRect(sx, sy, ild.image.getWidth(), ild.image.getHeight());
-                g2.setComposite(c);
-            }
-            if (orig != null) g2.setComposite(orig);
+    /** Draw a single image layer at its world position relative to the camera. */
+    private void drawSingleImageLayer(Graphics2D g2, ImageLayerData ild,
+                                       int cameraWorldX, int cameraWorldY) {
+        if (ild.image == null) return;
+        int sx = Math.round(ild.worldX - cameraWorldX * ild.parallaxX);
+        int sy = Math.round(ild.worldY - cameraWorldY * ild.parallaxY);
+        Composite orig = null;
+        if (ild.opacity < 0.999f) {
+            orig = g2.getComposite();
+            g2.setComposite(cachedAlpha(ild.opacity));
         }
+        g2.drawImage(ild.image, sx, sy, null);
+        if (ild.tintColor != null) {
+            Composite c = g2.getComposite();
+            g2.setComposite(cachedAlpha(0.4f * ild.opacity));
+            g2.setColor(ild.tintColor);
+            g2.fillRect(sx, sy, ild.image.getWidth(), ild.image.getHeight());
+            g2.setComposite(c);
+        }
+        if (orig != null) g2.setComposite(orig);
     }
 
     private void drawPathOverlay(Graphics2D g2) {
@@ -1290,7 +1544,10 @@ public class TileManager {
                 int gid = ts.firstGID + i;
                 gidToTile[gid]        = ts.tiles[i];
                 gidToRenderOrder[gid] = ts.renderOrder;
-                gidToDepthSort[gid]   = ts.depthSort;
+                // Depth-sort is determined ONLY by per-tile properties (depthSort, sortYOffset),
+                // NOT by tileset-level flags. This ensures Tiled layer order is the authority;
+                // tileset heuristics no longer pull ground/shadow tiles into the depth bucket.
+                gidToDepthSort[gid]   = false;
                 gidToForeground[gid]  = ts.foreground;
                 if (ts.tiles[i] != null) {
                     if (ts.tiles[i].depthSort) gidToDepthSort[gid] = true;
@@ -1335,29 +1592,20 @@ public class TileManager {
     }
 
     /**
-     * Classify a GID for the minimap biome colour.
-     * Returns: "water", "tree", "struct", "grass", "shadow", or null (unknown).
-     * Uses tileset name/path heuristics so it works across any map.
+     * Sample the center pixel colour of the tile image for a given GID.
+     * Returns the Color of the center pixel, or null if the GID is invalid or has no image.
+     * Used by Minimap for accurate terrain representation instead of name-based biome heuristics.
      */
-    public String classifyGidBiome(int gid) {
-        if (gid <= 0) return null;
-        for (int i = tilesets.size() - 1; i >= 0; i--) {
-            Tileset ts = tilesets.get(i);
-            if (gid >= ts.firstGID && gid < ts.firstGID + ts.tileCount) {
-                String n = (ts.name + " " + ts.sourcePath).toLowerCase();
-                if (n.contains("water") || n.contains("lake") || n.contains("river")) return "water";
-                if (n.contains("tree") || n.contains("forest") || n.contains("canopy")) return "tree";
-                if (n.contains("shadow") || n.contains("overlay") || n.contains("light")) return "shadow";
-                if (n.contains("struct") || n.contains("house") || n.contains("build") || n.contains("castle")
-                    || n.contains("wall") || n.contains("door") || n.contains("bridge") || n.contains("stone")
-                    || n.contains("cave") || n.contains("rock") || n.contains("dungeon")) return "struct";
-                if (n.contains("grass") || n.contains("ground") || n.contains("dirt") || n.contains("path")
-                    || n.contains("floor") || n.contains("terrain") || n.contains("sand")) return "grass";
-                // Fallback: if tileset name has no recognizable keyword, use generic grass
-                return "grass";
-            }
-        }
-        return null;
+    public Color sampleTileColor(int gid) {
+        if (gid <= 0 || gidToTile == null || gid >= gidToTile.length) return null;
+        Tile t = gidToTile[gid];
+        if (t == null || t.image == null) return null;
+        int cx = t.image.getWidth() / 2;
+        int cy = t.image.getHeight() / 2;
+        int argb = t.image.getRGB(cx, cy);
+        // Skip fully transparent pixels
+        if ((argb >>> 24) < 10) return null;
+        return new Color(argb, true);
     }
 
     /**
@@ -1388,47 +1636,17 @@ public class TileManager {
         return normalized.contains("tileset2") || normalized.contains("fence") || normalized.contains("stone");
     }
 
+    /**
+     * Get tileset render order from an explicit Tiled property only.
+     * No name-based heuristics. Returns 0 if no explicit property is set,
+     * since render order is now driven by globalLayerIndex (Tiled layer stacking).
+     */
     private int getTilesetRenderOrder(Element tilesetElement, String resourcePath) {
         int explicitRenderOrder = getIntProperty(tilesetElement, "renderOrder", Integer.MIN_VALUE);
         if (explicitRenderOrder != Integer.MIN_VALUE) {
             return explicitRenderOrder;
         }
-
-        String renderCategory = getStringProperty(tilesetElement, "renderCategory", "");
-        if (!renderCategory.isBlank()) {
-            return getDefaultRenderOrder(renderCategory, resourcePath);
-        }
-
-        return getDefaultRenderOrder(tilesetElement.getAttribute("name"), resourcePath);
-    }
-
-    private int getDefaultRenderOrder(String label, String resourcePath) {
-        String normalized = (label + " " + resourcePath).toLowerCase();
-        // Structures (fences, buildings, walls) sit above trees when at the same Y
-        if (normalized.contains("fence") || normalized.contains("build") || normalized.contains("house")
-                || normalized.contains("tower") || normalized.contains("wall")) {
-            return 25;
-        }
-        if (normalized.contains("tree") || normalized.contains("decor") || normalized.contains("foliage")) {
-            return 20;
-        }
-        if (normalized.contains("shadow")) {
-            return 15;
-        }
-        // Ground / base layer tilesets must render BELOW shadows (15).
-        // Any tileset whose name suggests it is a ground fill goes here.
-        if (normalized.contains("grass") || normalized.contains("ground")
-                || normalized.contains("field") || normalized.contains("dirt")
-                || normalized.contains("sand") || normalized.contains("soil")) {
-            return 5;
-        }
-        if (normalized.contains("water")) {
-            return 5;
-        }
-        // Unknown/new tilesets default to 16 — just above shadows (15).
-        // To draw BELOW shadows, set renderOrder = 10 (or lower) on the tileset in Tiled.
-        // To draw even higher (above trees/fences), set renderOrder = 30 or higher.
-        return 16;
+        return 0;
     }
 
     private int getIntProperty(Element element, String propertyName, int defaultValue) {
@@ -1444,20 +1662,16 @@ public class TileManager {
         }
     }
 
+    /**
+     * Get tileset depthSort flag from explicit Tiled property only.
+     * No name-based heuristics. Returns false if no property is set.
+     */
     private boolean getTilesetDepthSort(Element tilesetElement, String resourcePath) {
         String value = getStringProperty(tilesetElement, "depthSort", null);
         if (value == null || value.isBlank()) {
-            return isDepthSortedTileset(tilesetElement.getAttribute("name"), resourcePath);
+            return false;
         }
-
         return Boolean.parseBoolean(value.trim());
-    }
-
-    private boolean isDepthSortedTileset(String label, String resourcePath) {
-        String normalized = (label + " " + resourcePath).toLowerCase();
-        return normalized.contains("tree") || normalized.contains("decor") || normalized.contains("foliage")
-            || normalized.contains("fence") || normalized.contains("build") || normalized.contains("house")
-            || normalized.contains("tower") || normalized.contains("wall");
     }
 
     private boolean getTilesetForeground(Element tilesetElement) {
@@ -1486,12 +1700,24 @@ public class TileManager {
                 if (tileId < 0 || tileId >= ts.tiles.length || ts.tiles[tileId] == null) continue;
                 int sortYOff = getIntProperty(tileEl, "sortYOffset", 0);
                 if (sortYOff != 0) ts.tiles[tileId].sortYOffset = sortYOff;
-                String fg = getStringProperty(tileEl, "foreground", null);
-                if (fg != null) ts.tiles[tileId].foreground = Boolean.parseBoolean(fg.trim());
-                String bg = getStringProperty(tileEl, "background", null);
-                if (bg != null) ts.tiles[tileId].background = Boolean.parseBoolean(bg.trim());
-                String ds = getStringProperty(tileEl, "depthSort", null);
-                if (ds != null) ts.tiles[tileId].depthSort = Boolean.parseBoolean(ds.trim());
+
+                // Read unified "render" enum (RenderBucket) — takes priority over legacy booleans
+                String renderProp = getStringProperty(tileEl, "render", null);
+                if (renderProp != null && !renderProp.isBlank()) {
+                    String r = renderProp.trim().toLowerCase();
+                    if ("foreground".equals(r)) { ts.tiles[tileId].foreground = true; ts.tiles[tileId].background = false; ts.tiles[tileId].depthSort = false; }
+                    else if ("background".equals(r)) { ts.tiles[tileId].background = true; ts.tiles[tileId].foreground = false; ts.tiles[tileId].depthSort = false; }
+                    else if ("depth".equals(r)) { ts.tiles[tileId].depthSort = true; ts.tiles[tileId].foreground = false; ts.tiles[tileId].background = false; }
+                    // "auto" → leave defaults
+                } else {
+                    // Legacy per-boolean properties
+                    String fg = getStringProperty(tileEl, "foreground", null);
+                    if (fg != null) ts.tiles[tileId].foreground = Boolean.parseBoolean(fg.trim());
+                    String bg = getStringProperty(tileEl, "background", null);
+                    if (bg != null) ts.tiles[tileId].background = Boolean.parseBoolean(bg.trim());
+                    String ds = getStringProperty(tileEl, "depthSort", null);
+                    if (ds != null) ts.tiles[tileId].depthSort = Boolean.parseBoolean(ds.trim());
+                }
 
                 // ---- Parse <animation> block ----
                 NodeList animNodes = tileEl.getElementsByTagName("animation");

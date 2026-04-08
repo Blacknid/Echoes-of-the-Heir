@@ -289,29 +289,45 @@ public class Player extends Entity {
     public void getPlayerAttackImages() {
         attackFrames = new BufferedImage[4][5];
         // UP
-        attackFrames[DIR_UP][0] = setup("/res/player/b.attack/up/u1", gp.tileSize, gp.tileSize * 2);
-        attackFrames[DIR_UP][1] = setup("/res/player/b.attack/up/u2", gp.tileSize, gp.tileSize * 2);
-        attackFrames[DIR_UP][2] = setup("/res/player/b.attack/up/u3", gp.tileSize, gp.tileSize * 2);
-        attackFrames[DIR_UP][3] = setup("/res/player/b.attack/up/u4", gp.tileSize, gp.tileSize * 2);
-        attackFrames[DIR_UP][4] = setup("/res/player/b.attack/up/u5", gp.tileSize, gp.tileSize * 2);
+        attackFrames[DIR_UP][0] = setup("/res/player/b.attack/attack 1/up/u1", gp.tileSize, gp.tileSize * 2);
+        attackFrames[DIR_UP][1] = setup("/res/player/b.attack/attack 1/up/u2", gp.tileSize, gp.tileSize * 2);
+        attackFrames[DIR_UP][2] = setup("/res/player/b.attack/attack 1/up/u3", gp.tileSize, gp.tileSize * 2);
+        attackFrames[DIR_UP][3] = setup("/res/player/b.attack/attack 1/up/u4", gp.tileSize, gp.tileSize * 2);
+        attackFrames[DIR_UP][4] = setup("/res/player/b.attack/attack 1/up/u5", gp.tileSize, gp.tileSize * 2);
         // DOWN
-        attackFrames[DIR_DOWN][0] = setup("/res/player/b.attack/front/f1", gp.tileSize, gp.tileSize * 2);
-        attackFrames[DIR_DOWN][1] = setup("/res/player/b.attack/front/f2", gp.tileSize, gp.tileSize * 2);
-        attackFrames[DIR_DOWN][2] = setup("/res/player/b.attack/front/f3", gp.tileSize, gp.tileSize * 2);
-        attackFrames[DIR_DOWN][3] = setup("/res/player/b.attack/front/f4", gp.tileSize, gp.tileSize * 2);
-        attackFrames[DIR_DOWN][4] = setup("/res/player/b.attack/front/f5", gp.tileSize, gp.tileSize * 2);
+        attackFrames[DIR_DOWN][0] = setup("/res/player/b.attack/attack 1/front/f1", gp.tileSize, gp.tileSize * 2);
+        attackFrames[DIR_DOWN][1] = setup("/res/player/b.attack/attack 1/front/f2", gp.tileSize, gp.tileSize * 2);
+        attackFrames[DIR_DOWN][2] = setup("/res/player/b.attack/attack 1/front/f3", gp.tileSize, gp.tileSize * 2);
+        attackFrames[DIR_DOWN][3] = setup("/res/player/b.attack/attack 1/front/f4", gp.tileSize, gp.tileSize * 2);
+        attackFrames[DIR_DOWN][4] = setup("/res/player/b.attack/attack 1/front/f5", gp.tileSize, gp.tileSize * 2);
         // LEFT
-        attackFrames[DIR_LEFT][0] = setup("/res/player/b.attack/left/l1", gp.tileSize * 2, gp.tileSize);
-        attackFrames[DIR_LEFT][1] = setup("/res/player/b.attack/left/l2", gp.tileSize * 2, gp.tileSize);
-        attackFrames[DIR_LEFT][2] = setup("/res/player/b.attack/left/l3", gp.tileSize * 2, gp.tileSize);
-        attackFrames[DIR_LEFT][3] = setup("/res/player/b.attack/left/l4", gp.tileSize * 2, gp.tileSize);
-        attackFrames[DIR_LEFT][4] = setup("/res/player/b.attack/left/l5", gp.tileSize * 2, gp.tileSize);
+        attackFrames[DIR_LEFT][0] = setup("/res/player/b.attack/attack 1/left/l1", gp.tileSize * 2, gp.tileSize);
+        attackFrames[DIR_LEFT][1] = setup("/res/player/b.attack/attack 1/left/l2", gp.tileSize * 2, gp.tileSize);
+        attackFrames[DIR_LEFT][2] = setup("/res/player/b.attack/attack 1/left/l3", gp.tileSize * 2, gp.tileSize);
+        attackFrames[DIR_LEFT][3] = setup("/res/player/b.attack/attack 1/left/l4", gp.tileSize * 2, gp.tileSize);
+        attackFrames[DIR_LEFT][4] = setup("/res/player/b.attack/attack 1/left/l5", gp.tileSize * 2, gp.tileSize);
         // RIGHT
-        attackFrames[DIR_RIGHT][0] = setup("/res/player/b.attack/right/r1", gp.tileSize * 2, gp.tileSize);
-        attackFrames[DIR_RIGHT][1] = setup("/res/player/b.attack/right/r2", gp.tileSize * 2, gp.tileSize);
-        attackFrames[DIR_RIGHT][2] = setup("/res/player/b.attack/right/r3", gp.tileSize * 2, gp.tileSize);
-        attackFrames[DIR_RIGHT][3] = setup("/res/player/b.attack/right/r4", gp.tileSize * 2, gp.tileSize);
-        attackFrames[DIR_RIGHT][4] = setup("/res/player/b.attack/right/r5", gp.tileSize * 2, gp.tileSize);
+        attackFrames[DIR_RIGHT][0] = setup("/res/player/b.attack/attack 1/right/r1", gp.tileSize * 2, gp.tileSize);
+        attackFrames[DIR_RIGHT][1] = setup("/res/player/b.attack/attack 1/right/r2", gp.tileSize * 2, gp.tileSize);
+        attackFrames[DIR_RIGHT][2] = setup("/res/player/b.attack/attack 1/right/r3", gp.tileSize * 2, gp.tileSize);
+        attackFrames[DIR_RIGHT][3] = setup("/res/player/b.attack/attack 1/right/r4", gp.tileSize * 2, gp.tileSize);
+        attackFrames[DIR_RIGHT][4] = setup("/res/player/b.attack/attack 1/right/r5", gp.tileSize * 2, gp.tileSize);
+        // Combo step 1 — attack2_sheet (4 rows × 5 cols, 1-tile each: down/left/right/up)
+        int[] a2 = {5, 5, 5, 5};
+        BufferedImage[][] raw2 = loadSheetVariable("/res/player/b.attack/attack2_sheet", a2);
+        attackFrames2 = new BufferedImage[4][];
+        attackFrames2[DIR_DOWN]  = raw2[0];
+        attackFrames2[DIR_LEFT]  = raw2[1];
+        attackFrames2[DIR_RIGHT] = raw2[2];
+        attackFrames2[DIR_UP]    = raw2[3];
+        // Combo step 2 — attack3_sheet (4 rows × 6 cols, 1-tile each: down/left/right/up)
+        int[] a3 = {6, 6, 6, 6};
+        BufferedImage[][] raw3 = loadSheetVariable("/res/player/b.attack/attack3_sheet", a3);
+        attackFrames3 = new BufferedImage[4][];
+        attackFrames3[DIR_DOWN]  = raw3[0];
+        attackFrames3[DIR_LEFT]  = raw3[1];
+        attackFrames3[DIR_RIGHT] = raw3[2];
+        attackFrames3[DIR_UP]    = raw3[3];
     }
 
     public void getPlayerHitImages() {
@@ -543,6 +559,8 @@ public class Player extends Entity {
                 worldY = originalY;
             }
         } else {
+            // INPUT LOCKED: freeze player during door animations etc.
+            if (gp.inputLocked) return;
             // STATUS: rooted blocks all movement input
             boolean canMove = !rooted;
             // Determine direction based on keys — vertical takes priority for animation
@@ -629,6 +647,7 @@ public class Player extends Entity {
                 collisionOn = false;
                 gp.cChecker.checkTile(this);
                 int objIndex = gp.cChecker.checkObject(this, true);
+                gp.nearbyInteractable = null; // reset each frame
                 pickUpObject(objIndex);
                 int npcIndex = gp.cChecker.checkEntity(this, gp.npc);
                 interactNPC(npcIndex);
@@ -767,9 +786,9 @@ public class Player extends Entity {
         // Format: {frame1, frame2, frame3, frame4, frame5}
         // Frames 2-3 (swing) are snappiest, frame 1 (windup) and 4-5 (recovery) linger.
         int[][] frameDurations = {
-            {4, 2, 2, 4, 4},  // step 0: quick jab (16 total)
-            {4, 3, 3, 4, 4},  // step 1: swift slash (18 total)
-            {3, 2, 2, 3, 4},  // step 2: heavy finisher (14 total)
+            {4, 2, 2, 4, 4},        // step 0: quick jab,       5 frames, 16 ticks
+            {4, 3, 3, 4, 4},        // step 1: swift slash,     5 frames, 18 ticks
+            {3, 2, 2, 3, 3, 3},     // step 2: heavy finisher,  6 frames, 16 ticks
         };
         int[] durations = frameDurations[Math.min(comboStep, 2)];
 
@@ -806,8 +825,9 @@ public class Player extends Entity {
 
         // Determine current frame from variable-length durations
         int elapsed = 0;
-        int currentFrame = 5;
-        for (int f = 0; f < 5; f++) {
+        int maxFrames = durations.length;
+        int currentFrame = maxFrames;
+        for (int f = 0; f < maxFrames; f++) {
             elapsed += durations[f];
             if (spriteCounter <= elapsed) {
                 currentFrame = f + 1;
@@ -1418,6 +1438,7 @@ public class Player extends Entity {
             }
             // INTERACTABLE OBJECTS (chests, doors, etc.)
             else if (gp.obj[i].type == TYPE_OBSTACLE) {
+                gp.nearbyInteractable = gp.obj[i]; // track for UI prompt
                 if(keyH.enterPressed) {
                     attackCanceled = true;
                     gp.obj[i].interact();
@@ -1659,30 +1680,32 @@ public class Player extends Entity {
         int tempScreenY = screenY;
         int frame = Math.max(1, spriteNum);
 
-        int drawW = gp.tileSize;
-        int drawH = gp.tileSize;
+        int drawW = (int)(gp.tileSize * spriteScale);
+        int drawH = (int)(gp.tileSize * spriteScale);
 
         if (attacking) {
             image = getAttackFrame(direction, frame);
-            // Attack sprites have doubled dimension — set proper draw size and offset
-            switch(direction) {
-                case DIR_UP -> {
-                    drawW = gp.tileSize;
-                    drawH = gp.tileSize * 2;
-                    tempScreenY -= gp.tileSize;
-                }
-                case DIR_DOWN -> {
-                    drawW = gp.tileSize;
-                    drawH = gp.tileSize * 2;
-                }
-                case DIR_LEFT -> {
-                    drawW = gp.tileSize * 2;
-                    drawH = gp.tileSize;
-                    tempScreenX -= gp.tileSize;
-                }
-                case DIR_RIGHT -> {
-                    drawW = gp.tileSize * 2;
-                    drawH = gp.tileSize;
+            // Attack1 sprites are 2-tile — set doubled draw size and offset (attack2/3 are 1-tile)
+            if (comboStep == 0) {
+                switch(direction) {
+                    case DIR_UP -> {
+                        drawW = (int)(gp.tileSize * spriteScale);
+                        drawH = (int)(gp.tileSize * 2 * spriteScale);
+                        tempScreenY -= gp.tileSize * spriteScale;
+                    }
+                    case DIR_DOWN -> {
+                        drawW = (int)(gp.tileSize * spriteScale);
+                        drawH = (int)(gp.tileSize * 2 * spriteScale);
+                    }
+                    case DIR_LEFT -> {
+                        drawW = (int)(gp.tileSize * 2 * spriteScale);
+                        drawH = (int)(gp.tileSize * spriteScale);
+                        tempScreenX -= gp.tileSize * spriteScale;
+                    }
+                    case DIR_RIGHT -> {
+                        drawW = (int)(gp.tileSize * 2 * spriteScale);
+                        drawH = (int)(gp.tileSize * spriteScale);
+                    }
                 }
             }
 
@@ -1699,10 +1722,12 @@ public class Player extends Entity {
                     int idx = (trailIndex - trailCount + ti + TRAIL_SIZE) % TRAIL_SIZE;
                     int tSX = trailWorldX[idx] - playerWX + playerSX;
                     int tSY = trailWorldY[idx] - playerWY + playerSY;
-                    // Apply same attack offset as main sprite
-                    switch (direction) {
-                        case DIR_UP   -> tSY -= gp.tileSize;
-                        case DIR_LEFT -> tSX -= gp.tileSize;
+                    // Apply same attack offset as main sprite (only for attack1's 2-tile sprites)
+                    if (comboStep == 0) {
+                        switch (direction) {
+                            case DIR_UP   -> tSY -= gp.tileSize;
+                            case DIR_LEFT -> tSX -= gp.tileSize;
+                        }
                     }
                     float alpha = (ti < trailAlphas.length) ? trailAlphas[ti] : 0.03f;
                     g2.setComposite(AlphaComposite.getInstance(AlphaComposite.SRC_OVER, alpha));
@@ -1790,10 +1815,15 @@ public class Player extends Entity {
     }
 
     private BufferedImage getAttackFrame(int dir, int frame) {
-        if (attackFrames != null && dir >= 0 && dir < attackFrames.length && attackFrames[dir] != null) {
+        BufferedImage[][] frames = switch (comboStep) {
+            case 1  -> attackFrames2 != null ? attackFrames2 : attackFrames;
+            case 2  -> attackFrames3 != null ? attackFrames3 : attackFrames;
+            default -> attackFrames;
+        };
+        if (frames != null && dir >= 0 && dir < frames.length && frames[dir] != null) {
             int idx = frame - 1;
-            if (idx >= 0 && idx < attackFrames[dir].length) return attackFrames[dir][idx];
-            return attackFrames[dir][0]; // fallback first frame
+            if (idx >= 0 && idx < frames[dir].length) return frames[dir][idx];
+            return frames[dir][0];
         }
         return null;
     }

@@ -1,5 +1,7 @@
 package object;
 
+import java.awt.image.BufferedImage;
+
 import entity.Entity;
 import main.GamePanel;
 
@@ -18,6 +20,24 @@ public class OBJ_Door extends Entity {
     /** Named spawn point on the target map — resolved after the map loads. */
     public String spawnId = "";
 
+    // ── DOOR OPEN ANIMATION (future — null means no animation, immediate transition) ──
+    public BufferedImage[] doorOpenFrames;
+    public int doorAnimIndex = 0;
+    public int doorAnimSpeed = 8;      // ticks per frame
+    public int doorAnimCounter = 0;
+    public boolean doorOpening = false;
+
+    // Pending transition params (used during door animation)
+    private String pendingLocation;
+    private int pendingSpawnCol;
+    private int pendingSpawnRow;
+
+    /** Whether the door sprite is visible. False for invisible building entry zones. */
+    public boolean visible = true;
+
+    /** Prompt text shown when player is nearby (e.g. "Enter", "Open Door"). */
+    public String promptText = "Enter";
+
     public OBJ_Door(GamePanel gp) {
         super(gp);
         this.gp = gp;
@@ -31,6 +51,35 @@ public class OBJ_Door extends Entity {
         solidArea.y = 12;
         solidArea.width = 48;
         solidArea.height = 52;
+        solidAreaDefaultX = solidArea.x;
+        solidAreaDefaultY = solidArea.y;
+
+        setDialogue();
+    }
+
+    /**
+     * Create an invisible door (building entry zone).
+     * Collision is enabled so the player can interact, but no sprite is drawn.
+     */
+    public OBJ_Door(GamePanel gp, boolean invisible) {
+        super(gp);
+        this.gp = gp;
+
+        type = TYPE_OBSTACLE;
+        name = "Door";
+        collision = true;
+
+        if (invisible) {
+            visible = false;
+            down1 = null; // Entity.draw() safely skips null sprites
+        } else {
+            down1 = setup("/res/objects/Door", gp.tileSize, gp.tileSize);
+        }
+
+        solidArea.x = 0;
+        solidArea.y = 0;
+        solidArea.width = gp.tileSize;
+        solidArea.height = gp.tileSize;
         solidAreaDefaultX = solidArea.x;
         solidAreaDefaultY = solidArea.y;
 
@@ -56,18 +105,51 @@ public class OBJ_Door extends Entity {
                 int row = Integer.parseInt(parts[1].trim());
                 gp.player.worldX = col * gp.tileSize;
                 gp.player.worldY = row * gp.tileSize;
+            } else if (doorOpenFrames != null && doorOpenFrames.length > 0) {
+                // Door has opening animation — play it first, then transition
+                pendingLocation = location;
+                pendingSpawnCol = spawnCol;
+                pendingSpawnRow = spawnRow;
+                doorOpening = true;
+                doorAnimIndex = 0;
+                doorAnimCounter = 0;
+                gp.inputLocked = true;
             } else {
-                // Map change — use smooth fade transition via the safe entry point
-                // Save this door's tile position so the return path can lead back here
-                gp.mapManager.doorEntryCol = worldX / gp.tileSize;    // convert pixel position to tile
-                gp.mapManager.doorEntryRow = worldY / gp.tileSize;    // convert pixel position to tile
-                // Named spawn point: resolved on the target map after it loads
-                gp.mapManager.nextSpawnId = (spawnId != null) ? spawnId : "";
-                gp.startTransition(location, spawnCol, spawnRow);
+                // No animation — immediate transition
+                beginTransition(location, spawnCol, spawnRow);
             }
         } else {
             startDialogue(this, 0);
         }
+    }
+
+    @Override
+    public void update() {
+        if (!doorOpening) return;
+
+        doorAnimCounter++;
+        if (doorAnimCounter >= doorAnimSpeed) {
+            doorAnimCounter = 0;
+            doorAnimIndex++;
+            if (doorAnimIndex >= doorOpenFrames.length) {
+                // Animation finished — start the map transition
+                doorOpening = false;
+                gp.inputLocked = false;
+                down1 = doorOpenFrames[doorOpenFrames.length - 1]; // hold last frame
+                beginTransition(pendingLocation, pendingSpawnCol, pendingSpawnRow);
+                return;
+            }
+            // Update visible sprite to current animation frame
+            down1 = doorOpenFrames[doorAnimIndex];
+        }
+    }
+
+    /** Starts the fade transition to another map. */
+    private void beginTransition(String loc, int col, int row) {
+        gp.mapManager.doorEntryCol = worldX / gp.tileSize;
+        gp.mapManager.doorEntryRow = worldY / gp.tileSize;
+        gp.mapManager.nextSpawnId = (spawnId != null) ? spawnId : "";
+        gp.startTransition(loc, col, row);
     }
 
     /**

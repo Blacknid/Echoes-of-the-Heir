@@ -523,6 +523,31 @@ public class KeyHandler implements KeyListener {
             gp.memoryFlashback.trigger(testFrag);
         }
 
+        // [DEBUG] F9 = open/close debug map switcher
+        if (code == KeyEvent.VK_F9) {
+            gp.debugMapSwitcherOpen = !gp.debugMapSwitcherOpen;
+            if (gp.debugMapSwitcherOpen) gp.refreshDebugMapList();
+        }
+
+        // Debug map switcher navigation (W/S/Enter/Escape consumed by switcher when open)
+        if (gp.debugMapSwitcherOpen) {
+            if (code == KeyEvent.VK_W || code == KeyEvent.VK_UP) {
+                gp.debugMapSelectedIndex = Math.max(0, gp.debugMapSelectedIndex - 1);
+            }
+            if (code == KeyEvent.VK_S || code == KeyEvent.VK_DOWN) {
+                gp.debugMapSelectedIndex = Math.min(gp.debugMapList.size() - 1, gp.debugMapSelectedIndex + 1);
+            }
+            if (code == KeyEvent.VK_ENTER && !gp.debugMapList.isEmpty()) {
+                String targetId = gp.debugMapList.get(gp.debugMapSelectedIndex);
+                gp.debugMapSwitcherOpen = false;
+                gp.startTransition(targetId, -1, -1); // -1,-1 = use map default spawn
+            }
+            if (code == KeyEvent.VK_ESCAPE) {
+                gp.debugMapSwitcherOpen = false;
+            }
+            return; // swallow all keys while switcher is open
+        }
+
         // Hitboxes toggle
         if (code == KeyEvent.VK_H) { gp.HitBoxes = !gp.HitBoxes; }
 

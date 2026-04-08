@@ -1,11 +1,20 @@
 package map;
 
+import java.net.URL;
+import java.util.Enumeration;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.jar.JarEntry;
+import java.util.jar.JarFile;
+
+import org.w3c.dom.Document;
+import org.w3c.dom.Element;
+import org.w3c.dom.NodeList;
 
 import entity.Entity;
 import main.GamePanel;
 import tiles_interactive.interactiveTile;
+import util.ResourceCache;
 
 /**
  * Manages map registry, map transitions, and per-map entity persistence.
@@ -63,6 +72,97 @@ public class MapManager {
 
     public void registerMap(String id, String tmxPath) {
         mapRegistry.put(id, tmxPath);
+    }
+
+    /**
+     * Auto-discover all .tmx map files in /res/maps/ and register them.
+     * Map ID = filename without extension, lowercased (e.g. "Awakening_Cave.tmx" → "awakening_cave").
+     * If the TMX has a map-level "mapId" property, that overrides the filename-derived ID.
+     */
+    public void discoverMaps() {
+        mapRegistry.clear();
+        String mapsDir = "/res/maps/";
+        try {
+            // Try classpath resource listing (works in JAR and filesystem)
+            URL dirUrl = getClass().getResource(mapsDir);
+            if (dirUrl != null && "file".equals(dirUrl.getProtocol())) {
+                // Running from filesystem (IDE / bin folder)
+                java.io.File dir = new java.io.File(dirUrl.toURI());
+                java.io.File[] files = dir.listFiles((d, name) -> name.toLowerCase().endsWith(".tmx"));
+                if (files != null) {
+                    for (java.io.File f : files) {
+                        String tmxPath = mapsDir + f.getName();
+                        String id = deriveMapId(f.getName(), tmxPath);
+                        mapRegistry.put(id, tmxPath);
+                    }
+                }
+            } else if (dirUrl != null && "jar".equals(dirUrl.getProtocol())) {
+                // Running from JAR
+                String jarPath = dirUrl.getPath().substring(5, dirUrl.getPath().indexOf("!"));
+                try (JarFile jar = new JarFile(java.net.URLDecoder.decode(jarPath, "UTF-8"))) {
+                    Enumeration<JarEntry> entries = jar.entries();
+                    while (entries.hasMoreElements()) {
+                        String entryName = entries.nextElement().getName();
+                        // entries are like "res/maps/harta.tmx" (no leading slash)
+                        String prefix = mapsDir.substring(1); // "res/maps/"
+                        if (entryName.startsWith(prefix) && entryName.toLowerCase().endsWith(".tmx")) {
+                            String fileName = entryName.substring(prefix.length());
+                            if (fileName.contains("/")) continue; // skip subdirectories
+                            String tmxPath = mapsDir + fileName;
+                            String id = deriveMapId(fileName, tmxPath);
+                            mapRegistry.put(id, tmxPath);
+                        }
+                    }
+                }
+            }
+
+            if (mapRegistry.isEmpty()) {
+                System.out.println("MapManager WARNING: No .tmx files discovered in " + mapsDir);
+            } else {
+                System.out.println("MapManager: Discovered " + mapRegistry.size() + " maps:");
+                for (Map.Entry<String, String> entry : mapRegistry.entrySet()) {
+                    System.out.println("  \"" + entry.getKey() + "\" -> " + entry.getValue());
+                }
+            }
+        } catch (Exception e) {
+            System.out.println("MapManager: Failed to discover maps from " + mapsDir);
+            e.printStackTrace(System.out);
+        }
+    }
+
+    /**
+     * Derive a map ID from a .tmx filename. Checks the TMX for an explicit "mapId" property first.
+     * Falls back to filename without extension, lowercased.
+     */
+    private String deriveMapId(String fileName, String tmxPath) {
+        // Try reading mapId from TMX properties
+        try {
+            Document doc = ResourceCache.loadXml(tmxPath);
+            if (doc != null) {
+                Element mapRoot = doc.getDocumentElement();
+                NodeList propsList = mapRoot.getChildNodes();
+                for (int i = 0; i < propsList.getLength(); i++) {
+                    if (!(propsList.item(i) instanceof Element)) continue;
+                    Element child = (Element) propsList.item(i);
+                    if (!"properties".equals(child.getTagName())) continue;
+                    NodeList props = child.getElementsByTagName("property");
+                    for (int j = 0; j < props.getLength(); j++) {
+                        Element prop = (Element) props.item(j);
+                        if ("mapId".equals(prop.getAttribute("name"))) {
+                            String val = prop.getAttribute("value").trim();
+                            if (!val.isEmpty()) return val;
+                        }
+                    }
+                }
+            }
+        } catch (Exception ignored) {
+            // If TMX can't be parsed for mapId, fall back to filename
+        }
+        // Filename without extension, lowercased
+        String name = fileName;
+        int dot = name.lastIndexOf('.');
+        if (dot > 0) name = name.substring(0, dot);
+        return name.toLowerCase();
     }
 
     /**
@@ -141,6 +241,18 @@ public class MapManager {
                 System.out.println("MapManager: SpawnId '" + nextSpawnId + "' not found, using col/row fallback");
             }
             nextSpawnId = "";
+        }
+
+        // -1 means "use map default spawn" (set by SpawnPoint objects during loadEventsFromTMX)
+        if (spawnCol < 0 || spawnRow < 0) {
+            if (defaultSpawnCol >= 0 && defaultSpawnRow >= 0) {
+                spawnCol = defaultSpawnCol;
+                spawnRow = defaultSpawnRow;
+            } else {
+                // Last resort: map center
+                spawnCol = gp.maxWorldCol / 2;
+                spawnRow = gp.maxWorldRow / 2;
+            }
         }
 
         gp.player.worldX = spawnCol * gp.tileSize;

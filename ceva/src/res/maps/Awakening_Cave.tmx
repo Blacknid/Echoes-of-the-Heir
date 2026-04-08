@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<map version="1.10" tiledversion="1.12.1" orientation="orthogonal" renderorder="right-down" width="40" height="30" tilewidth="32" tileheight="32" infinite="0" nextlayerid="23" nextobjectid="124">
+<map version="1.10" tiledversion="1.12.1" orientation="orthogonal" renderorder="right-down" width="40" height="30" tilewidth="32" tileheight="32" infinite="0" nextlayerid="24" nextobjectid="124">
  <properties>
   <property name="actTitle" value="Act I: The Awakening Cave"/>
   <property name="ambientLight" type="float" value="0.7"/>
@@ -1400,12 +1400,12 @@
   </tile>
   <tile id="142">
    <properties>
-    <property name="foreground" type="bool" value="true"/>
+    <property name="sortYOffset" type="int" value="128"/>
    </properties>
   </tile>
   <tile id="143">
    <properties>
-    <property name="foreground" type="bool" value="true"/>
+    <property name="sortYOffset" type="int" value="128"/>
    </properties>
   </tile>
   <tile id="148">
@@ -1460,17 +1460,17 @@
   </tile>
   <tile id="163">
    <properties>
-    <property name="foreground" type="bool" value="true"/>
+    <property name="sortYOffset" type="int" value="96"/>
    </properties>
   </tile>
   <tile id="164">
    <properties>
-    <property name="foreground" type="bool" value="true"/>
+    <property name="sortYOffset" type="int" value="96"/>
    </properties>
   </tile>
   <tile id="165">
    <properties>
-    <property name="foreground" type="bool" value="true"/>
+    <property name="sortYOffset" type="int" value="96"/>
    </properties>
   </tile>
   <tile id="169">
@@ -1523,7 +1523,22 @@
     <property name="foreground" type="bool" value="true"/>
    </properties>
   </tile>
+  <tile id="184">
+   <properties>
+    <property name="sortYOffset" type="int" value="64"/>
+   </properties>
+  </tile>
+  <tile id="185">
+   <properties>
+    <property name="sortYOffset" type="int" value="64"/>
+   </properties>
+  </tile>
   <tile id="186">
+   <properties>
+    <property name="sortYOffset" type="int" value="64"/>
+   </properties>
+  </tile>
+  <tile id="187">
    <properties>
     <property name="sortYOffset" type="int" value="64"/>
    </properties>
@@ -1566,26 +1581,6 @@
   <tile id="203">
    <properties>
     <property name="foreground" type="bool" value="true"/>
-   </properties>
-  </tile>
-  <tile id="205">
-   <properties>
-    <property name="sortYOffset" type="int" value="-40"/>
-   </properties>
-  </tile>
-  <tile id="206">
-   <properties>
-    <property name="sortYOffset" type="int" value="-40"/>
-   </properties>
-  </tile>
-  <tile id="207">
-   <properties>
-    <property name="sortYOffset" type="int" value="-40"/>
-   </properties>
-  </tile>
-  <tile id="208">
-   <properties>
-    <property name="sortYOffset" type="int" value="-64"/>
    </properties>
   </tile>
   <tile id="211">
@@ -1693,174 +1688,189 @@
     <property name="sortYOffset" type="int" value="64"/>
    </properties>
   </tile>
+  <tile id="274">
+   <properties>
+    <property name="background" type="bool" value="true"/>
+   </properties>
+  </tile>
+  <tile id="275">
+   <properties>
+    <property name="background" type="bool" value="true"/>
+   </properties>
+  </tile>
+  <tile id="276">
+   <properties>
+    <property name="sortYOffset" type="int" value="64"/>
+   </properties>
+  </tile>
+  <tile id="277">
+   <properties>
+    <property name="sortYOffset" type="int" value="64"/>
+   </properties>
+  </tile>
+  <tile id="278">
+   <properties>
+    <property name="sortYOffset" type="int" value="64"/>
+   </properties>
+  </tile>
+  <tile id="279">
+   <properties>
+    <property name="sortYOffset" type="int" value="64"/>
+   </properties>
+  </tile>
+  <tile id="280">
+   <properties>
+    <property name="sortYOffset" type="int" value="64"/>
+   </properties>
+  </tile>
   <tile id="297">
    <properties>
     <property name="sortYOffset" type="int" value="-64"/>
    </properties>
   </tile>
-  <tile id="298">
-   <properties>
-    <property name="sortYOffset" type="int" value="-64"/>
-   </properties>
-  </tile>
-  <tile id="299">
-   <properties>
-    <property name="sortYOffset" type="int" value="-64"/>
-   </properties>
-  </tile>
-  <tile id="300">
-   <properties>
-    <property name="sortYOffset" type="int" value="-64"/>
-   </properties>
-  </tile>
-  <tile id="301">
-   <properties>
-    <property name="sortYOffset" type="int" value="-64"/>
-   </properties>
-  </tile>
-  <tile id="304">
-   <properties>
-    <property name="sortYOffset" type="int" value="96"/>
-   </properties>
-  </tile>
-  <tile id="305">
-   <properties>
-    <property name="sortYOffset" type="int" value="96"/>
-   </properties>
-  </tile>
-  <tile id="306">
-   <properties>
-    <property name="sortYOffset" type="int" value="96"/>
-   </properties>
-  </tile>
-  <tile id="307">
-   <properties>
-    <property name="sortYOffset" type="int" value="96"/>
-   </properties>
-  </tile>
-  <tile id="308">
-   <properties>
-    <property name="sortYOffset" type="int" value="96"/>
-   </properties>
-  </tile>
-  <tile id="309">
-   <properties>
-    <property name="sortYOffset" type="int" value="96"/>
-   </properties>
-  </tile>
-  <tile id="310">
-   <properties>
-    <property name="sortYOffset" type="int" value="96"/>
-   </properties>
-  </tile>
-  <tile id="311">
-   <properties>
-    <property name="sortYOffset" type="int" value="96"/>
-   </properties>
-  </tile>
-  <tile id="312">
-   <properties>
-    <property name="sortYOffset" type="int" value="96"/>
-   </properties>
-  </tile>
-  <tile id="313">
-   <properties>
-    <property name="sortYOffset" type="int" value="96"/>
-   </properties>
-  </tile>
-  <tile id="317">
-   <properties>
-    <property name="sortYOffset" type="int" value="64"/>
-   </properties>
-  </tile>
-  <tile id="318">
-   <properties>
-    <property name="sortYOffset" type="int" value="64"/>
-   </properties>
-  </tile>
-  <tile id="319">
-   <properties>
-    <property name="sortYOffset" type="int" value="64"/>
-   </properties>
-  </tile>
-  <tile id="320">
-   <properties>
-    <property name="sortYOffset" type="int" value="64"/>
-   </properties>
-  </tile>
-  <tile id="321">
-   <properties>
-    <property name="sortYOffset" type="int" value="64"/>
-   </properties>
-  </tile>
-  <tile id="322">
-   <properties>
-    <property name="sortYOffset" type="int" value="64"/>
-   </properties>
-  </tile>
-  <tile id="323">
-   <properties>
-    <property name="sortYOffset" type="int" value="64"/>
-   </properties>
-  </tile>
-  <tile id="324">
-   <properties>
-    <property name="sortYOffset" type="int" value="64"/>
-   </properties>
-  </tile>
   <tile id="325">
    <properties>
-    <property name="sortYOffset" type="int" value="64"/>
+    <property name="sortYOffset" type="int" value="-64"/>
    </properties>
   </tile>
   <tile id="326">
    <properties>
-    <property name="sortYOffset" type="int" value="64"/>
+    <property name="sortYOffset" type="int" value="-64"/>
    </properties>
   </tile>
   <tile id="327">
    <properties>
-    <property name="sortYOffset" type="int" value="64"/>
+    <property name="sortYOffset" type="int" value="-64"/>
    </properties>
   </tile>
   <tile id="328">
    <properties>
-    <property name="sortYOffset" type="int" value="64"/>
+    <property name="sortYOffset" type="int" value="-64"/>
    </properties>
   </tile>
   <tile id="329">
    <properties>
-    <property name="sortYOffset" type="int" value="64"/>
+    <property name="sortYOffset" type="int" value="-64"/>
    </properties>
   </tile>
   <tile id="330">
    <properties>
-    <property name="sortYOffset" type="int" value="64"/>
+    <property name="sortYOffset" type="int" value="-64"/>
    </properties>
   </tile>
   <tile id="331">
    <properties>
-    <property name="sortYOffset" type="int" value="64"/>
+    <property name="sortYOffset" type="int" value="-64"/>
    </properties>
   </tile>
   <tile id="332">
    <properties>
-    <property name="sortYOffset" type="int" value="64"/>
+    <property name="sortYOffset" type="int" value="-64"/>
    </properties>
   </tile>
   <tile id="333">
    <properties>
-    <property name="sortYOffset" type="int" value="64"/>
+    <property name="sortYOffset" type="int" value="-64"/>
    </properties>
   </tile>
   <tile id="334">
    <properties>
-    <property name="sortYOffset" type="int" value="64"/>
+    <property name="sortYOffset" type="int" value="-64"/>
    </properties>
   </tile>
   <tile id="337">
    <properties>
-    <property name="foreground" type="bool" value="true"/>
+    <property name="background" type="bool" value="true"/>
+   </properties>
+  </tile>
+  <tile id="338">
+   <properties>
+    <property name="sortYOffset" type="int" value="-64"/>
+   </properties>
+  </tile>
+  <tile id="339">
+   <properties>
+    <property name="sortYOffset" type="int" value="-64"/>
+   </properties>
+  </tile>
+  <tile id="340">
+   <properties>
+    <property name="sortYOffset" type="int" value="-64"/>
+   </properties>
+  </tile>
+  <tile id="341">
+   <properties>
+    <property name="sortYOffset" type="int" value="-64"/>
+   </properties>
+  </tile>
+  <tile id="342">
+   <properties>
+    <property name="sortYOffset" type="int" value="-64"/>
+   </properties>
+  </tile>
+  <tile id="343">
+   <properties>
+    <property name="sortYOffset" type="int" value="-64"/>
+   </properties>
+  </tile>
+  <tile id="344">
+   <properties>
+    <property name="sortYOffset" type="int" value="-64"/>
+   </properties>
+  </tile>
+  <tile id="345">
+   <properties>
+    <property name="sortYOffset" type="int" value="-64"/>
+   </properties>
+  </tile>
+  <tile id="346">
+   <properties>
+    <property name="sortYOffset" type="int" value="-96"/>
+   </properties>
+  </tile>
+  <tile id="347">
+   <properties>
+    <property name="sortYOffset" type="int" value="-96"/>
+   </properties>
+  </tile>
+  <tile id="348">
+   <properties>
+    <property name="sortYOffset" type="int" value="-96"/>
+   </properties>
+  </tile>
+  <tile id="349">
+   <properties>
+    <property name="sortYOffset" type="int" value="-96"/>
+   </properties>
+  </tile>
+  <tile id="350">
+   <properties>
+    <property name="sortYOffset" type="int" value="-96"/>
+   </properties>
+  </tile>
+  <tile id="351">
+   <properties>
+    <property name="sortYOffset" type="int" value="-96"/>
+   </properties>
+  </tile>
+  <tile id="352">
+   <properties>
+    <property name="sortYOffset" type="int" value="-96"/>
+   </properties>
+  </tile>
+  <tile id="353">
+   <properties>
+    <property name="sortYOffset" type="int" value="-96"/>
+   </properties>
+  </tile>
+  <tile id="354">
+   <properties>
+    <property name="sortYOffset" type="int" value="-96"/>
+   </properties>
+  </tile>
+  <tile id="355">
+   <properties>
+    <property name="sortYOffset" type="int" value="-96"/>
    </properties>
   </tile>
   <tile id="358">
@@ -3918,11 +3928,27 @@
   <image source="../tiles/AWAKENING CAVE/water_detilazation_v2.png" width="1184" height="2496"/>
  </tileset>
  <tileset firstgid="7724" name="ground_grasss" tilewidth="32" tileheight="32" tilecount="742" columns="53">
-  <image source="../tiles/CANVAS VILLAGE/ground_grasss.png" width="1696" height="448"/>
+  <image source="../tiles/CANVAS VILLAGE/Field/ground_grasss.png" width="1696" height="448"/>
+  <tile id="663">
+   <properties>
+    <property name="sortYOffset" type="int" value="64"/>
+   </properties>
+  </tile>
+  <tile id="664">
+   <properties>
+    <property name="sortYOffset" type="int" value="64"/>
+   </properties>
+  </tile>
+  <tile id="665">
+   <properties>
+    <property name="sortYOffset" type="int" value="64"/>
+   </properties>
+  </tile>
  </tileset>
  <layer id="1" name="Ground" width="40" height="30">
   <properties>
    <property name="background" type="bool" value="true"/>
+   <property name="render" propertytype="RenderBucket" value="background"/>
   </properties>
   <data encoding="csv">
 59,59,59,59,59,59,59,59,59,59,59,59,59,59,59,59,59,59,59,59,59,59,59,59,59,59,59,59,59,59,59,59,59,59,59,59,59,59,59,59,
@@ -3958,6 +3984,9 @@
 </data>
  </layer>
  <layer id="18" name="Ground_water" width="40" height="30">
+  <properties>
+   <property name="render" propertytype="RenderBucket" value="background"/>
+  </properties>
   <data encoding="csv">
 0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
 0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
@@ -3992,6 +4021,9 @@
 </data>
  </layer>
  <layer id="19" name="Walls_water" width="40" height="30">
+  <properties>
+   <property name="render" propertytype="RenderBucket" value="depth"/>
+  </properties>
   <data encoding="csv">
 0,0,0,0,0,0,0,0,4036,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
 0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
@@ -4026,11 +4058,14 @@
 </data>
  </layer>
  <layer id="4" name="Ground_details" width="40" height="30">
+  <properties>
+   <property name="render" propertytype="RenderBucket" value="depth"/>
+  </properties>
   <data encoding="csv">
-1458,0,0,0,0,0,0,0,0,1390,1391,8187,8188,8189,8188,8188,8188,8188,8188,8188,8187,8188,8189,0,0,0,0,0,0,0,0,0,0,0,1256,1119,1122,1123,1124,1120,
-0,0,0,0,0,0,1464,1465,1466,1411,1412,8240,8241,8138,8188,8188,8188,8188,8188,8137,8241,8241,8242,0,0,0,1503,1504,0,0,1234,0,0,0,1277,0,1143,1144,1145,0,
-0,0,0,0,0,0,1485,1486,1487,0,0,0,0,8240,8138,8188,8188,8188,8137,8242,0,0,0,0,0,1499,1524,1525,0,0,1255,0,0,0,0,0,1164,1165,1166,0,
-0,1448,1449,0,0,0,0,0,0,0,0,0,0,0,8240,8346,8347,8241,8242,0,0,0,0,1492,0,1520,1513,1514,0,0,1276,0,0,0,0,0,1185,1186,1187,0,
+1458,0,0,0,0,0,0,0,0,1390,1391,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1256,0,0,0,0,0,
+0,0,0,0,0,0,1464,1465,1466,1411,1412,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1503,1504,0,0,1234,0,0,0,1277,0,0,0,0,0,
+0,0,0,0,0,0,1485,1486,1487,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1499,1524,1525,0,0,1255,0,0,0,0,0,0,0,0,0,
+0,1448,1449,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1492,0,1520,1513,1514,0,0,1276,0,0,0,0,0,0,0,0,0,
 0,1469,1470,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1448,1449,0,1453,1454,0,0,0,0,0,0,0,0,0,0,0,0,0,
 0,0,0,0,0,1457,1458,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1469,1470,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
 0,0,0,0,0,1478,1479,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1453,1454,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
@@ -4059,7 +4094,47 @@
 0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0
 </data>
  </layer>
+ <layer id="23" name="Entrance_Canvas" width="40" height="30">
+  <properties>
+   <property name="render" propertytype="RenderBucket" value="background"/>
+  </properties>
+  <data encoding="csv">
+0,0,0,0,0,0,0,0,0,0,0,8187,8188,8188,8188,8188,8188,8188,8188,8188,8188,8188,8189,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
+0,0,0,0,0,0,0,0,0,0,0,8240,8241,8138,8188,8188,8188,8188,8188,8137,8241,8241,8242,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
+0,0,0,0,0,0,0,0,0,0,0,0,0,8240,8138,8188,8188,8188,8137,8242,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
+0,0,0,0,0,0,0,0,0,0,0,0,0,0,8240,8346,8347,8241,8242,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
+0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
+0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
+0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
+0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
+0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
+0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
+0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
+0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
+0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
+0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
+0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
+0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
+0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
+0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
+0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
+0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
+0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
+0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
+0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
+0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
+0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
+0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
+0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
+0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
+0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
+0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0
+</data>
+ </layer>
  <layer id="5" name="Spawn" width="40" height="30">
+  <properties>
+   <property name="render" propertytype="RenderBucket" value="background"/>
+  </properties>
   <data encoding="csv">
 0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,8202,8203,8203,8204,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
 0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
@@ -4094,6 +4169,9 @@
 </data>
  </layer>
  <layer id="22" name="Plants_under" width="40" height="30">
+  <properties>
+   <property name="render" propertytype="RenderBucket" value="depth"/>
+  </properties>
   <data encoding="csv">
 0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
 0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
@@ -4130,18 +4208,19 @@
  <layer id="3" name="Walls" width="40" height="30">
   <properties>
    <property name="depthSort" type="bool" value="true"/>
+   <property name="render" propertytype="RenderBucket" value="depth"/>
   </properties>
   <data encoding="csv">
-0,0,0,310,311,2147484034,2147483930,0,0,0,0,0,8393,8394,8395,0,0,0,0,8393,8394,8395,0,0,0,1129,1130,0,0,0,0,0,0,0,0,0,0,0,0,0,
-0,0,0,338,339,2147483941,2147484034,2147483930,0,0,0,0,8446,8447,8448,0,0,0,0,8446,8447,8448,0,0,0,1150,1151,0,0,0,0,0,0,0,0,0,0,0,0,0,
-0,0,0,366,367,2147483951,2147483938,2147484034,2147483930,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1171,1172,0,0,0,0,0,0,0,0,0,0,0,0,0,
-0,0,0,394,395,2147484025,2147483966,2147483941,2147484034,2147483930,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1192,1193,0,0,0,0,0,0,0,0,0,0,0,0,0,
-0,0,0,0,0,2147484053,2147483994,2147483951,2147483938,2147484034,2147483930,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,270,269,270,269,270,269,270,269,270,269,270,0,0,
-0,0,0,0,0,0,0,2147484025,2147483966,339,384,284,0,0,0,0,0,0,0,0,0,0,0,0,282,283,297,298,297,298,297,298,297,298,297,298,297,298,297,297,
-0,0,0,0,0,0,0,2147484053,2147483994,367,311,301,302,0,0,0,0,0,0,0,0,0,0,0,310,311,293,326,325,326,325,326,325,326,325,326,325,326,291,518,
-0,0,0,0,0,0,0,0,0,338,295,340,0,0,0,0,0,0,0,0,0,0,0,0,310,311,321,354,353,354,353,354,353,354,353,354,353,354,319,291,
-0,0,0,0,0,0,0,0,0,366,319,368,0,0,0,0,0,0,0,0,0,0,0,0,338,339,349,382,381,382,381,382,381,382,381,382,381,382,347,319,
-0,0,0,0,0,0,0,0,0,394,395,384,284,0,0,0,0,0,0,0,0,0,0,0,366,367,346,0,0,0,0,0,0,0,0,0,0,0,375,347,
+0,0,0,310,311,2147484034,2147483930,0,0,0,0,0,8387,8388,8389,0,0,0,0,8387,8388,8389,0,0,0,1129,1130,0,0,0,0,0,0,0,0,379,1122,1123,1124,377,
+0,0,0,338,339,2147483941,2147484034,2147483930,0,0,0,0,8440,8441,8442,0,0,0,0,8440,8441,8442,0,0,0,1150,1151,0,0,0,0,0,0,0,0,407,1143,1144,1145,405,
+0,0,0,366,367,2147483951,2147483938,2147484034,2147483930,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1171,1172,0,0,0,0,0,0,0,0,0,1164,1165,1166,0,
+0,0,0,394,395,2147484025,2147483966,2147483941,2147484034,2147483930,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1192,1193,0,0,0,0,0,0,0,0,0,1185,1186,1187,0,
+0,0,0,0,1087,1088,2147483994,2147483951,2147483938,2147484034,2147483930,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,270,269,270,269,270,269,270,269,270,269,270,0,0,
+0,0,0,0,1108,1109,0,2147484025,2147483966,339,384,284,0,0,0,0,0,0,0,0,0,0,0,0,282,283,297,298,297,298,297,298,297,298,297,298,297,298,297,297,
+0,0,0,0,1129,1130,0,2147484053,2147483994,367,311,301,302,0,0,0,0,0,0,0,0,0,0,0,310,311,293,326,325,326,325,326,325,326,325,326,325,326,291,518,
+0,0,0,0,1150,1151,0,0,0,338,295,340,0,0,0,0,0,0,0,0,0,0,0,0,310,311,321,354,353,354,353,354,353,354,353,354,353,354,319,291,
+0,0,0,0,1171,1172,0,0,0,366,319,368,0,0,0,0,0,0,0,0,0,0,0,0,338,339,349,382,381,382,381,382,381,382,381,382,381,382,347,319,
+0,0,0,0,1192,1193,0,0,0,394,395,384,284,0,0,0,0,0,0,0,0,0,0,0,366,367,346,0,0,0,0,0,0,0,0,0,0,0,375,347,
 0,0,0,0,0,0,0,0,0,0,310,311,312,0,0,0,0,0,0,0,0,0,0,0,394,395,396,0,0,0,0,0,0,0,0,0,0,0,0,375,
 0,0,0,0,0,0,0,0,0,0,338,339,340,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
 0,0,0,0,0,0,0,0,0,0,366,367,368,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,270,
@@ -4149,15 +4228,15 @@
 0,0,0,0,0,0,0,0,0,0,282,283,284,0,0,0,0,0,0,0,0,0,0,0,310,311,298,284,270,269,270,0,270,0,270,0,0,282,386,311,
 0,0,0,0,0,0,0,0,0,0,310,311,312,0,0,0,0,0,0,0,0,0,0,0,338,339,291,298,298,297,298,297,298,297,301,302,282,386,518,518,
 0,0,0,0,0,0,0,0,0,0,338,339,340,0,0,0,0,0,0,0,0,0,0,0,366,367,319,326,326,325,326,325,326,325,349,0,310,290,326,326,
-0,0,0,0,0,0,0,0,0,0,366,367,368,0,0,0,0,0,0,0,0,0,0,0,394,395,347,367,354,353,354,353,354,353,377,0,351,318,354,354,
-0,0,0,0,0,0,0,0,0,0,394,395,396,0,0,0,0,0,0,0,0,0,0,0,0,0,394,395,382,381,382,381,382,381,405,0,379,346,382,382,
-0,0,0,0,0,0,0,0,0,282,0,284,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,407,374,0,0,
-0,0,0,0,0,0,0,0,282,386,311,312,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
-0,0,0,0,0,0,0,282,386,293,339,340,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
-0,0,0,0,0,0,282,386,290,303,322,368,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
-0,0,0,0,0,282,386,293,318,377,350,396,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
-0,0,0,0,282,386,290,303,346,405,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
-0,0,0,282,386,293,318,377,374,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
+1084,1085,1086,0,0,0,0,0,0,0,366,367,368,0,0,0,0,0,0,0,0,0,0,0,394,395,347,367,354,353,354,353,354,353,377,0,351,318,354,354,
+1105,1106,1107,0,0,0,0,0,0,0,394,395,396,0,0,0,0,0,0,0,0,0,0,0,0,0,394,395,382,381,382,381,382,381,405,0,379,346,382,382,
+1126,1127,1128,0,0,0,0,0,0,282,0,284,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,407,374,0,0,
+1147,1148,1149,0,0,0,0,0,282,386,311,312,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
+1168,1169,1170,0,0,0,0,282,386,293,339,340,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
+1189,1190,1191,0,0,0,282,386,290,303,322,368,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1211,1212,0,0,0,0,0,0,0,0,0,0,0,
+0,0,0,0,0,282,386,293,318,377,350,396,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1232,1233,0,0,0,0,0,0,0,0,0,0,0,
+0,0,0,0,282,386,290,303,346,405,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1253,1254,0,0,0,0,0,0,0,0,0,0,0,
+0,0,0,282,386,293,318,377,374,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1274,1275,0,0,0,0,0,0,0,0,0,0,0,
 0,0,282,386,290,303,346,405,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
 0,282,386,293,318,377,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
 0,310,290,303,346,405,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
@@ -4165,6 +4244,9 @@
 </data>
  </layer>
  <layer id="21" name="Walls_vertically" width="40" height="30">
+  <properties>
+   <property name="render" propertytype="RenderBucket" value="depth"/>
+  </properties>
   <data encoding="csv">
 0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
 0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
@@ -4199,6 +4281,9 @@
 </data>
  </layer>
  <layer id="10" name="Effects_walls" width="40" height="30">
+  <properties>
+   <property name="render" propertytype="RenderBucket" value="depth"/>
+  </properties>
   <data encoding="csv">
 0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
 0,0,0,2017,2018,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
@@ -4233,6 +4318,9 @@
 </data>
  </layer>
  <layer id="7" name="Plants_over" width="40" height="30">
+  <properties>
+   <property name="render" propertytype="RenderBucket" value="depth"/>
+  </properties>
   <data encoding="csv">
 1379,1380,1381,1382,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
 1400,1401,1402,1403,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
@@ -4267,16 +4355,19 @@
 </data>
  </layer>
  <layer id="8" name="Ceilling" width="40" height="30">
+  <properties>
+   <property name="render" propertytype="RenderBucket" value="depth"/>
+  </properties>
   <data encoding="csv">
 0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1196,1102,1228,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
 0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1227,1102,1230,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
 0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1126,1127,1128,0,0,0,0,0,0,0,0,0,0,1390,1391,0,0,
 0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1147,1148,1149,0,0,0,0,0,0,0,0,0,0,1411,1412,0,0,
-0,0,0,0,1087,1088,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1168,1169,1170,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
-0,0,0,0,1108,1109,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1189,1190,1191,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
-0,0,0,0,1129,1130,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
-0,0,0,0,1150,1151,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
-0,0,0,0,1171,1172,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1234,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
+0,0,0,0,1087,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1168,1169,1170,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
+0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1189,1190,1191,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
+0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
+0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
+0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1234,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
 0,0,0,0,1192,1193,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1255,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
 0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1276,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
 0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
@@ -4285,15 +4376,15 @@
 0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
 0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
 0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
-1084,1085,1086,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
-1105,1106,1107,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
-1126,1127,1128,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
-1147,1148,1149,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
-1168,1169,1170,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
-1189,1190,1191,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1211,1212,0,0,0,0,0,0,0,0,0,0,0,
-0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1232,1233,0,0,0,0,0,0,0,0,0,0,0,
-0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1253,1254,0,0,0,0,0,0,0,0,0,0,0,
-0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1274,1275,0,0,0,0,0,0,0,0,0,0,0,
+1084,0,1086,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
+0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
+0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
+0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
+0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
+0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1193,0,0,0,0,0,0,0,0,0,0,0,0,
+0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
+0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
+0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
 0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
 0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
 0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
@@ -4301,6 +4392,9 @@
 </data>
  </layer>
  <layer id="6" name="Walls_details" width="40" height="30">
+  <properties>
+   <property name="render" propertytype="RenderBucket" value="depth"/>
+  </properties>
   <data encoding="csv">
 0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
 0,0,0,0,2147484963,2147484962,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,2684355966,0,0,0,0,0,
@@ -4335,6 +4429,9 @@
 </data>
  </layer>
  <layer id="20" name="Objects_2" width="40" height="30">
+  <properties>
+   <property name="render" propertytype="RenderBucket" value="depth"/>
+  </properties>
   <data encoding="csv">
 0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
 0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
@@ -4369,6 +4466,9 @@
 </data>
  </layer>
  <layer id="11" name="Objects" width="40" height="30">
+  <properties>
+   <property name="render" propertytype="RenderBucket" value="depth"/>
+  </properties>
   <data encoding="csv">
 0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
 0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
@@ -4403,6 +4503,9 @@
 </data>
  </layer>
  <layer id="12" name="Whisps" width="40" height="30">
+  <properties>
+   <property name="render" propertytype="RenderBucket" value="depth"/>
+  </properties>
   <data encoding="csv">
 0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
 0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
@@ -4437,6 +4540,9 @@
 </data>
  </layer>
  <layer id="9" name="Effects" width="40" height="30">
+  <properties>
+   <property name="render" propertytype="RenderBucket" value="foreground"/>
+  </properties>
   <data encoding="csv">
 0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
 0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1610615734,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1554,0,0,0,0,
@@ -4473,34 +4579,7 @@
  <objectgroup id="14" name="NPCs">
   <object id="83" name="Soldier" type="NPC_Generic" x="928" y="768">
    <properties>
-    <property name="deliveryConsumeItem" type="bool" value="true"/>
-    <property name="deliveryDialogueSet" type="int" value="2"/>
-    <property name="deliveryItem" value="bandage"/>
-    <property name="deliveryPostDialogueSet" type="int" value="3"/>
-    <property name="deliveryQuestId" value="sword_giver_bandage"/>
-    <property name="dialogue_0_0" value="...Hey. I was ambushed on the road."/>
-    <property name="dialogue_0_1" value="My arm is useless, and I can't swing anymore."/>
-    <property name="dialogue_0_2" value="Take this sword. Use it better than I can right now."/>
-    <property name="dialogue_0_3" value="If you find a bandage, come back. I still need help."/>
-    <property name="dialogue_1_0" value="You're back... but I still need a bandage."/>
-    <property name="dialogue_1_1" value="Check the cave rooms."/>
-    <property name="dialogue_1_2" value="I'll hold on a little longer."/>
-    <property name="dialogue_2_0" value="You found one... good."/>
-    <property name="dialogue_2_1" value="This should stop the bleeding."/>
-    <property name="dialogue_2_2" value="Thank you. Here, take these 25 coins for the trouble."/>
-    <property name="dialogue_3_0" value="The bandage helped a lot."/>
-    <property name="dialogue_3_1" value="Keep the sword. You earned it."/>
-    <property name="giftDialogueSet" type="int" value="0"/>
-    <property name="giftItem" value="wooden_sword"/>
-    <property name="giftQuestId" value="sword_giver_bandage"/>
-    <property name="id" value="sword_giver_npc"/>
-    <property name="idleAnimSpeed" type="int" value="12"/>
-    <property name="idleDirection" type="int" value="2"/>
-    <property name="idleSprite" value="/res/NPC/Tutorial_idle"/>
-    <property name="name" value="Soldier"/>
-    <property name="portrait" value="/res/NPC/portraits/soldier.png"/>
-    <property name="staticNPC" type="bool" value="true"/>
-    <property name="walkToDialogueSet" type="int" value="1"/>
+    <property name="npcId" value="sword_giver_npc"/>
    </properties>
    <point/>
   </object>
@@ -4697,6 +4776,9 @@
    <point/>
   </object>
   <object id="78" name="SpawnPoint" type="SpawnPoint" x="1104" y="885.667">
+   <properties>
+    <property name="id" value="start"/>
+   </properties>
    <point/>
   </object>
   <object id="80" name="Req. Sword" type="LevelGate" x="1120" y="544">
@@ -4736,11 +4818,9 @@ Keep searching.</property>
   </object>
   <object id="109" name="Tutorial ( Done )" type="MemoryGate" x="480" y="0" width="128" height="32">
    <properties>
-    <property name="message" value=""/>
     <property name="requiredFragments" type="int" value="1"/>
-    <property name="targetCol" type="int" value="33"/>
-    <property name="targetMap" value="harta"/>
-    <property name="targetRow" type="int" value="27"/>
+    <property name="spawnId" value="awakening_cave"/>
+    <property name="targetMap" value="canvas_village"/>
    </properties>
   </object>
   <object id="114" type="FragmentTrigger" x="0" y="416" width="96" height="96">

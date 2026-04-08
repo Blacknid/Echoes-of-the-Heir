@@ -58,6 +58,10 @@ public class GamePanel extends JPanel implements Runnable{
     // DEBUG
     public boolean HitBoxes = false;
     public boolean drawPath = false;
+    // Debug map switcher (F9)
+    public boolean debugMapSwitcherOpen = false;
+    public java.util.List<String> debugMapList = new java.util.ArrayList<>();
+    public int debugMapSelectedIndex = 0;
 
     // WORLD SETTINGS
     public final int maxWorldCol = 100;
@@ -200,6 +204,11 @@ public class GamePanel extends JPanel implements Runnable{
     public ObjectPool<Projectile> projectilePool;
     public ObjectPool<Particle> particlePool;
 
+    // INTERACTION PROMPT: set by Player when near an interactable obstacle
+    public Entity nearbyInteractable;
+    /** When true, player movement and actions are temporarily blocked (e.g. door animation). */
+    public boolean inputLocked = false;
+
     // GAME STATE — integer constants kept for backward compatibility
     // New code should use GameState enum where possible.
     public int gameState;
@@ -248,14 +257,11 @@ public class GamePanel extends JPanel implements Runnable{
     // Initialize map manager
     mapManager = new MapManager(this);
 
-    // Register all maps once at startup
-    mapManager.registerMap("harta", "/res/maps/harta.tmx");
-    mapManager.registerMap("test", "/res/maps/test.tmx");
-    mapManager.registerMap("Dungeon1", "/res/maps/Dungeon1.tmx");
-    mapManager.registerMap("awakening_cave", "/res/maps/Awakening_Cave.tmx");
+    // Auto-discover all maps from /res/maps/ directory
+    mapManager.discoverMaps();
 
     if (!mapManager.loadingGame) {
-        mapManager.currentMapId = "awakening_cave";
+        mapManager.currentMapId = "awakening_cave"; // default starting map
         aSetter.setObject();
         eManager.setup();
         aSetter.setInteractiveTile();
@@ -636,6 +642,12 @@ public class GamePanel extends JPanel implements Runnable{
 
             // PLAYER
             player.update();
+            // DOOR ANIMATIONS: only tick doors that are actively opening
+            for (int i = 0; i < obj.length; i++) {
+                if (obj[i] instanceof object.OBJ_Door door && door.doorOpening) {
+                    door.update();
+                }
+            }
             // NPC
             for ( int i = 0 ; i < npc.length; i++ ) {
                 if ( npc[i] != null ) {
@@ -837,6 +849,9 @@ public class GamePanel extends JPanel implements Runnable{
     }
 
     // DEBUG TEXT
+    // Debug map switcher overlay (always on top)
+    if (debugMapSwitcherOpen) drawDebugMapSwitcher(g2);
+
     if(keyH.showDebugText) {
         final int x = 10;
         int y = 400;
@@ -875,6 +890,70 @@ public class GamePanel extends JPanel implements Runnable{
             g2.drawString("TileParticles: " + tileParticleEmitter.getActiveCount(), x, y); y += lineHeight;
         }
     }
+    }
+
+    /** Rebuild the debug map list from the current registry (sorted). */
+    public void refreshDebugMapList() {
+        debugMapList = new java.util.ArrayList<>(mapManager.mapRegistry.keySet());
+        java.util.Collections.sort(debugMapList);
+        // Select the currently loaded map
+        int idx = debugMapList.indexOf(mapManager.currentMapId);
+        debugMapSelectedIndex = idx >= 0 ? idx : 0;
+    }
+
+    /** Draw the debug map switcher overlay. */
+    private void drawDebugMapSwitcher(Graphics2D g2) {
+        final int panelW = 360;
+        final int rowH   = 22;
+        final int visibleRows = Math.min(debugMapList.size(), 12);
+        final int panelH = visibleRows * rowH + 56; // header + footer padding
+        final int px = screenWidth / 2 - panelW / 2;
+        final int py = screenHeight / 2 - panelH / 2;
+
+        // Background
+        g2.setColor(new Color(10, 10, 30, 220));
+        g2.fillRoundRect(px, py, panelW, panelH, 12, 12);
+        g2.setColor(new Color(100, 180, 255));
+        g2.drawRoundRect(px, py, panelW, panelH, 12, 12);
+
+        // Title
+        g2.setFont(new Font("Consolas", Font.BOLD, 14));
+        g2.setColor(new Color(100, 180, 255));
+        g2.drawString("[F9] DEBUG MAP SWITCHER", px + 12, py + 20);
+
+        g2.setFont(DEBUG_FONT);
+
+        // Scrolling: keep selected visible
+        int scroll = 0;
+        if (debugMapList.size() > visibleRows) {
+            scroll = Math.max(0, Math.min(debugMapSelectedIndex - visibleRows / 2,
+                    debugMapList.size() - visibleRows));
+        }
+
+        for (int i = 0; i < visibleRows; i++) {
+            int mapIdx = scroll + i;
+            if (mapIdx >= debugMapList.size()) break;
+            String id = debugMapList.get(mapIdx);
+            int ry = py + 36 + i * rowH;
+
+            if (mapIdx == debugMapSelectedIndex) {
+                g2.setColor(new Color(60, 120, 220, 180));
+                g2.fillRoundRect(px + 6, ry - rowH + 5, panelW - 12, rowH, 6, 6);
+                g2.setColor(Color.WHITE);
+            } else if (id.equals(mapManager.currentMapId)) {
+                g2.setColor(new Color(80, 255, 140));
+            } else {
+                g2.setColor(new Color(180, 180, 180));
+            }
+            String prefix = (mapIdx == debugMapSelectedIndex) ? "> " : "  ";
+            String suffix = id.equals(mapManager.currentMapId) ? " (current)" : "";
+            g2.drawString(prefix + id + suffix, px + 14, ry);
+        }
+
+        // Footer hint
+        g2.setColor(new Color(120, 120, 120));
+        g2.drawString("W/S navigate  |  ENTER teleport  |  ESC close",
+                px + 10, py + panelH - 8);
     }
 
     public void drawToScreen() {

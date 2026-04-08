@@ -12,38 +12,71 @@ import java.util.HashMap;
 import java.util.Map;
 
 /**
- * Data-driven quest system.
- *
- * Quest templates live in  res/data/quests.json  so you can add, edit and
- * remove quests without touching Java code.  Each template looks like this:
+ * Quest-Step system.  Quests define WHAT HAPPENS; NPCs define WHO SAYS WHAT.
  *
  * <pre>{@code
  * {
- *   "id":              "find_exit",          // unique key (required)
- *   "name":            "Find the Exit",      // display name
- *   "description":     "Escape the cave",    // one-liner shown in log
- *   "target":          1,                    // how many "progress" ticks to complete
- *   "autoStart":       true,                 // start automatically when the map loads
- *   "rewardCoins":     50,                   // coins given on completion (0 = none)
- *   "rewardItemId":    "iron_sword",         // ItemFactory id given on completion ("" = none)
- *   "rewardFragmentId":"frag_cave",          // MemoryJournal fragment id ("" = none)
- *   "chainQuestId":    "talk_to_elder"       // quest id auto-started on completion ("" = none)
+ *   "id":           "help_soldier",
+ *   "name":         "Help the Wounded Soldier",
+ *   "description":  "A wounded soldier needs a bandage.",
+ *   "prerequisite": "",
+ *   "steps": [
+ *     { "action": "talk",    "npc": "soldier", "dialogue": "intro", "give": "wooden_sword" },
+ *     { "action": "deliver", "npc": "soldier", "item": "bandage", "consume": true,
+ *       "dialogue": "thanks", "failDialogue": "waiting" }
+ *   ],
+ *   "rewardCoins":    25,
+ *   "rewardItemId":   "",
+ *   "rewardFragmentId": "",
+ *   "chainQuestId":   "meet_soldier_later"
  * }
  * }</pre>
  *
- * <b>How to add a new quest:</b>  just add an entry in quests.json.<br>
- * <b>How to start it:</b>  call {@code questManager.addQuest("my_quest_id")}
- * from code, or set {@code "autoStart": true} so it starts on its own.<br>
- * <b>How to progress it:</b>  call {@code questManager.progress("my_quest_id", 1)}.<br>
- * <b>How to remove it:</b>  call {@code questManager.removeQuest("my_quest_id")}.<br>
+ * Step actions:
+ * <ul>
+ *   <li><b>talk</b>    — NPC plays dialogue, optionally gives item.  Auto-advances.</li>
+ *   <li><b>deliver</b> — Player must have item.  Consume + dialogue + advance on success.
+ *                        Plays failDialogue when item is missing.</li>
+ *   <li><b>collect</b> — Advance via {@link #progress} calls.  Step {@code count} = target.</li>
+ *   <li><b>kill</b>    — Same as collect, tracked by monster-kill progress() calls.</li>
+ *   <li><b>go</b>      — Same as collect, triggered by map events / triggers.</li>
+ * </ul>
  *
- * Quests can also be defined in Tiled maps (type = QuestDefinition) — those
- * still work exactly as before through the 4-arg {@link #addQuest(String,String,String,int)} method.
+ * Quests WITHOUT a {@code steps} array still work exactly as before
+ * (flat current/target counter incremented by {@link #progress}).
  */
 public class QuestManager {
 
-    // ── Public snapshot returned by getQuestStates() (used by SaveLoad) ──
+    // ══════════════════════════════════════════════════════════════════════
+    //  PUBLIC DATA CLASSES
+    // ══════════════════════════════════════════════════════════════════════
 
+    /** One step in a multi-step quest. */
+    public static class QuestStep {
+        public final String action;        // talk | deliver | collect | kill | go
+        public final String npc;           // npc objectId (for talk / deliver)
+        public final String dialogue;      // named dialogue to play on success
+        public final String failDialogue;  // dialogue when player lacks required item
+        public final String give;          // ItemFactory id to give the player
+        public final String item;          // item required (deliver) or to collect
+        public final int    count;         // target count (collect / kill, default 1)
+        public final boolean consume;      // consume the delivered item
+        public final String description;   // step description shown in quest log
+
+        QuestStep(Map<String, String> m) {
+            this.action       = strVal(m, "action", "talk");
+            this.npc          = m.get("npc");
+            this.dialogue     = m.get("dialogue");
+            this.failDialogue = m.get("failDialogue");
+            this.give         = m.get("give");
+            this.item         = m.get("item");
+            this.count        = intVal(m, "count", 1);
+            this.consume      = "true".equals(m.get("consume"));
+            this.description  = m.get("description");
+        }
+    }
+
+    /** Read-only snapshot of a quest (used by SaveLoad). */
     public static class QuestState {
         public final String id;
         public final String name;
@@ -51,18 +84,33 @@ public class QuestManager {
         public final int current;
         public final int target;
 
-        public QuestState(String id, String name, String description, int current, int target) {
+        // Step tracking (≥ 0 for step-based quests, -1 for legacy)
+        public final int currentStep;
+        public final int stepProgress;
+
+        public QuestState(String id, String name, String description,
+                          int current, int target,
+                          int currentStep, int stepProgress) {
             this.id = id;
             this.name = name;
             this.description = description;
             this.current = current;
             this.target = target;
+            this.currentStep = currentStep;
+            this.stepProgress = stepProgress;
         }
     }
 
-    // ── Quest registry (loaded once from quests.json) ──
+    // ══════════════════════════════════════════════════════════════════════
+    //  QUEST REGISTRY (loaded once from quests.json)
+    // ══════════════════════════════════════════════════════════════════════
 
-    private static final ArrayList<Map<String, String>> registry = new ArrayList<>();
+    private static class QuestDef {
+        Map<String, String> props = new HashMap<>();
+        ArrayList<Map<String, String>> stepDefs = new ArrayList<>();
+    }
+
+    private static final ArrayList<QuestDef> registry = new ArrayList<>();
     private static boolean registryLoaded = false;
 
     private static void loadRegistry() {
@@ -81,16 +129,19 @@ public class QuestManager {
         }
     }
 
-    /** Look up a quest template by id.  Returns null if not in the registry. */
-    private static Map<String, String> findDef(String id) {
+    /** Look up a quest template by id. Returns null if not in the registry. */
+    private static QuestDef findDef(String id) {
         loadRegistry();
-        for (Map<String, String> def : registry) {
-            if (id.equals(def.get("id"))) return def;
+        for (int i = 0, n = registry.size(); i < n; i++) {
+            QuestDef def = registry.get(i);
+            if (id.equals(def.props.get("id"))) return def;
         }
         return null;
     }
 
-    // ── Instance state ──
+    // ══════════════════════════════════════════════════════════════════════
+    //  INSTANCE STATE
+    // ══════════════════════════════════════════════════════════════════════
 
     private final GamePanel gp;
     private final ArrayList<Quest> quests = new ArrayList<>();
@@ -125,8 +176,8 @@ public class QuestManager {
 
     public QuestManager(GamePanel gp) {
         this.gp = gp;
-        loadRegistry();             // ensure definitions are available
-        startAutoQuests();          // start any quests marked autoStart
+        loadRegistry();
+        startAutoQuests();
     }
 
     // ══════════════════════════════════════════════════════════════════════
@@ -136,18 +187,25 @@ public class QuestManager {
     /**
      * Start a quest by its id (looks it up in quests.json).
      * If the quest is already active it is silently ignored.
-     * If the id is not in the registry nothing happens (a warning is printed).
+     * Checks prerequisite — quest won't start unless prerequisite is complete.
      */
     public void addQuest(String id) {
-        Map<String, String> def = findDef(id);
+        QuestDef def = findDef(id);
         if (def == null) {
             System.out.println("[QuestManager] WARNING — quest id '" + id + "' not found in quests.json");
             return;
         }
-        String name = strVal(def, "name", id);
-        String desc = strVal(def, "description", "");
-        int target  = intVal(def, "target", 1);
-        addQuestInternal(id, name, desc, target, 0, true);
+        // Prerequisite check
+        String prereq = strVal(def.props, "prerequisite", "");
+        if (!prereq.isEmpty() && !isComplete(prereq)) {
+            System.out.println("[QuestManager] Prerequisite '" + prereq + "' not met for '" + id + "'");
+            return;
+        }
+        String name = strVal(def.props, "name", id);
+        String desc = strVal(def.props, "description", "");
+        int target  = intVal(def.props, "target", 1);
+        QuestStep[] steps = buildSteps(def);
+        addQuestInternal(id, name, desc, target, steps, 0, 0, 0, true);
     }
 
     /**
@@ -155,12 +213,23 @@ public class QuestManager {
      * Used by Tiled QuestDefinition events and legacy code.
      */
     public void addQuest(String id, String name, String description, int target) {
-        addQuestInternal(id, name, description, target, 0, true);
+        addQuestInternal(id, name, description, target, null, 0, 0, 0, true);
     }
 
-    /** Restore a quest from a save file (no announcement). */
+    /** Restore a quest from a save file (old format, no step data). */
     public void restoreQuest(String id, String name, String description, int target, int current) {
-        addQuestInternal(id, name, description, target, current, false);
+        restoreQuest(id, name, description, target, current, -1, 0);
+    }
+
+    /** Restore a quest from a save file (new format with step data). */
+    public void restoreQuest(String id, String name, String description,
+                             int target, int current,
+                             int savedStep, int savedStepProgress) {
+        QuestDef def = findDef(id);
+        QuestStep[] steps = (def != null) ? buildSteps(def) : null;
+        int stepIdx  = (savedStep >= 0 && steps != null) ? savedStep : 0;
+        int stepProg = (savedStep >= 0) ? savedStepProgress : 0;
+        addQuestInternal(id, name, description, target, steps, current, stepIdx, stepProg, false);
     }
 
     /** Remove a quest entirely (active or completed). Returns true if it was found. */
@@ -198,23 +267,149 @@ public class QuestManager {
 
     /**
      * Increment progress for a quest.
+     * <ul>
+     *   <li>Step-based quests: applies to the current collect/kill/go step.</li>
+     *   <li>Legacy quests: increments the flat counter.</li>
+     * </ul>
      * Returns {@code true} if the quest <i>just now</i> became complete.
-     * Automatically grants rewards and chains the next quest (if configured).
      */
     public boolean progress(String id, int amount) {
         for (int i = 0, n = quests.size(); i < n; i++) {
             Quest q = quests.get(i);
-            if (q.id.equals(id) && !q.isComplete()) {
-                q.current = Math.min(q.current + amount, q.target);
-                if (q.isComplete()) {
-                    gp.ui.addMessage("Quest complete: " + q.name + "!", COMPLETE);
-                    grantRewards(q.id);
-                    chainNext(q.id);
-                    return true;
+            if (!q.id.equals(id) || q.isComplete()) continue;
+
+            if (q.steps != null) {
+                // Step-based: progress only applies to collect / kill / go steps
+                if (q.currentStep >= q.steps.length) return false;
+                QuestStep step = q.steps[q.currentStep];
+                String a = step.action;
+                if ("collect".equals(a) || "kill".equals(a) || "go".equals(a)) {
+                    q.stepProgress = Math.min(q.stepProgress + amount, step.count);
+                    if (q.stepProgress >= step.count) {
+                        q.currentStep++;
+                        q.stepProgress = 0;
+                        if (q.isComplete()) {
+                            gp.ui.addMessage("Quest complete: " + q.name + "!", COMPLETE);
+                            grantRewards(q.id);
+                            chainNext(q.id);
+                            return true;
+                        }
+                    }
                 }
                 return false;
             }
+
+            // Legacy counter-based
+            q.current = Math.min(q.current + amount, q.target);
+            if (q.isComplete()) {
+                gp.ui.addMessage("Quest complete: " + q.name + "!", COMPLETE);
+                grantRewards(q.id);
+                chainNext(q.id);
+                return true;
+            }
+            return false;
         }
+        return false;
+    }
+
+    /**
+     * Execute the current quest step for a given NPC.
+     * Called from {@code NPC_Generic.speak()}.
+     *
+     * @param npcId  the NPC's objectId (matches step {@code "npc"} field)
+     * @param npc    the NPC entity (used for dialogue / item giving)
+     * @return true if a step was executed (dialogue was started)
+     */
+    public boolean executeStepForNpc(String npcId, entity.Entity npc) {
+        if (npcId == null) return false;
+
+        for (int i = 0, n = quests.size(); i < n; i++) {
+            Quest q = quests.get(i);
+            if (q.isComplete() || q.steps == null || q.currentStep >= q.steps.length) continue;
+
+            QuestStep step = q.steps[q.currentStep];
+            if (step.npc == null || !step.npc.equals(npcId)) continue;
+
+            switch (step.action) {
+                case "talk" -> {
+                    // Give item if specified
+                    if (step.give != null && !step.give.isBlank()) {
+                        entity.Entity item = data.ItemFactory.create(gp, step.give);
+                        if (item != null) gp.player.canObtainItem(item);
+                    }
+                    // Play dialogue
+                    if (step.dialogue != null) {
+                        npc.startNamedDialogue(npc, step.dialogue);
+                    } else {
+                        npc.startDialogue(npc, 0);
+                    }
+                    // Advance step
+                    q.currentStep++;
+                    q.stepProgress = 0;
+                    checkCompletion(q);
+                    return true;
+                }
+                case "deliver" -> {
+                    // Check player has the required item
+                    if (step.item != null) {
+                        int idx = gp.player.searchItemInInventory(step.item);
+                        if (idx == 999) {
+                            // Player doesn't have the item — play fail dialogue
+                            if (step.failDialogue != null) {
+                                npc.startNamedDialogue(npc, step.failDialogue);
+                            } else {
+                                npc.startDialogue(npc, 0);
+                            }
+                            return true;
+                        }
+                        // Consume the item
+                        if (step.consume && idx < gp.player.inventory.size()) {
+                            entity.Entity item = gp.player.inventory.get(idx);
+                            if (item.amount > 1) item.amount--;
+                            else gp.player.inventory.remove(idx);
+                        }
+                    }
+                    // Give reward item if specified
+                    if (step.give != null && !step.give.isBlank()) {
+                        entity.Entity item = data.ItemFactory.create(gp, step.give);
+                        if (item != null) gp.player.canObtainItem(item);
+                    }
+                    // Play dialogue
+                    if (step.dialogue != null) {
+                        npc.startNamedDialogue(npc, step.dialogue);
+                    } else {
+                        npc.startDialogue(npc, 0);
+                    }
+                    // Advance step
+                    q.currentStep++;
+                    q.stepProgress = 0;
+                    checkCompletion(q);
+                    return true;
+                }
+                // collect / kill / go steps are NOT executed via NPC talk
+                default -> { /* no-op */ }
+            }
+        }
+
+        // No active quest step for this NPC — auto-start quests whose first step
+        // is a "talk" action targeting this NPC (prerequisite must be met).
+        loadRegistry();
+        for (int r = 0, rn = registry.size(); r < rn; r++) {
+            QuestDef def = registry.get(r);
+            String defId = def.props.get("id");
+            if (defId == null || hasQuest(defId)) continue;
+            if (def.stepDefs.isEmpty()) continue;
+            Map<String, String> firstStep = def.stepDefs.get(0);
+            if (!npcId.equals(firstStep.get("npc"))) continue;
+            if (!"talk".equals(firstStep.getOrDefault("action", "talk"))) continue;
+            // Check prerequisite
+            String prereq = strVal(def.props, "prerequisite", "");
+            if (!prereq.isEmpty() && !isComplete(prereq)) continue;
+            // Auto-start and execute
+            addQuest(defId);
+            return executeStepForNpc(npcId, npc);
+        }
+
         return false;
     }
 
@@ -223,7 +418,10 @@ public class QuestManager {
         ArrayList<QuestState> states = new ArrayList<>();
         for (int i = 0, n = quests.size(); i < n; i++) {
             Quest q = quests.get(i);
-            states.add(new QuestState(q.id, q.name, q.description, q.current, q.target));
+            int step     = (q.steps != null) ? q.currentStep   : -1;
+            int stepProg = (q.steps != null) ? q.stepProgress  : 0;
+            states.add(new QuestState(q.id, q.name, q.description,
+                    q.current, q.target, step, stepProg));
         }
         return states;
     }
@@ -258,7 +456,21 @@ public class QuestManager {
         ensureFonts(g2);
         g2.setFont(fontPlain14);
         g2.setColor(INCOMPLETE);
-        String tracker = active.name + "  (" + active.current + "/" + active.target + ")";
+        String tracker;
+        if (active.steps != null && active.currentStep < active.steps.length) {
+            QuestStep step = active.steps[active.currentStep];
+            if (step.description != null && !step.description.isEmpty()) {
+                tracker = active.name + ": " + step.description;
+            } else if (step.count > 1) {
+                tracker = active.name + "  (" + active.stepProgress + "/" + step.count + ")";
+            } else {
+                tracker = active.name;
+            }
+        } else if (active.steps != null) {
+            tracker = active.name;
+        } else {
+            tracker = active.name + "  (" + active.current + "/" + active.target + ")";
+        }
         g2.drawString(tracker, x + 8, y + 23);
     }
 
@@ -295,15 +507,35 @@ public class QuestManager {
             g2.setColor(done ? COMPLETE : TEXT);
             g2.drawString(q.name, x + 44, qy);
 
-            String prog = q.current + "/" + q.target;
+            // Progress display
+            String prog;
+            if (q.steps != null) {
+                if (done) {
+                    prog = "done";
+                } else if (q.currentStep < q.steps.length && q.steps[q.currentStep].count > 1) {
+                    prog = q.stepProgress + "/" + q.steps[q.currentStep].count;
+                } else {
+                    prog = (q.currentStep + 1) + "/" + q.steps.length;
+                }
+            } else {
+                prog = q.current + "/" + q.target;
+            }
             g2.setColor(done ? COMPLETE : INCOMPLETE);
             g2.setFont(fontPlain16);
             g2.drawString(prog, x + w - 60, qy);
             g2.setFont(fontPlain20);
 
+            // Description: use current step description if available
+            String descText = q.description;
+            if (q.steps != null && !done && q.currentStep < q.steps.length) {
+                QuestStep step = q.steps[q.currentStep];
+                if (step.description != null && !step.description.isEmpty()) {
+                    descText = step.description;
+                }
+            }
             g2.setColor(DESC_COLOR);
             g2.setFont(fontPlain14b);
-            String[] descLines = q.description.split("\\n", -1);
+            String[] descLines = descText.split("\\n", -1);
             for (int dl = 0; dl < descLines.length; dl++) {
                 g2.drawString(descLines[dl].trim(), x + 44, qy + 18 + dl * 16);
             }
@@ -324,18 +556,33 @@ public class QuestManager {
 
     /** Start all quests marked "autoStart": true in the registry. */
     private void startAutoQuests() {
-        for (Map<String, String> def : registry) {
-            if ("true".equals(def.get("autoStart"))) {
-                String id   = def.get("id");
-                String name = strVal(def, "name", id);
-                String desc = strVal(def, "description", "");
-                int target  = intVal(def, "target", 1);
-                addQuestInternal(id, name, desc, target, 0, true);
+        for (QuestDef def : registry) {
+            if ("true".equals(def.props.get("autoStart"))) {
+                String id = def.props.get("id");
+                // bypass prerequisite for auto-starts
+                String name = strVal(def.props, "name", id);
+                String desc = strVal(def.props, "description", "");
+                int target  = intVal(def.props, "target", 1);
+                QuestStep[] steps = buildSteps(def);
+                addQuestInternal(id, name, desc, target, steps, 0, 0, 0, true);
             }
         }
     }
 
-    private void addQuestInternal(String id, String name, String description, int target, int current, boolean announce) {
+    /** Build runtime QuestStep[] from a QuestDef. Returns null if no steps. */
+    private static QuestStep[] buildSteps(QuestDef def) {
+        if (def == null || def.stepDefs.isEmpty()) return null;
+        QuestStep[] steps = new QuestStep[def.stepDefs.size()];
+        for (int i = 0; i < def.stepDefs.size(); i++) {
+            steps[i] = new QuestStep(def.stepDefs.get(i));
+        }
+        return steps;
+    }
+
+    private void addQuestInternal(String id, String name, String description, int target,
+                                   QuestStep[] steps, int current,
+                                   int currentStep, int stepProgress,
+                                   boolean announce) {
         // If already tracked, just update metadata
         for (int i = 0, n = quests.size(); i < n; i++) {
             Quest q = quests.get(i);
@@ -348,25 +595,35 @@ public class QuestManager {
             }
         }
         Quest q = new Quest(id, name, description, Math.max(1, target));
+        q.steps = steps;
         q.current = Math.max(0, Math.min(current, q.target));
+        q.currentStep = currentStep;
+        q.stepProgress = stepProgress;
         quests.add(q);
         if (announce) gp.ui.addMessage("New quest: " + name, NEW_QUEST);
     }
 
+    /** Check if quest just completed and handle rewards + chaining. */
+    private void checkCompletion(Quest q) {
+        if (q.isComplete()) {
+            gp.ui.addMessage("Quest complete: " + q.name + "!", COMPLETE);
+            grantRewards(q.id);
+            chainNext(q.id);
+        }
+    }
+
     /** Grant rewards defined in quests.json when a quest completes. */
     private void grantRewards(String questId) {
-        Map<String, String> def = findDef(questId);
+        QuestDef def = findDef(questId);
         if (def == null) return;
 
-        // Coins
-        int coins = intVal(def, "rewardCoins", 0);
+        int coins = intVal(def.props, "rewardCoins", 0);
         if (coins > 0) {
             gp.player.coin += coins;
             gp.ui.addMessage("Received " + coins + " coins!", NEW_QUEST);
         }
 
-        // Item (from ItemFactory)
-        String itemId = strVal(def, "rewardItemId", "");
+        String itemId = strVal(def.props, "rewardItemId", "");
         if (!itemId.isEmpty()) {
             entity.Entity rewardItem = data.ItemFactory.create(gp, itemId);
             if (rewardItem != null) {
@@ -378,8 +635,7 @@ public class QuestManager {
             }
         }
 
-        // Memory fragment
-        String fragId = strVal(def, "rewardFragmentId", "");
+        String fragId = strVal(def.props, "rewardFragmentId", "");
         if (!fragId.isEmpty() && gp.memoryJournal != null) {
             gp.memoryJournal.addById(fragId);
         }
@@ -387,11 +643,21 @@ public class QuestManager {
 
     /** Auto-start the next quest in the chain (if configured). */
     private void chainNext(String questId) {
-        Map<String, String> def = findDef(questId);
+        QuestDef def = findDef(questId);
         if (def == null) return;
-        String nextId = strVal(def, "chainQuestId", "");
+        String nextId = strVal(def.props, "chainQuestId", "");
         if (!nextId.isEmpty()) {
-            addQuest(nextId);
+            // Chaining bypasses prerequisite check — use addQuest directly
+            QuestDef nextDef = findDef(nextId);
+            if (nextDef != null) {
+                String name = strVal(nextDef.props, "name", nextId);
+                String desc = strVal(nextDef.props, "description", "");
+                int target  = intVal(nextDef.props, "target", 1);
+                QuestStep[] steps = buildSteps(nextDef);
+                addQuestInternal(nextId, name, desc, target, steps, 0, 0, 0, true);
+            } else {
+                System.out.println("[QuestManager] Chain target '" + nextId + "' not found in quests.json");
+            }
         }
     }
 
@@ -404,6 +670,10 @@ public class QuestManager {
         int current;
         int target;
 
+        QuestStep[] steps;        // null = legacy counter-based quest
+        int currentStep = 0;      // which step we're on (0-indexed)
+        int stepProgress = 0;     // progress within current step (for collect/kill/go)
+
         Quest(String id, String name, String description, int target) {
             this.id = id;
             this.name = name;
@@ -412,11 +682,14 @@ public class QuestManager {
             this.target = target;
         }
 
-        boolean isComplete() { return current >= target; }
+        boolean isComplete() {
+            if (steps != null) return currentStep >= steps.length;
+            return current >= target;
+        }
     }
 
     // ══════════════════════════════════════════════════════════════════════
-    //  JSON PARSING  (same lightweight approach as ItemFactory)
+    //  JSON PARSING
     // ══════════════════════════════════════════════════════════════════════
 
     private static String strVal(Map<String, String> m, String key, String fallback) {
@@ -438,20 +711,88 @@ public class QuestManager {
         json = json.substring(1, json.length() - 1).trim();
 
         int depth = 0, start = -1;
+        boolean inString = false;
         for (int i = 0; i < json.length(); i++) {
             char c = json.charAt(i);
+            if (c == '"' && (i == 0 || json.charAt(i - 1) != '\\')) { inString = !inString; continue; }
+            if (inString) continue;
             if (c == '{') { if (depth == 0) start = i; depth++; }
             else if (c == '}') {
                 depth--;
-                if (depth == 0 && start >= 0) { parseObject(json.substring(start + 1, i)); start = -1; }
+                if (depth == 0 && start >= 0) { parseQuestObject(json.substring(start + 1, i)); start = -1; }
             }
         }
     }
 
-    private static void parseObject(String obj) {
-        Map<String, String> map = new HashMap<>();
-        parseKeyValues(obj, map);
-        if (map.containsKey("id")) registry.add(map);
+    private static void parseQuestObject(String obj) {
+        QuestDef def = new QuestDef();
+
+        // Extract "steps": [ ... ] array before flat key-value parsing
+        int stepsIdx = obj.indexOf("\"steps\"");
+        if (stepsIdx >= 0) {
+            int bracketStart = obj.indexOf('[', stepsIdx);
+            if (bracketStart >= 0) {
+                int bracketEnd = findMatchingBracket(obj, bracketStart);
+                if (bracketEnd >= 0) {
+                    String stepsJson = obj.substring(bracketStart + 1, bracketEnd);
+                    parseStepArray(stepsJson, def.stepDefs);
+                    // Remove the steps section so it doesn't interfere with flat parsing
+                    obj = obj.substring(0, stepsIdx) + obj.substring(bracketEnd + 1);
+                }
+            }
+        }
+
+        parseKeyValues(obj, def.props);
+        if (def.props.containsKey("id")) registry.add(def);
+    }
+
+    /** Parse an array of step objects: { ... }, { ... } */
+    private static void parseStepArray(String json, ArrayList<Map<String, String>> steps) {
+        int i = 0;
+        while (i < json.length()) {
+            // Find opening brace (skip strings)
+            int braceStart = -1;
+            boolean inStr = false;
+            for (int j = i; j < json.length(); j++) {
+                char c = json.charAt(j);
+                if (c == '"' && (j == 0 || json.charAt(j - 1) != '\\')) { inStr = !inStr; continue; }
+                if (!inStr && c == '{') { braceStart = j; break; }
+            }
+            if (braceStart < 0) break;
+            int braceEnd = findMatchingBrace(json, braceStart);
+            if (braceEnd < 0) break;
+
+            Map<String, String> stepMap = new HashMap<>();
+            parseKeyValues(json.substring(braceStart + 1, braceEnd), stepMap);
+            steps.add(stepMap);
+            i = braceEnd + 1;
+        }
+    }
+
+    private static int findMatchingBrace(String text, int open) {
+        int depth = 0;
+        boolean inStr = false;
+        for (int i = open; i < text.length(); i++) {
+            char c = text.charAt(i);
+            if (c == '"' && (i == 0 || text.charAt(i - 1) != '\\')) { inStr = !inStr; continue; }
+            if (inStr) continue;
+            if (c == '{') depth++;
+            else if (c == '}') { depth--; if (depth == 0) return i; }
+        }
+        return -1;
+    }
+
+    private static int findMatchingBracket(String text, int open) {
+        int depth = 0;
+        boolean inStr = false;
+        for (int i = open; i < text.length(); i++) {
+            char c = text.charAt(i);
+            if (c == '"' && (i == 0 || text.charAt(i - 1) != '\\')) { inStr = !inStr; continue; }
+            if (inStr) continue;
+            if (c == '[') depth++;
+            else if (c == ']') { depth--; if (depth == 0) return i; }
+        }
+        return -1;
     }
 
     private static void parseKeyValues(String text, Map<String, String> map) {

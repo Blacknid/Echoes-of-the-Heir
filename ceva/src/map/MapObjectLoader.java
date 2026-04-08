@@ -12,7 +12,6 @@ import data.ItemFactory;
 import data.MonsterFactory;
 import entity.BossMonster;
 import entity.Entity;
-import entity.NPC_Alucard;
 import entity.NPC_Generic;
 import main.GamePanel;
 import object.OBJ_Arrow;
@@ -177,6 +176,28 @@ public class MapObjectLoader {
 
     // ---- Core Loader ----------------------------------------------------------
 
+    /**
+     * Resolve an objectgroup layer name to one of the standard names,
+     * using case-insensitive matching with common aliases.
+     * Returns the canonical name or "Unknown" if unrecognized.
+     */
+    private String resolveObjectGroupName(String layerName) {
+        if (layerName == null || layerName.isEmpty()) return "Unknown";
+        String lower = layerName.trim().toLowerCase();
+        return switch (lower) {
+            case "objects", "object"                                -> "Objects";
+            case "monsters", "monster", "mobs", "mob", "enemies"   -> "Monsters";
+            case "npcs", "npc"                                     -> "NPCs";
+            case "interactivetiles", "interacttiles", "interactive" -> "InteractiveTiles";
+            case "events", "event", "triggers"                     -> "Events";
+            case "collision"                                       -> "Collision";
+            default -> {
+                System.out.println("MapObjectLoader WARN: Unrecognized objectgroup '" + layerName + "', skipping");
+                yield "Unknown";
+            }
+        };
+    }
+
     private void load(String tmxPath, boolean entities, boolean events) {
         try {
             Document doc = parseXmlResource(tmxPath);
@@ -216,7 +237,7 @@ public class MapObjectLoader {
             for (int g = 0; g < objectGroups.getLength(); g++) {
                 Element og = (Element) objectGroups.item(g);
                 String layerName = og.getAttribute("name");
-                if ("Collision".equals(layerName)) continue;
+                if ("Collision".equalsIgnoreCase(layerName)) continue;
 
                 NodeList objects = og.getElementsByTagName("object");
                 for (int j = 0; j < objects.getLength(); j++) {
@@ -334,7 +355,8 @@ public class MapObjectLoader {
                         }
                     }
 
-                    switch (layerName) {
+                    String resolvedGroup = resolveObjectGroupName(layerName);
+                    switch (resolvedGroup) {
                         case "Objects" -> {
                             if (!entities) continue;
                             if (objIdx >= gp.obj.length) {
@@ -561,7 +583,8 @@ public class MapObjectLoader {
                 return chest;
             }
             case "Door" -> {
-                OBJ_Door door = new OBJ_Door(gp);
+                boolean vis = getBoolProperty(obj, "visible", true);
+                OBJ_Door door = vis ? new OBJ_Door(gp) : new OBJ_Door(gp, true);
                 String dest = getStringProperty(obj, "destination", "");
                 if (!dest.isEmpty()) {
                     int dCol   = getIntProperty(obj, "destCol", 5);
@@ -572,6 +595,8 @@ public class MapObjectLoader {
                     String sd = getStringProperty(obj, "spawnDirection", "");
                     if (!sd.isEmpty()) door.spawnDirection = parseDirection(sd);
                 }
+                String prompt = getStringProperty(obj, "promptText", "");
+                if (!prompt.isEmpty()) door.promptText = prompt;
                 return door;
             }
             case "Torch" -> {
@@ -603,25 +628,25 @@ public class MapObjectLoader {
             default -> {
                 Entity e = createEntityByName(type);
                 if (e != null) return e;
-                System.out.println("MapObjectLoader: Unknown object type '" + type + "'");
+                System.out.println("MapObjectLoader WARNING: Unknown object type '" + type + "' — skipped");
                 return null;
             }
         }
     }
 
     private Entity createMonster(String type, int col, int row, Element obj) {
-        // Accept both legacy TMX class names and JSON ids
+        // Accept both legacy TMX class names (deprecated) and JSON ids
         String id = switch (type) {
-            case "MON_monster"         -> "mummy";
-            case "MON_SkeletonArcher"  -> "skeleton_archer";
-            case "MON_Shade"           -> "shade";
-            case "MON_Inkblot", "Inkblot" -> "inkblot";
-            case "BOSS_WitheredTree"   -> "withered_tree";
+            case "MON_monster"         -> { System.out.println("MapObjectLoader WARN: Deprecated monster type 'MON_monster', use 'mummy'"); yield "mummy"; }
+            case "MON_SkeletonArcher"  -> { System.out.println("MapObjectLoader WARN: Deprecated monster type 'MON_SkeletonArcher', use 'skeleton_archer'"); yield "skeleton_archer"; }
+            case "MON_Shade"           -> { System.out.println("MapObjectLoader WARN: Deprecated monster type 'MON_Shade', use 'shade'"); yield "shade"; }
+            case "MON_Inkblot", "Inkblot" -> { if (type.startsWith("MON_")) System.out.println("MapObjectLoader WARN: Deprecated monster type '" + type + "', use 'inkblot'"); yield "inkblot"; }
+            case "BOSS_WitheredTree"   -> { System.out.println("MapObjectLoader WARN: Deprecated monster type 'BOSS_WitheredTree', use 'withered_tree'"); yield "withered_tree"; }
             default                    -> type;
         };
         Entity m = MonsterFactory.create(gp, id, col, row);
         if (m == null) {
-            System.out.println("MapObjectLoader: Unknown monster type '" + type + "'");
+            System.out.println("MapObjectLoader WARNING: Unknown monster type '" + type + "' (resolved: '" + id + "') — skipped");
             return null;
         }
 
@@ -654,8 +679,35 @@ public class MapObjectLoader {
 
     private Entity createNPC(String type, Element obj) {
         Entity npc = switch (type) {
-            case "NPC_Alucard" -> new NPC_Alucard(gp);
-            case "NPC_Generic" -> {
+            case "NPC_Generic", "NPC_Alucard" -> {
+                // ── NPCFactory path: if npcId is set, build from JSON definition ──
+                // If the Tiled type is NPC_Alucard (legacy), default the npcId to "alucard"
+                String npcId = getStringProperty(obj, "npcId", null);
+                if (npcId == null && "NPC_Alucard".equals(type)) npcId = "alucard";
+                if (npcId != null && !npcId.isBlank() && data.NPCFactory.has(npcId)) {
+                    int tileCol = getIntProperty(obj, "x", 0) / gp.tileSize;
+                    int tileRow = getIntProperty(obj, "y", 0) / gp.tileSize;
+                    // Tiled objects use pixel coords; if x/y are in the obj attributes, parse them
+                    String xAttr = obj.getAttribute("x");
+                    String yAttr = obj.getAttribute("y");
+                    if (xAttr != null && !xAttr.isEmpty()) tileCol = (int)(Double.parseDouble(xAttr) / gp.tileSize);
+                    if (yAttr != null && !yAttr.isEmpty()) tileRow = (int)(Double.parseDouble(yAttr) / gp.tileSize);
+                    NPC_Generic g = data.NPCFactory.create(gp, npcId, tileCol, tileRow);
+                    if (g != null) {
+                        // Allow Tiled property overrides on top of JSON definitions
+                        String overrideSprite = getStringProperty(obj, "sprite", null);
+                        if (overrideSprite != null && !overrideSprite.isBlank()) {
+                            g.spritePath = overrideSprite;
+                            g.getImage();
+                        }
+                        loadDataDrivenDialogues(g, obj);  // Tiled dialogue overrides JSON
+                        loadFragmentProperties(g, obj);
+                        loadChoiceProperties(g, obj);
+                        yield g;
+                    }
+                }
+
+                // ── Fallback: manual property-based NPC (original path) ──
                 NPC_Generic g = new NPC_Generic(gp);
                 // sprite path (walk sheet)
                 String sprite = getStringProperty(obj, "sprite", null);
@@ -673,7 +725,7 @@ public class MapObjectLoader {
                 yield g;
             }
             default -> {
-                System.out.println("MapObjectLoader: Unknown NPC type '" + type + "'");
+                System.out.println("MapObjectLoader WARNING: Unknown NPC type '" + type + "' — skipped. Use 'NPC_Generic' with npcId property.");
                 yield null;
             }
         };
@@ -736,7 +788,7 @@ public class MapObjectLoader {
             npc.npcStepIndex = 1; // next step to load on arrival
         }
 
-        // collision: whether this NPC blocks the player (default true for NPC_Alucard)
+        // collision: whether this NPC blocks the player (default true)
         String collisionProp = getStringProperty(obj, "collision", null);
         if (collisionProp != null && !collisionProp.isBlank()) {
             npc.collision = "true".equalsIgnoreCase(collisionProp);

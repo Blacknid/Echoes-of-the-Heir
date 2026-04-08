@@ -46,9 +46,16 @@
   {
     "id": "sword_giver_bandage",
     "name": "Aid the Sword Giver",
-    "description": "A wounded traveler gave you his sword, \nand asked for a bandage.",
+    "description": "A wounded soldier gave you his sword and asked for a bandage.",
     "target": 1,
     "autoStart": false,
+    "steps": [
+      { "action": "talk", "npc": "sword_giver_npc", "dialogue": "intro", "give": "wooden_sword",
+        "description": "Talk to the wounded soldier" },
+      { "action": "deliver", "npc": "sword_giver_npc", "item": "bandage", "consume": true,
+        "dialogue": "thanks", "failDialogue": "waiting",
+        "description": "Bring a bandage to the soldier" }
+    ],
     "rewardCoins": 25,
     "rewardItemId": "",
     "rewardFragmentId": "",

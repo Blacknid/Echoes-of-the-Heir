@@ -254,6 +254,7 @@ public class UI {
             drawPlayerLife();
             drawMessage();
             drawLevelUpBanner();
+            drawInteractionPrompt();
             if (gp.thoughts != null) gp.thoughts.draw(g2);
         }
 
@@ -826,6 +827,57 @@ public class UI {
         }
     }
 }
+
+    // ── INTERACTION PROMPT: floating "ENTER" prompt when near an interactable ──
+    private int promptBobCounter = 0;
+    private static final Font PROMPT_FONT = new Font("Georgia", Font.BOLD, 14);
+
+    public void drawInteractionPrompt() {
+        Entity target = gp.nearbyInteractable;
+        if (target == null) { promptBobCounter = 0; return; }
+
+        // Determine prompt text (use OBJ_Door.promptText if available)
+        String text = "ENTER";
+        if (target instanceof object.OBJ_Door door && door.promptText != null) {
+            text = door.promptText;
+        }
+
+        promptBobCounter++;
+        int bob = (int)(Math.sin(promptBobCounter * 0.08) * 3); // gentle bob
+
+        // World-to-screen conversion for the object
+        int screenX = target.worldX - gp.player.worldX + gp.player.screenX;
+        int screenY = target.worldY - gp.player.worldY + gp.player.screenY;
+
+        g2.setFont(PROMPT_FONT);
+        FontMetrics fm = cachedFM(PROMPT_FONT);
+        int textW = fm.stringWidth(text);
+        int textH = fm.getHeight();
+
+        // Center above the object
+        int px = screenX + gp.tileSize / 2 - (textW + 24) / 2;
+        int py = screenY - 14 + bob;
+
+        int pillW = textW + 24;
+        int pillH = textH + 8;
+
+        // Background pill
+        g2.setColor(cachedColor(10, 8, 6, 200));
+        g2.fillRoundRect(px, py, pillW, pillH, 10, 10);
+
+        // Border
+        g2.setColor(cachedColor(200, 190, 170, 160));
+        g2.drawRoundRect(px, py, pillW, pillH, 10, 10);
+
+        // Text shadow
+        g2.setColor(cachedColor(0, 0, 0, 200));
+        g2.drawString(text, px + 13, py + textH + 1);
+
+        // Text
+        g2.setColor(cachedColor(240, 230, 210, 255));
+        g2.drawString(text, px + 12, py + textH);
+    }
+
     public void drawTitleScreen() {
 
         // DRAW BACKGROUND IMAGE
@@ -2710,7 +2762,7 @@ public class UI {
         }
 
         // Draw the black rectangle with the current alpha
-        g2.setColor(cachedColor(0, 0, 0, (int) transitionAlpha));
+        g2.setColor(cachedColor(0, 0, 0, (int)(transitionAlpha * 255)));
         g2.fillRect(0, 0, gp.screenWidth, gp.screenHeight);
     }
 
