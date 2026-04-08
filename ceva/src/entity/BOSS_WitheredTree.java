@@ -54,6 +54,7 @@ public class BOSS_WitheredTree extends Entity {
     private static final int ATK_WHIRLWIND   = 3;
     private static final int ATK_LEAF_BOLT   = 4;
     private static final int ATK_TRIPLE_BOLT = 5;
+    private static final int ATK_THORN_RING  = 6;
     private int currentAttackType = ATK_MELEE;
 
     // ── Leaf Bolt ranged attack ──────────────────────────────────────────
@@ -103,6 +104,16 @@ public class BOSS_WitheredTree extends Entity {
     private static final int WHIRLWIND_DURATION = 90;
     private static final int WHIRLWIND_HIT_INTERVAL = 15;
     private float whirlwindAngle = 0;
+
+    // ── Thorn Ring (Phase 3) ─────────────────────────────────────────────
+    private boolean thornRingActive = false;
+    private int thornRingTimer = 0;
+    private static final int THORN_RING_WINDUP    = 24; // frames of telegraph before firing
+    private static final int THORN_RING_DURATION  = 36; // total frames of the attack
+    private static final int THORN_RING_DMG        = 4;
+    private static final int THORN_RING_SPEED      = 5;
+    private static final int THORN_RING_BOLT_LIFE  = 100;
+    private boolean thornRingFired = false;
 
     // ── Boss intro ───────────────────────────────────────────────────────
     private boolean introPlayed = false;
@@ -177,6 +188,8 @@ public class BOSS_WitheredTree extends Entity {
     private static final Color ROOT_COLOR   = new Color(80, 50, 20);
     private static final Color ROOT_TIP     = new Color(50, 120, 30);
     private static final Color WHIRL_TRAIL  = new Color(100, 160, 60, 150);
+    private static final Color THORN_COLOR  = new Color(180, 220, 60, 200);
+    private static final Color THORN_GLOW   = new Color(120, 200, 40, 100);
     private static final Color HP_DAMAGE_FLASH = new Color(255, 255, 255, 120);
 
     public BOSS_WitheredTree(GamePanel gp) {
@@ -285,6 +298,7 @@ public class BOSS_WitheredTree extends Entity {
         stompActive = false;
         rootBarrageActive = false;
         whirlwindActive = false;
+        thornRingActive = false;
         attackFrameCounter = 0;
         speed = 0;
         invincible = true; // brief invulnerability during transition
@@ -350,13 +364,15 @@ public class BOSS_WitheredTree extends Entity {
     // ────────── AI: Attack Selection ──────────
 
     private int chooseAttack(double dist) {
-        // Phase 3: can use all attacks including whirlwind + leaf bolt
+        // Phase 3: can use all attacks including whirlwind + leaf bolt + thorn ring
         if (currentPhase == 2) {
             // Enraged: frantic, fast attacks only
             if (enraged) {
                 if (dist <= ATTACK_RANGE) {
                     return (consecutiveMelees < 2) ? ATK_MELEE : ATK_WHIRLWIND;
                 }
+                int enrageRoll = rng.nextInt(3);
+                if (enrageRoll == 0) return ATK_THORN_RING;
                 return rng.nextBoolean() ? ATK_TRIPLE_BOLT : ATK_ROOT;
             }
             int roll = rng.nextInt(100);
@@ -364,20 +380,22 @@ public class BOSS_WitheredTree extends Entity {
                 return rng.nextBoolean() ? ATK_STOMP : ATK_WHIRLWIND;
             }
             if (dist <= ATTACK_RANGE) {
-                if (roll < 30) return ATK_MELEE;
-                if (roll < 45) return ATK_STOMP;
-                if (roll < 60) return ATK_WHIRLWIND;
-                if (roll < 75) return ATK_TRIPLE_BOLT;
-                if (roll < 88) return ATK_LEAF_BOLT;
-                return ATK_ROOT;
+                if (roll < 25) return ATK_MELEE;
+                if (roll < 38) return ATK_STOMP;
+                if (roll < 52) return ATK_WHIRLWIND;
+                if (roll < 64) return ATK_TRIPLE_BOLT;
+                if (roll < 77) return ATK_LEAF_BOLT;
+                if (roll < 89) return ATK_ROOT;
+                return ATK_THORN_RING;
             }
             if (dist <= STOMP_RANGE) {
-                if (roll < 20) return ATK_STOMP;
-                if (roll < 45) return ATK_ROOT;
-                if (roll < 70) return ATK_TRIPLE_BOLT;
-                return ATK_WHIRLWIND;
+                if (roll < 15) return ATK_STOMP;
+                if (roll < 35) return ATK_ROOT;
+                if (roll < 55) return ATK_TRIPLE_BOLT;
+                if (roll < 75) return ATK_WHIRLWIND;
+                return ATK_THORN_RING;
             }
-            if (dist <= LEAF_BOLT_RANGE) return ATK_TRIPLE_BOLT;
+            if (dist <= LEAF_BOLT_RANGE) return rng.nextBoolean() ? ATK_TRIPLE_BOLT : ATK_THORN_RING;
             return ATK_ROOT;
         }
 
@@ -415,7 +433,7 @@ public class BOSS_WitheredTree extends Entity {
 
     @Override
     public void setAction() {
-        if (bossAttacking || stompActive || rootBarrageActive || whirlwindActive) return;
+        if (bossAttacking || stompActive || rootBarrageActive || whirlwindActive || thornRingActive) return;
 
         // Boss intro: first time player enters range, dramatic pause
         if (!introPlayed && isPlayerInRange(aggroRange)) {
@@ -461,6 +479,10 @@ public class BOSS_WitheredTree extends Entity {
                     currentAttackType = ATK_WHIRLWIND;
                     consecutiveMelees = 0;
                     startWhirlwind();
+                } else if (atkType == ATK_THORN_RING) {
+                    currentAttackType = ATK_THORN_RING;
+                    consecutiveMelees = 0;
+                    startThornRing();
                 } else if (atkType == ATK_LEAF_BOLT && leafBoltCooldown <= 0) {
                     currentAttackType = ATK_LEAF_BOLT;
                     consecutiveMelees = 0;
@@ -612,6 +634,11 @@ public class BOSS_WitheredTree extends Entity {
         }
         if (whirlwindActive) {
             updateWhirlwind();
+            tickInvincibleAndFlash();
+            return;
+        }
+        if (thornRingActive) {
+            updateThornRing();
             tickInvincibleAndFlash();
             return;
         }
@@ -990,6 +1017,102 @@ public class BOSS_WitheredTree extends Entity {
         }
     }
 
+    // ────────── Thorn Ring (Phase 3) ──────────
+
+    private void startThornRing() {
+        faceBossTowardPlayer();
+        thornRingActive = true;
+        thornRingTimer = 0;
+        thornRingFired = false;
+        speed = 0;
+        isMoving = false;
+        bossAttacking = true;
+        attackFrameCounter = 0;
+        attackFrameIndex = 0;
+        attackHitApplied = false;
+
+        gp.playSE(SFX.WEAPON_SWING);
+        gp.screenShake.shakeLight();
+    }
+
+    private void updateThornRing() {
+        thornRingTimer++;
+
+        // Update attack animation during windup
+        attackFrameCounter++;
+        int totalFrames = safeLen(phaseAttackFrames[currentPhase], direction, 7);
+        attackFrameIndex = Math.min(attackFrameCounter / 5, totalFrames - 1);
+
+        // Pulse particles during windup
+        if (thornRingTimer < THORN_RING_WINDUP && thornRingTimer % 4 == 0) {
+            for (int i = 0; i < 4; i++) {
+                Particle pw = gp.particlePool.get();
+                float angle = (float)(i * Math.PI / 2 + thornRingTimer * 0.05);
+                int pdx = (int)(Math.cos(angle) * 2);
+                int pdy = (int)(Math.sin(angle) * 2);
+                pw.setWithPosition(this, this, THORN_COLOR, 4, 2, 14, pdx, pdy, Particle.STYLE_SPARK);
+                gp.particleList.add(pw);
+            }
+        }
+
+        // Fire at windup completion
+        if (thornRingTimer == THORN_RING_WINDUP && !thornRingFired) {
+            thornRingFired = true;
+            gp.screenShake.shakeMedium();
+            gp.triggerHitstop(4);
+            spawnSwingParticle();
+
+            // Determine how many directions to fire: 8 if enraged, 4 otherwise
+            int[] dirs;
+            if (enraged) {
+                dirs = new int[]{DIR_UP, DIR_DOWN, DIR_LEFT, DIR_RIGHT,
+                                 rotateCW(DIR_UP), rotateCW(DIR_DOWN),
+                                 rotateCW(DIR_LEFT), rotateCW(DIR_RIGHT)};
+            } else {
+                dirs = new int[]{DIR_UP, DIR_DOWN, DIR_LEFT, DIR_RIGHT};
+            }
+
+            for (int d : dirs) {
+                Projectile bolt = gp.projectilePool.get();
+                bolt.name = "Thorn";
+                bolt.speed = THORN_RING_SPEED;
+                bolt.maxLife = THORN_RING_BOLT_LIFE;
+                bolt.attack = THORN_RING_DMG - gp.player.defense < 1 ? 1 : THORN_RING_DMG;
+                bolt.alive = true;
+                bolt.user = this;
+                bolt.solidArea.x = 20;
+                bolt.solidArea.y = 20;
+                bolt.solidArea.width = 24;
+                bolt.solidArea.height = 24;
+                bolt.solidAreaDefaultX = bolt.solidArea.x;
+                bolt.solidAreaDefaultY = bolt.solidArea.y;
+                // Reuse leaf bolt frames as stand-in visuals
+                bolt.walkFrames = leafBoltFrames;
+                bolt.set(getCenterX() - gp.tileSize / 2, getVisualCenterY() - gp.tileSize / 2,
+                         d, true, this);
+                gp.projectilesList.add(bolt);
+            }
+
+            // Burst of thorn particles
+            for (int i = 0; i < 20; i++) {
+                Particle p = gp.particlePool.get();
+                float angle = (float)(i * Math.PI * 2 / 20);
+                int pdx = (int)(Math.cos(angle) * (rng.nextInt(3) + 3));
+                int pdy = (int)(Math.sin(angle) * (rng.nextInt(3) + 3));
+                p.setWithPosition(this, this, THORN_COLOR, rng.nextInt(3) + 3, 2, 20,
+                        pdx, pdy, Particle.STYLE_SPARK);
+                gp.particleList.add(p);
+            }
+        }
+
+        if (thornRingTimer >= THORN_RING_DURATION) {
+            thornRingActive = false;
+            bossAttacking = false;
+            speed = PHASE_SPEED[currentPhase];
+            attackCooldown = ATTACK_COOLDOWNS[currentPhase] + 30;
+        }
+    }
+
     // ────────── Leaf Bolt (ranged) ──────────
 
     private void fireLeafBolt() {
@@ -1257,6 +1380,21 @@ public class BOSS_WitheredTree extends Entity {
             g2.drawOval(bossCX - trailR, bossCY - trailR, trailR * 2, trailR * 2);
             g2.setStroke(oldStroke);
             changeAlpha(g2, 1f);
+        }
+
+        // ── Thorn Ring windup glow ──
+        if (thornRingActive && !thornRingFired) {
+            float windupPct = (float) thornRingTimer / THORN_RING_WINDUP;
+            float pulse = (float)(0.5 + 0.5 * Math.sin(thornRingTimer * 0.6));
+            int glowAlpha = (int)(60 + 100 * windupPct * pulse);
+            int glowR = (int)(gp.tileSize * (0.5f + windupPct * 1.5f));
+            g2.setColor(new Color(180, 220, 60, Math.min(255, Math.max(0, glowAlpha))));
+            g2.fillOval(bossCX - glowR, bossCY - glowR, glowR * 2, glowR * 2);
+            Stroke oldStroke = g2.getStroke();
+            g2.setStroke(new BasicStroke(2f + 2f * windupPct));
+            g2.setColor(new Color(120, 200, 40, Math.min(255, Math.max(0, glowAlpha + 40))));
+            g2.drawOval(bossCX - glowR, bossCY - glowR, glowR * 2, glowR * 2);
+            g2.setStroke(oldStroke);
         }
 
         BufferedImage currentSprite = getCurrentSprite();
