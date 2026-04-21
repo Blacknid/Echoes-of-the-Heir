@@ -537,15 +537,19 @@ public class Entity {
             return;
         }
 
-        // handling knockback first ensures the push isn't blocked by normal collision checks
+        // handling knockback first — check collision before moving to prevent wall phasing
         if (knockBack) {
-            // move by vector regardless of collision state
-            worldX += knockBackVectorX;
-            worldY += knockBackVectorY;
+            int nextX = worldX + knockBackVectorX;
+            int nextY = worldY + knockBackVectorY;
+            gp.cChecker.checkTileNext(this, nextX, nextY);
+            if (!collisionOn) {
+                worldX = nextX;
+                worldY = nextY;
+            }
 
             double travelled = Math.hypot(knockBackVectorX, knockBackVectorY);
             knockBackRemaining -= travelled;
-            if (knockBackRemaining <= 0) {
+            if (knockBackRemaining <= 0 || collisionOn) {
                 knockBack = false;
                 knockBackVectorX = 0;
                 knockBackVectorY = 0;

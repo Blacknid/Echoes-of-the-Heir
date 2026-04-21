@@ -49,6 +49,10 @@ public class MapManager {
     /** Act title card text to show on map entry (from actTitle TMX property). */
     public String pendingActTitle = "";
 
+    /** Spawn position to use when retrying after death (set on every map transition). */
+    public int retrySpawnCol = -1;
+    public int retrySpawnRow = -1;
+
     public boolean loadingGame = false;
 
     // MAP ENTITY STORAGE: Preserve entity states when switching between maps
@@ -146,6 +150,10 @@ public class MapManager {
         gp.player.worldX = spawnCol * gp.tileSize;
         gp.player.worldY = spawnRow * gp.tileSize;
 
+        // Remember where the player entered so death-retry respawns here
+        retrySpawnCol = spawnCol;
+        retrySpawnRow = spawnRow;
+
         // Show map-entry dialogue trigger message if one was defined
         if (!pendingDialogueTrigger.isEmpty()) {
             gp.ui.addMessage(pendingDialogueTrigger, new java.awt.Color(255, 240, 180), pendingDialogueTriggerDuration);
@@ -219,16 +227,25 @@ public class MapManager {
             gp.player.setDefaultValues();
             gp.aSetter.setObject();
             gp.aSetter.setInteractiveTile();
+
+            retrySpawnCol = -1;
+            retrySpawnRow = -1;
         }
 
         gp.player.restoreLifeAndMana();
+        gp.aSetter.setObject();
+        gp.aSetter.setInteractiveTile();
         gp.aSetter.setNPC();
         gp.aSetter.setMonster();
-
-        if (restart) {
-            gp.aSetter.loadEntitiesFromTMX();
-        }
+        gp.aSetter.loadEntitiesFromTMX();
         gp.aSetter.loadEventsFromTMX();
-        gp.player.setDefaultPositions();
+
+        if (!restart && retrySpawnCol >= 0) {
+            gp.player.worldX = retrySpawnCol * gp.tileSize;
+            gp.player.worldY = retrySpawnRow * gp.tileSize;
+            gp.player.direction = Entity.DIR_DOWN;
+        } else {
+            gp.player.setDefaultPositions();
+        }
     }
 }

@@ -81,9 +81,9 @@ public class MobSpawner {
         int row = pos[1];
 
         if (nightMode) {
-            gp.monster[slot] = MonsterFactory.create(gp, "skeleton_archer", col, row);
+            gp.monster[slot] = MonsterFactory.create(gp, "drowned_sketch", col, row);
         } else {
-            gp.monster[slot] = MonsterFactory.create(gp, "mummy", col, row);
+            gp.monster[slot] = MonsterFactory.create(gp, "painted_crab", col, row);
         }
     }
 

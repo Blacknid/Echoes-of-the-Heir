@@ -612,9 +612,9 @@ public class MapObjectLoader {
     private Entity createMonster(String type, int col, int row, Element obj) {
         // Accept both legacy TMX class names and JSON ids
         String id = switch (type) {
-            case "MON_monster"         -> "mummy";
-            case "MON_SkeletonArcher"  -> "skeleton_archer";
-            case "MON_Shade"           -> "shade";
+            case "MON_monster"         -> "painted_crab";
+            case "MON_SkeletonArcher"  -> "drowned_sketch";
+            case "MON_Shade"           -> "shade_wolf";
             case "MON_Inkblot", "Inkblot" -> "inkblot";
             case "BOSS_WitheredTree"   -> "withered_tree";
             default                    -> type;
@@ -1046,9 +1046,9 @@ public class MapObjectLoader {
      */
     public Entity createMonsterByName(String type, int col, int row) {
         String id = switch (type) {
-            case "MON_monster"         -> "mummy";
-            case "MON_SkeletonArcher"  -> "skeleton_archer";
-            case "MON_Shade"           -> "shade";
+            case "MON_monster"         -> "painted_crab";
+            case "MON_SkeletonArcher"  -> "drowned_sketch";
+            case "MON_Shade"           -> "shade_wolf";
             case "MON_Inkblot", "Inkblot" -> "inkblot";
             case "BOSS_WitheredTree"   -> "withered_tree";
             default                    -> type;
@@ -1064,11 +1064,15 @@ public class MapObjectLoader {
         int    count   = getIntProperty(obj, "count", 3);
         int    cols    = Math.max(1, areaW / gp.tileSize);
         int    rows    = Math.max(1, areaH / gp.tileSize);
+        int    pCol    = gp.player.worldX / gp.tileSize;
+        int    pRow    = gp.player.worldY / gp.tileSize;
         java.util.Random rng = new java.util.Random();
         int placed = 0;
         for (int i = 0; i < count && startIdx + placed < gp.monster.length; i++) {
             int c = startCol + rng.nextInt(cols);
             int r = startRow + rng.nextInt(rows);
+            // Skip positions too close to the player (within 3 tiles)
+            if (Math.abs(c - pCol) < 3 && Math.abs(r - pRow) < 3) continue;
             Entity m = createMonster(monType, c, r, obj);
             if (m != null) {
                 applyCommonProperties(m, obj);
