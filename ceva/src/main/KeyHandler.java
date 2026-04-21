@@ -545,7 +545,7 @@ public class KeyHandler implements KeyListener {
             if (code == KeyEvent.VK_ESCAPE) {
                 gp.debugMapSwitcherOpen = false;
             }
-            return; // swallow all keys while switcher is open
+            return; // swallow all keys while switcher is openr
         }
 
         // Hitboxes toggle

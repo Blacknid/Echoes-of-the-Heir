@@ -1,11 +1,191 @@
 {
-    "activeFile": "maps/Awakening_Cave.tmx",
+    "activeFile": "maps/Canvas_Village.tmx",
     "expandedProjectPaths": [
     ],
     "fileStates": {
         "": {
             "scaleInDock": 1,
             "scaleInEditor": 1
+        },
+        "C:/Users/cstyl/AppData/Local/Temp/6adcd62b-2bad-407a-8edb-10f4e7358b57_craftpix-net-666104-tavern-top-down-pixel-rpg-asset-pack.zip.b57/Tiled_files/Characters.tmx": {
+            "scale": 2,
+            "selectedLayer": 0,
+            "viewCenter": {
+                "x": 0,
+                "y": -199.5
+            }
+        },
+        "C:/Users/cstyl/AppData/Local/Temp/6adcd62b-2bad-407a-8edb-10f4e7358b57_craftpix-net-666104-tavern-top-down-pixel-rpg-asset-pack.zip.b57/Tiled_files/Characters.tmx#Animation_ sit_char": {
+            "scaleInDock": 1
+        },
+        "C:/Users/cstyl/AppData/Local/Temp/6adcd62b-2bad-407a-8edb-10f4e7358b57_craftpix-net-666104-tavern-top-down-pixel-rpg-asset-pack.zip.b57/Tiled_files/Characters.tmx#Animation_Drinker1": {
+            "scaleInDock": 1
+        },
+        "C:/Users/cstyl/AppData/Local/Temp/6adcd62b-2bad-407a-8edb-10f4e7358b57_craftpix-net-666104-tavern-top-down-pixel-rpg-asset-pack.zip.b57/Tiled_files/Characters.tmx#Animation_client": {
+            "scaleInDock": 1
+        },
+        "C:/Users/cstyl/AppData/Local/Temp/6adcd62b-2bad-407a-8edb-10f4e7358b57_craftpix-net-666104-tavern-top-down-pixel-rpg-asset-pack.zip.b57/Tiled_files/Characters.tmx#Animation_dancer": {
+            "scaleInDock": 1
+        },
+        "C:/Users/cstyl/AppData/Local/Temp/6adcd62b-2bad-407a-8edb-10f4e7358b57_craftpix-net-666104-tavern-top-down-pixel-rpg-asset-pack.zip.b57/Tiled_files/Characters.tmx#Animation_drinker5": {
+            "scaleInDock": 1
+        },
+        "C:/Users/cstyl/AppData/Local/Temp/6adcd62b-2bad-407a-8edb-10f4e7358b57_craftpix-net-666104-tavern-top-down-pixel-rpg-asset-pack.zip.b57/Tiled_files/Characters.tmx#Animation_drinker6": {
+            "scaleInDock": 1
+        },
+        "C:/Users/cstyl/AppData/Local/Temp/6adcd62b-2bad-407a-8edb-10f4e7358b57_craftpix-net-666104-tavern-top-down-pixel-rpg-asset-pack.zip.b57/Tiled_files/Characters.tmx#Animation_drinker7": {
+            "scaleInDock": 1
+        },
+        "C:/Users/cstyl/AppData/Local/Temp/6adcd62b-2bad-407a-8edb-10f4e7358b57_craftpix-net-666104-tavern-top-down-pixel-rpg-asset-pack.zip.b57/Tiled_files/Characters.tmx#Animation_dwarf_player": {
+            "scaleInDock": 1
+        },
+        "C:/Users/cstyl/AppData/Local/Temp/6adcd62b-2bad-407a-8edb-10f4e7358b57_craftpix-net-666104-tavern-top-down-pixel-rpg-asset-pack.zip.b57/Tiled_files/Characters.tmx#Animation_eater": {
+            "scaleInDock": 1
+        },
+        "C:/Users/cstyl/AppData/Local/Temp/6adcd62b-2bad-407a-8edb-10f4e7358b57_craftpix-net-666104-tavern-top-down-pixel-rpg-asset-pack.zip.b57/Tiled_files/Characters.tmx#Animation_host": {
+            "scaleInDock": 1
+        },
+        "C:/Users/cstyl/AppData/Local/Temp/6adcd62b-2bad-407a-8edb-10f4e7358b57_craftpix-net-666104-tavern-top-down-pixel-rpg-asset-pack.zip.b57/Tiled_files/Characters.tmx#Animation_killer": {
+            "scaleInDock": 1
+        },
+        "C:/Users/cstyl/AppData/Local/Temp/6adcd62b-2bad-407a-8edb-10f4e7358b57_craftpix-net-666104-tavern-top-down-pixel-rpg-asset-pack.zip.b57/Tiled_files/Characters.tmx#Animation_knight": {
+            "scaleInDock": 1
+        },
+        "C:/Users/cstyl/AppData/Local/Temp/6adcd62b-2bad-407a-8edb-10f4e7358b57_craftpix-net-666104-tavern-top-down-pixel-rpg-asset-pack.zip.b57/Tiled_files/Characters.tmx#Animation_orc_player": {
+            "scaleInDock": 1
+        },
+        "C:/Users/cstyl/AppData/Local/Temp/6adcd62b-2bad-407a-8edb-10f4e7358b57_craftpix-net-666104-tavern-top-down-pixel-rpg-asset-pack.zip.b57/Tiled_files/Characters.tmx#Animation_player_drow": {
+            "scaleInDock": 1
+        },
+        "C:/Users/cstyl/AppData/Local/Temp/6adcd62b-2bad-407a-8edb-10f4e7358b57_craftpix-net-666104-tavern-top-down-pixel-rpg-asset-pack.zip.b57/Tiled_files/Characters.tmx#Animation_sleep_guy": {
+            "scaleInDock": 1
+        },
+        "C:/Users/cstyl/AppData/Local/Temp/6adcd62b-2bad-407a-8edb-10f4e7358b57_craftpix-net-666104-tavern-top-down-pixel-rpg-asset-pack.zip.b57/Tiled_files/Characters.tmx#Animation_sleep_guy2": {
+            "scaleInDock": 1
+        },
+        "C:/Users/cstyl/AppData/Local/Temp/6adcd62b-2bad-407a-8edb-10f4e7358b57_craftpix-net-666104-tavern-top-down-pixel-rpg-asset-pack.zip.b57/Tiled_files/Characters.tmx#Animation_think_guy": {
+            "scaleInDock": 1
+        },
+        "C:/Users/cstyl/AppData/Local/Temp/6adcd62b-2bad-407a-8edb-10f4e7358b57_craftpix-net-666104-tavern-top-down-pixel-rpg-asset-pack.zip.b57/Tiled_files/Characters.tmx#Animation_watcher": {
+            "scaleInDock": 1
+        },
+        "C:/Users/cstyl/AppData/Local/Temp/6adcd62b-2bad-407a-8edb-10f4e7358b57_craftpix-net-666104-tavern-top-down-pixel-rpg-asset-pack.zip.b57/Tiled_files/Characters.tmx#Dancer_shadow": {
+            "scaleInDock": 1
+        },
+        "C:/Users/cstyl/AppData/Local/Temp/6adcd62b-2bad-407a-8edb-10f4e7358b57_craftpix-net-666104-tavern-top-down-pixel-rpg-asset-pack.zip.b57/Tiled_files/Characters.tmx#Lute_player": {
+            "scaleInDock": 1
+        },
+        "C:/Users/cstyl/AppData/Local/Temp/6adcd62b-2bad-407a-8edb-10f4e7358b57_craftpix-net-666104-tavern-top-down-pixel-rpg-asset-pack.zip.b57/Tiled_files/Characters.tmx#Lute_player_shadow": {
+            "scaleInDock": 1
+        },
+        "C:/Users/cstyl/Desktop/Awakening_Cave.tmx": {
+            "expandedObjectLayers": [
+                14,
+                16,
+                13
+            ],
+            "scale": 1,
+            "selectedLayer": 19,
+            "viewCenter": {
+                "x": 751,
+                "y": 602.5
+            }
+        },
+        "C:/Users/cstyl/Desktop/Awakening_Cave.tmx#Details": {
+            "scaleInDock": 1
+        },
+        "C:/Users/cstyl/Desktop/Awakening_Cave.tmx#Ground_walls": {
+            "scaleInDock": 1
+        },
+        "C:/Users/cstyl/Desktop/Awakening_Cave.tmx#Objects": {
+            "scaleInDock": 1
+        },
+        "C:/Users/cstyl/Desktop/Awakening_Cave.tmx#Shinies_animation": {
+            "scaleInDock": 1
+        },
+        "C:/Users/cstyl/Desktop/Awakening_Cave.tmx#Totem_animation": {
+            "scaleInDock": 1
+        },
+        "C:/Users/cstyl/Desktop/Awakening_Cave.tmx#Walls_shinies": {
+            "scaleInDock": 1
+        },
+        "C:/Users/cstyl/Desktop/Awakening_Cave.tmx#Water_coasts": {
+            "scaleInDock": 1
+        },
+        "C:/Users/cstyl/Desktop/Awakening_Cave.tmx#Wisps": {
+            "scaleInDock": 1
+        },
+        "C:/Users/cstyl/Desktop/Awakening_Cave.tmx#ground_grasss": {
+            "scaleInDock": 1
+        },
+        "C:/Users/cstyl/Desktop/Awakening_Cave.tmx#water_detilazation_v2": {
+            "scaleInDock": 1
+        },
+        "C:/Users/cstyl/Desktop/Canvas_Village.tmx": {
+            "expandedGroupLayers": [
+                43,
+                50,
+                45,
+                31
+            ],
+            "expandedObjectLayers": [
+                10,
+                45,
+                4,
+                12,
+                8
+            ],
+            "scale": 0.33,
+            "selectedLayer": 26,
+            "viewCenter": {
+                "x": 1393.939393939394,
+                "y": 1077.2727272727273
+            }
+        },
+        "C:/Users/cstyl/Desktop/Canvas_Village.tmx#Archer": {
+            "scaleInDock": 1
+        },
+        "C:/Users/cstyl/Desktop/Canvas_Village.tmx#Arrow": {
+            "scaleInDock": 1
+        },
+        "C:/Users/cstyl/Desktop/Canvas_Village.tmx#Blacksmith_Exterior": {
+            "scaleInDock": 0.5
+        },
+        "C:/Users/cstyl/Desktop/Canvas_Village.tmx#Boat1": {
+            "scaleInDock": 0.75
+        },
+        "C:/Users/cstyl/Desktop/Canvas_Village.tmx#Details": {
+            "scaleInDock": 1
+        },
+        "C:/Users/cstyl/Desktop/Canvas_Village.tmx#Exterior_objetcs": {
+            "scaleInDock": 0.75
+        },
+        "C:/Users/cstyl/Desktop/Canvas_Village.tmx#Exterior_tiles": {
+            "scaleInDock": 0.75
+        },
+        "C:/Users/cstyl/Desktop/Canvas_Village.tmx#Ground_walls": {
+            "scaleInDock": 1
+        },
+        "C:/Users/cstyl/Desktop/Canvas_Village.tmx#Objects": {
+            "scaleInDock": 0.5
+        },
+        "C:/Users/cstyl/Desktop/Canvas_Village.tmx#Trees_rocks": {
+            "scaleInDock": 1
+        },
+        "C:/Users/cstyl/Desktop/Canvas_Village.tmx#Walls_street": {
+            "scaleInDock": 0.75
+        },
+        "C:/Users/cstyl/Desktop/Canvas_Village.tmx#Water_coasts": {
+            "scaleInDock": 0.75
+        },
+        "C:/Users/cstyl/Desktop/Canvas_Village.tmx#fence": {
+            "scaleInDock": 1
+        },
+        "C:/Users/cstyl/Desktop/Canvas_Village.tmx#ground_grasss": {
+            "scaleInDock": 1
+        },
+        "C:/Users/cstyl/Desktop/Canvas_Village.tmx#piles": {
+            "scaleInDock": 1
         },
         "C:/Users/cstyl/Downloads/Tiled_files/Characters ΓÇö ╨║╨╛╨┐╨╕╤Å.tmx": {
             "scale": 1,
@@ -280,26 +460,180 @@
         "C:/Users/cstyl/Downloads/Tiled_foles/Boats_fish_characters.tmx#Small_boat_v2_1-Sheet": {
             "scaleInDock": 1
         },
-        "maps/Awakening_Cave.tmx": {
-            "expandedObjectLayers": [
-                13
+        "C:/Users/cstyl/Downloads/craftpix-net-587497-pixel-art-market-square-rpg-shop-and-npc-assets-pack/Tiled_files/Market_square.tmx": {
+            "expandedGroupLayers": [
+                35,
+                40,
+                13,
+                17,
+                23
             ],
             "scale": 2,
-            "selectedLayer": 21,
+            "selectedLayer": 33,
             "viewCenter": {
-                "x": 981.5,
-                "y": 920.75
+                "x": -0.5,
+                "y": -0.5
             }
         },
-        "maps/Awakening_Cave.tmx#Details": {
+        "C:/Users/cstyl/Downloads/craftpix-net-587497-pixel-art-market-square-rpg-shop-and-npc-assets-pack/Tiled_files/Market_square.tmx#Decorative_cracks": {
+            "scaleInDock": 1
+        },
+        "C:/Users/cstyl/Downloads/craftpix-net-587497-pixel-art-market-square-rpg-shop-and-npc-assets-pack/Tiled_files/Market_square.tmx#Eater_animation": {
+            "scaleInDock": 1
+        },
+        "C:/Users/cstyl/Downloads/craftpix-net-587497-pixel-art-market-square-rpg-shop-and-npc-assets-pack/Tiled_files/Market_square.tmx#Flags_animation": {
+            "scaleInDock": 1
+        },
+        "C:/Users/cstyl/Downloads/craftpix-net-587497-pixel-art-market-square-rpg-shop-and-npc-assets-pack/Tiled_files/Market_square.tmx#Flutist_animation_full": {
+            "scaleInDock": 1
+        },
+        "C:/Users/cstyl/Downloads/craftpix-net-587497-pixel-art-market-square-rpg-shop-and-npc-assets-pack/Tiled_files/Market_square.tmx#Lute_player_animation_full": {
             "scaleInDock": 1,
             "scaleInEditor": 1
         },
-        "maps/Awakening_Cave.tmx#Ground_walls": {
+        "C:/Users/cstyl/Downloads/craftpix-net-587497-pixel-art-market-square-rpg-shop-and-npc-assets-pack/Tiled_files/Market_square.tmx#Objects": {
             "scaleInDock": 1
         },
-        "maps/Awakening_Cave.tmx#Objects": {
+        "C:/Users/cstyl/Downloads/craftpix-net-587497-pixel-art-market-square-rpg-shop-and-npc-assets-pack/Tiled_files/Market_square.tmx#Trader_bread_animation_full": {
             "scaleInDock": 1
+        },
+        "C:/Users/cstyl/Downloads/craftpix-net-587497-pixel-art-market-square-rpg-shop-and-npc-assets-pack/Tiled_files/Market_square.tmx#Trader_drinks_animation_full": {
+            "scaleInDock": 1
+        },
+        "C:/Users/cstyl/Downloads/craftpix-net-587497-pixel-art-market-square-rpg-shop-and-npc-assets-pack/Tiled_files/Market_square.tmx#Trader_fruits": {
+            "scaleInDock": 1
+        },
+        "C:/Users/cstyl/Downloads/craftpix-net-587497-pixel-art-market-square-rpg-shop-and-npc-assets-pack/Tiled_files/Market_square.tmx#Trader_magic_animation_full": {
+            "scaleInDock": 1
+        },
+        "C:/Users/cstyl/Downloads/craftpix-net-587497-pixel-art-market-square-rpg-shop-and-npc-assets-pack/Tiled_files/Market_square.tmx#Trader_weapon_animation_full": {
+            "scaleInDock": 1
+        },
+        "C:/Users/cstyl/Downloads/craftpix-net-587497-pixel-art-market-square-rpg-shop-and-npc-assets-pack/Tiled_files/Market_square.tmx#Walls_street": {
+            "scaleInDock": 1
+        },
+        "C:/Users/cstyl/Downloads/craftpix-net-587497-pixel-art-market-square-rpg-shop-and-npc-assets-pack/Tiled_files/Market_square.tmx#candles": {
+            "scaleInDock": 1
+        },
+        "C:/Users/cstyl/Downloads/legend-of-lua-main/legend-of-lua-main/maps/_old/test.tmx": {
+            "scale": 1.7555208333333332,
+            "selectedLayer": 0,
+            "viewCenter": {
+                "x": 239.81486975612654,
+                "y": 158.64237821159438
+            }
+        },
+        "C:/Users/cstyl/Downloads/legend-of-lua-main/legend-of-lua-main/maps/_old/test.tmx#Tiles": {
+            "scaleInDock": 1
+        },
+        "C:/Users/cstyl/Downloads/legend-of-lua-main/legend-of-lua-main/maps/_old2/testDungeon2-2.tmx": {
+            "scale": 1.1151367187499999,
+            "selectedLayer": 0,
+            "viewCenter": {
+                "x": 399.9509589281024,
+                "y": 568.091776863123
+            }
+        },
+        "C:/Users/cstyl/Downloads/legend-of-lua-main/legend-of-lua-main/maps/_old2/testDungeon2-2.tmx#cave": {
+            "scaleInDock": 1
+        },
+        "C:/Users/cstyl/Downloads/legend-of-lua-main/legend-of-lua-main/maps/_old2/testDungeon2-2.tmx#overworld": {
+            "scaleInDock": 1
+        },
+        "C:/Users/cstyl/Downloads/legend-of-lua-main/legend-of-lua-main/maps/menu.tmx": {
+            "scale": 1.6220170454545453,
+            "selectedLayer": 0,
+            "viewCenter": {
+                "x": 239.82485331465105,
+                "y": 176.01541290831074
+            }
+        },
+        "C:/Users/cstyl/Downloads/legend-of-lua-main/legend-of-lua-main/maps/menu.tmx#overworld": {
+            "scaleInDock": 1
+        },
+        "C:/Users/cstyl/Downloads/legend-of-lua-main/legend-of-lua-main/maps/test.tmx": {
+            "scale": 3,
+            "selectedLayer": 1,
+            "viewCenter": {
+                "x": 304,
+                "y": 176.16666666666666
+            }
+        },
+        "C:/Users/cstyl/Downloads/legend-of-lua-main/legend-of-lua-main/maps/test.tmx#overworld": {
+            "scaleInDock": 1
+        },
+        "C:/Users/cstyl/Downloads/legend-of-lua-main/legend-of-lua-main/maps/test.tmx#overworld-edit": {
+            "scaleInDock": 1
+        },
+        "C:/Users/cstyl/Downloads/legend-of-lua-main/legend-of-lua-main/maps/test2.tmx": {
+            "expandedObjectLayers": [
+                6,
+                3,
+                8,
+                9
+            ],
+            "scale": 2,
+            "selectedLayer": 3,
+            "viewCenter": {
+                "x": 288,
+                "y": 175.75
+            }
+        },
+        "C:/Users/cstyl/Downloads/legend-of-lua-main/legend-of-lua-main/maps/test2.tmx#overworld-edit": {
+            "scaleInDock": 1
+        },
+        "C:/Users/cstyl/Downloads/legend-of-lua-main/legend-of-lua-main/maps/testCave.tmx": {
+            "scale": 1.5,
+            "selectedLayer": 0,
+            "viewCenter": {
+                "x": 400,
+                "y": 255.66666666666666
+            }
+        },
+        "C:/Users/cstyl/Downloads/legend-of-lua-main/legend-of-lua-main/maps/testCave.tmx#cave": {
+            "scaleInDock": 1
+        },
+        "C:/Users/cstyl/Downloads/legend-of-lua-main/legend-of-lua-main/maps/testCave.tmx#overworld": {
+            "scaleInDock": 1
+        },
+        "C:/Users/cstyl/Downloads/menu.tmx": {
+            "scale": 1.6220170454545453,
+            "selectedLayer": 0,
+            "viewCenter": {
+                "x": 239.82485331465105,
+                "y": 86.62054470619144
+            }
+        },
+        "C:/Users/cstyl/Downloads/menu.tmx#overworld": {
+            "scaleInDock": 1
+        },
+        "Documents/Michi-s-adventure/ceva/src/res/tiles/water.tsx": {
+            "scaleInDock": 1
+        },
+        "maps/Awakening_Cave.tmx": {
+            "expandedObjectLayers": [
+                17,
+                16,
+                13
+            ],
+            "scale": 1,
+            "selectedLayer": 21,
+            "viewCenter": {
+                "x": 498.5,
+                "y": 360.5
+            }
+        },
+        "maps/Awakening_Cave.tmx#Details": {
+            "scaleInDock": 0.75,
+            "scaleInEditor": 1.5
+        },
+        "maps/Awakening_Cave.tmx#Ground_walls": {
+            "scaleInDock": 1,
+            "scaleInEditor": 1
+        },
+        "maps/Awakening_Cave.tmx#Objects": {
+            "scaleInDock": 0.33,
+            "scaleInEditor": 1
         },
         "maps/Awakening_Cave.tmx#Shinies_animation": {
             "scaleInDock": 1
@@ -326,21 +660,22 @@
         },
         "maps/Canvas_Village.tmx": {
             "expandedGroupLayers": [
-                45,
-                50,
                 31,
+                45,
                 43
             ],
             "expandedObjectLayers": [
-                4,
                 12,
+                45,
+                4,
+                10,
                 8
             ],
-            "scale": 1,
-            "selectedLayer": 26,
+            "scale": 0.5,
+            "selectedLayer": 29,
             "viewCenter": {
-                "x": 1762,
-                "y": 2073.5
+                "x": 1875,
+                "y": 1313
             }
         },
         "maps/Canvas_Village.tmx#Archer": {
@@ -350,7 +685,8 @@
             "scaleInDock": 1
         },
         "maps/Canvas_Village.tmx#Blacksmith_Exterior": {
-            "scaleInDock": 0.5
+            "scaleInDock": 0.5,
+            "scaleInEditor": 1
         },
         "maps/Canvas_Village.tmx#Boat1": {
             "scaleInDock": 0.75
@@ -360,7 +696,8 @@
             "scaleInEditor": 1
         },
         "maps/Canvas_Village.tmx#Exterior_objetcs": {
-            "scaleInDock": 0.75
+            "scaleInDock": 0.25,
+            "scaleInEditor": 1
         },
         "maps/Canvas_Village.tmx#Exterior_tiles": {
             "scaleInDock": 0.75
@@ -370,14 +707,15 @@
             "scaleInEditor": 3
         },
         "maps/Canvas_Village.tmx#Objects": {
-            "scaleInDock": 0.5
+            "scaleInDock": 0.75,
+            "scaleInEditor": 1
         },
         "maps/Canvas_Village.tmx#Trees_rocks": {
             "scaleInDock": 1,
             "scaleInEditor": 1
         },
         "maps/Canvas_Village.tmx#Walls_street": {
-            "scaleInDock": 0.75,
+            "scaleInDock": 0.33,
             "scaleInEditor": 1
         },
         "maps/Canvas_Village.tmx#Water_coasts": {
@@ -391,33 +729,49 @@
             "scaleInDock": 1
         },
         "maps/Canvas_Village.tmx#piles": {
-            "scaleInDock": 1,
+            "scaleInDock": 0.33,
             "scaleInEditor": 1
+        },
+        "maps/harta.tmx": {
+            "scale": 0.17842187499999998,
+            "selectedLayer": 0,
+            "viewCenter": {
+                "x": 3119.012172694632,
+                "y": 793.0641912601806
+            }
+        },
+        "maps/harta.tmx#fence": {
+            "scaleInDock": 1
         },
         "maps/water_detilazation_v2.tsx": {
             "scaleInDock": 0.75,
             "scaleInEditor": 1
         },
         "tiles/water.tsx": {
+            "scaleInDock": 1,
             "scaleInEditor": 1
         }
     },
     "frame.defaultDuration": 120,
     "last.imagePath": "C:/Users/cstyl/Documents/Michi-s-adventure/ceva/src/res/tiles/CANVAS VILLAGE/Square Market/Training",
     "openFiles": [
-        "maps/Canvas_Village.tmx",
-        "maps/Awakening_Cave.tmx"
+        "maps/Canvas_Village.tmx"
     ],
     "project": "MichiAdventure.tiled-project",
     "property.type": "bool",
     "recentFiles": [
-        "C:/Users/cstyl/Downloads/Tiled_files/Training_ground.tmx",
-        "C:/Users/cstyl/Downloads/Tiled_files/Characters ΓÇö ╨║╨╛╨┐╨╕╤Å.tmx",
-        "tiles/water.tsx",
-        "C:/Users/cstyl/Downloads/Tiled_foles/Boats_fish_characters.tmx",
-        "maps/water_detilazation_v2.tsx",
+        "maps/Awakening_Cave.tmx",
         "maps/Canvas_Village.tmx",
-        "maps/Awakening_Cave.tmx"
+        "C:/Users/cstyl/Downloads/menu.tmx",
+        "C:/Users/cstyl/Downloads/legend-of-lua-main/legend-of-lua-main/maps/_old2/testDungeon2-2.tmx",
+        "C:/Users/cstyl/Downloads/legend-of-lua-main/legend-of-lua-main/maps/_old/test.tmx",
+        "C:/Users/cstyl/Downloads/legend-of-lua-main/legend-of-lua-main/maps/testCave.tmx",
+        "C:/Users/cstyl/Downloads/legend-of-lua-main/legend-of-lua-main/maps/test2.tmx",
+        "C:/Users/cstyl/Downloads/legend-of-lua-main/legend-of-lua-main/maps/test.tmx",
+        "C:/Users/cstyl/Downloads/legend-of-lua-main/legend-of-lua-main/maps/menu.tmx",
+        "C:/Users/cstyl/Desktop/Awakening_Cave.tmx",
+        "C:/Users/cstyl/Desktop/Canvas_Village.tmx",
+        "C:/Users/cstyl/Downloads/craftpix-net-587497-pixel-art-market-square-rpg-shop-and-npc-assets-pack/Tiled_files/Market_square.tmx"
     ],
     "tileset.embedInMap": true,
     "tileset.lastUsedFormat": "tsx"

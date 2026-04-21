@@ -868,7 +868,7 @@ public class Player extends Entity {
             trailWorldY[trailIndex] = worldY;
             trailIndex = (trailIndex + 1) % TRAIL_SIZE;
             if (trailCount < TRAIL_SIZE) trailCount++;
-            trailActive = true;
+            // trailActive = true;
         }
 
         // HIT on frame 3 (first tick of that frame)

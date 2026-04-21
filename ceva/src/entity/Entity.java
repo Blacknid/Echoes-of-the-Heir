@@ -296,7 +296,7 @@ public class Entity {
     public int amount = 1; //stack-ul incepe initial de la 1, fie ca e stackable sau nu
     public float working_power; //cat ia din durabilitatea obiectului (toporul ia mai mult din durabilitatea lemnului decat o sabie)
     public String tool_type; //pentru ce e folosita unealta (topor pentru lemn)
-    public float spriteScale = 1.25f;           // 1.0 = normal size, 2.0 = double (boss phase scaling)
+    public float spriteScale = 1.5f;           // 1.0 = normal size, 2.0 = double (boss phase scaling)
 
     public Entity(GamePanel gp) {
         this.gp = gp;
