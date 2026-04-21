@@ -1,4 +1,4 @@
-<?xml version="1.0" encoding="UTF-8"?>
+﻿<?xml version="1.0" encoding="UTF-8"?>
 <map version="1.10" tiledversion="1.12.1" orientation="orthogonal" renderorder="right-down" width="16" height="24" tilewidth="16" tileheight="16" infinite="1" nextlayerid="35" nextobjectid="1">
  <tileset firstgid="1" name="cracked_tiles" tilewidth="16" tileheight="16" tilecount="256" columns="8">
   <image source="../../../../../../Downloads/Dungeon/Tiled_files/decorative_cracks_walls.png" width="128" height="512"/>
@@ -4338,6 +4338,9 @@
   </tile>
  </tileset>
  <layer id="21" name="water_floor3" width="16" height="24">
+  <properties>
+   <property name="render" type="string" propertytype="RenderBucket" value="background"/>
+  </properties>
   <data encoding="csv">
    <chunk x="-16" y="0" width="16" height="16">
 0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
@@ -4450,6 +4453,9 @@
   </data>
  </layer>
  <layer id="19" name="walls_under_water" width="16" height="24">
+  <properties>
+   <property name="render" type="string" propertytype="RenderBucket" value="background"/>
+  </properties>
   <data encoding="csv">
    <chunk x="0" y="0" width="16" height="16">
 0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
@@ -4544,6 +4550,9 @@
   </data>
  </layer>
  <layer id="23" name="water_detailization2" width="16" height="24">
+  <properties>
+   <property name="render" type="string" propertytype="RenderBucket" value="background"/>
+  </properties>
   <data encoding="csv">
    <chunk x="0" y="0" width="16" height="16">
 0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
@@ -4620,6 +4629,9 @@
   </data>
  </layer>
  <layer id="20" name="water_detailization" width="16" height="24">
+  <properties>
+   <property name="render" type="string" propertytype="RenderBucket" value="background"/>
+  </properties>
   <data encoding="csv">
    <chunk x="0" y="0" width="16" height="16">
 0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
@@ -4696,6 +4708,9 @@
   </data>
  </layer>
  <layer id="14" name="Floor2_pool" width="16" height="24">
+  <properties>
+   <property name="render" type="string" propertytype="RenderBucket" value="background"/>
+  </properties>
   <data encoding="csv">
    <chunk x="0" y="-16" width="16" height="16">
 0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
@@ -4880,6 +4895,9 @@
   </data>
  </layer>
  <layer id="11" name="Floor2_darker_surface" width="16" height="24">
+  <properties>
+   <property name="render" type="string" propertytype="RenderBucket" value="background"/>
+  </properties>
   <data encoding="csv">
    <chunk x="-16" y="-16" width="16" height="16">
 0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
@@ -5082,6 +5100,9 @@
   </data>
  </layer>
  <layer id="10" name="Floor" width="16" height="24">
+  <properties>
+   <property name="render" type="string" propertytype="RenderBucket" value="background"/>
+  </properties>
   <data encoding="csv">
    <chunk x="-32" y="-16" width="16" height="16">
 0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
@@ -5212,6 +5233,9 @@
   </data>
  </layer>
  <layer id="12" name="Floor_darker_surface" width="16" height="24">
+  <properties>
+   <property name="render" type="string" propertytype="RenderBucket" value="background"/>
+  </properties>
   <data encoding="csv">
    <chunk x="-32" y="-16" width="16" height="16">
 0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
@@ -5342,6 +5366,9 @@
   </data>
  </layer>
  <layer id="32" name="Objects_under_wall" width="16" height="24">
+  <properties>
+   <property name="render" type="string" propertytype="RenderBucket" value="depth"/>
+  </properties>
   <data encoding="csv">
    <chunk x="-16" y="0" width="16" height="16">
 0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
@@ -5364,6 +5391,9 @@
   </data>
  </layer>
  <layer id="9" name="Walls" width="16" height="24">
+  <properties>
+   <property name="render" type="string" propertytype="RenderBucket" value="depth"/>
+  </properties>
   <data encoding="csv">
    <chunk x="-32" y="-16" width="16" height="16">
 0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
@@ -5566,6 +5596,9 @@
   </data>
  </layer>
  <layer id="28" name="Windows" width="16" height="24">
+  <properties>
+   <property name="render" type="string" propertytype="RenderBucket" value="depth"/>
+  </properties>
   <data encoding="csv">
    <chunk x="0" y="-16" width="16" height="16">
 0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
@@ -5642,6 +5675,9 @@
   </data>
  </layer>
  <layer id="29" name="Lights" width="16" height="24" opacity="0.9">
+  <properties>
+   <property name="render" type="string" propertytype="RenderBucket" value="depth"/>
+  </properties>
   <data encoding="csv">
    <chunk x="-32" y="-16" width="16" height="16">
 0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
@@ -5790,6 +5826,9 @@
   </data>
  </layer>
  <layer id="33" name="traps" width="16" height="24">
+  <properties>
+   <property name="render" type="string" propertytype="RenderBucket" value="depth"/>
+  </properties>
   <data encoding="csv">
    <chunk x="0" y="-16" width="16" height="16">
 0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
@@ -5884,6 +5923,9 @@
   </data>
  </layer>
  <layer id="30" name="Objects" width="16" height="24">
+  <properties>
+   <property name="render" type="string" propertytype="RenderBucket" value="depth"/>
+  </properties>
   <data encoding="csv">
    <chunk x="-16" y="-16" width="16" height="16">
 0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
@@ -6050,6 +6092,9 @@
   </data>
  </layer>
  <layer id="31" name="Objects2" width="16" height="24">
+  <properties>
+   <property name="render" type="string" propertytype="RenderBucket" value="depth"/>
+  </properties>
   <data encoding="csv">
    <chunk x="0" y="-16" width="16" height="16">
 0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,

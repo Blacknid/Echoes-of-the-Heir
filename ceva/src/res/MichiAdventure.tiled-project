@@ -1,0 +1,70 @@
+{
+    "automappingRulesFile": "",
+    "commands": [],
+    "compatibilityVersion": 1100,
+    "extensionsPath": "extensions",
+    "folders": [
+        "maps"
+    ],
+    "propertyTypes": [
+        {
+            "id": 1,
+            "name": "RenderBucket",
+            "storageType": "string",
+            "type": "enum",
+            "values": [
+                "auto",
+                "background",
+                "depth",
+                "foreground"
+            ],
+            "valuesAsFlags": false
+        },
+        {
+            "id": 2,
+            "name": "GameLayer",
+            "type": "class",
+            "color": "#ff55aaff",
+            "drawFill": true,
+            "members": [
+                {
+                    "name": "render",
+                    "propertyType": "RenderBucket",
+                    "type": "string",
+                    "value": "auto"
+                },
+                {
+                    "name": "collision",
+                    "type": "bool",
+                    "value": false
+                }
+            ],
+            "useAs": [
+                "layer"
+            ]
+        },
+        {
+            "id": 3,
+            "name": "GameTile",
+            "type": "class",
+            "color": "#ffffaa00",
+            "drawFill": true,
+            "members": [
+                {
+                    "name": "render",
+                    "propertyType": "RenderBucket",
+                    "type": "string",
+                    "value": "auto"
+                },
+                {
+                    "name": "sortYOffset",
+                    "type": "int",
+                    "value": 0
+                }
+            ],
+            "useAs": [
+                "tile"
+            ]
+        }
+    ]
+}

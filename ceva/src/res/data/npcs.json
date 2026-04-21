@@ -1,0 +1,162 @@
+{
+  "alucard": {
+    "name": "Alucard",
+    "sprite": "/res/npc/Alucard_walking-sheet",
+    "speed": 1,
+    "walkFrameCount": 6,
+
+    "dialogues": {
+      "0": [
+        "Hello, spirit !",
+        "I see, so you've come for the treasure?",
+        "You should start by doing some research.",
+        "I can help you find the first key.\nYou should go South."
+      ],
+      "1": [
+        "The Dark Heart is hidden deep\nwithin the castle.",
+        "Only those worthy can possess it.",
+        "Prove your worth by reaching\nLevel 3.",
+        "Good luck on your journey!"
+      ],
+      "2": [
+        "You have done well to reach Level 3.",
+        "You are now worthy to possess\nthe Dark Heart.",
+        "Take it and fulfill your destiny."
+      ],
+      "3": [
+        "I see you've defeated the castle's guardian\nand claimed the Dark Heart."
+      ]
+    },
+
+    "states": [
+      {
+        "id": "intro",
+        "dialogueSet": 0
+      },
+      {
+        "id": "worthy",
+        "dialogueSet": 1,
+        "requiredLevel": 3
+      },
+      {
+        "id": "claim",
+        "dialogueSet": 2,
+        "requiredLevel": 3,
+        "requiredBoss": 1
+      },
+      {
+        "id": "post_game",
+        "dialogueSet": 3,
+        "requiredQuestComplete": "claim_dark_heart"
+      }
+    ]
+  },
+
+  "example_smith": {
+    "name": "Gunther the Smith",
+    "sprite": "/res/NPC/smith_walk-sheet",
+    "idleSprite": "/res/NPC/smith_idle-sheet",
+    "speed": 1,
+    "walkFrameCount": 6,
+    "staticNPC": true,
+    "portrait": "/res/NPC/smith_portrait",
+
+    "activities": {
+      "forge": {
+        "sprite": "/res/NPC/smith_forge-sheet",
+        "frames": [4, 4, 4, 4],
+        "speed": 10
+      },
+      "hammer": {
+        "sprite": "/res/NPC/smith_hammer-sheet",
+        "frames": [6, 6, 6, 6],
+        "speed": 8
+      }
+    },
+
+    "dialogues": {
+      "0": ["Welcome, traveler.\\nNeed a blade?", "Bring me iron ore\\nfrom the mines."],
+      "1": ["Good iron!\\nLet me work on this.", "Come back soon."],
+      "2": ["Your sword is ready!\\nForged with care."],
+      "3": ["Need anything sharpened?\\nI'm always at the anvil."]
+    },
+
+    "states": [
+      {
+        "id": "idle_shop",
+        "direction": 0,
+        "dialogueSet": 0,
+        "stationary": true
+      },
+      {
+        "id": "forging_sword",
+        "animation": "forge",
+        "direction": 3,
+        "offset": [2, 0],
+        "dialogueSet": 1,
+        "stationary": true,
+        "requiredQuestComplete": "gather_iron"
+      },
+      {
+        "id": "sword_ready",
+        "animation": "hammer",
+        "direction": 3,
+        "offset": [2, 0],
+        "dialogueSet": 2,
+        "stationary": true,
+        "requiredQuestComplete": "forge_sword"
+      },
+      {
+        "id": "post_quest",
+        "animation": "forge",
+        "direction": 3,
+        "offset": [2, 0],
+        "dialogueSet": 3,
+        "stationary": true,
+        "requiredQuestComplete": "deliver_sword"
+      }
+    ]
+  },
+
+  "sword_giver_npc": {
+    "name": "Soldier",
+    "sprite": "/res/NPC/Tutorial_idle",
+    "idleSprite": "/res/NPC/Tutorial_idle",
+    "staticNPC": true,
+    "idleDirection": 2,
+    "idleAnimSpeed": 12,
+    "portrait": "/res/NPC/portraits/soldier.png",
+
+    "dialogues": {
+      "intro": [
+        "...Hey. I was ambushed on the road.",
+        "My arm is useless, and I can't swing anymore.",
+        "Take this sword. Use it better than I can right now.",
+        "If you find a bandage, come back. I still need help."
+      ],
+      "waiting": [
+        "You're back... but I still need a bandage.",
+        "Check the cave rooms.",
+        "I'll hold on a little longer."
+      ],
+      "thanks": [
+        "You found one... good.",
+        "This should stop the bleeding.",
+        "Thank you. Here, take these 25 coins for the trouble."
+      ],
+      "done": [
+        "The bandage helped a lot.",
+        "Keep the sword. You earned it."
+      ]
+    },
+
+    "states": [
+      {
+        "id": "post_quest",
+        "dialogue": "done",
+        "stationary": true,
+        "requiredQuestComplete": "sword_giver_bandage"
+      }
+    ]
+  }
+}

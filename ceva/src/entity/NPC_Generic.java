@@ -27,6 +27,40 @@ import main.GamePanel;
  */
 public class NPC_Generic extends Entity {
 
+    // ── ACTIVITY STATE SYSTEM ──
+    // Condition-based state machine: evaluates quest/fragment/boss/story progress
+    // to pick which animation, position, direction, and dialogue the NPC uses.
+    // States are loaded from npcs.json via NPCFactory or from Tiled properties.
+    // Last matching state wins (higher index = higher priority).
+
+    /** A single activity state an NPC can be in, depending on game conditions. */
+    public static class NPCActivityState {
+        public String id;                           // "forging", "idle_shop", "sleeping"
+        public String animationKey  = null;         // key into activityAnimations (null = default idle)
+        public int    direction     = -1;           // forced facing (-1 = don't override)
+        public int    posCol        = -1;           // tile col to stand at (-1 = stay put)
+        public int    posRow        = -1;           // tile row to stand at (-1 = stay put)
+        public int    dialogueSet   = -1;           // which dialogue set to use (-1 = don't override)
+        public String dialogueName  = null;          // named dialogue key (resolved via dialogueNameMap)
+        public boolean stationary   = false;        // lock NPC in place during this activity
+
+        // Conditions — ALL must match for this state to activate (AND logic)
+        public String requiredQuestComplete = null; // quest ID that must be complete
+        public String requiredQuestActive   = null; // quest ID that must be active (not complete)
+        public int    requiredFragments     = -1;   // minimum fragment count (-1 = ignore)
+        public int    requiredBoss          = -1;   // boss index that must be defeated (-1 = ignore)
+        public int    requiredStoryAct      = -1;   // minimum story act (-1 = ignore)
+        public int    requiredLevel         = -1;   // minimum player level (-1 = ignore)
+    }
+
+    /** Ordered list of activity states. Index 0 = default/fallback, last match wins. */
+    public final java.util.ArrayList<NPCActivityState> activityStates = new java.util.ArrayList<>();
+    /** Currently active state (resolved by evaluateActivityState). */
+    public NPCActivityState activeState = null;
+    private String lastStateId = null;
+    /** Spawn tile position (default position before any state overrides). */
+    public int spawnCol = -1, spawnRow = -1;
+
     /** Sprite path set by MapObjectLoader; loaded lazily in getImage(). */
     public String spritePath = null;
     /** Idle sprite sheet path; loaded lazily in getImage(). */
@@ -163,10 +197,15 @@ public class NPC_Generic extends Entity {
 
     @Override
     public void setAction() {
+        // Evaluate activity state before normal AI
+        evaluateActivityState();
+
         if (onPath) {
             int goalCol = (walkToCol >= 0) ? walkToCol : 0;
             int goalRow = (walkToRow >= 0) ? walkToRow : 0;
             searchPath(goalCol, goalRow);
+        } else if (activeState != null && activeState.stationary) {
+            // In a stationary activity: don't wander
         } else if (!staticNPC && !guardMode) {
             actionLockCounter++;
             if (actionLockCounter == 120) {
@@ -181,10 +220,149 @@ public class NPC_Generic extends Entity {
         }
     }
 
+    /**
+     * Evaluates all activity states in order. The last state whose conditions
+     * all match becomes active. On state change: sets animation, pathfinds to
+     * position, overrides direction and dialogue set.
+     */
+    public void evaluateActivityState() {
+        if (activityStates.isEmpty()) return;
+        if (gp == null) return;
+
+        NPCActivityState candidate = null;
+        for (NPCActivityState state : activityStates) {
+            if (matchesConditions(state)) {
+                candidate = state;
+            }
+        }
+
+        // No state matched — clear to defaults
+        if (candidate == null) {
+            if (activeState != null) {
+                activeState = null;
+                lastStateId = null;
+                currentActivity = null;
+                activitySpriteNum = 1;
+                activitySpriteCounter = 0;
+                // Return to spawn position if we have one
+                if (spawnCol >= 0 && spawnRow >= 0) {
+                    walkToCol = spawnCol;
+                    walkToRow = spawnRow;
+                    onPath = true;
+                }
+            }
+            return;
+        }
+
+        // Same state as before — no transition needed, but enforce direction once arrived
+        if (candidate.id != null && candidate.id.equals(lastStateId)) {
+            if (!onPath && candidate.direction >= 0) {
+                direction = candidate.direction;
+            }
+            return;
+        }
+
+        // ── STATE TRANSITION ──
+        activeState = candidate;
+        lastStateId = candidate.id;
+
+        // Animation
+        currentActivity = candidate.animationKey;
+        activitySpriteNum = 1;
+        activitySpriteCounter = 0;
+
+        // Position: pathfind to the state's position (or stay put)
+        if (candidate.posCol >= 0 && candidate.posRow >= 0) {
+            walkToCol = candidate.posCol;
+            walkToRow = candidate.posRow;
+            onPath = true;
+            guardMode = false; // temporarily unlock movement for pathfinding
+        }
+
+        // Direction: applied after arriving (or immediately if no walk needed)
+        if (candidate.direction >= 0 && candidate.posCol < 0) {
+            direction = candidate.direction;
+            if (idleDirection < 0) idleDirection = candidate.direction;
+        }
+
+        // Dialogue set override — support named dialogue keys
+        if (candidate.dialogueName != null && dialogueNameMap != null) {
+            Integer idx = dialogueNameMap.get(candidate.dialogueName);
+            if (idx != null) walkToDialogueSet = idx;
+        } else if (candidate.dialogueSet >= 0) {
+            walkToDialogueSet = candidate.dialogueSet;
+        }
+
+        // Stationary flag
+        if (candidate.stationary) {
+            staticNPC = true;
+        }
+    }
+
+    /** Checks if ALL conditions of a state are met. */
+    private boolean matchesConditions(NPCActivityState state) {
+        // Quest complete check
+        if (state.requiredQuestComplete != null && !state.requiredQuestComplete.isBlank()) {
+            if (gp.questManager == null || !gp.questManager.isComplete(state.requiredQuestComplete)) {
+                return false;
+            }
+        }
+        // Quest active (but not complete) check
+        if (state.requiredQuestActive != null && !state.requiredQuestActive.isBlank()) {
+            if (gp.questManager == null) return false;
+            if (!gp.questManager.hasQuest(state.requiredQuestActive)) return false;
+            if (gp.questManager.isComplete(state.requiredQuestActive)) return false;
+        }
+        // Fragment count check
+        if (state.requiredFragments >= 0) {
+            if (gp.memoryJournal == null || gp.memoryJournal.getCount() < state.requiredFragments) {
+                return false;
+            }
+        }
+        // Boss defeated check
+        if (state.requiredBoss >= 0) {
+            boolean bossDefeated = switch (state.requiredBoss) {
+                case 1 -> gp.boss1Defeated;
+                case 2 -> gp.boss2Defeated;
+                case 3 -> gp.boss3Defeated;
+                case 4 -> gp.boss4Defeated;
+                default -> false;
+            };
+            if (!bossDefeated) return false;
+        }
+        // Story act check
+        if (state.requiredStoryAct >= 0) {
+            if (gp.storyAct < state.requiredStoryAct) {
+                return false;
+            }
+        }
+        // Player level check
+        if (state.requiredLevel >= 0) {
+            if (gp.player == null || gp.player.level < state.requiredLevel) {
+                return false;
+            }
+        }
+        return true;
+    }
+
     @Override
     public void speak() {
         facePlayer();
         syncQuestDrivenNpcState();
+
+        // Re-evaluate in case quest state changed since last tick
+        evaluateActivityState();
+
+        // Temporarily pause activity animation while talking (face player naturally)
+        String savedActivity = currentActivity;
+        currentActivity = null;
+
+        // ── Quest step execution (JSON-driven NPCs) ──
+        if (gp.questManager != null && objectId != null) {
+            if (gp.questManager.executeStepForNpc(objectId, this)) {
+                return;
+            }
+        }
 
         // Give item on first interaction
         if (giveItemId != null && !giveItemGiven) {

@@ -244,6 +244,7 @@ Use the existing `LevelGate` event type, extended with a new variant: `MemoryGat
 - `Painted Crab` (melee, 8 HP, armored = 2 DEF) — near water
 - `Drowned Sketch` (ranged, 7 HP, shoots ink projectiles) — on islands
 
+
 **Boss:** The Hollow King (see Section 5)
 
 **NPCs:**

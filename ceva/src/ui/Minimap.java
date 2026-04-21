@@ -145,32 +145,13 @@ public class Minimap {
         bakedTerrainCache.remove(mapId);
     }
 
-    /** Map a GID to a flat biome colour. Uses tileset-name heuristics first, legacy GID ranges as fallback. */
+    /** Map a GID to a minimap colour by sampling the actual tile image center pixel. */
     private Color gidToColor(int gid, int col, int row) {
-        // Try tileset-name classification (works across all maps)
-        String biome = gp.tileM.classifyGidBiome(gid);
-        if (biome != null) {
-            return switch (biome) {
-                case "water"  -> ((col + row) % 3 == 0) ? COL_WATER2 : COL_WATER;
-                case "tree"   -> COL_TREE;
-                case "shadow" -> null;
-                case "struct" -> COL_STRUCT;
-                case "grass"  -> ((col ^ row) % 4 == 0) ? COL_GRASS2 : COL_GRASS;
-                default       -> COL_BG;
-            };
-        }
-        // Legacy fallback for maps where classifier returns null
-        if (gid >= GID_WATER_MIN  && gid <= GID_WATER_MAX)
-            return ((col + row) % 3 == 0) ? COL_WATER2 : COL_WATER;
-        if (gid == GID_TREE)
-            return COL_TREE;
-        if (gid >= GID_SHADOW_MIN)
-            return null;
-        if (gid >= GID_STRUCT_MIN && gid <= GID_STRUCT_MAX)
-            return COL_STRUCT;
-        if (gid >= GID_GRASS_MIN  && gid <= GID_GRASS_MAX)
-            return ((col ^ row) % 4 == 0) ? COL_GRASS2 : COL_GRASS;
-        return COL_BG;
+        // Sample actual tile art center pixel — works across all maps without heuristics
+        Color sampled = gp.tileM.sampleTileColor(gid);
+        if (sampled != null) return sampled;
+        // Transparent or missing tile — draw nothing
+        return null;
     }
 
     public void toggleWorldMap() {

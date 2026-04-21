@@ -52,10 +52,22 @@ public class Entity {
     // SPRITES - array-based storage: [dirIndex][frameIndex], dir = DIR_DOWN/LEFT/RIGHT/UP
     public BufferedImage[][] walkFrames;   // walk animation per direction
     public BufferedImage[][] idleFrames;   // idle animation per direction
-    public BufferedImage[][] attackFrames; // attack animation per direction
+    public BufferedImage[][] attackFrames;  // attack animation per direction (combo step 0)
+    public BufferedImage[][] attackFrames2; // combo step 1, 1-tile sprites
+    public BufferedImage[][] attackFrames3; // combo step 2, 1-tile sprites
     
     // (attack legacy sprite fields removed — use attackFrames[][] array instead)
-    
+
+    // ── ACTIVITY ANIMATION SYSTEM ──
+    // Named animation sets beyond walk/idle (e.g. "forge", "sweep", "sleep").
+    // Loaded from JSON (NPCFactory) or Tiled properties via MapObjectLoader.
+    public java.util.HashMap<String, BufferedImage[][]> activityAnimations;   // key → [dir][frame]
+    public java.util.HashMap<String, Integer> activityAnimSpeeds;             // key → ticks between frames
+    public String  currentActivity = null;       // active animation key (null = use default walk/idle)
+    public int     activitySpriteNum = 1;        // current frame (1-based, bouncing)
+    public int     activitySpriteCounter = 0;    // tick counter for frame advance
+    private int    activityFrameDirection = 1;   // +1 or -1 (bounce direction)
+
     public int direction = DIR_DOWN;
 
     // IDLE ANIMATION
@@ -121,6 +133,7 @@ public class Entity {
     public String dialogues[][];
     public int dialogueIndex = 0;
     public int dialogueSet = 0;
+    public java.util.HashMap<String, Integer> dialogueNameMap = null; // named dialogue key → set index
 
 
     
@@ -283,7 +296,7 @@ public class Entity {
     public int amount = 1; //stack-ul incepe initial de la 1, fie ca e stackable sau nu
     public float working_power; //cat ia din durabilitatea obiectului (toporul ia mai mult din durabilitatea lemnului decat o sabie)
     public String tool_type; //pentru ce e folosita unealta (topor pentru lemn)
-    public float spriteScale = 1.0f;           // 1.0 = normal size, 2.0 = double (boss phase scaling)
+    public float spriteScale = 1.25f;           // 1.0 = normal size, 2.0 = double (boss phase scaling)
 
     public Entity(GamePanel gp) {
         this.gp = gp;
@@ -450,6 +463,16 @@ public class Entity {
         if (entity.onSpeakQuestId != null && gp.questManager != null) {
             gp.questManager.progress(entity.onSpeakQuestId, entity.onSpeakQuestAmount);
         }
+    }
+    /** Start dialogue by named key. Resolves via dialogueNameMap, falls back to parseInt, then 0. */
+    public void startNamedDialogue(Entity entity, String dialogueName) {
+        if (dialogueName == null) { startDialogue(entity, 0); return; }
+        if (entity.dialogueNameMap != null) {
+            Integer idx = entity.dialogueNameMap.get(dialogueName);
+            if (idx != null) { startDialogue(entity, idx); return; }
+        }
+        try { startDialogue(entity, Integer.parseInt(dialogueName)); }
+        catch (NumberFormatException e) { startDialogue(entity, 0); }
     }
     public void checkCollision() {
         
@@ -665,6 +688,10 @@ public class Entity {
             idleSpriteNum = 1;
             idleSpriteCounter = 0;
             idleFrameDirection = 1;
+            // Reset activity animation when NPC starts walking
+            activitySpriteNum = 1;
+            activitySpriteCounter = 0;
+            activityFrameDirection = 1;
 
             spriteCounter++;
             if (spriteCounter > animationFrameInterval) {
@@ -717,6 +744,39 @@ public class Entity {
                     }
                 }
             }
+
+            // ── ACTIVITY ANIMATION: cycle frames when idle and an activity is set ──
+            if (currentActivity != null && activityAnimations != null) {
+                BufferedImage[][] actFrames = activityAnimations.get(currentActivity);
+                if (actFrames != null) {
+                    int dir = (idleDirection >= 0) ? idleDirection : direction;
+                    if (dir >= 0 && dir < actFrames.length && actFrames[dir] != null && actFrames[dir].length > 0) {
+                        int interval = idleAnimationInterval;
+                        if (activityAnimSpeeds != null) {
+                            Integer customSpeed = activityAnimSpeeds.get(currentActivity);
+                            if (customSpeed != null) interval = customSpeed;
+                        }
+                        activitySpriteCounter++;
+                        if (activitySpriteCounter > interval) {
+                            int maxFrames = actFrames[dir].length;
+                            if (maxFrames == 1) {
+                                activitySpriteNum = 1;
+                            } else {
+                                activitySpriteNum += activityFrameDirection;
+                                if (activitySpriteNum >= maxFrames) {
+                                    activitySpriteNum = maxFrames;
+                                    activityFrameDirection = -1;
+                                }
+                                if (activitySpriteNum <= 1) {
+                                    activitySpriteNum = 1;
+                                    activityFrameDirection = 1;
+                                }
+                            }
+                            activitySpriteCounter = 0;
+                        }
+                    }
+                }
+            }
         }
 
         if (invincible) {
@@ -748,8 +808,22 @@ public class Entity {
             int drawW = (int)(gp.tileSize * spriteScale);
             int drawH = (int)(gp.tileSize * spriteScale);
 
+            // ── ACTIVITY ANIMATION: takes priority over idle when standing still ──
+            if (currentSprite == null && entityIdle && currentActivity != null && activityAnimations != null) {
+                BufferedImage[][] actFrames = activityAnimations.get(currentActivity);
+                if (actFrames != null) {
+                    int actDir = (idleDirection >= 0) ? idleDirection : direction;
+                    if (actDir >= 0 && actDir < actFrames.length && actFrames[actDir] != null) {
+                        int idx = activitySpriteNum - 1;
+                        if (idx >= 0 && idx < actFrames[actDir].length) {
+                            currentSprite = actFrames[actDir][idx];
+                        }
+                    }
+                }
+            }
+
             // Use idle animation when standing still and idle frames exist
-            if (entityIdle && idleFrames != null) {
+            if (currentSprite == null && entityIdle && idleFrames != null) {
                 int idleDir = (idleDirection >= 0) ? idleDirection : direction;
                 if (idleDir >= 0 && idleDir < idleFrames.length && idleFrames[idleDir] != null) {
                     int idx = idleSpriteNum - 1;
@@ -888,7 +962,11 @@ public class Entity {
             case "walk" -> walkFrames;
             case "idle" -> idleFrames;
             case "attack" -> attackFrames;
-            default -> null;
+            default -> {
+                // Check activity animations for custom types (e.g. "forge", "sweep")
+                if (activityAnimations != null) yield activityAnimations.get(type);
+                yield null;
+            }
         };
         if (frames != null && dir >= 0 && dir < frames.length && frames[dir] != null) {
             if (frame >= 0 && frame < frames[dir].length) return frames[dir][frame];

@@ -8,24 +8,25 @@ Everything about creating, triggering, progressing, and rewarding quests in Mich
 
 1. [How It Works](#how-it-works)
 2. [quests.json — Defining Quests](#questsjson--defining-quests)
-3. [Starting a Quest](#starting-a-quest)
-4. [Progressing a Quest](#progressing-a-quest)
-5. [Completing & Rewards](#completing--rewards)
-6. [Quest Chaining](#quest-chaining)
-7. [Removing a Quest](#removing-a-quest)
-8. [Using Quests in Tiled](#using-quests-in-tiled)
-9. [NPC-Driven Quests in Tiled](#npc-driven-quests-in-tiled)
-10. [Full Walkthrough Example](#full-walkthrough-example)
-11. [Save & Load](#save--load)
-12. [Java API Reference](#java-api-reference)
-13. [Quick Decision Guide](#quick-decision-guide)
+3. [Step System — Multi-Step Quests](#step-system--multi-step-quests)
+4. [Starting a Quest](#starting-a-quest)
+5. [Progressing a Quest](#progressing-a-quest)
+6. [Completing & Rewards](#completing--rewards)
+7. [Quest Chaining](#quest-chaining)
+8. [Removing a Quest](#removing-a-quest)
+9. [Using Quests in Tiled](#using-quests-in-tiled)
+10. [NPC-Driven Quests](#npc-driven-quests)
+11. [Full Walkthrough Example](#full-walkthrough-example)
+12. [Save & Load](#save--load)
+13. [Java API Reference](#java-api-reference)
+14. [Quick Decision Guide](#quick-decision-guide)
 
 ---
 
 ## How It Works
 
 ```
-quests.json                    defines all quests (id, name, target, rewards, chain)
+quests.json                    defines all quests (id, name, steps or target, rewards, chain)
        ↓
 QuestManager                   tracks active quests, progress, completion
        ↓
@@ -36,7 +37,12 @@ Rewards fire automatically     coins, items, fragments, next quest in chain
 
 All quest **definitions** live in `ceva/src/res/data/quests.json`.  
 All quest **logic** is handled by `QuestManager.java` — you rarely need to touch it.  
-All quest **triggers** come from Tiled map events, NPC properties, or simple one-line Java calls.
+QuestManager supports two quest formats:
+
+| Format | Use when | Step tracking |
+|--------|----------|---------------|
+| **Step quests** (`steps` array) | Quest involves NPC talk/delivery/collect in sequence | Per-step, automatic |
+| **Flat quests** (`target` int) | Simple collect/kill/explore counters | `current/target` |
 
 ---
 
@@ -77,6 +83,81 @@ Each quest is a JSON object in an array:
 | `chainQuestId` | String | no | `""` | Quest id auto-started when this quest completes. `""` = no chain |
 
 ### Adding a New Quest
+
+---
+
+## Step System — Multi-Step Quests
+
+The step system lets you define **exactly what happens at each stage** of a quest, right inside `quests.json`. NPCs don't need Tiled gift/delivery properties — the quest drives everything.
+
+### Step Actions
+
+| Action | What happens | Advances automatically? |
+|--------|-------------|------------------------|
+| `talk` | NPC plays dialogue. Optionally gives player an item. | Yes — immediately on interaction |
+| `deliver` | Player must have a specific item. If missing, plays `failDialogue`. If present, optionally consumes it. | Yes — on successful delivery |
+| `collect` | Player must `progress()` the quest N times (pick up items, enter areas). | Via `progress()` calls |
+| `kill` | Player must kill N enemies tracked by `progress()` calls. | Via `progress()` calls |
+| `go` | Player must reach a location tracked by a `QuestTrigger` event. | Via `progress()` calls |
+
+### Step Fields
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `action` | String | yes | `talk` \| `deliver` \| `collect` \| `kill` \| `go` |
+| `npc` | String | for talk/deliver | NPC `objectId` from npcs.json (matches the key, e.g. `"sword_giver_npc"`) |
+| `dialogue` | String | no | Named dialogue key to play on success (e.g. `"intro"`, `"thanks"`) |
+| `failDialogue` | String | no | Named dialogue key played when player lacks the required item (deliver only) |
+| `give` | String | no | ItemFactory id given to the player on this step |
+| `item` | String | for deliver | ItemFactory id the player must have |
+| `consume` | bool | no | `true` = remove the item from inventory on delivery |
+| `count` | int | no | Target count for collect/kill/go steps (default `1`) |
+| `description` | String | no | Short text shown in the HUD tracker and quest log for this step |
+
+### Step Quest Example
+
+```json
+{
+  "id": "sword_giver_bandage",
+  "name": "Aid the Wounded Soldier",
+  "description": "Help the soldier you found in the cave.",
+  "prerequisite": "",
+  "steps": [
+    {
+      "action": "talk",
+      "npc": "sword_giver_npc",
+      "dialogue": "intro",
+      "give": "wooden_sword",
+      "description": "Talk to the wounded soldier"
+    },
+    {
+      "action": "deliver",
+      "npc": "sword_giver_npc",
+      "item": "bandage",
+      "consume": true,
+      "dialogue": "thanks",
+      "failDialogue": "waiting",
+      "description": "Bring a bandage to the soldier"
+    }
+  ],
+  "rewardCoins": 25,
+  "chainQuestId": "meet_hurt_soldier"
+}
+```
+
+### Auto-Start on First Talk
+
+When a quest's **first step is `talk`** and the player speaks to that NPC, QuestManager automatically starts the quest (if its prerequisite is met) and executes step 0. You don't need any trigger or code call — just set up the quest and NPC.
+
+### Quest Prerequisites
+
+```json
+"prerequisite": "find_exit"
+```
+
+`addQuest()` silently ignores the quest if the prerequisite isn't complete. This prevents step-based quests from auto-starting before the player is ready. Leave as `""` for no requirement.
+
+---
 
 1. Open `ceva/src/res/data/quests.json`
 2. Add a new object to the array:
@@ -367,116 +448,75 @@ gp.questManager.clearQuests();
 
 ---
 
-## NPC-Driven Quests in Tiled
+## NPC-Driven Quests
 
-All quest-related NPC properties are set directly on the NPC object in the **NPCs** layer.
+The **recommended** approach is to define everything in `npcs.json` and `quests.json`. Tiled only needs `type = NPC_Generic` and `npcId = your_npc`.
 
-### Pattern 1: Progress by talking
-
-The simplest quest interaction — just talk to the NPC.
+### How It Works
 
 ```
-type              = NPC_Generic
-name              = Elder Voss
-staticNPC         = true
-sprite            = /res/npc/Alucard_walking-sheet
-dialogue_0_0      = Thank you for coming, traveler.
-onSpeakQuestId    = talk_to_elder
-onSpeakQuestAmount = 1
+quests.json                 step[0]: talk npc=soldier, dialogue="intro", give=wooden_sword
+                            step[1]: deliver npc=soldier, item=bandage, dialogue="thanks"
+       ↓
+npcs.json (soldier)         dialogues: { "intro": [...], "waiting": [...], "thanks": [...] }
+       ↓
+NPC_Generic.speak()         calls QuestManager.executeStepForNpc(objectId, this)
+       ↓
+QuestManager                finds the active step for this NPC, executes action, advances
 ```
 
-**Step-by-step in Tiled:**
-1. **NPCs** layer → press **P** → click where the NPC should stand
-2. Set **Class** = `NPC_Generic`
-3. Add properties:
-   - `name` (String) = `Elder Voss`
-   - `staticNPC` (bool) = `true`
-   - `sprite` (String) = `/res/npc/Alucard_walking-sheet`
-   - `dialogue_0_0` (String) = `Thank you for coming, traveler.`
-   - `onSpeakQuestId` (String) = `talk_to_elder`
-   - `onSpeakQuestAmount` (int) = `1`
+The NPC's `objectId` (set automatically to the `npcId` key) links quest steps to NPC dialogue.
 
-### Pattern 2: NPC gives item + starts a quest
+### Named Dialogues
 
-The NPC hands the player an item and a quest begins.
+Use string keys in `npcs.json` instead of numbers. The engine resolves them at runtime:
 
-```
-type              = NPC_Generic
-name              = Sword Giver
-guardMode         = true
-sprite            = /res/npc/Alucard_walking-sheet
-
-giftItem          = wooden_sword
-giftDialogueSet   = 0
-giftQuestId       = sword_giver_bandage
-giftQuestName     = Aid the Sword Giver
-giftQuestDesc     = A wounded traveler needs a bandage.
-giftQuestTarget   = 1
-
-dialogue_0_0      = Take this sword.\nBut I need a bandage in return...
-dialogue_1_0      = Have you found a bandage yet?
+```json
+"dialogues": {
+  "intro":   ["Take this sword. But please, bring me a bandage."],
+  "waiting": ["You're back... but I still need a bandage."],
+  "thanks":  ["You found one... good. Thank you."]
+}
 ```
 
-Flow: First talk → player gets `wooden_sword` → quest "Aid the Sword Giver" starts → NPC switches to dialogue set 1.
-
-### Pattern 3: NPC receives item (delivery) + completes quest
-
-Add delivery properties to the same NPC (or a different one):
-
-```
-deliveryItem            = bandage
-deliveryDialogueSet     = 2
-deliveryConsumeItem     = true
-deliveryQuestId         = sword_giver_bandage
-deliveryQuestAmount     = 1
-deliveryPostDialogueSet = 3
-deliveryRewardCoins     = 25
-
-dialogue_2_0     = Thank you! You saved me.
-dialogue_3_0     = I'm doing much better now.
+Reference them by name in quest steps:
+```json
+{ "action": "talk",    "dialogue": "intro"                           },
+{ "action": "deliver", "dialogue": "thanks", "failDialogue": "waiting" }
 ```
 
-Flow: Player has `bandage` → talks to NPC → bandage consumed → quest progresses → 25 coins → NPC permanently uses dialogue set 3.
+Numeric keys (`"0"`, `"1"`) still work for backward compatibility.
 
-### Pattern 4: Full gift-then-delivery cycle (all on one NPC)
+### NPC States After Quest Events
 
-Combine patterns 2 and 3 on a single NPC:
+Use states in `npcs.json` to change NPC behaviour automatically after quest completion:
 
-```
-type                    = NPC_Generic
-name                    = Sword Giver
-guardMode               = true
-sprite                  = /res/npc/Alucard_walking-sheet
-
-giftItem                = wooden_sword
-giftDialogueSet         = 0
-giftQuestId             = sword_giver_bandage
-giftQuestName           = Aid the Sword Giver
-giftQuestDesc           = A wounded traveler needs a bandage.
-giftQuestTarget         = 1
-
-walkToDialogueSet       = 1
-
-deliveryItem            = bandage
-deliveryDialogueSet     = 2
-deliveryConsumeItem     = true
-deliveryQuestId         = sword_giver_bandage
-deliveryPostDialogueSet = 3
-deliveryRewardCoins     = 25
-
-dialogue_0_0 = Take this sword. But please, bring me a bandage...
-dialogue_1_0 = Have you found a bandage yet?
-dialogue_2_0 = Thank you! You saved my life.
-dialogue_3_0 = I'm doing much better now. Travel safely.
+```json
+"states": [
+  {
+    "id": "post_quest",
+    "dialogue": "done",
+    "stationary": true,
+    "requiredQuestComplete": "sword_giver_bandage"
+  }
+]
 ```
 
-This produces a 4-phase flow:
-1. **First talk** → NPC gives sword + quest starts → dialogue 0
-2. **Waiting phase** → NPC asks for bandage → dialogue 1
-3. **Delivery phase** → bandage consumed + coins rewarded → dialogue 2
-4. **Post-quest** → permanent completed dialogue → dialogue 3
+`"dialogue"` is a **named string key**. `"dialogueSet"` (int index) is also supported.
 
-### NPC Quest Property Reference
+### Tiled Setup (Minimal)
+
+```
+type  = NPC_Generic
+npcId = sword_giver_npc
+```
+
+That's it. All dialogue, quest logic, states, and sprites come from JSON.
+
+### Legacy: NPC Quest Properties in Tiled
+
+Old Tiled-only NPCs (without `npcId`) still support `giftItem`, `deliveryItem`, `giftQuestId`, etc.  
+These are **legacy** — prefer the JSON approach for new NPCs.
 
 | Property | Type | Description |
 |----------|------|-------------|
@@ -485,18 +525,14 @@ This produces a 4-phase flow:
 | `giftItem` | String | Item given on first interaction (ItemFactory id) |
 | `giftDialogueSet` | int | Dialogue set used when giving the item |
 | `giftQuestId` | String | Quest started when the gift is given |
-| `giftQuestName` | String | Quest display name |
-| `giftQuestDesc` | String | Quest description |
-| `giftQuestTarget` | int | Quest target |
 | `deliveryItem` | String | Item the player must bring back |
 | `deliveryDialogueSet` | int | Dialogue set on delivery |
 | `deliveryConsumeItem` | bool | Remove the item from inventory |
 | `deliveryQuestId` | String | Quest progressed on delivery |
-| `deliveryQuestAmount` | int | Amount added on delivery |
 | `deliveryPostDialogueSet` | int | Permanent dialogue set after delivery |
 | `deliveryRewardCoins` | int | Coin reward on delivery |
-| `deliveryRewardItem` | String | Item reward on delivery (ItemFactory id) |
-| `deliveryRewardFragmentId` | String | Memory fragment on delivery |
+
+See [TILED_ENTITY_GUIDE.md](TILED_ENTITY_GUIDE.md) for the full legacy property list.
 
 ---
 
@@ -586,25 +622,24 @@ Quest state is fully saved and restored automatically.
 - `id` — unique key
 - `name` — display name
 - `description` — description text
-- `current` — current progress
+- `current` — current progress (flat quests)
 - `target` — completion threshold
+- `step` — current step index (step quests; `-1` for flat quests)
+- `stepProgress` — progress within the current step (for collect/kill/go steps)
 
 **Format in save.dat:**
 ```
-quests.size=2
-quests.0.id=find_exit
-quests.0.name=Find the Exit
-quests.0.desc=Retrieve the cave memory fragment
-quests.0.current=1
+quests.size=1
+quests.0.id=sword_giver_bandage
+quests.0.name=Aid the Wounded Soldier
+quests.0.desc=Help the soldier you found in the cave.
+quests.0.current=0
 quests.0.target=1
-quests.1.id=talk_to_elder
-quests.1.name=Talk to the Elder
-quests.1.desc=Seek out the village elder
-quests.1.current=0
-quests.1.target=1
+quests.0.step=1
+quests.0.stepProgress=0
 ```
 
-On load, `restoreQuest()` is called for each entry — no announcement messages, preserves exact progress.
+On load, `restoreQuest()` is called for each entry — no announcement messages, preserves exact step.
 
 ---
 
@@ -614,15 +649,17 @@ On load, `restoreQuest()` is called for each entry — no announcement messages,
 
 | Method | Description |
 |--------|-------------|
-| `addQuest(String id)` | Start a quest by id (looks up quests.json) |
-| `addQuest(String id, String name, String desc, int target)` | Start with explicit values (no JSON lookup) |
-| `progress(String id, int amount)` | Add progress. Returns `true` if quest just completed |
+| `addQuest(String id)` | Start a quest by id (looks up quests.json, checks prerequisite) |
+| `addQuest(String id, String name, String desc, int target)` | Start with explicit values (no JSON lookup, no prerequisite check) |
+| `executeStepForNpc(String npcId, Entity npc)` | Execute current quest step for an NPC. Called automatically by `NPC_Generic.speak()`. Returns `true` if a step was handled |
+| `progress(String id, int amount)` | Add progress for collect/kill/go steps (or flat quests). Returns `true` if quest just completed |
 | `isComplete(String id)` | Check if a quest is done |
 | `hasQuest(String id)` | Check if a quest is currently tracked |
 | `removeQuest(String id)` | Remove a quest entirely. Returns `true` if found |
 | `clearQuests()` | Remove all quests (used before loading a save) |
 | `getQuestStates()` | Get a snapshot of all quests (for save system) |
-| `restoreQuest(id, name, desc, target, current)` | Restore from save (no announcement) |
+| `restoreQuest(id, name, desc, target, current)` | Restore flat quest from save (no announcement) |
+| `restoreQuest(id, name, desc, target, current, step, stepProgress)` | Restore step quest from save |
 | `toggleLog()` | Open/close the quest log screen |
 | `isLogOpen()` | Check if the log is open |
 | `drawTracker(Graphics2D g2)` | Draw the HUD tracker overlay |
@@ -653,17 +690,22 @@ gp.questManager.removeQuest("my_quest");
 | I want to... | Do this |
 |---|---|
 | Define a quest | Add entry to `quests.json` |
+| Create a multi-step NPC quest | Add `"steps": [...]` array in quests.json |
 | Start quest on game begin | Set `"autoStart": true` in quests.json |
+| Start quest on first NPC talk | First step is `"action": "talk"` with NPC id — auto-starts |
+| Block quest until another is done | Set `"prerequisite": "other_quest_id"` in quests.json |
 | Start quest on a specific map | `QuestDefinition` event in Tiled |
-| Start quest from NPC gift | `giftQuestId` on the NPC in Tiled |
 | Start quest from code | `gp.questManager.addQuest("id")` |
-| Progress at a location | `QuestTrigger` event in Tiled |
-| Progress by talking | `onSpeakQuestId` on NPC in Tiled |
-| Progress by item delivery | `deliveryQuestId` on NPC in Tiled |
+| NPC gives item when talked to | Step with `"action": "talk"`, `"give": "item_id"` |
+| NPC receives item from player | Step with `"action": "deliver"`, `"item": "item_id"`, `"consume": true` |
+| NPC plays different dialogue if item missing | `"failDialogue": "named_key"` on the deliver step |
+| Progress at a location | `QuestTrigger` event in Tiled (for collect/go steps) |
+| Progress by talking (old style) | `onSpeakQuestId` on NPC in Tiled (legacy / flat quests) |
+| Progress by item delivery (old style) | `deliveryQuestId` on NPC in Tiled (legacy / Tiled NPCs only) |
 | Progress from code | `gp.questManager.progress("id", 1)` |
 | Give coins on completion | `"rewardCoins": 50` in quests.json |
 | Give item on completion | `"rewardItemId": "iron_sword"` in quests.json |
 | Give memory fragment | `"rewardFragmentId": "frag_cave"` in quests.json |
 | Auto-start next quest | `"chainQuestId": "next_quest"` in quests.json |
-| Remove a quest at runtime | `gp.questManager.removeQuest("id")` |
+| NPC changes state after quest | Add entry to `states` array in npcs.json with `requiredQuestComplete` |
 | Check if quest is done | `gp.questManager.isComplete("id")` |

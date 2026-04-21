@@ -69,6 +69,8 @@ public class GameState implements Serializable {
     public ArrayList<String> questDescriptions = new ArrayList<>();
     public ArrayList<Integer> questProgress = new ArrayList<>();
     public ArrayList<Integer> questTargets = new ArrayList<>();
+    public ArrayList<Integer> questCurrentSteps = new ArrayList<>();
+    public ArrayList<Integer> questStepProgress = new ArrayList<>();
     public ArrayList<String> dialogueChoicesMade = new ArrayList<>(); // key=value pairs
 
     // SYNC
