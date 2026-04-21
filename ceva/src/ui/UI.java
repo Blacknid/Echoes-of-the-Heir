@@ -2772,7 +2772,7 @@ public class UI {
         int y = (gp.screenHeight - h) / 2;
 
         // Dim background with slight vignette feel
-        g2.setColor(cachedColor(0, 0, 0, 170));
+        g2.setColor(cachedColor(0, 0, 0, 255));
         g2.fillRect(0, 0, gp.screenWidth, gp.screenHeight);
 
         // Main panel with gradient background

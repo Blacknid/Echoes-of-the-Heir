@@ -87,7 +87,44 @@ public class CollisionChecker {
         return false;
     }
 
+    /**
+     * Return a list of collision bounding rectangles that intersect the given rectangle.
+     * Uses the spatial grid for fast broad-phase lookup when available.
+     */
+    public java.util.ArrayList<Rectangle> getCollisionBoundsInRect(Rectangle r) {
+        java.util.ArrayList<Rectangle> out = new java.util.ArrayList<>();
+        if (spatialGrid != null && gridCols > 0) {
+            int minCX = Math.max(0, r.x / GRID_CELL_SIZE);
+            int minCY = Math.max(0, r.y / GRID_CELL_SIZE);
+            int maxCX = Math.min(gridCols - 1, (r.x + r.width) / GRID_CELL_SIZE);
+            int maxCY = Math.min(gridRows - 1, (r.y + r.height) / GRID_CELL_SIZE);
+            for (int cy = minCY; cy <= maxCY; cy++) {
+                for (int cx = minCX; cx <= maxCX; cx++) {
+                    int idx = cy * gridCols + cx;
+                    if (idx >= 0 && idx < spatialGrid.length && spatialGrid[idx] != null) {
+                        java.util.ArrayList<Integer> cell = spatialGrid[idx];
+                        for (int j = 0, n = cell.size(); j < n; j++) {
+                            int shapeIdx = cell.get(j);
+                            Rectangle br = gp.tileM.collisionBounds.get(shapeIdx);
+                            if (br.intersects(r) && !out.contains(br)) out.add(br);
+                        }
+                    }
+                }
+            }
+        } else {
+            java.util.ArrayList<Rectangle> rects = gp.tileM.collisionBounds;
+            for (int i = 0, n = rects.size(); i < n; i++) {
+                Rectangle br = rects.get(i);
+                if (br.intersects(r)) out.add(br);
+            }
+        }
+        return out;
+    }
+
     // OPTIMIZATION: Use spatial grid for tile collision checks
+    // Uses swept collision: extends the rect along the movement direction so that
+    // walls between the current position and the destination are never skipped,
+    // even at very high speeds (e.g. dash).
     public void checkTile(Entity entity) {
 
         tempRect.x = entity.worldX + entity.solidArea.x;
@@ -95,12 +132,12 @@ public class CollisionChecker {
         tempRect.width = entity.solidArea.width;
         tempRect.height = entity.solidArea.height;
 
-        // Predict movement
+        // Swept collision: extend rect from current to predicted position
         switch(entity.direction) {
-            case Entity.DIR_UP:    tempRect.y -= entity.speed; break;
-            case Entity.DIR_DOWN:  tempRect.y += entity.speed; break;
-            case Entity.DIR_LEFT:  tempRect.x -= entity.speed; break;
-            case Entity.DIR_RIGHT: tempRect.x += entity.speed; break;
+            case Entity.DIR_UP:    tempRect.y -= entity.speed; tempRect.height += entity.speed; break;
+            case Entity.DIR_DOWN:  tempRect.height += entity.speed; break;
+            case Entity.DIR_LEFT:  tempRect.x -= entity.speed; tempRect.width += entity.speed; break;
+            case Entity.DIR_RIGHT: tempRect.width += entity.speed; break;
         }
 
         entity.collisionOn = false;

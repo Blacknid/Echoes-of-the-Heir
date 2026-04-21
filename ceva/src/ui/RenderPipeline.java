@@ -56,6 +56,10 @@ public class RenderPipeline {
             case GamePanel.titleState:
                 gp.ui.draw(g2);
                 break;
+            case GamePanel.levelUpState:
+                // Level-up screen draws its own opaque overlay — skip expensive world render
+                gp.ui.draw(g2);
+                break;
             case GamePanel.transitionState:
                 drawWorldState(g2);
                 break;

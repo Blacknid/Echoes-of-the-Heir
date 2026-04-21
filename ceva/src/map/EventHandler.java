@@ -384,6 +384,10 @@ public class EventHandler {
                 int wy = tr * ts;
                 // Use the standard monster solid area (matches MobSpawner)
                 candidate.setBounds(wx + 12, wy + 8, 40, 48);
+                // Reject positions too close to the player (within 3 tiles)
+                int pCol = gp.player.worldX / ts;
+                int pRow = gp.player.worldY / ts;
+                if (Math.abs(tc - pCol) < 3 && Math.abs(tr - pRow) < 3) continue;
                 if (!overlapsAnyMonster(candidate)) {
                     col = tc; row = tr; found = true;
                     break;
