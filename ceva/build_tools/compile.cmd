@@ -8,13 +8,15 @@ set MAIN_CLASS=main.Main
 set JAR_NAME=Michi-s-adventure.jar
 
 :: --- PATHS ---
-set ROOT=..
+:: Resolve script directory and set repo root relative to this script
+set SCRIPT_DIR=%~dp0
+set ROOT=%SCRIPT_DIR%..
 set SRC_DIR=%ROOT%\src
 set BIN_DIR=%ROOT%\bin
 set DEPLOY_DIR=%ROOT%\deploy
 set OUTPUT_DIR=%ROOT%\output
 set LIB_DIR=%ROOT%\lib
-set LIBS=%LIB_DIR%\jl-1.0.1.jar;%LIB_DIR%\tritonus-share-0.3.7.jar;%LIB_DIR%\mp3spi-1.9.5.jaroutput
+set LIBS=%LIB_DIR%\jl-1.0.1.jar;%LIB_DIR%\tritonus-share-0.3.7.jar;%LIB_DIR%\mp3spi-1.9.5.jar
 
 echo ============================================
 echo   Michi's Adventure Build Pipeline v%VERSION%
@@ -39,8 +41,14 @@ mkdir "%BIN_DIR%"
 mkdir "%DEPLOY_DIR%"
 
 :: Compiles all sub-packages in src
-javac -cp "%LIBS%" -d "%BIN_DIR%" -sourcepath "%SRC_DIR%" %SRC_DIR%\main\*.java
-if %ERRORLEVEL% NEQ 0 (echo [FAIL] Compilation failed! & pause & exit /b 1)
+set SOURCE_LIST=%TEMP%\michi_sources.txt
+if exist "%SOURCE_LIST%" del "%SOURCE_LIST%"
+for /R "%SRC_DIR%" %%f in (*.java) do @echo %%f>> "%SOURCE_LIST%"
+if not exist "%SOURCE_LIST%" (echo [FAIL] No Java source files found! & pause & exit /b 1)
+javac -cp "%LIBS%" -d "%BIN_DIR%" -sourcepath "%SRC_DIR%" @"%SOURCE_LIST%"
+set JAVAC_EXIT=%ERRORLEVEL%
+del "%SOURCE_LIST%" >nul 2>&1
+if %JAVAC_EXIT% NEQ 0 (echo [FAIL] Compilation failed! & pause & exit /b 1)
 echo   [OK] Compilation succeeded.
 
 echo [2/5] Copying resources...
@@ -65,13 +73,21 @@ java -jar "%DEPLOY_DIR%\%JAR_NAME%" --version >nul 2>&1
 echo   [OK] JAR is valid.
 
 echo [5/5] Packaging EXE...
+:: Detect WiX toolset (wix.exe) — required by `jpackage` to build MSI installers
+where wix.exe >nul 2>&1
+if %ERRORLEVEL%==0 (
+        set JP_TYPE=exe
+) else (
+        echo [WARN] WiX toolset (wix.exe) not found in PATH — falling back to app-image packaging.
+        set JP_TYPE=app-image
+)
 jpackage ^
-  --input "%DEPLOY_DIR%" ^
-  --name "%APP_NAME%" ^
-  --main-jar "%JAR_NAME%" ^
-  --main-class "%MAIN_CLASS%" ^
-  --type exe ^
-  --dest "%OUTPUT_DIR%" ^
+    --input "%DEPLOY_DIR%" ^
+    --name "%APP_NAME%" ^
+    --main-jar "%JAR_NAME%" ^
+    --main-class "%MAIN_CLASS%" ^
+    --type %JP_TYPE% ^
+    --dest "%OUTPUT_DIR%" ^
   --app-version %VERSION% ^
   --java-options "-XX:+UseG1GC -XX:MaxGCPauseMillis=5 -Dsun.java2d.opengl=True -Dsun.java2d.accthreshold=0" ^
   --win-shortcut --win-menu

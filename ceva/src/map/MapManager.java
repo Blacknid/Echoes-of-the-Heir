@@ -221,6 +221,11 @@ public class MapManager {
         gp.projectilesList.clear();
         gp.particleList.clear();
 
+        // Invalidate torch shadow cache — torches on new map are different
+        if (gp.eManager != null && gp.eManager.lightning != null) {
+            gp.eManager.lightning.clearShadowCaches();
+        }
+
         gp.eHandler.reset();
 
         if (savedObjects.containsKey(currentMapId)) {

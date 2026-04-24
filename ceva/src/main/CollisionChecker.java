@@ -93,6 +93,15 @@ public class CollisionChecker {
      */
     public java.util.ArrayList<Rectangle> getCollisionBoundsInRect(Rectangle r) {
         java.util.ArrayList<Rectangle> out = new java.util.ArrayList<>();
+        getCollisionBoundsInRect(r, out);
+        return out;
+    }
+
+    /**
+     * Fill an existing list with collision bounding rectangles that intersect r.
+     * Caller must clear the list before calling. Avoids any ArrayList allocation.
+     */
+    public void getCollisionBoundsInRect(Rectangle r, java.util.ArrayList<Rectangle> out) {
         if (spatialGrid != null && gridCols > 0) {
             int minCX = Math.max(0, r.x / GRID_CELL_SIZE);
             int minCY = Math.max(0, r.y / GRID_CELL_SIZE);
@@ -115,10 +124,9 @@ public class CollisionChecker {
             java.util.ArrayList<Rectangle> rects = gp.tileM.collisionBounds;
             for (int i = 0, n = rects.size(); i < n; i++) {
                 Rectangle br = rects.get(i);
-                if (br.intersects(r)) out.add(br);
+                if (br.intersects(r) && !out.contains(br)) out.add(br);
             }
         }
-        return out;
     }
 
     // OPTIMIZATION: Use spatial grid for tile collision checks

@@ -5,7 +5,7 @@
     "fileStates": {
         "": {
             "scaleInDock": 1,
-            "scaleInEditor": 1
+            "scaleInEditor": 1.5
         },
         "C:/Users/cstyl/AppData/Local/Temp/6adcd62b-2bad-407a-8edb-10f4e7358b57_craftpix-net-666104-tavern-top-down-pixel-rpg-asset-pack.zip.b57/Tiled_files/Characters.tmx": {
             "scale": 2,
@@ -515,6 +515,171 @@
         "C:/Users/cstyl/Downloads/craftpix-net-587497-pixel-art-market-square-rpg-shop-and-npc-assets-pack/Tiled_files/Market_square.tmx#candles": {
             "scaleInDock": 1
         },
+        "C:/Users/cstyl/Downloads/craftpix-net-666104-tavern-top-down-pixel-rpg-asset-pack/Tiled_files/Characters.tmx": {
+            "scale": 2,
+            "selectedLayer": 0,
+            "viewCenter": {
+                "x": 27.75,
+                "y": -163.25
+            }
+        },
+        "C:/Users/cstyl/Downloads/craftpix-net-666104-tavern-top-down-pixel-rpg-asset-pack/Tiled_files/Characters.tmx#Animation_ sit_char": {
+            "scaleInDock": 1
+        },
+        "C:/Users/cstyl/Downloads/craftpix-net-666104-tavern-top-down-pixel-rpg-asset-pack/Tiled_files/Characters.tmx#Animation_Drinker1": {
+            "scaleInDock": 1
+        },
+        "C:/Users/cstyl/Downloads/craftpix-net-666104-tavern-top-down-pixel-rpg-asset-pack/Tiled_files/Characters.tmx#Animation_client": {
+            "scaleInDock": 1
+        },
+        "C:/Users/cstyl/Downloads/craftpix-net-666104-tavern-top-down-pixel-rpg-asset-pack/Tiled_files/Characters.tmx#Animation_dancer": {
+            "scaleInDock": 1
+        },
+        "C:/Users/cstyl/Downloads/craftpix-net-666104-tavern-top-down-pixel-rpg-asset-pack/Tiled_files/Characters.tmx#Animation_drinker5": {
+            "scaleInDock": 1
+        },
+        "C:/Users/cstyl/Downloads/craftpix-net-666104-tavern-top-down-pixel-rpg-asset-pack/Tiled_files/Characters.tmx#Animation_drinker6": {
+            "scaleInDock": 1
+        },
+        "C:/Users/cstyl/Downloads/craftpix-net-666104-tavern-top-down-pixel-rpg-asset-pack/Tiled_files/Characters.tmx#Animation_drinker7": {
+            "scaleInDock": 1
+        },
+        "C:/Users/cstyl/Downloads/craftpix-net-666104-tavern-top-down-pixel-rpg-asset-pack/Tiled_files/Characters.tmx#Animation_dwarf_player": {
+            "scaleInDock": 1
+        },
+        "C:/Users/cstyl/Downloads/craftpix-net-666104-tavern-top-down-pixel-rpg-asset-pack/Tiled_files/Characters.tmx#Animation_eater": {
+            "scaleInDock": 1
+        },
+        "C:/Users/cstyl/Downloads/craftpix-net-666104-tavern-top-down-pixel-rpg-asset-pack/Tiled_files/Characters.tmx#Animation_host": {
+            "scaleInDock": 1
+        },
+        "C:/Users/cstyl/Downloads/craftpix-net-666104-tavern-top-down-pixel-rpg-asset-pack/Tiled_files/Characters.tmx#Animation_killer": {
+            "scaleInDock": 1
+        },
+        "C:/Users/cstyl/Downloads/craftpix-net-666104-tavern-top-down-pixel-rpg-asset-pack/Tiled_files/Characters.tmx#Animation_knight": {
+            "scaleInDock": 1
+        },
+        "C:/Users/cstyl/Downloads/craftpix-net-666104-tavern-top-down-pixel-rpg-asset-pack/Tiled_files/Characters.tmx#Animation_orc_player": {
+            "scaleInDock": 1
+        },
+        "C:/Users/cstyl/Downloads/craftpix-net-666104-tavern-top-down-pixel-rpg-asset-pack/Tiled_files/Characters.tmx#Animation_player_drow": {
+            "scaleInDock": 1
+        },
+        "C:/Users/cstyl/Downloads/craftpix-net-666104-tavern-top-down-pixel-rpg-asset-pack/Tiled_files/Characters.tmx#Animation_sleep_guy": {
+            "scaleInDock": 1
+        },
+        "C:/Users/cstyl/Downloads/craftpix-net-666104-tavern-top-down-pixel-rpg-asset-pack/Tiled_files/Characters.tmx#Animation_sleep_guy2": {
+            "scaleInDock": 1
+        },
+        "C:/Users/cstyl/Downloads/craftpix-net-666104-tavern-top-down-pixel-rpg-asset-pack/Tiled_files/Characters.tmx#Animation_think_guy": {
+            "scaleInDock": 1
+        },
+        "C:/Users/cstyl/Downloads/craftpix-net-666104-tavern-top-down-pixel-rpg-asset-pack/Tiled_files/Characters.tmx#Animation_watcher": {
+            "scaleInDock": 1
+        },
+        "C:/Users/cstyl/Downloads/craftpix-net-666104-tavern-top-down-pixel-rpg-asset-pack/Tiled_files/Characters.tmx#Dancer_shadow": {
+            "scaleInDock": 1
+        },
+        "C:/Users/cstyl/Downloads/craftpix-net-666104-tavern-top-down-pixel-rpg-asset-pack/Tiled_files/Characters.tmx#Lute_player": {
+            "scaleInDock": 1
+        },
+        "C:/Users/cstyl/Downloads/craftpix-net-666104-tavern-top-down-pixel-rpg-asset-pack/Tiled_files/Characters.tmx#Lute_player_shadow": {
+            "scaleInDock": 1
+        },
+        "C:/Users/cstyl/Downloads/craftpix-net-666104-tavern-top-down-pixel-rpg-asset-pack/Tiled_files/Tavern_exterior.tmx": {
+            "scale": 2,
+            "selectedLayer": 0,
+            "viewCenter": {
+                "x": 5.25,
+                "y": 14.75
+            }
+        },
+        "C:/Users/cstyl/Downloads/craftpix-net-666104-tavern-top-down-pixel-rpg-asset-pack/Tiled_files/Tavern_exterior.tmx#Animation_Drinker1": {
+            "scaleInDock": 1
+        },
+        "C:/Users/cstyl/Downloads/craftpix-net-666104-tavern-top-down-pixel-rpg-asset-pack/Tiled_files/Tavern_exterior.tmx#Animation_eater": {
+            "scaleInDock": 1
+        },
+        "C:/Users/cstyl/Downloads/craftpix-net-666104-tavern-top-down-pixel-rpg-asset-pack/Tiled_files/Tavern_exterior.tmx#Exterior": {
+            "scaleInDock": 1
+        },
+        "C:/Users/cstyl/Downloads/craftpix-net-666104-tavern-top-down-pixel-rpg-asset-pack/Tiled_files/Tavern_exterior.tmx#Walls_street": {
+            "scaleInDock": 1
+        },
+        "C:/Users/cstyl/Downloads/craftpix-net-666104-tavern-top-down-pixel-rpg-asset-pack/Tiled_files/Tavern_exterior.tmx#Windows_doors": {
+            "scaleInDock": 1
+        },
+        "C:/Users/cstyl/Downloads/craftpix-net-666104-tavern-top-down-pixel-rpg-asset-pack/Tiled_files/Tavern_interior_1nd_floor.tmx": {
+            "scale": 3,
+            "selectedLayer": 0,
+            "viewCenter": {
+                "x": 24.166666666666686,
+                "y": 2.833333333333343
+            }
+        },
+        "C:/Users/cstyl/Downloads/craftpix-net-666104-tavern-top-down-pixel-rpg-asset-pack/Tiled_files/Tavern_interior_1nd_floor.tmx#Animation_ sit_char": {
+            "scaleInDock": 1
+        },
+        "C:/Users/cstyl/Downloads/craftpix-net-666104-tavern-top-down-pixel-rpg-asset-pack/Tiled_files/Tavern_interior_1nd_floor.tmx#Animation_Drinker1": {
+            "scaleInDock": 1
+        },
+        "C:/Users/cstyl/Downloads/craftpix-net-666104-tavern-top-down-pixel-rpg-asset-pack/Tiled_files/Tavern_interior_1nd_floor.tmx#Animation_client": {
+            "scaleInDock": 1
+        },
+        "C:/Users/cstyl/Downloads/craftpix-net-666104-tavern-top-down-pixel-rpg-asset-pack/Tiled_files/Tavern_interior_1nd_floor.tmx#Animation_dancer": {
+            "scaleInDock": 1
+        },
+        "C:/Users/cstyl/Downloads/craftpix-net-666104-tavern-top-down-pixel-rpg-asset-pack/Tiled_files/Tavern_interior_1nd_floor.tmx#Animation_drinker5": {
+            "scaleInDock": 1
+        },
+        "C:/Users/cstyl/Downloads/craftpix-net-666104-tavern-top-down-pixel-rpg-asset-pack/Tiled_files/Tavern_interior_1nd_floor.tmx#Animation_drinker6": {
+            "scaleInDock": 1
+        },
+        "C:/Users/cstyl/Downloads/craftpix-net-666104-tavern-top-down-pixel-rpg-asset-pack/Tiled_files/Tavern_interior_1nd_floor.tmx#Animation_drinker7": {
+            "scaleInDock": 1
+        },
+        "C:/Users/cstyl/Downloads/craftpix-net-666104-tavern-top-down-pixel-rpg-asset-pack/Tiled_files/Tavern_interior_1nd_floor.tmx#Animation_dwarf_player": {
+            "scaleInDock": 1
+        },
+        "C:/Users/cstyl/Downloads/craftpix-net-666104-tavern-top-down-pixel-rpg-asset-pack/Tiled_files/Tavern_interior_1nd_floor.tmx#Animation_host": {
+            "scaleInDock": 1
+        },
+        "C:/Users/cstyl/Downloads/craftpix-net-666104-tavern-top-down-pixel-rpg-asset-pack/Tiled_files/Tavern_interior_1nd_floor.tmx#Animation_killer": {
+            "scaleInDock": 1
+        },
+        "C:/Users/cstyl/Downloads/craftpix-net-666104-tavern-top-down-pixel-rpg-asset-pack/Tiled_files/Tavern_interior_1nd_floor.tmx#Animation_knight": {
+            "scaleInDock": 1
+        },
+        "C:/Users/cstyl/Downloads/craftpix-net-666104-tavern-top-down-pixel-rpg-asset-pack/Tiled_files/Tavern_interior_1nd_floor.tmx#Animation_orc_player": {
+            "scaleInDock": 1
+        },
+        "C:/Users/cstyl/Downloads/craftpix-net-666104-tavern-top-down-pixel-rpg-asset-pack/Tiled_files/Tavern_interior_1nd_floor.tmx#Animation_player_drow": {
+            "scaleInDock": 1
+        },
+        "C:/Users/cstyl/Downloads/craftpix-net-666104-tavern-top-down-pixel-rpg-asset-pack/Tiled_files/Tavern_interior_1nd_floor.tmx#Animation_sleep_guy2": {
+            "scaleInDock": 1
+        },
+        "C:/Users/cstyl/Downloads/craftpix-net-666104-tavern-top-down-pixel-rpg-asset-pack/Tiled_files/Tavern_interior_1nd_floor.tmx#Animation_think_guy": {
+            "scaleInDock": 1
+        },
+        "C:/Users/cstyl/Downloads/craftpix-net-666104-tavern-top-down-pixel-rpg-asset-pack/Tiled_files/Tavern_interior_1nd_floor.tmx#Animation_watcher": {
+            "scaleInDock": 1
+        },
+        "C:/Users/cstyl/Downloads/craftpix-net-666104-tavern-top-down-pixel-rpg-asset-pack/Tiled_files/Tavern_interior_1nd_floor.tmx#Interior_1st_floor": {
+            "scaleInDock": 1
+        },
+        "C:/Users/cstyl/Downloads/craftpix-net-666104-tavern-top-down-pixel-rpg-asset-pack/Tiled_files/Tavern_interior_1nd_floor.tmx#Lute_player": {
+            "scaleInDock": 1
+        },
+        "C:/Users/cstyl/Downloads/craftpix-net-666104-tavern-top-down-pixel-rpg-asset-pack/Tiled_files/Tavern_interior_1nd_floor.tmx#Walls_interior": {
+            "scaleInDock": 1
+        },
+        "C:/Users/cstyl/Downloads/craftpix-net-666104-tavern-top-down-pixel-rpg-asset-pack/Tiled_files/Tavern_interior_1nd_floor.tmx#Windows_doors": {
+            "scaleInDock": 1
+        },
+        "C:/Users/cstyl/Downloads/craftpix-net-666104-tavern-top-down-pixel-rpg-asset-pack/Tiled_files/Tavern_interior_1nd_floor.tmx#door_small": {
+            "scaleInDock": 1
+        },
         "C:/Users/cstyl/Downloads/legend-of-lua-main/legend-of-lua-main/maps/_old/test.tmx": {
             "scale": 1.7555208333333332,
             "selectedLayer": 0,
@@ -612,15 +777,15 @@
         },
         "maps/Awakening_Cave.tmx": {
             "expandedObjectLayers": [
-                17,
+                13,
                 16,
-                13
+                17
             ],
             "scale": 1,
             "selectedLayer": 21,
             "viewCenter": {
-                "x": 498.5,
-                "y": 360.5
+                "x": 514.5,
+                "y": 317.5
             }
         },
         "maps/Awakening_Cave.tmx#Details": {
@@ -660,22 +825,23 @@
         },
         "maps/Canvas_Village.tmx": {
             "expandedGroupLayers": [
-                31,
+                50,
                 45,
+                31,
                 43
             ],
             "expandedObjectLayers": [
                 12,
+                8,
                 45,
-                4,
                 10,
-                8
+                4
             ],
-            "scale": 0.5,
-            "selectedLayer": 29,
+            "scale": 1.5,
+            "selectedLayer": 34,
             "viewCenter": {
-                "x": 1875,
-                "y": 1313
+                "x": 1563.6666666666665,
+                "y": 3063
             }
         },
         "maps/Canvas_Village.tmx#Archer": {
@@ -696,19 +862,22 @@
             "scaleInEditor": 1
         },
         "maps/Canvas_Village.tmx#Exterior_objetcs": {
-            "scaleInDock": 0.25,
+            "scaleInDock": 0.5,
             "scaleInEditor": 1
         },
         "maps/Canvas_Village.tmx#Exterior_tiles": {
             "scaleInDock": 0.75
         },
         "maps/Canvas_Village.tmx#Ground_walls": {
-            "scaleInDock": 1,
+            "scaleInDock": 0.33,
             "scaleInEditor": 3
         },
         "maps/Canvas_Village.tmx#Objects": {
             "scaleInDock": 0.75,
             "scaleInEditor": 1
+        },
+        "maps/Canvas_Village.tmx#Tavern_exterior": {
+            "scaleInDock": 0.75
         },
         "maps/Canvas_Village.tmx#Trees_rocks": {
             "scaleInDock": 1,
@@ -726,11 +895,14 @@
             "scaleInDock": 1
         },
         "maps/Canvas_Village.tmx#ground_grasss": {
-            "scaleInDock": 1
+            "scaleInDock": 0.5
         },
         "maps/Canvas_Village.tmx#piles": {
             "scaleInDock": 0.33,
             "scaleInEditor": 1
+        },
+        "maps/Canvas_Village.tmx#walls": {
+            "scaleInDock": 0.75
         },
         "maps/harta.tmx": {
             "scale": 0.17842187499999998,
@@ -748,30 +920,31 @@
             "scaleInEditor": 1
         },
         "tiles/water.tsx": {
-            "scaleInDock": 1,
+            "scaleInDock": 0.25,
             "scaleInEditor": 1
         }
     },
     "frame.defaultDuration": 120,
-    "last.imagePath": "C:/Users/cstyl/Documents/Michi-s-adventure/ceva/src/res/tiles/CANVAS VILLAGE/Square Market/Training",
+    "last.imagePath": "C:/Users/cstyl/Documents/Michi-s-adventure/ceva/src/res/tiles/CANVAS VILLAGE/Grand Castel",
+    "map.lastUsedFormat": "tmx",
     "openFiles": [
         "maps/Canvas_Village.tmx"
     ],
     "project": "MichiAdventure.tiled-project",
     "property.type": "bool",
     "recentFiles": [
-        "maps/Awakening_Cave.tmx",
+        "C:/Users/cstyl/Downloads/craftpix-net-666104-tavern-top-down-pixel-rpg-asset-pack/Tiled_files/Tavern_interior_1nd_floor.tmx",
+        "C:/Users/cstyl/Downloads/craftpix-net-666104-tavern-top-down-pixel-rpg-asset-pack/Tiled_files/Characters.tmx",
+        "C:/Users/cstyl/Downloads/craftpix-net-666104-tavern-top-down-pixel-rpg-asset-pack/Tiled_files/Tavern_exterior.tmx",
         "maps/Canvas_Village.tmx",
+        "maps/Awakening_Cave.tmx",
         "C:/Users/cstyl/Downloads/menu.tmx",
         "C:/Users/cstyl/Downloads/legend-of-lua-main/legend-of-lua-main/maps/_old2/testDungeon2-2.tmx",
         "C:/Users/cstyl/Downloads/legend-of-lua-main/legend-of-lua-main/maps/_old/test.tmx",
         "C:/Users/cstyl/Downloads/legend-of-lua-main/legend-of-lua-main/maps/testCave.tmx",
         "C:/Users/cstyl/Downloads/legend-of-lua-main/legend-of-lua-main/maps/test2.tmx",
         "C:/Users/cstyl/Downloads/legend-of-lua-main/legend-of-lua-main/maps/test.tmx",
-        "C:/Users/cstyl/Downloads/legend-of-lua-main/legend-of-lua-main/maps/menu.tmx",
-        "C:/Users/cstyl/Desktop/Awakening_Cave.tmx",
-        "C:/Users/cstyl/Desktop/Canvas_Village.tmx",
-        "C:/Users/cstyl/Downloads/craftpix-net-587497-pixel-art-market-square-rpg-shop-and-npc-assets-pack/Tiled_files/Market_square.tmx"
+        "C:/Users/cstyl/Downloads/legend-of-lua-main/legend-of-lua-main/maps/menu.tmx"
     ],
     "tileset.embedInMap": true,
     "tileset.lastUsedFormat": "tsx"
