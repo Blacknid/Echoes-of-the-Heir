@@ -3,6 +3,7 @@ package main;
 import java.awt.Rectangle;
 import java.awt.Shape;
 import java.util.ArrayList;
+import java.util.Arrays;
 
 import entity.Entity;
 
@@ -19,6 +20,12 @@ public class CollisionChecker {
     private ArrayList<Integer>[] spatialGrid;
     private int gridCols, gridRows;
 
+    // OPTIMIZATION: Generation-counter dedup for getCollisionBoundsInRect.
+    // Replaces O(n) contains() calls with O(1) array lookup; each query bumps the gen
+    // so stale marks from previous calls auto-expire without touching the array.
+    private int[] seenGen;
+    private int currentGen = 0;
+
     public CollisionChecker(GamePanel gp) {
         this.gp = gp;
     }
@@ -27,7 +34,13 @@ public class CollisionChecker {
     @SuppressWarnings("unchecked")
     public void updateCollisionRectsCache() {
         int shapeCount = gp.tileM.collisionShapes.size();
-        
+
+        // Allocate / grow dedup array to match shape count
+        if (seenGen == null || seenGen.length < shapeCount) {
+            seenGen = new int[Math.max(shapeCount, 64)];
+            currentGen = 0;
+        }
+
         // Build spatial grid using bounding boxes for broad-phase
         gridCols = (gp.worldWidth / GRID_CELL_SIZE) + 2;
         gridRows = (gp.worldHeight / GRID_CELL_SIZE) + 2;
@@ -100,13 +113,28 @@ public class CollisionChecker {
     /**
      * Fill an existing list with collision bounding rectangles that intersect r.
      * Caller must clear the list before calling. Avoids any ArrayList allocation.
+     *
+     * OPTIMIZATION: Uses a generation-counter dedup (O(1) per shape) instead of
+     * ArrayList.contains() (O(n) per shape), which previously made this method
+     * O(n²) when many shapes span the query region.
      */
     public void getCollisionBoundsInRect(Rectangle r, java.util.ArrayList<Rectangle> out) {
+        // Bump generation — every shapeIdx with seenGen[idx] != gen is "unseen"
+        int gen = ++currentGen;
+        // Handle overflow (wraps back to 0 and re-clears the array)
+        if (gen == 0) {
+            Arrays.fill(seenGen, 0);
+            gen = ++currentGen;
+        }
+
         if (spatialGrid != null && gridCols > 0) {
             int minCX = Math.max(0, r.x / GRID_CELL_SIZE);
             int minCY = Math.max(0, r.y / GRID_CELL_SIZE);
             int maxCX = Math.min(gridCols - 1, (r.x + r.width) / GRID_CELL_SIZE);
             int maxCY = Math.min(gridRows - 1, (r.y + r.height) / GRID_CELL_SIZE);
+            java.util.ArrayList<Rectangle> bounds = gp.tileM.collisionBounds;
+            int[] seen = seenGen;
+            int seenLen = seen.length;
             for (int cy = minCY; cy <= maxCY; cy++) {
                 for (int cx = minCX; cx <= maxCX; cx++) {
                     int idx = cy * gridCols + cx;
@@ -114,8 +142,10 @@ public class CollisionChecker {
                         java.util.ArrayList<Integer> cell = spatialGrid[idx];
                         for (int j = 0, n = cell.size(); j < n; j++) {
                             int shapeIdx = cell.get(j);
-                            Rectangle br = gp.tileM.collisionBounds.get(shapeIdx);
-                            if (br.intersects(r) && !out.contains(br)) out.add(br);
+                            if (shapeIdx >= seenLen || seen[shapeIdx] == gen) continue;
+                            seen[shapeIdx] = gen;
+                            Rectangle br = bounds.get(shapeIdx);
+                            if (br.intersects(r)) out.add(br);
                         }
                     }
                 }
@@ -124,7 +154,7 @@ public class CollisionChecker {
             java.util.ArrayList<Rectangle> rects = gp.tileM.collisionBounds;
             for (int i = 0, n = rects.size(); i < n; i++) {
                 Rectangle br = rects.get(i);
-                if (br.intersects(r) && !out.contains(br)) out.add(br);
+                if (br.intersects(r)) out.add(br); // no dedup needed — linear scan visits each once
             }
         }
     }

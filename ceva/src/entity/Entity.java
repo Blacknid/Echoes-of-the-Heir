@@ -16,8 +16,11 @@ public class Entity {
     protected GamePanel gp;
 
     // PER-ENTITY PATH CACHE — recalculate only when the goal tile changes
-    private final java.util.ArrayList<int[]> cachedWaypoints = new java.util.ArrayList<>();
-    private int waypointIdx      = 0;
+    // OPTIMIZATION: flat int[] arrays instead of ArrayList<int[]> — zero per-waypoint allocation
+    private int[] waypointCols = new int[32];
+    private int[] waypointRows = new int[32];
+    private int   waypointCount  = 0;
+    private int   waypointIdx    = 0;
     private int pathCacheGoalCol = -1;
     private int pathCacheGoalRow = -1;
     private int pathStallCounter = 0;  // frames without reaching the next waypoint
@@ -1065,13 +1068,7 @@ public class Entity {
         g2.setComposite(AlphaComposite.getInstance(AlphaComposite.SRC_OVER, alphaValue));
     }
     public BufferedImage setup(String imagePath, int width, int height) {
-        BufferedImage scaledImage = null;
-        try {
-            scaledImage = ResourceCache.loadScaledImage(imagePath + ".png", width, height);
-        } catch(IOException e) {
-            System.out.println("Entity: failed to load image '" + imagePath + ".png': " + e.getMessage());
-        }
-        return scaledImage;
+        return ResourceCache.loadScaledImageIfPresent(imagePath + ".png", width, height);
     }
     public int getDetected(Entity user, Entity target[], String targetName) {
         int index = 999;
@@ -1115,7 +1112,7 @@ public class Entity {
         // Already standing on the goal — nothing to do
         if (startCol == goalCol && startRow == goalRow) {
             onPath = false;
-            cachedWaypoints.clear();
+            waypointCount = 0;
             waypointIdx = 0;
             if (walkToCol == goalCol && walkToRow == goalRow) {
                 guardMode = true;
@@ -1128,7 +1125,7 @@ public class Entity {
 
         // Reuse cached path while the goal tile hasn't changed
         if (goalCol == pathCacheGoalCol && goalRow == pathCacheGoalRow
-                && waypointIdx < cachedWaypoints.size()
+                && waypointIdx < waypointCount
                 && pathStallCounter < PATH_STALL_LIMIT) {
             followWaypoints();
             return;
@@ -1138,18 +1135,25 @@ public class Entity {
         pathStallCounter = 0;
         pathCacheGoalCol = goalCol;
         pathCacheGoalRow = goalRow;
-        cachedWaypoints.clear();
+        waypointCount = 0;
         waypointIdx = 0;
 
         gp.pFinder.setNodes(startCol, startRow, goalCol, goalRow, this);
         if (gp.pFinder.search()) {
-            for (int i = 0; i < gp.pFinder.pathList.size(); i++) {
-                cachedWaypoints.add(new int[]{
-                    gp.pFinder.pathList.get(i).col,
-                    gp.pFinder.pathList.get(i).row
-                });
+            int pathSize = gp.pFinder.pathList.size();
+            // Grow backing arrays if needed — rare (only when path is longer than previous max)
+            if (pathSize > waypointCols.length) {
+                int newCap = Math.max(pathSize, waypointCols.length * 2);
+                waypointCols = new int[newCap];
+                waypointRows = new int[newCap];
             }
-            if (!cachedWaypoints.isEmpty()) {
+            for (int i = 0; i < pathSize; i++) {
+                ai.Node nd = gp.pFinder.pathList.get(i);
+                waypointCols[i] = nd.col;
+                waypointRows[i] = nd.row;
+            }
+            waypointCount = pathSize;
+            if (waypointCount > 0) {
                 followWaypoints();
             } else {
                 onPath = false;
@@ -1160,16 +1164,15 @@ public class Entity {
     }
 
     private void followWaypoints() {
-        if (waypointIdx >= cachedWaypoints.size()) {
+        if (waypointIdx >= waypointCount) {
             onPath = false;
-            cachedWaypoints.clear();
+            waypointCount = 0;
             waypointIdx = 0;
             return;
         }
 
-        int[] next  = cachedWaypoints.get(waypointIdx);
-        int nextX   = next[0] * gp.tileSize;
-        int nextY   = next[1] * gp.tileSize;
+        int nextX = waypointCols[waypointIdx] * gp.tileSize;
+        int nextY = waypointRows[waypointIdx] * gp.tileSize;
 
         int enLeftX   = worldX + solidArea.x;
         int enTopY    = worldY + solidArea.y;
@@ -1185,9 +1188,9 @@ public class Entity {
         if (dx <= speed + 1 && dy <= speed + 1) {
             waypointIdx++;
             pathStallCounter = 0;
-            if (waypointIdx >= cachedWaypoints.size()) {
+            if (waypointIdx >= waypointCount) {
                 onPath = false;
-                cachedWaypoints.clear();
+                waypointCount = 0;
                 waypointIdx = 0;
                 if (walkToCol == pathCacheGoalCol && walkToRow == pathCacheGoalRow) {
                     guardMode = true;

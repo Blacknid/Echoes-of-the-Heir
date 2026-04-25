@@ -610,13 +610,13 @@ public class GamePanel extends JPanel implements Runnable{
         // THOUGHT BUBBLE: ticks during play and cutscene states
         if (thoughts != null) thoughts.update();
 
+        // INPUT COOLDOWNS & MENU KEY-REPEAT: must tick every frame regardless of state
+        keyH.update();
+
         if(gameState == playState) {
             // Refresh viewport cache once per frame
             vpCacheValid = false;
             updateViewportCache();
-
-            // INPUT COOLDOWNS
-            keyH.update();
 
             // GLOBAL HIT-STOP: freeze entities but keep visual feedback running
             if (globalHitstopTimer > 0) {

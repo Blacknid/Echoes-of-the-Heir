@@ -24,6 +24,14 @@ public class PathFinder {
     private final Rectangle futureHitbox = new Rectangle();
     private final Rectangle tempHitbox = new Rectangle();
 
+    // OPTIMIZATION: Track only nodes modified this search so resetNodes() is O(visited)
+    // instead of O(maxWorldCol × maxWorldRow). Typical search visits <200 nodes vs 10000+.
+    private final ArrayList<Node> touchedNodes = new ArrayList<>(256);
+
+    // Cached search parameters for lazy collision checks during A* expansion
+    private Entity searchEntity;
+    private boolean searchChasingPlayer;
+
     public PathFinder(GamePanel gp) {
         this.gp = gp;
         instantiateNodes();
@@ -39,20 +47,31 @@ public class PathFinder {
     }
 
     public void resetNodes() {
-        for (int col = 0; col < gp.maxWorldCol; col++) {
-            for (int row = 0; row < gp.maxWorldRow; row++) {
-                Node n = nodes[col][row];
-                n.open = false;
-                n.checked = false;
-                n.solid = false;
-                n.parent = null;
-            }
+        // OPTIMIZATION: reset only nodes touched by the previous search
+        for (int i = 0, n = touchedNodes.size(); i < n; i++) {
+            Node node = touchedNodes.get(i);
+            node.open = false;
+            node.checked = false;
+            node.solid = false;
+            node.parent = null;
+            node.touched = false;
+            node.collisionChecked = false;
+            node.hCostValid = false;
         }
+        touchedNodes.clear();
 
         openQueue.clear();
         pathList.clear();
         goalReached = false;
         step = 0;
+    }
+
+    /** Mark a node as touched so it will be reset before the next search. */
+    private void markTouched(Node node) {
+        if (!node.touched) {
+            node.touched = true;
+            touchedNodes.add(node);
+        }
     }
 
     public void setNodes(int startCol, int startRow,
@@ -72,34 +91,27 @@ public class PathFinder {
         goalNode = nodes[goalCol][goalRow];
         currentNode = startNode;
 
-        openQueue.add(currentNode);
-        currentNode.open = true;
-
-        // Determine if this entity is chasing the player
+        // Cache search parameters — used lazily when openNode() expands a neighbour
+        this.searchEntity = entity;
         int playerTileCol = gp.player.getTileCol();
         int playerTileRow = gp.player.getTileRow();
-        boolean chasingPlayer = (goalCol == playerTileCol && goalRow == playerTileRow);
+        this.searchChasingPlayer = (goalCol == playerTileCol && goalRow == playerTileRow);
 
-        // OPTIMIZATION: Only check nodes in a bounding box around start→goal (not the entire map)
-        int dist = Math.abs(startCol - goalCol) + Math.abs(startRow - goalRow);
-        int margin = Math.max(10, dist / 2); // scale margin with path length
-        int minCol = Math.max(0, Math.min(startCol, goalCol) - margin);
-        int maxCol = Math.min(gp.maxWorldCol - 1, Math.max(startCol, goalCol) + margin);
-        int minRow = Math.max(0, Math.min(startRow, goalRow) - margin);
-        int maxRow = Math.min(gp.maxWorldRow - 1, Math.max(startRow, goalRow) + margin);
-
-        for (int col = minCol; col <= maxCol; col++) {
-            for (int row = minRow; row <= maxRow; row++) {
-                Node node = nodes[col][row];
-                if (isCollisionForEntityAtNode(col, row, entity, chasingPlayer)) {
-                    node.solid = true;
-                }
-                calculateCost(node);
-            }
-        }
-
+        // Initialize start node (start/goal are explicitly non-solid)
+        startNode.gCost = 0;
+        startNode.hCost = Math.abs(startCol - goalCol) + Math.abs(startRow - goalRow);
+        startNode.fCost = startNode.hCost;
+        startNode.hCostValid = true;
+        startNode.collisionChecked = true;
         startNode.solid = false;
+        startNode.open = true;
+        markTouched(startNode);
+
+        goalNode.collisionChecked = true;
         goalNode.solid = false;
+        markTouched(goalNode);
+
+        openQueue.add(startNode);
     }
 
     private boolean isCollisionForEntityAtNode(int col, int row, Entity entity, boolean chasingPlayer) {
@@ -192,21 +204,49 @@ public class PathFinder {
     }
 
     private void openNode(Node node) {
-        if (!node.open && !node.checked && !node.solid) {
-            node.open = true;
-            node.parent = currentNode;
-            // Recalculate proper g-cost through current path
-            node.gCost = currentNode.gCost + 1;
-            node.fCost = node.gCost + node.hCost;
-            openQueue.add(node);
+        if (node.open || node.checked) return;
+
+        // OPTIMIZATION: lazy collision check — only compute for nodes A* actually visits,
+        // instead of every node in a bounding box like the old setNodes() did.
+        if (!node.collisionChecked) {
+            node.solid = isCollisionForEntityAtNode(
+                    node.col, node.row, searchEntity, searchChasingPlayer);
+            node.collisionChecked = true;
+            markTouched(node);
         }
+        if (node.solid) return;
+
+        node.open = true;
+        node.parent = currentNode;
+        node.gCost = currentNode.gCost + 1;
+
+        // OPTIMIZATION: lazy h-cost — compute once per node per search
+        if (!node.hCostValid) {
+            int dxGoal = Math.abs(node.col - goalNode.col);
+            int dyGoal = Math.abs(node.row - goalNode.row);
+            node.hCost = dxGoal + dyGoal;
+            node.hCostValid = true;
+        }
+
+        node.fCost = node.gCost + node.hCost;
+        markTouched(node);
+        openQueue.add(node);
     }
 
     private void trackPath() {
+        // OPTIMIZATION: build in reverse then swap, instead of O(n²) add(0, ...)
         Node current = goalNode;
-        while (current != startNode) {
-            pathList.add(0, current);
+        while (current != startNode && current != null) {
+            pathList.add(current);
             current = current.parent;
+        }
+        // Reverse in place — O(n) instead of O(n²)
+        int lo = 0, hi = pathList.size() - 1;
+        while (lo < hi) {
+            Node tmp = pathList.get(lo);
+            pathList.set(lo, pathList.get(hi));
+            pathList.set(hi, tmp);
+            lo++; hi--;
         }
     }
 }

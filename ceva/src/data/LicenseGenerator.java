@@ -11,19 +11,26 @@ import java.util.Properties;
  * (XXXXXXXX-YYYY) and writes it to license.properties for injection
  * into the game binary before packaging.
  *
- * Usage: java data.LicenseGenerator [outputPath]
+ * Usage: java data.LicenseGenerator [outputPath [salt]]
+ *
+ *   outputPath  — where to write license.properties (default: license.properties)
+ *   salt        — the license_salt value from server_config.json (default: MichiCloudSalt2026)
+ *
+ * Each invocation produces a different random license key, so two JARs
+ * built with separate runs will always have different licenses.
  */
 public class LicenseGenerator {
 
-    private static final String SALT = "MichiCloudSalt2026";
+    private static final String DEFAULT_SALT = "MichiCloudSalt2026";
     private static final String CHARSET = "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789";
 
     public static void main(String[] args) throws Exception {
 
         String outputPath = args.length > 0 ? args[0] : "license.properties";
+        String salt       = args.length > 1 ? args[1] : DEFAULT_SALT;
 
         String prefix = generatePrefix();
-        String suffix = computeSuffix(prefix);
+        String suffix = computeSuffix(prefix, salt);
         String licenseKey = prefix + "-" + suffix;
 
         Properties props = new Properties();
@@ -46,9 +53,9 @@ public class LicenseGenerator {
         return sb.toString();
     }
 
-    static String computeSuffix(String prefix) throws Exception {
+    static String computeSuffix(String prefix, String salt) throws Exception {
         MessageDigest md = MessageDigest.getInstance("SHA-256");
-        byte[] hash = md.digest((prefix + SALT).getBytes(StandardCharsets.UTF_8));
+        byte[] hash = md.digest((prefix + salt).getBytes(StandardCharsets.UTF_8));
         return String.format("%02x%02x", hash[0] & 0xFF, hash[1] & 0xFF).toUpperCase();
     }
 }

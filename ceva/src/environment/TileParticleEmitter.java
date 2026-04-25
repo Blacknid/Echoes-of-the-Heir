@@ -232,6 +232,9 @@ public class TileParticleEmitter {
         indexInActive[particleIndex] = -1;
 
         particles[particleIndex].alive = false;
+        // OPTIMIZATION: clear sort-membership flag so the next prepareSortedIndices()
+        // knows this slot was removed and re-adds it when reused.
+        particles[particleIndex].inSortedList = false;
         freeStack[++freeTop] = particleIndex;
     }
 
@@ -244,15 +247,17 @@ public class TileParticleEmitter {
             int particleIndex = activeIndices[i];
             FP p = particles[particleIndex];
 
-            // Apply sway for leaf particles
+            // Apply sway for leaf particles (fastSin LUT — no native Math.sin call)
             if (p.swayAmplitude > 0) {
                 p.swayPhase += p.swaySpeed;
-                p.vx += (float) Math.sin(p.swayPhase) * p.swayAmplitude * 0.05f;
+                p.vx += MapShaderManager.fastSin(p.swayPhase) * p.swayAmplitude * 0.05f;
             }
 
             p.worldX += p.vx;
             p.worldY += p.vy;
             p.vy += p.gravity;
+            // Update sortY to follow particle as it falls (keeps persistent sort close to sorted)
+            p.sortY = p.worldY;
             p.life--;
 
             if (p.life <= 0) {
@@ -329,12 +334,39 @@ public class TileParticleEmitter {
 
     /**
      * Collect alive particles, sort by sortY. Call once per frame before merge-drawing.
+     *
+     * OPTIMIZATION: The sorted list is preserved across frames. Each call:
+     *   1. Compacts dead entries out (O(n))
+     *   2. Appends newly-activated particles (O(new))
+     *   3. Insertion-sorts — because particles drift only a few pixels per frame,
+     *      the list is almost-sorted from last frame, so insertion sort runs in
+     *      effectively O(n) instead of O(n²) on random data.
+     *
      * @return number of sorted active particles
      */
     public int prepareSortedIndices() {
-        sortedCount = activeCount;
-        System.arraycopy(activeIndices, 0, sortedIndices, 0, sortedCount);
-        // Insertion sort — fast for small N, zero allocation
+        // 1. Compact: drop dead particles, keep survivors in their previous order
+        int write = 0;
+        for (int read = 0; read < sortedCount; read++) {
+            int idx = sortedIndices[read];
+            if (particles[idx].alive) {
+                sortedIndices[write++] = idx;
+            } else {
+                particles[idx].inSortedList = false;
+            }
+        }
+        sortedCount = write;
+
+        // 2. Append particles that aren't in the sorted list yet (newly spawned / reused slots)
+        for (int i = 0; i < activeCount; i++) {
+            int idx = activeIndices[i];
+            if (!particles[idx].inSortedList) {
+                sortedIndices[sortedCount++] = idx;
+                particles[idx].inSortedList = true;
+            }
+        }
+
+        // 3. Insertion sort — O(n) on the near-sorted list from last frame
         for (int i = 1; i < sortedCount; i++) {
             int key = sortedIndices[i];
             float keyY = particles[key].sortY;
@@ -433,6 +465,8 @@ public class TileParticleEmitter {
 
     private static class FP {
         boolean alive;
+        // OPTIMIZATION: persistent-sort membership flag (see prepareSortedIndices)
+        boolean inSortedList;
         float worldX, worldY;
         float sortY;
         float vx, vy;

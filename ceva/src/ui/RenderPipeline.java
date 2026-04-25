@@ -1,15 +1,20 @@
 package ui;
 
+import java.awt.AlphaComposite;
 import java.awt.BasicStroke;
 import java.awt.Color;
 import java.awt.Composite;
 import java.awt.Font;
 import java.awt.FontMetrics;
 import java.awt.Graphics2D;
+import java.awt.GraphicsConfiguration;
+import java.awt.GraphicsEnvironment;
 import java.awt.Rectangle;
 import java.awt.Shape;
 import java.awt.Stroke;
+import java.awt.Transparency;
 import java.awt.geom.AffineTransform;
+import java.awt.image.BufferedImage;
 import java.util.ArrayList;
 import java.util.Comparator;
 
@@ -23,6 +28,9 @@ import main.GamePanel;
 public class RenderPipeline {
 
     private final GamePanel gp;
+    private BufferedImage worldFrame;
+    private Graphics2D worldGraphics;
+    private boolean worldCacheValid = false;
 
     // OPTIMIZATION: Pre-allocate entityList with estimated capacity
     ArrayList<Entity> entityList = new ArrayList<>(150);
@@ -49,35 +57,72 @@ public class RenderPipeline {
 
     public RenderPipeline(GamePanel gp) {
         this.gp = gp;
+        ensureWorldFrame();
+    }
+
+    private void ensureWorldFrame() {
+        if (worldFrame != null) {
+            return;
+        }
+        try {
+            GraphicsConfiguration gc = GraphicsEnvironment
+                .getLocalGraphicsEnvironment().getDefaultScreenDevice().getDefaultConfiguration();
+            worldFrame = gc.createCompatibleImage(gp.screenWidth, gp.screenHeight, Transparency.OPAQUE);
+        } catch (Exception e) {
+            worldFrame = new BufferedImage(gp.screenWidth, gp.screenHeight, BufferedImage.TYPE_INT_RGB);
+        }
+        worldGraphics = worldFrame.createGraphics();
+    }
+
+    public void invalidateWorldCache() {
+        worldCacheValid = false;
+    }
+
+    private boolean shouldReuseWorldCache() {
+        return switch (gp.gameState) {
+            case GamePanel.pauseState,
+                 GamePanel.dialogueState,
+                 GamePanel.characterState,
+                 GamePanel.optionsState,
+                 GamePanel.gameOverState,
+                 GamePanel.skillTreeState,
+                 GamePanel.journalState -> true;
+            default -> false;
+        };
+    }
+
+    private void refreshWorldCache() {
+        ensureWorldFrame();
+        worldGraphics.setTransform(new AffineTransform());
+        worldGraphics.setComposite(AlphaComposite.SrcOver);
+        worldGraphics.setClip(null);
+        worldGraphics.setBackground(gp.mapManager != null ? gp.mapManager.mapBackgroundColor : Color.BLACK);
+        worldGraphics.clearRect(0, 0, gp.screenWidth, gp.screenHeight);
+        drawWorldLayers(worldGraphics);
+        worldCacheValid = true;
     }
 
     public void drawCurrentState(Graphics2D g2) {
         switch (gp.gameState) {
             case GamePanel.titleState:
+                invalidateWorldCache();
                 gp.ui.draw(g2);
                 break;
             case GamePanel.levelUpState:
                 // Level-up screen draws its own opaque overlay — skip expensive world render
                 gp.ui.draw(g2);
                 break;
-            case GamePanel.transitionState:
-                drawWorldState(g2);
-                break;
-            case GamePanel.playState:
-            case GamePanel.pauseState:
-            case GamePanel.dialogueState:
-            case GamePanel.characterState:
-            case GamePanel.optionsState:
-            case GamePanel.gameOverState:
-            case GamePanel.cutsceneState:
-            case GamePanel.skillTreeState:
             default:
-                drawWorldState(g2);
+                if (!shouldReuseWorldCache() || !worldCacheValid) {
+                    refreshWorldCache();
+                }
+                g2.drawImage(worldFrame, 0, 0, null);
+                drawWorldOverlays(g2);
                 break;
         }
     }
 
-    private void drawWorldState(Graphics2D g2) {
+    private void drawWorldLayers(Graphics2D g2) {
         // OPTIMIZATION: AA off for pixel art
         g2.setRenderingHint(java.awt.RenderingHints.KEY_ANTIALIASING, java.awt.RenderingHints.VALUE_ANTIALIAS_OFF);
         g2.setRenderingHint(java.awt.RenderingHints.KEY_TEXT_ANTIALIASING, java.awt.RenderingHints.VALUE_TEXT_ANTIALIAS_OFF);
@@ -186,21 +231,19 @@ public class RenderPipeline {
             gp.mapShader.drawColorGrading(g2);
             gp.mapShader.drawVignette(g2);
         }
+    }
 
-        // UI
+    private void drawWorldOverlays(Graphics2D g2) {
         gp.ui.draw(g2);
 
-        // MINIMAP
         if (gp.minimap != null && gp.gameState == GamePanel.playState) {
             gp.minimap.draw(g2);
         }
 
-        // QUEST TRACKER
         if (gp.questManager != null && gp.gameState == GamePanel.playState) {
             gp.questManager.drawTracker(g2);
         }
 
-        // QUEST LOG OVERLAY
         if (gp.questManager != null && gp.questManager.isLogOpen()) {
             gp.questManager.drawLog(g2);
         }
