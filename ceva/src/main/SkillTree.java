@@ -34,10 +34,21 @@ public class SkillTree {
     }
 
     private final SkillNode[] nodes;
+    private final Map<String, Integer> nodeIndexById = new HashMap<>();
+    private int revealMaxColCache = -1;
     public int selectedIndex = 0;
+
+    // ── Minecraft-style scrolling list state ──
+    // The list is rendered as a vertical scrollable menu; only a window of entries
+    // is visible at a time. scrollOffset is the index of the row at the top of
+    // the visible window and is kept in sync with selectedIndex by the UI.
+    public int scrollOffset = 0;
 
     public SkillTree() {
         nodes = loadFromJson();
+        for (int i = 0; i < nodes.length; i++) {
+            nodeIndexById.put(nodes[i].id, i);
+        }
     }
 
     /** Load skill nodes from res/data/skilltree.json. */
@@ -122,10 +133,8 @@ public class SkillTree {
 
     public int findIndexById(String id) {
         if (id == null) return -1;
-        for (int i = 0; i < nodes.length; i++) {
-            if (id.equals(nodes[i].id)) return i;
-        }
-        return -1;
+        Integer index = nodeIndexById.get(id);
+        return index != null ? index : -1;
     }
 
     public boolean canUnlock(Player player, int idx) {
@@ -149,24 +158,39 @@ public class SkillTree {
         SkillNode n = nodes[idx];
         player.skillPoints -= n.cost;
         n.unlocked = true;
+        revealMaxColCache = -1;
         player.applySkillNodeEffect(n.id);
         return true;
     }
 
     public int getRevealMaxCol() {
+        if (revealMaxColCache >= 0) {
+            return revealMaxColCache;
+        }
         int farthestUnlockedCol = 0;
         for (SkillNode n : nodes) {
             if (n.unlocked && n.col > farthestUnlockedCol) {
                 farthestUnlockedCol = n.col;
             }
         }
-        // Nodes that are 2+ columns ahead stay hidden.
-        return farthestUnlockedCol + 1;
+        revealMaxColCache = farthestUnlockedCol + 1;
+        return revealMaxColCache;
     }
 
     public boolean isRevealed(int idx) {
         if (idx < 0 || idx >= nodes.length) return false;
         return nodes[idx].col <= getRevealMaxCol();
+    }
+
+    /**
+     * Linear cursor movement for the scrolling list UI.
+     * delta = +1 moves down one entry, -1 moves up; clamped to valid range.
+     */
+    public void moveCursor(int delta) {
+        int ni = selectedIndex + delta;
+        if (ni < 0) ni = 0;
+        if (ni >= nodes.length) ni = nodes.length - 1;
+        selectedIndex = ni;
     }
 
     public void moveSelection(Player player, int dx, int dy) {

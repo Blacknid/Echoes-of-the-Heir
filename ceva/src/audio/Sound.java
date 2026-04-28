@@ -72,7 +72,11 @@ public class Sound {
                 }
                 clipPool[i][slot] = clip;
             }
-            fc = (FloatControl) clip.getControl(FloatControl.Type.MASTER_GAIN);
+            if (clip.isControlSupported(FloatControl.Type.MASTER_GAIN)) {
+                fc = (FloatControl) clip.getControl(FloatControl.Type.MASTER_GAIN);
+            } else {
+                fc = null;
+            }
             checkVolume();
         } catch (IOException | LineUnavailableException | UnsupportedAudioFileException e) {
             System.out.println("Sound: failed to load slot " + i + ": " + e.getMessage());

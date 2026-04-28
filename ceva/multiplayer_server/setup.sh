@@ -1,67 +1,131 @@
-#!/bin/bash
-# ──────────────────────────────────────────────────
-# Michi's Adventure — Multiplayer Server Setup
-# Target: Raspberry Pi OS (x64)
-# ──────────────────────────────────────────────────
-# This script installs dependencies and creates a
-# systemd service to run the multiplayer game server.
-#
-# THIS SERVER IS NOT THE SINGLEPLAYER SAVE SERVER.
-# It only handles multiplayer session synchronization.
-# ──────────────────────────────────────────────────
+#!/usr/bin/env bash
+# ═══════════════════════════════════════════════════════
+# Michi's Adventure — Multiplayer Server v2 setup
+# Target: Raspberry Pi OS (Bookworm / 64-bit), Raspi 5
+# ═══════════════════════════════════════════════════════
+set -euo pipefail
 
-set -e
-
-SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 SERVICE_NAME="michi-multiplayer"
 SERVICE_FILE="/etc/systemd/system/${SERVICE_NAME}.service"
 SERVER_SCRIPT="${SCRIPT_DIR}/server.py"
+KEY_FILE="${SCRIPT_DIR}/server_private_key.pem"
+CONFIG_FILE="${SCRIPT_DIR}/mp_config.json"
+KEYGEN_SCRIPT="${SCRIPT_DIR}/generate_keys.py"
+PYTHON="$(command -v python3)"
 
-echo "═══════════════════════════════════════════"
-echo "  Michi's Adventure — Multiplayer Server"
-echo "  Setup for Raspberry Pi OS (x64)"
-echo "═══════════════════════════════════════════"
-echo ""
+echo "═══════════════════════════════════════════════════════"
+echo "  Michi's Adventure — Multiplayer Server v2 Setup"
+echo "═══════════════════════════════════════════════════════"
 
-# 1. Check Python 3
-if ! command -v python3 &>/dev/null; then
-    echo "[!] Python 3 not found. Installing..."
-    sudo apt update && sudo apt install -y python3
+# ── 0. Must run as root ──────────────────────────────────
+if [[ "$(id -u)" -ne 0 ]]; then
+    echo "[!] Run this script with sudo: sudo bash setup.sh"
+    exit 1
 fi
 
-PYTHON=$(command -v python3)
-echo "[✓] Python: $($PYTHON --version)"
+REAL_USER="${SUDO_USER:-$(logname 2>/dev/null || echo root)}"
 
-# 2. No pip packages needed — server uses only stdlib (asyncio, json, logging)
-echo "[✓] No external dependencies needed (stdlib only)"
+# ── 1. Install system packages ───────────────────────────
+echo "[1/7] Installing packages..."
+apt-get update -qq
+apt-get install -y python3 python3-pip python3-cryptography ufw
 
-# 3. Make server executable
-chmod +x "$SERVER_SCRIPT"
-echo "[✓] Server script is executable"
+if ! python3 -c "from cryptography.hazmat.primitives.kdf.hkdf import HKDF; \
+                  from cryptography.hazmat.primitives.ciphers.aead import AESGCM" 2>/dev/null; then
+    echo "  [!] System cryptography too old, installing via pip..."
+    python3 -m pip install --break-system-packages "cryptography>=41"
+fi
+echo "  [✓] cryptography OK"
 
-# 4. Open firewall port (if ufw is installed)
-if command -v ufw &>/dev/null; then
-    echo "[*] Opening port 7777/tcp in ufw..."
-    sudo ufw allow 7777/tcp comment "Michi Multiplayer" || true
-    echo "[✓] Firewall rule added"
+# ── 2. Make server executable ────────────────────────────
+echo "[2/7] Permissions..."
+chmod +x "${SERVER_SCRIPT}"
+echo "  [✓] server.py is executable."
+
+# ── 3. RSA private key ───────────────────────────────────
+echo "[3/7] RSA key pair..."
+if [ ! -f "${KEY_FILE}" ]; then
+    SAVE_KEY="${SCRIPT_DIR}/../server/server_private_key.pem"
+    if [ -f "${SAVE_KEY}" ]; then
+        echo "  Reusing cloud-save server's RSA key (same Pi, shared identity)."
+        cp "${SAVE_KEY}" "${KEY_FILE}"
+        chmod 600 "${KEY_FILE}"
+        echo "  [✓] Key copied."
+    else
+        echo "  No key found. Generating a new RSA-2048 key pair for the MP server..."
+        # Ensure generate_keys.py is present (copy from save-server dir if not)
+        if [ ! -f "${KEYGEN_SCRIPT}" ]; then
+            if [ -f "${SCRIPT_DIR}/../server/generate_keys.py" ]; then
+                cp "${SCRIPT_DIR}/../server/generate_keys.py" "${KEYGEN_SCRIPT}"
+            else
+                echo "  [!] generate_keys.py not found in either server directory. Aborting."
+                exit 2
+            fi
+        fi
+        sudo -u "${REAL_USER}" python3 "${KEYGEN_SCRIPT}"
+        chmod 600 "${KEY_FILE}"
+        echo "  [✓] Keys generated."
+        echo
+        echo "  *** IMPORTANT ***"
+        echo "  Paste the public key from ${SCRIPT_DIR}/server_public_key.b64 into:"
+        echo "    MultiplayerClient.RSA_PUBLIC_KEY_B64  (ceva/src/main/MultiplayerClient.java)"
+        echo "  Then recompile and redeploy the game JAR."
+        echo
+    fi
 else
-    echo "[i] ufw not found, skipping firewall config."
-    echo "    Make sure port 7777/tcp is open if you have another firewall."
+    echo "  [✓] Key already exists: ${KEY_FILE}"
 fi
 
-# 5. Create systemd service
-echo "[*] Creating systemd service: ${SERVICE_NAME}"
+# ── 4. Config file ───────────────────────────────────────
+echo "[4/7] Config file..."
+if [ ! -f "${CONFIG_FILE}" ]; then
+    cp "${SCRIPT_DIR}/mp_config.example.json" "${CONFIG_FILE}"
+    chown "${REAL_USER}":"${REAL_USER}" "${CONFIG_FILE}"
+    echo "  [✓] Created ${CONFIG_FILE} from example."
+    echo "  Edit it to set license_salt, license_pepper, max_players, etc."
+else
+    echo "  [✓] Config already exists: ${CONFIG_FILE}"
+fi
 
-sudo tee "$SERVICE_FILE" > /dev/null <<EOF
+# ── 5. Bind address / port ───────────────────────────────
+echo "[5/7] Bind address..."
+CONFIG_HOST=$(python3 -c "import json; c=json.load(open('${CONFIG_FILE}')); print(c.get('host') or '0.0.0.0')" 2>/dev/null || echo "0.0.0.0")
+CONFIG_PORT=$(python3 -c "import json; c=json.load(open('${CONFIG_FILE}')); print(c.get('port') or 7777)"     2>/dev/null || echo 7777)
+
+read -rp "  Bind IP   [${CONFIG_HOST}]: " INPUT_HOST
+BIND_HOST="${INPUT_HOST:-${CONFIG_HOST}}"
+read -rp "  Bind port [${CONFIG_PORT}]: " INPUT_PORT
+BIND_PORT="${INPUT_PORT:-${CONFIG_PORT}}"
+
+python3 -c "
+import json, sys
+cfg = json.load(open('${CONFIG_FILE}'))
+cfg['host'] = '${BIND_HOST}'
+cfg['port'] = int('${BIND_PORT}')
+json.dump(cfg, open('${CONFIG_FILE}', 'w'), indent=2)
+"
+chown "${REAL_USER}":"${REAL_USER}" "${CONFIG_FILE}"
+echo "  [✓] Config updated: ${BIND_HOST}:${BIND_PORT}"
+
+# ── 6. Firewall ──────────────────────────────────────────
+echo "[6/7] Configuring firewall..."
+ufw allow "${BIND_PORT}"/tcp comment "Michi Multiplayer"
+ufw --force enable
+echo "  [✓] Port ${BIND_PORT}/tcp open."
+
+# ── 7. systemd service ───────────────────────────────────
+echo "[7/7] Installing systemd service: ${SERVICE_NAME}"
+tee "${SERVICE_FILE}" > /dev/null <<EOF
 [Unit]
-Description=Michi's Adventure Multiplayer Server
+Description=Michi's Adventure Multiplayer Server v2
 After=network.target
 
 [Service]
 Type=simple
-User=$(whoami)
+User=${REAL_USER}
 WorkingDirectory=${SCRIPT_DIR}
-ExecStart=${PYTHON} ${SERVER_SCRIPT}
+ExecStart=${PYTHON} ${SERVER_SCRIPT} --no-prompt
 Restart=on-failure
 RestartSec=5
 StandardOutput=journal
@@ -71,18 +135,23 @@ StandardError=journal
 WantedBy=multi-user.target
 EOF
 
-sudo systemctl daemon-reload
-sudo systemctl enable "$SERVICE_NAME"
-sudo systemctl start "$SERVICE_NAME"
+systemctl daemon-reload
+systemctl enable "${SERVICE_NAME}"
+systemctl restart "${SERVICE_NAME}"
+echo "  [✓] Service ${SERVICE_NAME} started."
 
-echo ""
-echo "═══════════════════════════════════════════"
+sleep 2
+systemctl is-active --quiet "${SERVICE_NAME}" && \
+    echo "  [✓] Service is running." || \
+    echo "  [!] Service may have failed. Check: journalctl -u ${SERVICE_NAME} -n 30"
+
+echo
+echo "═══════════════════════════════════════════════════════"
 echo "  Setup complete!"
-echo ""
-echo "  Service:  ${SERVICE_NAME}"
-echo "  Port:     7777"
-echo "  Status:   sudo systemctl status ${SERVICE_NAME}"
-echo "  Logs:     journalctl -u ${SERVICE_NAME} -f"
-echo "  Stop:     sudo systemctl stop ${SERVICE_NAME}"
-echo "  Restart:  sudo systemctl restart ${SERVICE_NAME}"
-echo "═══════════════════════════════════════════"
+echo
+echo "  Service : ${SERVICE_NAME}"
+echo "  Bind    : ${BIND_HOST}:${BIND_PORT}"
+echo "  Config  : ${CONFIG_FILE}"
+echo "  Logs    : journalctl -u ${SERVICE_NAME} -f"
+echo "  Status  : sudo systemctl status ${SERVICE_NAME}"
+echo "═══════════════════════════════════════════════════════"

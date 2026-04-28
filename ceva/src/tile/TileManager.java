@@ -143,6 +143,9 @@ public class TileManager {
         // Per-layer rendering extras (composited at draw time)
         float opacity = 1f;
         Color tint = null;
+        // OPTIMIZATION: original (possibly animated) GID so we can patch `image` in-place
+        // when a tile animation advances a frame — avoids a full visible-tile rebuild.
+        int baseGid;
     }
 
     private final Comparator<VisibleTileDraw> backgroundTileComparator = new Comparator<VisibleTileDraw>() {
@@ -1255,6 +1258,7 @@ public class TileManager {
 
                     VisibleTileDraw visibleTile = getPooledTileDraw();
                     visibleTile.image       = currentTile.image;
+                    visibleTile.baseGid     = gid; // OPTIMIZATION: remember original GID for in-place animation patching
                     visibleTile.worldX      = worldX + Math.round(offX);
                     visibleTile.screenBaseY = screenBaseY + Math.round(offY);
                     visibleTile.screenX     = Math.round(worldX + offX - cameraWorldX * px);
@@ -1502,9 +1506,11 @@ public class TileManager {
     }
 
     /**
-     * Called once per game update tick (60 Hz). Advances animated-tile frame timers
-     * and invalidates the visible-tile cache when any animation changes frame, so the
-     * next prepareVisibleTiles() will substitute the new frame image.
+     * Called once per game update tick (60 Hz). Advances animated-tile frame timers.
+     *
+     * OPTIMIZATION: Instead of forcing a full visible-tile rebuild when any animation
+     * advances (old behaviour), patch the `image` field of already-visible animated tiles
+     * in place. Water animating at 10 FPS no longer triggers 10 full rebuilds per second.
      */
     public void update() {
         if (!hasAnimatedTiles) return;
@@ -1521,8 +1527,28 @@ public class TileManager {
             }
         }
         if (anyFrameChanged) {
-            // Force a full visible-tile rebuild on next prepareVisibleTiles() call
-            lastVisMinCol = -99;
+            patchAnimatedTileImages(backgroundVisibleTiles);
+            patchAnimatedTileImages(depthVisibleTiles);
+            patchAnimatedTileImages(foregroundVisibleTiles);
+        }
+    }
+
+    /**
+     * Walk a visible-tile bucket and update the `image` reference of any tile whose
+     * baseGid is animated. O(visible tiles) — no sort, no collision re-check, no
+     * per-layer iteration over the full world rect.
+     */
+    private void patchAnimatedTileImages(ArrayList<VisibleTileDraw> list) {
+        if (gidToAnimation == null || gidToAnimation.isEmpty()) return;
+        for (int i = 0, n = list.size(); i < n; i++) {
+            VisibleTileDraw vtd = list.get(i);
+            TileAnimation anim = gidToAnimation.get(vtd.baseGid);
+            if (anim == null) continue;
+            int drawGid = anim.frameLocalIds[anim.currentFrame];
+            if (gidToTile != null && drawGid >= 0 && drawGid < gidToTile.length) {
+                Tile t = gidToTile[drawGid];
+                if (t != null && t.image != null) vtd.image = t.image;
+            }
         }
     }
 

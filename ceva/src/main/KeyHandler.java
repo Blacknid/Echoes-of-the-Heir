@@ -43,10 +43,20 @@ public class KeyHandler implements KeyListener {
         int code = e.getKeyCode();
 
         // Track direction keys for menu repeat system
-        if (code == KeyEvent.VK_W || code == KeyEvent.VK_UP)    { menuUp = true;    menuRepeatCounter = MENU_INITIAL_DELAY; }
-        if (code == KeyEvent.VK_S || code == KeyEvent.VK_DOWN)  { menuDown = true;  menuRepeatCounter = MENU_INITIAL_DELAY; }
-        if (code == KeyEvent.VK_A || code == KeyEvent.VK_LEFT)  { menuLeft = true;  menuRepeatCounter = MENU_INITIAL_DELAY; }
-        if (code == KeyEvent.VK_D || code == KeyEvent.VK_RIGHT) { menuRight = true; menuRepeatCounter = MENU_INITIAL_DELAY; }
+        boolean isDirKey = code == KeyEvent.VK_W || code == KeyEvent.VK_UP
+                        || code == KeyEvent.VK_S || code == KeyEvent.VK_DOWN
+                        || code == KeyEvent.VK_A || code == KeyEvent.VK_LEFT
+                        || code == KeyEvent.VK_D || code == KeyEvent.VK_RIGHT;
+        if (code == KeyEvent.VK_W || code == KeyEvent.VK_UP)    menuUp    = true;
+        if (code == KeyEvent.VK_S || code == KeyEvent.VK_DOWN)  menuDown  = true;
+        if (code == KeyEvent.VK_A || code == KeyEvent.VK_LEFT)  menuLeft  = true;
+        if (code == KeyEvent.VK_D || code == KeyEvent.VK_RIGHT) menuRight = true;
+        // Fire once immediately on first press in menu states, then arm repeat counter
+        if (isDirKey && isInMenuState()) {
+            fireMenuNavigation();
+            menuRepeatCounter = MENU_INITIAL_DELAY;
+            return;
+        }
 
         // TITLE STATE
         if (gp.gameState == GamePanel.titleState) {
@@ -662,23 +672,6 @@ public class KeyHandler implements KeyListener {
             return;
         }
 
-        if (code == KeyEvent.VK_W || code == KeyEvent.VK_UP) {
-            gp.player.skillTree.moveSelection(gp.player, 0, -1);
-            gp.playSE(SFX.MENU_CURSOR);
-        }
-        if (code == KeyEvent.VK_S || code == KeyEvent.VK_DOWN) {
-            gp.player.skillTree.moveSelection(gp.player, 0, 1);
-            gp.playSE(SFX.MENU_CURSOR);
-        }
-        if (code == KeyEvent.VK_A || code == KeyEvent.VK_LEFT) {
-            gp.player.skillTree.moveSelection(gp.player, -1, 0);
-            gp.playSE(SFX.MENU_CURSOR);
-        }
-        if (code == KeyEvent.VK_D || code == KeyEvent.VK_RIGHT) {
-            gp.player.skillTree.moveSelection(gp.player, 1, 0);
-            gp.playSE(SFX.MENU_CURSOR);
-        }
-
         if (code == KeyEvent.VK_ENTER) {
             if (!gp.player.skillTree.unlockSelected(gp.player)) {
                 gp.playSE(SFX.PLAYER_HIT);
@@ -803,6 +796,9 @@ public class KeyHandler implements KeyListener {
 
     private boolean isInMenuState() {
         int s = gp.gameState;
+        if (s == GamePanel.titleState) {
+            return gp.ui.titleScreenState != 4;
+        }
         return s == GamePanel.characterState || s == GamePanel.levelUpState ||
                s == GamePanel.skillTreeState || s == GamePanel.optionsState ||
                s == GamePanel.journalState   || s == GamePanel.gameOverState;
@@ -811,7 +807,24 @@ public class KeyHandler implements KeyListener {
     private void fireMenuNavigation() {
         int state = gp.gameState;
 
-        if (state == GamePanel.characterState) {
+        if (state == GamePanel.titleState) {
+            if (gp.ui.titleScreenState == 0) {
+                if (menuUp)   { gp.ui.commandNum = (gp.ui.commandNum - 1 + 4) % 4; gp.playSE(SFX.MENU_SELECT); }
+                if (menuDown) { gp.ui.commandNum = (gp.ui.commandNum + 1) % 4; gp.playSE(SFX.MENU_SELECT); }
+            }
+            else if (gp.ui.titleScreenState == 1) {
+                int maxCommand = 3;
+                if (menuUp)   { gp.ui.commandNum = (gp.ui.commandNum - 1 + maxCommand + 1) % (maxCommand + 1); gp.playSE(SFX.MENU_SELECT); }
+                if (menuDown) { gp.ui.commandNum = (gp.ui.commandNum + 1) % (maxCommand + 1); gp.playSE(SFX.MENU_SELECT); }
+            }
+            else if (gp.ui.titleScreenState == 3) {
+                int serverCount = gp.serverList.getServers().size();
+                int totalItems = serverCount + 3;
+                if (menuUp)   { gp.ui.mpServerSelection = (gp.ui.mpServerSelection - 1 + totalItems) % totalItems; gp.playSE(SFX.MENU_SELECT); }
+                if (menuDown) { gp.ui.mpServerSelection = (gp.ui.mpServerSelection + 1) % totalItems; gp.playSE(SFX.MENU_SELECT); }
+            }
+        }
+        else if (state == GamePanel.characterState) {
             if (menuUp    && gp.ui.slotRow > 0) { gp.ui.slotRow--; gp.playSE(SFX.MENU_CURSOR); }
             if (menuDown  && gp.ui.slotRow < 3) { gp.ui.slotRow++; gp.playSE(SFX.MENU_CURSOR); }
             if (menuLeft  && gp.ui.slotCol > 0) { gp.ui.slotCol--; gp.playSE(SFX.MENU_CURSOR); }
@@ -830,10 +843,10 @@ public class KeyHandler implements KeyListener {
             }
         }
         else if (state == GamePanel.skillTreeState) {
-            if (menuUp)    { gp.player.skillTree.moveSelection(gp.player, 0, -1); gp.playSE(SFX.MENU_CURSOR); }
-            if (menuDown)  { gp.player.skillTree.moveSelection(gp.player, 0,  1); gp.playSE(SFX.MENU_CURSOR); }
-            if (menuLeft)  { gp.player.skillTree.moveSelection(gp.player, -1, 0); gp.playSE(SFX.MENU_CURSOR); }
-            if (menuRight) { gp.player.skillTree.moveSelection(gp.player,  1, 0); gp.playSE(SFX.MENU_CURSOR); }
+            if (menuUp)    { gp.player.skillTree.moveSelection(-1, 0); gp.playSE(SFX.MENU_CURSOR); }
+            if (menuDown)  { gp.player.skillTree.moveSelection(+1, 0); gp.playSE(SFX.MENU_CURSOR); }
+            if (menuLeft)  { gp.player.skillTree.moveSelection(0, -1); gp.playSE(SFX.MENU_CURSOR); }
+            if (menuRight) { gp.player.skillTree.moveSelection(0, +1); gp.playSE(SFX.MENU_CURSOR); }
         }
         else if (state == GamePanel.optionsState) {
             int maxCmd = switch (gp.ui.subState) { case 0 -> 7; case 3 -> 1; default -> 0; };
