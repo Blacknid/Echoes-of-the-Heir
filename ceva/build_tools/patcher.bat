@@ -1,4 +1,18 @@
 @echo off
+:: =======================================================================
+:: DEPRECATED -- legacy GitHub-based bsdiff patcher.
+::
+:: Replaced by ceva/patch_server/ + UpdateClient.java (in-app self-update).
+:: To publish a new patch, run on the patch-server host:
+::     python3 build_patch.py <old.jar> <new.jar> <from_version> <to_version>
+:: This script is kept for archival reference only and is no longer wired
+:: into the deployment pipeline.
+:: =======================================================================
+echo [!] patcher.bat is DEPRECATED. Use ceva/patch_server/build_patch.py instead.
+echo [!] See ceva/DEPLOYMENT.md.
+pause
+exit /b 0
+
 setlocal enabledelayedexpansion
 
 :: --- PRIVATE CONFIG ---

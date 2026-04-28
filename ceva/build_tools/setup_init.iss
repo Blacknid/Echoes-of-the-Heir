@@ -23,6 +23,13 @@ Source: "C:\Users\iulia\OneDrive\Desktop\java\MichiGame.jar"; DestDir: "{app}"; 
 ; This pulls your JDK 24 (renamed to jre) and all subfolders (bin, lib, etc.)
 Source: "C:\Users\iulia\OneDrive\Desktop\java\jre\*"; DestDir: "{app}\jre"; Flags: ignoreversion recursesubdirs createallsubdirs
 
+; 4. Patch-server endpoint list (used by UpdateClient at startup).
+;    onlyifdoesntexist preserves any local edits the player may have made.
+Source: "..\update_servers.example.txt"; DestDir: "{app}"; DestName: "update_servers.txt"; Flags: ignoreversion onlyifdoesntexist
+
+; 5. Save-server endpoint list (used by CloudSaveService).
+Source: "..\save_servers.example.txt"; DestDir: "{app}"; DestName: "save_servers.txt"; Flags: ignoreversion onlyifdoesntexist
+
 [Icons]
 ; Creates a shortcut in the Start Menu
 Name: "{group}\Michi Game"; Filename: "{app}\MichiGame.exe"

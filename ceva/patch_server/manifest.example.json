@@ -1,0 +1,15 @@
+{
+  "_comment": "Auto-maintained by build_patch.py. Lists every published patch.",
+  "latest_version": "1.0.0",
+  "patches": [
+    {
+      "from": "1.0.0",
+      "to": "1.0.1",
+      "file": "patches/v1.0.0_to_v1.0.1.zip",
+      "sha256_hex": "<computed at build time>",
+      "signature_b64": "<computed at build time>",
+      "size_bytes": 0,
+      "created_at": "1970-01-01T00:00:00Z"
+    }
+  ]
+}

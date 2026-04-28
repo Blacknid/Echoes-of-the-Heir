@@ -11,6 +11,16 @@ public class Main {
 
     public static void main(String[] args) {
 
+        // Mandatory update check — must run before any window/game setup so
+        // that, if an update is needed, we exit cleanly before the JAR file
+        // is locked by anything heavyweight. Returns false when an update
+        // was downloaded and the Updater has been spawned (or the user
+        // declined a required update); in either case we must exit so the
+        // running JAR can be replaced.
+        if (!update.UpdateClient.checkAndApply()) {
+            return;
+        }
+
         // Load license from properties file (written by installer)
         try (java.io.InputStream in = new java.io.FileInputStream("license.properties")) {
             java.util.Properties props = new java.util.Properties();
