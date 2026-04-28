@@ -41,6 +41,27 @@ public class Config {
         return "v" + gameVersion + "." + buildNumber;
     }
 
+    // Rendering scale configuration
+    // `originalTileSize` is the native pixel size used when authoring spritesheets (default 32).
+    // `scale` is an integer multiplier applied at runtime (1,2,3...).
+    public static int originalTileSize = 32;
+    public static double scale = 2;
+    public static int tileSize = (int)(originalTileSize * scale);
+
+    /** Set the scale multiplier and update derived values. */
+    public static void setScale(double s) {
+        if (s <= 0) return;
+        scale = s;
+        tileSize = (int)(originalTileSize * scale);
+    }
+
+    /** Set the original (native) tile size in pixels and update derived values. */
+    public static void setOriginalTileSize(int o) {
+        if (o <= 0) return;
+        originalTileSize = o;
+        tileSize = (int)(originalTileSize * scale);
+    }
+
     public Config ( GamePanel gp ) {
         this.gp = gp;
     }

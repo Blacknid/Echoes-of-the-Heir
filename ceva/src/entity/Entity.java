@@ -299,7 +299,7 @@ public class Entity {
     public int amount = 1; //stack-ul incepe initial de la 1, fie ca e stackable sau nu
     public float working_power; //cat ia din durabilitatea obiectului (toporul ia mai mult din durabilitatea lemnului decat o sabie)
     public String tool_type; //pentru ce e folosita unealta (topor pentru lemn)
-    public float spriteScale = 1.5f;           // 1.0 = normal size, 2.0 = double (boss phase scaling)
+    public float spriteScale = 1.0f;           // 1.0 = normal size, 2.0 = double (boss phase scaling)
 
     public Entity(GamePanel gp) {
         this.gp = gp;
@@ -1278,25 +1278,93 @@ public class Entity {
         return dx < range && dy < range;
     } 
     public BufferedImage[][] loadSheetVariable(String path, int[] framesPerRow) {
-        int rows = framesPerRow.length;
-        int maxCols = 0;
-        for (int f : framesPerRow) if (f > maxCols) maxCols = f;
+        int rowsWanted = framesPerRow.length;
+        int maxColsWanted = 0;
+        for (int f : framesPerRow) if (f > maxColsWanted) maxColsWanted = f;
 
-        BufferedImage sheet = setup(path, gp.tileSize * maxCols, gp.tileSize * rows);
-        BufferedImage[][] frames = new BufferedImage[rows][];
+        try {
+            BufferedImage sheet = ResourceCache.loadImage(path + ".png");
 
-        for (int y = 0; y < rows; y++) {
-            frames[y] = new BufferedImage[framesPerRow[y]];
-            for (int x = 0; x < framesPerRow[y]; x++) {
-                frames[y][x] = sheet.getSubimage(
-                        x * gp.tileSize,
-                        y * gp.tileSize,
-                        gp.tileSize,
-                        gp.tileSize
-                );
+            // Determine if the sheet is arranged in multiple rows as requested,
+            // otherwise treat it as a single-row strip and duplicate that row
+            // across the expected directions.
+            int rowsActual;
+            int cellSize;
+            if (sheet.getHeight() % rowsWanted == 0 && sheet.getHeight() / rowsWanted > 0) {
+                rowsActual = rowsWanted;
+                cellSize = sheet.getHeight() / rowsWanted;
+            } else {
+                // Fallback: single-row strip
+                rowsActual = 1;
+                cellSize = sheet.getHeight();
             }
+
+            int colsActual = Math.max(1, sheet.getWidth() / cellSize);
+
+            BufferedImage[][] frames = new BufferedImage[rowsWanted][];
+
+            for (int y = 0; y < rowsWanted; y++) {
+                int expected = framesPerRow[y];
+                if (colsActual <= 0) {
+                    // Create empty transparent frames if nothing is available
+                    frames[y] = new BufferedImage[expected];
+                    for (int k = 0; k < expected; k++) {
+                        frames[y][k] = new BufferedImage(gp.tileSize, gp.tileSize, BufferedImage.TYPE_INT_ARGB);
+                    }
+                    continue;
+                }
+
+                int available = Math.min(expected, colsActual);
+                BufferedImage[] temp = new BufferedImage[available];
+
+                for (int x = 0; x < available; x++) {
+                    int srcRow = (rowsActual == rowsWanted) ? y : 0;
+                    int sx = x * cellSize;
+                    int sy = srcRow * cellSize;
+                    int sw = Math.min(cellSize, sheet.getWidth() - sx);
+                    int sh = Math.min(cellSize, sheet.getHeight() - sy);
+
+                    BufferedImage crop;
+                    if (sw == cellSize && sh == cellSize) {
+                        crop = sheet.getSubimage(sx, sy, sw, sh);
+                    } else {
+                        BufferedImage padded = new BufferedImage(cellSize, cellSize, BufferedImage.TYPE_INT_ARGB);
+                        java.awt.Graphics2D pg = padded.createGraphics();
+                        pg.drawImage(sheet.getSubimage(sx, sy, sw, sh), 0, 0, null);
+                        pg.dispose();
+                        crop = padded;
+                    }
+
+                    temp[x] = util.UtilityTool.scaleImage(crop, gp.tileSize, gp.tileSize);
+                }
+
+                // Fill expected count, pad by duplicating last available frame if needed
+                frames[y] = new BufferedImage[expected];
+                for (int x = 0; x < expected; x++) {
+                    if (x < temp.length) frames[y][x] = temp[x];
+                    else frames[y][x] = temp[temp.length - 1];
+                }
+            }
+
+            return frames;
+        } catch (IOException e) {
+            // Fallback to original (scaled full-sheet) behaviour for compatibility
+            BufferedImage sheet = setup(path, gp.tileSize * maxColsWanted, gp.tileSize * rowsWanted);
+            BufferedImage[][] frames = new BufferedImage[rowsWanted][];
+
+            for (int y = 0; y < rowsWanted; y++) {
+                frames[y] = new BufferedImage[framesPerRow[y]];
+                for (int x = 0; x < framesPerRow[y]; x++) {
+                    frames[y][x] = sheet.getSubimage(
+                            x * gp.tileSize,
+                            y * gp.tileSize,
+                            gp.tileSize,
+                            gp.tileSize
+                    );
+                }
+            }
+            return frames;
         }
-        return frames;
     }
     public BufferedImage[][] loadSpriteMatrix(
         String path,
@@ -1312,8 +1380,19 @@ public class Entity {
             throw new RuntimeException("Failed to load spritesheet: " + path, e);
         }
 
-        int columns = sheet.getWidth() / spriteWidth;
-        int rows = sheet.getHeight() / spriteHeight;
+        // NOTE: `spriteWidth`/`spriteHeight` are expected to be the native
+        // cell sizes authored in the spritesheet (e.g. 32x32). Callers should
+        // pass Config.originalTileSize for native sheets. If the sheet image
+        // dimensions are not exact multiples of the provided cell size, we
+        // continue with floor-division but emit a warning to help debugging
+        // resource mismatches (e.g. fruit_trader looking incorrect).
+        if (sheet.getWidth() % spriteWidth != 0 || sheet.getHeight() % spriteHeight != 0) {
+            System.out.println("[Entity] Warning: sprite sheet dimensions not multiples of given cell size for '" + path + "' (sheet: "
+                + sheet.getWidth() + "x" + sheet.getHeight() + ", cell: " + spriteWidth + "x" + spriteHeight + ")");
+        }
+
+        int columns = Math.max(1, sheet.getWidth() / spriteWidth);
+        int rows = Math.max(1, sheet.getHeight() / spriteHeight);
         // Check if there's a partial extra row (e.g. 400px / 128 = 3 but 4th row visible)
         int remainderH = sheet.getHeight() - rows * spriteHeight;
         if (remainderH > spriteHeight / 2) {

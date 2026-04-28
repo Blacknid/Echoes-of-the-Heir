@@ -46,10 +46,12 @@ public class GamePanel extends JPanel implements Runnable{
 
     // SCREEN SETTINGS
 
-    final int originalTileSize = 32; // 32 x 32 pixel
-    final int scale = 2;
+    // Tile sizing is centralized in Config to support runtime scaling and
+    // a single authoritative source for original/native tile size and scale.
+    public final int originalTileSize = Config.originalTileSize; // 32 x 32 pixel (native)
+    public final double scale = Config.scale;
 
-    public final int tileSize = originalTileSize * scale; // 64 x 64 pixel
+    public final int tileSize = Config.tileSize; // runtime tile size (originalTileSize * scale)
     public final int maxScreenCol = 20;
     public final int maxScreenRow = 12;
     public final int screenWidth = tileSize * maxScreenCol; // 1280 pixels

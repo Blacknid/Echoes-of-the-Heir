@@ -158,5 +158,197 @@
         "requiredQuestComplete": "sword_giver_bandage"
       }
     ]
+  },
+  "fruit_trader": {
+    "name": "Fruit Trader",
+    "idleSprite": "/res/NPC/Fruit_Trader",
+    "staticNPC": true,
+    "idleDirection": 1,
+    "idleAnimSpeed": 12,
+
+    "dialogues": {
+      "intro": [
+        "Fresh fruits for sale!\nBest in the castle!",
+        "I have apples, oranges, and bananas.",
+        "Care for some?\nThey might help you on your journey."
+      ],
+      "waiting": [
+        "Welcome back, traveler!",
+        "I have more fruits if you need them.",
+        "Did you find any new ones?\nI love trying new fruits!"
+      ],
+      "thanks": [
+        "No way, you found a rare fruit!\nThat's amazing!",
+        "Here, take this as a reward for your find.",
+        "I hope it helps you on your adventure!"
+      ],
+      "done": [
+        "In need of more fruits?\nI have plenty to share!",
+        "Feel free to come back anytime.\nI love chatting about fruits!"
+      ]
+    },
+
+    "states": [
+      {
+        "id": "post_quest",
+        "dialogue": "done",
+        "stationary": true,
+        "requiredQuestComplete": "fruit_trader_quest"
+      }
+    ]
+  },
+
+"sword_giver_npc": {
+    "name": "Soldier",
+    "sprite": "/res/NPC/Tutorial_idle",
+    "idleSprite": "/res/NPC/Tutorial_idle",
+    "staticNPC": true,
+    "idleDirection": 2,
+    "idleAnimSpeed": 12,
+    "portrait": "/res/NPC/portraits/soldier.png",
+
+    "dialogues": {
+      "intro": [
+        "...Hey. I was ambushed on the road.",
+        "My arm is useless, and I can't swing anymore.",
+        "Take this sword. Use it better than I can right now.",
+        "If you find a bandage, come back. I still need help."
+      ],
+      "waiting": [
+        "You're back... but I still need a bandage.",
+        "Check the cave rooms.",
+        "I'll hold on a little longer."
+      ],
+      "thanks": [
+        "You found one... good.",
+        "This should stop the bleeding.",
+        "Thank you. Here, take these 25 coins for the trouble."
+      ],
+      "done": [
+        "The bandage helped a lot.",
+        "Keep the sword. You earned it."
+      ]
+    },
+
+    "states": [
+      {
+        "id": "post_quest",
+        "dialogue": "done",
+        "stationary": true,
+        "requiredQuestComplete": "sword_giver_bandage"
+      }
+    ]
+  },
+  "archer": {
+    "name": "Archer",
+    "idleSprite": "/res/NPC/Archer_idle",
+    "staticNPC": true,
+    "idleDirection": 4,
+    "idleAnimSpeed": 12,
+
+    "dialogues": {
+      "training": [
+        "Welcome to the archery range!",
+        "I can teach you how to shoot arrows.",
+        "Practice makes perfect, so keep trying!"
+      ],
+      "waiting": [
+        "Welcome back, traveler!",
+        "I have more arrows if you need them.",
+        "Did you find any new targets?\nI love trying new challenges!"
+      ],
+      "thanks": [
+        "No way, you hit the bullseye!\nThat's amazing!",
+        "Here, take this as a reward for your skill.",
+        "I hope it helps you on your adventure!"
+      ],
+      "done": [
+        "In need of more arrows?\nI have plenty to share!",
+        "Feel free to come back anytime.\nI love teaching archery!"
+      ]
+    },
+
+    "states": [
+      {
+        "id": "post_quest",
+        "dialogue": "done",
+        "stationary": true,
+        "requiredQuestComplete": "archer_quest"
+      }
+    ]
+  },
+  "weapon_trader": {
+    "name": "Weapon Trader",
+    "idleSprite": "/res/NPC/Weapon_Trader_idle",
+    "staticNPC": true,
+    "idleDirection": 4,
+    "idleAnimSpeed": 12,
+
+    "dialogues": {
+      "training": [
+        "Welcome to the weapon shop!",
+        "I can teach you how to use different weapons.",
+        "Practice makes perfect, so keep trying!"
+      ],
+      "waiting": [
+        "Welcome back, traveler!",
+        "I have more weapons if you need them.",
+        "Did you find any new challenges?\nI love trying new things!"
+      ],
+      "thanks": [
+        "No way, you mastered that weapon!\nThat's amazing!",
+        "Here, take this as a reward for your skill.",
+        "I hope it helps you on your adventure!"
+      ],
+      "done": [
+        "In need of more weapons?\nI have plenty to share!",
+        "Feel free to come back anytime.\nI love teaching weapon skills!"
+      ]
+    },
+
+    "states": [
+      {
+        "id": "post_quest",
+        "dialogue": "done",
+        "stationary": true,
+        "requiredQuestComplete": "weapon_trader_quest"
+      }
+    ]
+  },
+  "citizen": {
+    "name": "Citizen",
+    "sprite": "/res/NPC/Citizen_test_walk-sheet",
+    "staticNPC": false,
+
+    "dialogues": {
+      "greeting": [
+        "Hello there, traveler!",
+        "Welcome to our town.",
+        "Feel free to explore and talk to the locals!"
+      ],
+      "waiting": [
+        "Welcome back, traveler!",
+        "Have you found anything interesting?",
+        "I love hearing about your adventures!"
+      ],
+      "thanks": [
+        "No way, you found something amazing!\nThat's incredible!",
+        "Here, take this as a reward for your discovery.",
+        "I hope it helps you on your adventure!"
+      ],
+      "done": [
+        "In need of more information?\nI have plenty to share!",
+        "Feel free to come back anytime.\nI love chatting with travelers!"
+      ]
+    },
+
+    "states": [
+      {
+        "id": "post_quest",
+        "dialogue": "thanks",
+        "stationary": true,
+        "requiredQuestComplete": "citizen_quest"
+      }
+    ]
   }
 }
