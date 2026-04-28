@@ -125,47 +125,73 @@ public class NPC_Generic extends Entity {
                         }
                     }
 
-                    // Find the global visible-content bounding box across ALL frames/rows
-                    // so the character is cropped out of its transparent padding and scaled to tileSize.
-                    int cropMinY = cellSize, cropMaxY = -1;
-                    int cropMinX = cellSize, cropMaxX = -1;
+                    // Compute per-row visible-content bounding boxes so each row is
+                    // cropped based only on frames in that row (avoids extreme
+                    // horizontal crops caused by other rows).
+                    int[] rowMinX = new int[rows];
+                    int[] rowMaxX = new int[rows];
+                    int[] rowMinY = new int[rows];
+                    int[] rowMaxY = new int[rows];
                     for (int r = 0; r < rows; r++) {
+                        rowMinX[r] = cellSize; rowMaxX[r] = -1;
+                        rowMinY[r] = cellSize; rowMaxY[r] = -1;
                         for (int f = 0; f < actualFrames[r]; f++) {
                             int ox = f * cellSize, oy = r * cellSize;
                             for (int py = 0; py < cellSize; py++) {
                                 for (int px = 0; px < cellSize; px++) {
                                     if ((raw.getRGB(ox + px, oy + py) >>> 24) > 10) {
-                                        if (py < cropMinY) cropMinY = py;
-                                        if (py > cropMaxY) cropMaxY = py;
-                                        if (px < cropMinX) cropMinX = px;
-                                        if (px > cropMaxX) cropMaxX = px;
+                                        if (py < rowMinY[r]) rowMinY[r] = py;
+                                        if (py > rowMaxY[r]) rowMaxY[r] = py;
+                                        if (px < rowMinX[r]) rowMinX[r] = px;
+                                        if (px > rowMaxX[r]) rowMaxX[r] = px;
                                     }
                                 }
                             }
                         }
+                        if (rowMaxY[r] < 0) { rowMinX[r] = 0; rowMinY[r] = 0; rowMaxX[r] = cellSize - 1; rowMaxY[r] = cellSize - 1; }
                     }
-                    // Fallback to full cell if image was empty
-                    if (cropMaxY < 0) { cropMinX = 0; cropMinY = 0; cropMaxX = cellSize - 1; cropMaxY = cellSize - 1; }
 
-                    int cropW = cropMaxX - cropMinX + 1;
-                    int cropH = cropMaxY - cropMinY + 1;
                     int ts = gp.tileSize;
-
-                    // Extract each frame as its content crop, scaled to tileSize×tileSize
-                    // (bottom-aligned, preserving aspect ratio, pixel-art quality)
                     int[] dirMap = {DIR_DOWN, DIR_LEFT, DIR_RIGHT, DIR_UP};
+                    boolean debugFruit = idleSpritePath != null && idleSpritePath.toLowerCase().contains("fruit_trader");
+                    if (debugFruit) {
+                        System.out.println("[NPC_GENERIC DEBUG] Loading idle sprite: " + idleSpritePath + 
+                                " rawWxH=" + raw.getWidth() + "x" + raw.getHeight() + " cellSize=" + cellSize + " maxCols=" + maxCols);
+                    }
                     idleFrames = new BufferedImage[4][];
                     for (int r = 0; r < rows; r++) {
+                        int cropMinX = rowMinX[r];
+                        int cropMaxX = rowMaxX[r];
+                        int cropMinY = rowMinY[r];
+                        int cropMaxY = rowMaxY[r];
+                        int cropW = cropMaxX - cropMinX + 1;
+                        int cropH = cropMaxY - cropMinY + 1;
+                        if (debugFruit) {
+                            System.out.println("[NPC_GENERIC DEBUG] row=" + r + " cropMinX=" + cropMinX + " cropMaxX=" + cropMaxX +
+                                    " cropMinY=" + cropMinY + " cropMaxY=" + cropMaxY + " cropWxH=" + cropW + "x" + cropH);
+                        }
+
+                        // Safety fallbacks
+                        if (cropW <= 0) cropW = cellSize;
+                        if (cropH <= 0) cropH = cellSize;
+
                         idleFrames[dirMap[r]] = new BufferedImage[actualFrames[r]];
                         for (int f = 0; f < actualFrames[r]; f++) {
                             BufferedImage crop = raw.getSubimage(
                                 f * cellSize + cropMinX, r * cellSize + cropMinY, cropW, cropH);
-                            // Scale proportionally to fit inside tileSize, bottom-align
+
+                            // Height-first scaling: prefer to fill the tile height so
+                            // characters use the full vertical space. Allow horizontal
+                            // overflow (it will be clipped) to avoid very short sprites.
+                            float scale = (float) ts / (float) cropH;
                             int dh = ts;
-                            int dw = (int)(cropW * (float) ts / cropH);
-                            if (dw > ts) { dw = ts; dh = (int)(cropH * (float) ts / cropW); }
+                            int dw = Math.max(1, Math.round(cropW * scale));
+                            if (debugFruit) {
+                                System.out.println("[NPC_GENERIC DEBUG] frame=" + f + " scale=" + scale + " dw=" + dw + " dh=" + dh);
+                            }
                             int ox = (ts - dw) / 2;
                             int oy = ts - dh; // bottom-align
+
                             BufferedImage frame = new BufferedImage(ts, ts, BufferedImage.TYPE_INT_ARGB);
                             java.awt.Graphics2D sg = frame.createGraphics();
                             sg.setRenderingHint(java.awt.RenderingHints.KEY_INTERPOLATION,

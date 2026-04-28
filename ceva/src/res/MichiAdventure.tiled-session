@@ -1,11 +1,14 @@
 {
-    "activeFile": "maps/Canvas_Village.tmx",
+    "activeFile": "C:/Users/cstyl/Downloads/craftpix-net-587497-pixel-art-market-square-rpg-shop-and-npc-assets-pack/Tiled_files/Market_square.tmx",
     "expandedProjectPaths": [
     ],
     "fileStates": {
         "": {
             "scaleInDock": 1,
             "scaleInEditor": 1.5
+        },
+        "#Interior": {
+            "scaleInDock": 0.5
         },
         "C:/Users/cstyl/AppData/Local/Temp/6adcd62b-2bad-407a-8edb-10f4e7358b57_craftpix-net-666104-tavern-top-down-pixel-rpg-asset-pack.zip.b57/Tiled_files/Characters.tmx": {
             "scale": 2,
@@ -460,19 +463,150 @@
         "C:/Users/cstyl/Downloads/Tiled_foles/Boats_fish_characters.tmx#Small_boat_v2_1-Sheet": {
             "scaleInDock": 1
         },
+        "C:/Users/cstyl/Downloads/craftpix-net-587497-pixel-art-market-square-rpg-shop-and-npc-assets-pack/Tiled_files/Characters.tmx": {
+            "scale": 1.64580078125,
+            "selectedLayer": 0,
+            "viewCenter": {
+                "x": -128.20506734705987,
+                "y": 0
+            }
+        },
+        "C:/Users/cstyl/Downloads/craftpix-net-587497-pixel-art-market-square-rpg-shop-and-npc-assets-pack/Tiled_files/Characters.tmx#Citizen1_Idle_with_shadow": {
+            "scaleInDock": 1
+        },
+        "C:/Users/cstyl/Downloads/craftpix-net-587497-pixel-art-market-square-rpg-shop-and-npc-assets-pack/Tiled_files/Characters.tmx#Citizen1_Idle_without_shadow": {
+            "scaleInDock": 1
+        },
+        "C:/Users/cstyl/Downloads/craftpix-net-587497-pixel-art-market-square-rpg-shop-and-npc-assets-pack/Tiled_files/Characters.tmx#Citizen1_Walk_with_shadow": {
+            "scaleInDock": 1
+        },
+        "C:/Users/cstyl/Downloads/craftpix-net-587497-pixel-art-market-square-rpg-shop-and-npc-assets-pack/Tiled_files/Characters.tmx#Citizen1_Walk_without_shadow": {
+            "scaleInDock": 1
+        },
+        "C:/Users/cstyl/Downloads/craftpix-net-587497-pixel-art-market-square-rpg-shop-and-npc-assets-pack/Tiled_files/Characters.tmx#Citizen2_Idle_with_shadow": {
+            "scaleInDock": 1
+        },
+        "C:/Users/cstyl/Downloads/craftpix-net-587497-pixel-art-market-square-rpg-shop-and-npc-assets-pack/Tiled_files/Characters.tmx#Citizen2_Idle_without_shadow": {
+            "scaleInDock": 1
+        },
+        "C:/Users/cstyl/Downloads/craftpix-net-587497-pixel-art-market-square-rpg-shop-and-npc-assets-pack/Tiled_files/Characters.tmx#Citizen2_Walk_with_shadow": {
+            "scaleInDock": 1
+        },
+        "C:/Users/cstyl/Downloads/craftpix-net-587497-pixel-art-market-square-rpg-shop-and-npc-assets-pack/Tiled_files/Characters.tmx#Citizen2_Walk_without_shadow": {
+            "scaleInDock": 1
+        },
+        "C:/Users/cstyl/Downloads/craftpix-net-587497-pixel-art-market-square-rpg-shop-and-npc-assets-pack/Tiled_files/Characters.tmx#Citizen3_Idle_with_shadow": {
+            "scaleInDock": 1
+        },
+        "C:/Users/cstyl/Downloads/craftpix-net-587497-pixel-art-market-square-rpg-shop-and-npc-assets-pack/Tiled_files/Characters.tmx#Citizen3_Idle_without_shadow": {
+            "scaleInDock": 1
+        },
+        "C:/Users/cstyl/Downloads/craftpix-net-587497-pixel-art-market-square-rpg-shop-and-npc-assets-pack/Tiled_files/Characters.tmx#Citizen3_Walk_with_shadow": {
+            "scaleInDock": 1
+        },
+        "C:/Users/cstyl/Downloads/craftpix-net-587497-pixel-art-market-square-rpg-shop-and-npc-assets-pack/Tiled_files/Characters.tmx#Citizen3_Walk_without_shadow": {
+            "scaleInDock": 1
+        },
+        "C:/Users/cstyl/Downloads/craftpix-net-587497-pixel-art-market-square-rpg-shop-and-npc-assets-pack/Tiled_files/Characters.tmx#Citizen4_Idle_with_shadow": {
+            "scaleInDock": 1
+        },
+        "C:/Users/cstyl/Downloads/craftpix-net-587497-pixel-art-market-square-rpg-shop-and-npc-assets-pack/Tiled_files/Characters.tmx#Citizen4_Idle_without_shadow": {
+            "scaleInDock": 1
+        },
+        "C:/Users/cstyl/Downloads/craftpix-net-587497-pixel-art-market-square-rpg-shop-and-npc-assets-pack/Tiled_files/Characters.tmx#Citizen4_Walk_with_shadow": {
+            "scaleInDock": 1
+        },
+        "C:/Users/cstyl/Downloads/craftpix-net-587497-pixel-art-market-square-rpg-shop-and-npc-assets-pack/Tiled_files/Characters.tmx#Citizen4_Walk_without_shadow": {
+            "scaleInDock": 1
+        },
+        "C:/Users/cstyl/Downloads/craftpix-net-587497-pixel-art-market-square-rpg-shop-and-npc-assets-pack/Tiled_files/Characters.tmx#Citizen5_Idle_with_shadow": {
+            "scaleInDock": 1
+        },
+        "C:/Users/cstyl/Downloads/craftpix-net-587497-pixel-art-market-square-rpg-shop-and-npc-assets-pack/Tiled_files/Characters.tmx#Citizen5_Idle_without_shadow": {
+            "scaleInDock": 1
+        },
+        "C:/Users/cstyl/Downloads/craftpix-net-587497-pixel-art-market-square-rpg-shop-and-npc-assets-pack/Tiled_files/Characters.tmx#Citizen5_Walk_with_shadow": {
+            "scaleInDock": 1
+        },
+        "C:/Users/cstyl/Downloads/craftpix-net-587497-pixel-art-market-square-rpg-shop-and-npc-assets-pack/Tiled_files/Characters.tmx#Citizen5_Walk_without_shadow": {
+            "scaleInDock": 1
+        },
+        "C:/Users/cstyl/Downloads/craftpix-net-587497-pixel-art-market-square-rpg-shop-and-npc-assets-pack/Tiled_files/Characters.tmx#Eater_animation": {
+            "scaleInDock": 1
+        },
+        "C:/Users/cstyl/Downloads/craftpix-net-587497-pixel-art-market-square-rpg-shop-and-npc-assets-pack/Tiled_files/Characters.tmx#Flutist_animation_shadow": {
+            "scaleInDock": 1
+        },
+        "C:/Users/cstyl/Downloads/craftpix-net-587497-pixel-art-market-square-rpg-shop-and-npc-assets-pack/Tiled_files/Characters.tmx#Flutist_animation_with_shadow": {
+            "scaleInDock": 1
+        },
+        "C:/Users/cstyl/Downloads/craftpix-net-587497-pixel-art-market-square-rpg-shop-and-npc-assets-pack/Tiled_files/Characters.tmx#Flutist_animation_without_shadow": {
+            "scaleInDock": 1
+        },
+        "C:/Users/cstyl/Downloads/craftpix-net-587497-pixel-art-market-square-rpg-shop-and-npc-assets-pack/Tiled_files/Characters.tmx#Lute_player_animation_shadow": {
+            "scaleInDock": 1
+        },
+        "C:/Users/cstyl/Downloads/craftpix-net-587497-pixel-art-market-square-rpg-shop-and-npc-assets-pack/Tiled_files/Characters.tmx#Lute_player_animation_with_shadow": {
+            "scaleInDock": 1
+        },
+        "C:/Users/cstyl/Downloads/craftpix-net-587497-pixel-art-market-square-rpg-shop-and-npc-assets-pack/Tiled_files/Characters.tmx#Lute_player_animation_without_shadow": {
+            "scaleInDock": 1
+        },
+        "C:/Users/cstyl/Downloads/craftpix-net-587497-pixel-art-market-square-rpg-shop-and-npc-assets-pack/Tiled_files/Characters.tmx#Trader_bread_animation_with_shadow": {
+            "scaleInDock": 1
+        },
+        "C:/Users/cstyl/Downloads/craftpix-net-587497-pixel-art-market-square-rpg-shop-and-npc-assets-pack/Tiled_files/Characters.tmx#Trader_bread_animation_without_shadow": {
+            "scaleInDock": 1
+        },
+        "C:/Users/cstyl/Downloads/craftpix-net-587497-pixel-art-market-square-rpg-shop-and-npc-assets-pack/Tiled_files/Characters.tmx#Trader_drinks_animation_with_shadow": {
+            "scaleInDock": 1
+        },
+        "C:/Users/cstyl/Downloads/craftpix-net-587497-pixel-art-market-square-rpg-shop-and-npc-assets-pack/Tiled_files/Characters.tmx#Trader_drinks_animation_without_shadow": {
+            "scaleInDock": 1
+        },
+        "C:/Users/cstyl/Downloads/craftpix-net-587497-pixel-art-market-square-rpg-shop-and-npc-assets-pack/Tiled_files/Characters.tmx#Trader_fruits": {
+            "scaleInDock": 1
+        },
+        "C:/Users/cstyl/Downloads/craftpix-net-587497-pixel-art-market-square-rpg-shop-and-npc-assets-pack/Tiled_files/Characters.tmx#Trader_magic_animation_with_shadow": {
+            "scaleInDock": 1
+        },
+        "C:/Users/cstyl/Downloads/craftpix-net-587497-pixel-art-market-square-rpg-shop-and-npc-assets-pack/Tiled_files/Characters.tmx#Trader_magic_animation_without_shadow": {
+            "scaleInDock": 1
+        },
+        "C:/Users/cstyl/Downloads/craftpix-net-587497-pixel-art-market-square-rpg-shop-and-npc-assets-pack/Tiled_files/Characters.tmx#Trader_magic_shadow": {
+            "scaleInDock": 1
+        },
+        "C:/Users/cstyl/Downloads/craftpix-net-587497-pixel-art-market-square-rpg-shop-and-npc-assets-pack/Tiled_files/Characters.tmx#Trader_weapon_animation_with_shadow": {
+            "scaleInDock": 1
+        },
+        "C:/Users/cstyl/Downloads/craftpix-net-587497-pixel-art-market-square-rpg-shop-and-npc-assets-pack/Tiled_files/Characters.tmx#Trader_weapon_animation_without_shadow": {
+            "scaleInDock": 1
+        },
+        "C:/Users/cstyl/Downloads/craftpix-net-587497-pixel-art-market-square-rpg-shop-and-npc-assets-pack/Tiled_files/Characters.tmx#Trader_weapon_shadow": {
+            "scaleInDock": 1
+        },
+        "C:/Users/cstyl/Downloads/craftpix-net-587497-pixel-art-market-square-rpg-shop-and-npc-assets-pack/Tiled_files/Characters.tmx#bread_trador_shadow": {
+            "scaleInDock": 1
+        },
+        "C:/Users/cstyl/Downloads/craftpix-net-587497-pixel-art-market-square-rpg-shop-and-npc-assets-pack/Tiled_files/Characters.tmx#citizen_shadow": {
+            "scaleInDock": 1
+        },
+        "C:/Users/cstyl/Downloads/craftpix-net-587497-pixel-art-market-square-rpg-shop-and-npc-assets-pack/Tiled_files/Characters.tmx#trader_drinks_shadow": {
+            "scaleInDock": 1
+        },
         "C:/Users/cstyl/Downloads/craftpix-net-587497-pixel-art-market-square-rpg-shop-and-npc-assets-pack/Tiled_files/Market_square.tmx": {
             "expandedGroupLayers": [
                 35,
-                40,
-                13,
+                23,
                 17,
-                23
+                13,
+                40
             ],
             "scale": 2,
             "selectedLayer": 33,
             "viewCenter": {
-                "x": -0.5,
-                "y": -0.5
+                "x": -0.25,
+                "y": -0.25
             }
         },
         "C:/Users/cstyl/Downloads/craftpix-net-587497-pixel-art-market-square-rpg-shop-and-npc-assets-pack/Tiled_files/Market_square.tmx#Decorative_cracks": {
@@ -779,13 +913,14 @@
             "expandedObjectLayers": [
                 13,
                 16,
-                17
+                17,
+                14
             ],
             "scale": 1,
-            "selectedLayer": 21,
+            "selectedLayer": 17,
             "viewCenter": {
-                "x": 514.5,
-                "y": 317.5
+                "x": 640,
+                "y": 480
             }
         },
         "maps/Awakening_Cave.tmx#Details": {
@@ -825,23 +960,24 @@
         },
         "maps/Canvas_Village.tmx": {
             "expandedGroupLayers": [
+                54,
                 50,
                 45,
-                31,
-                43
+                43,
+                31
             ],
             "expandedObjectLayers": [
-                12,
-                8,
+                4,
                 45,
                 10,
-                4
+                12,
+                8
             ],
-            "scale": 1.5,
-            "selectedLayer": 34,
+            "scale": 0.33,
+            "selectedLayer": 26,
             "viewCenter": {
-                "x": 1563.6666666666665,
-                "y": 3063
+                "x": 1584.848484848485,
+                "y": 1821.2121212121212
             }
         },
         "maps/Canvas_Village.tmx#Archer": {
@@ -858,7 +994,7 @@
             "scaleInDock": 0.75
         },
         "maps/Canvas_Village.tmx#Details": {
-            "scaleInDock": 1,
+            "scaleInDock": 0.33,
             "scaleInEditor": 1
         },
         "maps/Canvas_Village.tmx#Exterior_objetcs": {
@@ -925,26 +1061,31 @@
         }
     },
     "frame.defaultDuration": 120,
-    "last.imagePath": "C:/Users/cstyl/Documents/Michi-s-adventure/ceva/src/res/tiles/CANVAS VILLAGE/Grand Castel",
+    "last.imagePath": "C:/Users/cstyl/Documents/Michi-s-adventure/ceva/src/res/tiles/CANVAS VILLAGE/Square Market/Blacksmith",
+    "map.height": 15,
     "map.lastUsedFormat": "tmx",
+    "map.width": 20,
     "openFiles": [
-        "maps/Canvas_Village.tmx"
+        "maps/Canvas_Village.tmx",
+        "maps/Awakening_Cave.tmx",
+        "C:/Users/cstyl/Downloads/craftpix-net-587497-pixel-art-market-square-rpg-shop-and-npc-assets-pack/Tiled_files/Characters.tmx",
+        "C:/Users/cstyl/Downloads/craftpix-net-587497-pixel-art-market-square-rpg-shop-and-npc-assets-pack/Tiled_files/Market_square.tmx"
     ],
     "project": "MichiAdventure.tiled-project",
     "property.type": "bool",
     "recentFiles": [
+        "C:/Users/cstyl/Downloads/craftpix-net-587497-pixel-art-market-square-rpg-shop-and-npc-assets-pack/Tiled_files/Market_square.tmx",
+        "maps/Canvas_Village.tmx",
+        "maps/Awakening_Cave.tmx",
+        "C:/Users/cstyl/Downloads/craftpix-net-587497-pixel-art-market-square-rpg-shop-and-npc-assets-pack/Tiled_files/Characters.tmx",
         "C:/Users/cstyl/Downloads/craftpix-net-666104-tavern-top-down-pixel-rpg-asset-pack/Tiled_files/Tavern_interior_1nd_floor.tmx",
         "C:/Users/cstyl/Downloads/craftpix-net-666104-tavern-top-down-pixel-rpg-asset-pack/Tiled_files/Characters.tmx",
         "C:/Users/cstyl/Downloads/craftpix-net-666104-tavern-top-down-pixel-rpg-asset-pack/Tiled_files/Tavern_exterior.tmx",
-        "maps/Canvas_Village.tmx",
-        "maps/Awakening_Cave.tmx",
         "C:/Users/cstyl/Downloads/menu.tmx",
         "C:/Users/cstyl/Downloads/legend-of-lua-main/legend-of-lua-main/maps/_old2/testDungeon2-2.tmx",
         "C:/Users/cstyl/Downloads/legend-of-lua-main/legend-of-lua-main/maps/_old/test.tmx",
         "C:/Users/cstyl/Downloads/legend-of-lua-main/legend-of-lua-main/maps/testCave.tmx",
-        "C:/Users/cstyl/Downloads/legend-of-lua-main/legend-of-lua-main/maps/test2.tmx",
-        "C:/Users/cstyl/Downloads/legend-of-lua-main/legend-of-lua-main/maps/test.tmx",
-        "C:/Users/cstyl/Downloads/legend-of-lua-main/legend-of-lua-main/maps/menu.tmx"
+        "C:/Users/cstyl/Downloads/legend-of-lua-main/legend-of-lua-main/maps/test2.tmx"
     ],
     "tileset.embedInMap": true,
     "tileset.lastUsedFormat": "tsx"

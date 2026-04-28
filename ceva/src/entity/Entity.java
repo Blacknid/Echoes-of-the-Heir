@@ -1275,25 +1275,93 @@ public class Entity {
         return dx < range && dy < range;
     } 
     public BufferedImage[][] loadSheetVariable(String path, int[] framesPerRow) {
-        int rows = framesPerRow.length;
-        int maxCols = 0;
-        for (int f : framesPerRow) if (f > maxCols) maxCols = f;
+        int rowsWanted = framesPerRow.length;
+        int maxColsWanted = 0;
+        for (int f : framesPerRow) if (f > maxColsWanted) maxColsWanted = f;
 
-        BufferedImage sheet = setup(path, gp.tileSize * maxCols, gp.tileSize * rows);
-        BufferedImage[][] frames = new BufferedImage[rows][];
+        try {
+            BufferedImage sheet = ResourceCache.loadImage(path + ".png");
 
-        for (int y = 0; y < rows; y++) {
-            frames[y] = new BufferedImage[framesPerRow[y]];
-            for (int x = 0; x < framesPerRow[y]; x++) {
-                frames[y][x] = sheet.getSubimage(
-                        x * gp.tileSize,
-                        y * gp.tileSize,
-                        gp.tileSize,
-                        gp.tileSize
-                );
+            // Determine if the sheet is arranged in multiple rows as requested,
+            // otherwise treat it as a single-row strip and duplicate that row
+            // across the expected directions.
+            int rowsActual;
+            int cellSize;
+            if (sheet.getHeight() % rowsWanted == 0 && sheet.getHeight() / rowsWanted > 0) {
+                rowsActual = rowsWanted;
+                cellSize = sheet.getHeight() / rowsWanted;
+            } else {
+                // Fallback: single-row strip
+                rowsActual = 1;
+                cellSize = sheet.getHeight();
             }
+
+            int colsActual = Math.max(1, sheet.getWidth() / cellSize);
+
+            BufferedImage[][] frames = new BufferedImage[rowsWanted][];
+
+            for (int y = 0; y < rowsWanted; y++) {
+                int expected = framesPerRow[y];
+                if (colsActual <= 0) {
+                    // Create empty transparent frames if nothing is available
+                    frames[y] = new BufferedImage[expected];
+                    for (int k = 0; k < expected; k++) {
+                        frames[y][k] = new BufferedImage(gp.tileSize, gp.tileSize, BufferedImage.TYPE_INT_ARGB);
+                    }
+                    continue;
+                }
+
+                int available = Math.min(expected, colsActual);
+                BufferedImage[] temp = new BufferedImage[available];
+
+                for (int x = 0; x < available; x++) {
+                    int srcRow = (rowsActual == rowsWanted) ? y : 0;
+                    int sx = x * cellSize;
+                    int sy = srcRow * cellSize;
+                    int sw = Math.min(cellSize, sheet.getWidth() - sx);
+                    int sh = Math.min(cellSize, sheet.getHeight() - sy);
+
+                    BufferedImage crop;
+                    if (sw == cellSize && sh == cellSize) {
+                        crop = sheet.getSubimage(sx, sy, sw, sh);
+                    } else {
+                        BufferedImage padded = new BufferedImage(cellSize, cellSize, BufferedImage.TYPE_INT_ARGB);
+                        java.awt.Graphics2D pg = padded.createGraphics();
+                        pg.drawImage(sheet.getSubimage(sx, sy, sw, sh), 0, 0, null);
+                        pg.dispose();
+                        crop = padded;
+                    }
+
+                    temp[x] = util.UtilityTool.scaleImage(crop, gp.tileSize, gp.tileSize);
+                }
+
+                // Fill expected count, pad by duplicating last available frame if needed
+                frames[y] = new BufferedImage[expected];
+                for (int x = 0; x < expected; x++) {
+                    if (x < temp.length) frames[y][x] = temp[x];
+                    else frames[y][x] = temp[temp.length - 1];
+                }
+            }
+
+            return frames;
+        } catch (IOException e) {
+            // Fallback to original (scaled full-sheet) behaviour for compatibility
+            BufferedImage sheet = setup(path, gp.tileSize * maxColsWanted, gp.tileSize * rowsWanted);
+            BufferedImage[][] frames = new BufferedImage[rowsWanted][];
+
+            for (int y = 0; y < rowsWanted; y++) {
+                frames[y] = new BufferedImage[framesPerRow[y]];
+                for (int x = 0; x < framesPerRow[y]; x++) {
+                    frames[y][x] = sheet.getSubimage(
+                            x * gp.tileSize,
+                            y * gp.tileSize,
+                            gp.tileSize,
+                            gp.tileSize
+                    );
+                }
+            }
+            return frames;
         }
-        return frames;
     }
     public BufferedImage[][] loadSpriteMatrix(
         String path,

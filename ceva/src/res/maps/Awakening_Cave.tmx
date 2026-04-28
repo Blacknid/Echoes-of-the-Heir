@@ -4829,11 +4829,5 @@ Keep searching.</property>
     <property name="oneShot" type="bool" value="true"/>
    </properties>
   </object>
-  <object id="124" name="Coming_from_canvas" type="SpawnPoint" x="544" y="64">
-   <properties>
-    <property name="id" value="Coming_from_canvas"/>
-   </properties>
-   <point/>
-  </object>
  </objectgroup>
 </map>
