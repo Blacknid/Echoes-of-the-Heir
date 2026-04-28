@@ -19,6 +19,7 @@ import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Map;
 import main.GamePanel;
+import main.Config;
 import util.ResourceCache;
 import util.UtilityTool;
 import org.w3c.dom.Document;
@@ -69,13 +70,14 @@ public class TileManager {
     /** Per-layer tint color (null = none). Same indexing as mapLayers. */
     public ArrayList<Color> layerTint   = new ArrayList<>();
 
-    // Tile scaling
-    final int originalTileSize = 32;
-    final int scale = 2;
-    public final int tileSize = originalTileSize * scale;
+    // Tile scaling is centralized in Config to support runtime scaling and
+    // a single authoritative source for original/native tile size and scale.
+    public final int originalTileSize = Config.originalTileSize;
+    public final double scale = Config.scale;
+    public final int tileSize = Config.tileSize;
 
     // Per-map TMX tile size (updated when loading a map; used for scaling)
-    int mapTileSize = originalTileSize;
+    int mapTileSize = Config.originalTileSize;
     // Actual map dimensions in tiles (read from TMX <map width/height>)
     public int currentMapCols = 100;
     public int currentMapRows = 100;

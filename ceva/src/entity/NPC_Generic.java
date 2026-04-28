@@ -95,9 +95,9 @@ public class NPC_Generic extends Entity {
                 BufferedImage[][] frames = loadSheetVariable(spritePath, framesPerRow);
                 walkFrames = new BufferedImage[4][];
                 walkFrames[DIR_DOWN]  = frames[0];
-                walkFrames[DIR_UP]    = frames[1];
-                walkFrames[DIR_LEFT]  = frames[2];
-                walkFrames[DIR_RIGHT] = frames[3];
+                walkFrames[DIR_UP]    = frames[3];
+                walkFrames[DIR_LEFT]  = frames[1];
+                walkFrames[DIR_RIGHT] = frames[2];
             } catch (Exception e) {
                 System.out.println("NPC_Generic: Failed to load walk sprite '" + spritePath + "': " + e.getMessage());
             }

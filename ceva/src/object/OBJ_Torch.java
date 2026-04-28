@@ -3,6 +3,7 @@ package object;
 import java.awt.image.BufferedImage;
 
 import entity.Entity;
+import main.Config;
 import main.GamePanel;
 
 public class OBJ_Torch extends Entity {
@@ -20,7 +21,7 @@ public class OBJ_Torch extends Entity {
 
         // 2. LOADING ANIMATION FRAMES
         // Most torch sprites have at least 2-3 frames to simulate flickering
-        BufferedImage spritesheet[][] = loadSpriteMatrix("/res/objects/torchNew", gp.tileSize, gp.tileSize);
+        BufferedImage spritesheet[][] = loadSpriteMatrix("/res/objects/torchNew", Config.originalTileSize, Config.originalTileSize);
         down1 = spritesheet[0][0]; // First frame
         down2 = spritesheet[0][0]; // Second frame
         down3 = spritesheet[0][0]; // Third frame

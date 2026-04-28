@@ -296,7 +296,7 @@ public class Entity {
     public int amount = 1; //stack-ul incepe initial de la 1, fie ca e stackable sau nu
     public float working_power; //cat ia din durabilitatea obiectului (toporul ia mai mult din durabilitatea lemnului decat o sabie)
     public String tool_type; //pentru ce e folosita unealta (topor pentru lemn)
-    public float spriteScale = 1.5f;           // 1.0 = normal size, 2.0 = double (boss phase scaling)
+    public float spriteScale = 1.0f;           // 1.0 = normal size, 2.0 = double (boss phase scaling)
 
     public Entity(GamePanel gp) {
         this.gp = gp;
@@ -1377,8 +1377,19 @@ public class Entity {
             throw new RuntimeException("Failed to load spritesheet: " + path, e);
         }
 
-        int columns = sheet.getWidth() / spriteWidth;
-        int rows = sheet.getHeight() / spriteHeight;
+        // NOTE: `spriteWidth`/`spriteHeight` are expected to be the native
+        // cell sizes authored in the spritesheet (e.g. 32x32). Callers should
+        // pass Config.originalTileSize for native sheets. If the sheet image
+        // dimensions are not exact multiples of the provided cell size, we
+        // continue with floor-division but emit a warning to help debugging
+        // resource mismatches (e.g. fruit_trader looking incorrect).
+        if (sheet.getWidth() % spriteWidth != 0 || sheet.getHeight() % spriteHeight != 0) {
+            System.out.println("[Entity] Warning: sprite sheet dimensions not multiples of given cell size for '" + path + "' (sheet: "
+                + sheet.getWidth() + "x" + sheet.getHeight() + ", cell: " + spriteWidth + "x" + spriteHeight + ")");
+        }
+
+        int columns = Math.max(1, sheet.getWidth() / spriteWidth);
+        int rows = Math.max(1, sheet.getHeight() / spriteHeight);
         // Check if there's a partial extra row (e.g. 400px / 128 = 3 but 4th row visible)
         int remainderH = sheet.getHeight() - rows * spriteHeight;
         if (remainderH > spriteHeight / 2) {

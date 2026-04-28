@@ -1,11 +1,11 @@
 {
-    "activeFile": "C:/Users/cstyl/Downloads/craftpix-net-587497-pixel-art-market-square-rpg-shop-and-npc-assets-pack/Tiled_files/Market_square.tmx",
+    "activeFile": "maps/Canvas_Village.tmx",
     "expandedProjectPaths": [
     ],
     "fileStates": {
         "": {
             "scaleInDock": 1,
-            "scaleInEditor": 1.5
+            "scaleInEditor": 3
         },
         "#Interior": {
             "scaleInDock": 0.5
@@ -596,11 +596,11 @@
         },
         "C:/Users/cstyl/Downloads/craftpix-net-587497-pixel-art-market-square-rpg-shop-and-npc-assets-pack/Tiled_files/Market_square.tmx": {
             "expandedGroupLayers": [
-                35,
+                40,
                 23,
-                17,
                 13,
-                40
+                17,
+                35
             ],
             "scale": 2,
             "selectedLayer": 33,
@@ -911,16 +911,16 @@
         },
         "maps/Awakening_Cave.tmx": {
             "expandedObjectLayers": [
+                14,
                 13,
                 16,
-                17,
-                14
+                17
             ],
             "scale": 1,
             "selectedLayer": 17,
             "viewCenter": {
-                "x": 640,
-                "y": 480
+                "x": 640.5,
+                "y": 480.5
             }
         },
         "maps/Awakening_Cave.tmx#Details": {
@@ -960,24 +960,23 @@
         },
         "maps/Canvas_Village.tmx": {
             "expandedGroupLayers": [
-                54,
-                50,
                 45,
+                31,
                 43,
-                31
+                54
             ],
             "expandedObjectLayers": [
-                4,
-                45,
-                10,
                 12,
-                8
+                45,
+                8,
+                4,
+                10
             ],
-            "scale": 0.33,
-            "selectedLayer": 26,
+            "scale": 0.5,
+            "selectedLayer": 0,
             "viewCenter": {
-                "x": 1584.848484848485,
-                "y": 1821.2121212121212
+                "x": 1266,
+                "y": 1687
             }
         },
         "maps/Canvas_Village.tmx#Archer": {
@@ -994,7 +993,7 @@
             "scaleInDock": 0.75
         },
         "maps/Canvas_Village.tmx#Details": {
-            "scaleInDock": 0.33,
+            "scaleInDock": 0.75,
             "scaleInEditor": 1
         },
         "maps/Canvas_Village.tmx#Exterior_objetcs": {
@@ -1009,18 +1008,18 @@
             "scaleInEditor": 3
         },
         "maps/Canvas_Village.tmx#Objects": {
-            "scaleInDock": 0.75,
+            "scaleInDock": 0.5,
             "scaleInEditor": 1
         },
         "maps/Canvas_Village.tmx#Tavern_exterior": {
             "scaleInDock": 0.75
         },
         "maps/Canvas_Village.tmx#Trees_rocks": {
-            "scaleInDock": 1,
+            "scaleInDock": 0.75,
             "scaleInEditor": 1
         },
         "maps/Canvas_Village.tmx#Walls_street": {
-            "scaleInDock": 0.33,
+            "scaleInDock": 0.75,
             "scaleInEditor": 1
         },
         "maps/Canvas_Village.tmx#Water_coasts": {
@@ -1056,7 +1055,7 @@
             "scaleInEditor": 1
         },
         "tiles/water.tsx": {
-            "scaleInDock": 0.25,
+            "scaleInDock": 0.5,
             "scaleInEditor": 1
         }
     },
@@ -1068,16 +1067,15 @@
     "openFiles": [
         "maps/Canvas_Village.tmx",
         "maps/Awakening_Cave.tmx",
-        "C:/Users/cstyl/Downloads/craftpix-net-587497-pixel-art-market-square-rpg-shop-and-npc-assets-pack/Tiled_files/Characters.tmx",
-        "C:/Users/cstyl/Downloads/craftpix-net-587497-pixel-art-market-square-rpg-shop-and-npc-assets-pack/Tiled_files/Market_square.tmx"
+        "C:/Users/cstyl/Downloads/craftpix-net-587497-pixel-art-market-square-rpg-shop-and-npc-assets-pack/Tiled_files/Characters.tmx"
     ],
     "project": "MichiAdventure.tiled-project",
     "property.type": "bool",
     "recentFiles": [
-        "C:/Users/cstyl/Downloads/craftpix-net-587497-pixel-art-market-square-rpg-shop-and-npc-assets-pack/Tiled_files/Market_square.tmx",
-        "maps/Canvas_Village.tmx",
-        "maps/Awakening_Cave.tmx",
         "C:/Users/cstyl/Downloads/craftpix-net-587497-pixel-art-market-square-rpg-shop-and-npc-assets-pack/Tiled_files/Characters.tmx",
+        "maps/Awakening_Cave.tmx",
+        "maps/Canvas_Village.tmx",
+        "C:/Users/cstyl/Downloads/craftpix-net-587497-pixel-art-market-square-rpg-shop-and-npc-assets-pack/Tiled_files/Market_square.tmx",
         "C:/Users/cstyl/Downloads/craftpix-net-666104-tavern-top-down-pixel-rpg-asset-pack/Tiled_files/Tavern_interior_1nd_floor.tmx",
         "C:/Users/cstyl/Downloads/craftpix-net-666104-tavern-top-down-pixel-rpg-asset-pack/Tiled_files/Characters.tmx",
         "C:/Users/cstyl/Downloads/craftpix-net-666104-tavern-top-down-pixel-rpg-asset-pack/Tiled_files/Tavern_exterior.tmx",

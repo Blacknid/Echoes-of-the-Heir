@@ -314,5 +314,41 @@
         "requiredQuestComplete": "weapon_trader_quest"
       }
     ]
+  },
+  "citizen": {
+    "name": "Citizen",
+    "sprite": "/res/NPC/Citizen_test_walk-sheet",
+    "staticNPC": false,
+
+    "dialogues": {
+      "greeting": [
+        "Hello there, traveler!",
+        "Welcome to our town.",
+        "Feel free to explore and talk to the locals!"
+      ],
+      "waiting": [
+        "Welcome back, traveler!",
+        "Have you found anything interesting?",
+        "I love hearing about your adventures!"
+      ],
+      "thanks": [
+        "No way, you found something amazing!\nThat's incredible!",
+        "Here, take this as a reward for your discovery.",
+        "I hope it helps you on your adventure!"
+      ],
+      "done": [
+        "In need of more information?\nI have plenty to share!",
+        "Feel free to come back anytime.\nI love chatting with travelers!"
+      ]
+    },
+
+    "states": [
+      {
+        "id": "post_quest",
+        "dialogue": "thanks",
+        "stationary": true,
+        "requiredQuestComplete": "citizen_quest"
+      }
+    ]
   }
 }
