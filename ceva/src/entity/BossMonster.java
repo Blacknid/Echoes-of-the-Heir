@@ -16,6 +16,7 @@ import main.GamePanel;
 public class BossMonster extends Entity {
 
     public int bossId = 0;  // 1–4
+    public String onDeathQuestId = ""; // quest to progress when this boss dies
     private int phase = 1;
     private float phase2Threshold = 0.5f;
     private int phase2SpeedBoost = 1;
@@ -116,6 +117,8 @@ public class BossMonster extends Entity {
         if (gp.boss3Defeated) count++;
         if (gp.boss4Defeated) count++;
         gp.storyAct = Math.max(gp.storyAct, count);
+        // Advance the linked quest step
+        if (!onDeathQuestId.isEmpty()) gp.questManager.progress(onDeathQuestId, 1);
     }
 
     public int getPhase() { return phase; }

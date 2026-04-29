@@ -366,6 +366,10 @@ public class MapObjectLoader {
                             Entity entity = createObject(type, obj);
                             if (entity != null) {
                                 applyLoadedWorldPosition(entity, type, obj, worldX, worldY);
+                                // Resize door to match the dimensions drawn in Tiled
+                                if (entity instanceof object.OBJ_Door door && areaW > 0 && areaH > 0) {
+                                    door.setSize(areaW, areaH);
+                                }
                                 applyCommonProperties(entity, obj);
                                 gp.obj[objIdx++] = entity;
                             }
@@ -672,6 +676,7 @@ public class MapObjectLoader {
             float threshold  = getFloatProperty(obj, "phase2Threshold", 0.5f);
             int   speedBoost = getIntProperty(obj, "phase2SpeedBoost", 1);
             m = new BossMonster(gp, m, bossId, threshold, speedBoost);
+            ((BossMonster) m).onDeathQuestId = getStringProperty(obj, "onDeathQuestId", "");
         }
 
         return m;

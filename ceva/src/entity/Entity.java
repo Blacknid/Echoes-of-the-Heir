@@ -230,6 +230,8 @@ public class Entity {
     public String objectId = null;      // persistent ID set from Tiled 'id' property
     public boolean invisible = false;   // set from Tiled 'invisible' property (no draw)
     public int aggroRange = 160;        // aggro distance in pixels (default ~2.5 tiles)
+    public int interactRange = 0;       // if > 0, player can interact when within this radius (facing the NPC)
+    public int depthSortYOffset = 0;    // added to entityY in depth sort — positive pushes entity to draw in front of lower tiles
     public int wanderRadius = 0;        // max wander pixel offset from spawn (0 = free)
     public Rectangle confinementZone = null; // if set, monster cannot leave this rectangle (world pixels)
     public boolean staticNPC = false;   // NPC never wanders or follows paths — stays in place

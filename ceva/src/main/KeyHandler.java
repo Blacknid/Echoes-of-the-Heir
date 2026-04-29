@@ -589,6 +589,12 @@ public class KeyHandler implements KeyListener {
             }
         }
 
+        // Quest log scroll
+        if (gp.questManager != null && gp.questManager.isLogOpen()) {
+            if (code == KeyEvent.VK_UP)   gp.questManager.scrollLog(-1);
+            if (code == KeyEvent.VK_DOWN) gp.questManager.scrollLog(1);
+        }
+
 
 
         // Abilities

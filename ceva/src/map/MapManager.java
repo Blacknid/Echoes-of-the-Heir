@@ -285,6 +285,11 @@ public class MapManager {
 
         doorEntryCol = -1;
         doorEntryRow = -1;
+
+        // Notify quest manager so "go" steps complete on map arrival
+        if (gp.questManager != null) {
+            gp.questManager.notifyMapEntered(currentMapId);
+        }
     }
 
     private void saveMapEntities(String mapId) {

@@ -65,6 +65,14 @@ public class NPC_Generic extends Entity {
     public String spritePath = null;
     /** Idle sprite sheet path; loaded lazily in getImage(). */
     public String idleSpritePath = null;
+    /** Number of direction rows in the idle sprite sheet (1 = single direction, 4 = full). Default: 4 */
+    public int idleRows = 4;
+    /**
+     * Cell aspect ratio for both the walk and idle sprite sheet.
+     * 1 = square cells (default). 2 = each cell is 2x wider than tall.
+     * Used when the sprite sheet has non-square frames (e.g. Fighter_Training).
+     */
+    public int spriteAspect = 1;
     private boolean imageLoaded = false;
 
     public NPC_Generic(GamePanel gp) {
@@ -91,13 +99,34 @@ public class NPC_Generic extends Entity {
         // Walk sprite sheet
         if (spritePath != null) {
             try {
-                int[] framesPerRow = {6, 6, 6, 6};
-                BufferedImage[][] frames = loadSheetVariable(spritePath, framesPerRow);
                 walkFrames = new BufferedImage[4][];
-                walkFrames[DIR_DOWN]  = frames[0];
-                walkFrames[DIR_UP]    = frames[3];
-                walkFrames[DIR_LEFT]  = frames[1];
-                walkFrames[DIR_RIGHT] = frames[2];
+                if (spriteAspect > 1) {
+                    // Non-square walk sheet: compute cell dims from sheet height
+                    java.io.InputStream is = getClass().getResourceAsStream(spritePath + ".png");
+                    if (is != null) {
+                        BufferedImage rawWalk = javax.imageio.ImageIO.read(is);
+                        is.close();
+                        int cellH = rawWalk.getHeight() / 4;
+                        int cellW = cellH * spriteAspect;
+                        BufferedImage[][] matrix = loadSpriteMatrix(spritePath, cellW, cellH);
+                        int ts = gp.tileSize;
+                        // Scale each frame to tileSize x tileSize and map directions (0=DOWN,1=LEFT,2=RIGHT,3=UP)
+                        int[] dirMap = {DIR_DOWN, DIR_LEFT, DIR_RIGHT, DIR_UP};
+                        for (int r = 0; r < Math.min(matrix.length, dirMap.length); r++) {
+                            walkFrames[dirMap[r]] = new BufferedImage[matrix[r].length];
+                            for (int c = 0; c < matrix[r].length; c++) {
+                                walkFrames[dirMap[r]][c] = util.UtilityTool.scaleImage(matrix[r][c], ts, ts);
+                            }
+                        }
+                    }
+                } else {
+                    int[] framesPerRow = {6, 6, 6, 6};
+                    BufferedImage[][] frames = loadSheetVariable(spritePath, framesPerRow);
+                    walkFrames[DIR_DOWN]  = frames[0];
+                    walkFrames[DIR_UP]    = frames[3];
+                    walkFrames[DIR_LEFT]  = frames[1];
+                    walkFrames[DIR_RIGHT] = frames[2];
+                }
             } catch (Exception e) {
                 System.out.println("NPC_Generic: Failed to load walk sprite '" + spritePath + "': " + e.getMessage());
             }
@@ -109,18 +138,19 @@ public class NPC_Generic extends Entity {
                 if (is != null) {
                     BufferedImage raw = javax.imageio.ImageIO.read(is);
                     is.close();
-                    int rows = 4;
-                    int cellSize = raw.getHeight() / rows; // cell height (and width, assuming square)
-                    int maxCols  = raw.getWidth()  / cellSize;
+                    int rows = idleRows;
+                    int cellH = raw.getHeight() / rows; // cell height
+                    int cellW = cellH * spriteAspect;   // cell width (spriteAspect=1 → square, 2 → twice as wide)
+                    int maxCols  = raw.getWidth()  / cellW;
 
                     // Count actual (non-transparent) frames per row
                     int[] actualFrames = new int[rows];
                     for (int r = 0; r < rows; r++) {
                         actualFrames[r] = maxCols;
                         while (actualFrames[r] > 1) {
-                            int fx = (actualFrames[r] - 1) * cellSize;
-                            int fy = r * cellSize;
-                            if (hasVisiblePixel(raw, fx, fy, cellSize, cellSize)) break;
+                            int fx = (actualFrames[r] - 1) * cellW;
+                            int fy = r * cellH;
+                            if (hasVisiblePixel(raw, fx, fy, cellW, cellH)) break;
                             actualFrames[r]--;
                         }
                     }
@@ -133,12 +163,12 @@ public class NPC_Generic extends Entity {
                     int[] rowMinY = new int[rows];
                     int[] rowMaxY = new int[rows];
                     for (int r = 0; r < rows; r++) {
-                        rowMinX[r] = cellSize; rowMaxX[r] = -1;
-                        rowMinY[r] = cellSize; rowMaxY[r] = -1;
+                        rowMinX[r] = cellW; rowMaxX[r] = -1;
+                        rowMinY[r] = cellH; rowMaxY[r] = -1;
                         for (int f = 0; f < actualFrames[r]; f++) {
-                            int ox = f * cellSize, oy = r * cellSize;
-                            for (int py = 0; py < cellSize; py++) {
-                                for (int px = 0; px < cellSize; px++) {
+                            int ox = f * cellW, oy = r * cellH;
+                            for (int py = 0; py < cellH; py++) {
+                                for (int px = 0; px < cellW; px++) {
                                     if ((raw.getRGB(ox + px, oy + py) >>> 24) > 10) {
                                         if (py < rowMinY[r]) rowMinY[r] = py;
                                         if (py > rowMaxY[r]) rowMaxY[r] = py;
@@ -148,15 +178,18 @@ public class NPC_Generic extends Entity {
                                 }
                             }
                         }
-                        if (rowMaxY[r] < 0) { rowMinX[r] = 0; rowMinY[r] = 0; rowMaxX[r] = cellSize - 1; rowMaxY[r] = cellSize - 1; }
+                        if (rowMaxY[r] < 0) { rowMinX[r] = 0; rowMinY[r] = 0; rowMaxX[r] = cellW - 1; rowMaxY[r] = cellH - 1; }
                     }
 
                     int ts = gp.tileSize;
+                    // dirMap: row index → direction constant.
+                    // For a 4-row sheet: row0=DOWN, row1=LEFT, row2=RIGHT, row3=UP.
+                    // For a 1-row sheet: the single row is used for all directions.
                     int[] dirMap = {DIR_DOWN, DIR_LEFT, DIR_RIGHT, DIR_UP};
                     boolean debugFruit = idleSpritePath != null && idleSpritePath.toLowerCase().contains("fruit_trader");
                     if (debugFruit) {
-                        System.out.println("[NPC_GENERIC DEBUG] Loading idle sprite: " + idleSpritePath + 
-                                " rawWxH=" + raw.getWidth() + "x" + raw.getHeight() + " cellSize=" + cellSize + " maxCols=" + maxCols);
+                        System.out.println("[NPC_GENERIC DEBUG] Loading idle sprite: " + idleSpritePath +
+                                " rawWxH=" + raw.getWidth() + "x" + raw.getHeight() + " cellWxH=" + cellW + "x" + cellH + " maxCols=" + maxCols + " rows=" + rows);
                     }
                     idleFrames = new BufferedImage[4][];
                     for (int r = 0; r < rows; r++) {
@@ -165,25 +198,25 @@ public class NPC_Generic extends Entity {
                         int cropMinY = rowMinY[r];
                         int cropMaxY = rowMaxY[r];
                         int cropW = cropMaxX - cropMinX + 1;
-                        int cropH = cropMaxY - cropMinY + 1;
+                        int cropH2 = cropMaxY - cropMinY + 1;
                         if (debugFruit) {
                             System.out.println("[NPC_GENERIC DEBUG] row=" + r + " cropMinX=" + cropMinX + " cropMaxX=" + cropMaxX +
-                                    " cropMinY=" + cropMinY + " cropMaxY=" + cropMaxY + " cropWxH=" + cropW + "x" + cropH);
+                                    " cropMinY=" + cropMinY + " cropMaxY=" + cropMaxY + " cropWxH=" + cropW + "x" + cropH2);
                         }
 
                         // Safety fallbacks
-                        if (cropW <= 0) cropW = cellSize;
-                        if (cropH <= 0) cropH = cellSize;
+                        if (cropW <= 0) cropW = cellW;
+                        if (cropH2 <= 0) cropH2 = cellH;
 
-                        idleFrames[dirMap[r]] = new BufferedImage[actualFrames[r]];
+                        BufferedImage[] rowFrames = new BufferedImage[actualFrames[r]];
                         for (int f = 0; f < actualFrames[r]; f++) {
                             BufferedImage crop = raw.getSubimage(
-                                f * cellSize + cropMinX, r * cellSize + cropMinY, cropW, cropH);
+                                f * cellW + cropMinX, r * cellH + cropMinY, cropW, cropH2);
 
                             // Height-first scaling: prefer to fill the tile height so
                             // characters use the full vertical space. Allow horizontal
                             // overflow (it will be clipped) to avoid very short sprites.
-                            float scale = (float) ts / (float) cropH;
+                            float scale = (float) ts / (float) cropH2;
                             int dh = ts;
                             int dw = Math.max(1, Math.round(cropW * scale));
                             if (debugFruit) {
@@ -198,8 +231,20 @@ public class NPC_Generic extends Entity {
                                                 java.awt.RenderingHints.VALUE_INTERPOLATION_NEAREST_NEIGHBOR);
                             sg.drawImage(crop, ox, oy, dw, dh, null);
                             sg.dispose();
-                            idleFrames[dirMap[r]][f] = frame;
+                            rowFrames[f] = frame;
                         }
+
+                        if (r < dirMap.length) {
+                            idleFrames[dirMap[r]] = rowFrames;
+                        }
+                    }
+
+                    // If the sheet had fewer than 4 direction rows, fill missing
+                    // directions with a copy of row 0 (single-direction sprites).
+                    if (rows < 4 && idleFrames[DIR_DOWN] != null) {
+                        if (idleFrames[DIR_UP]    == null) idleFrames[DIR_UP]    = idleFrames[DIR_DOWN];
+                        if (idleFrames[DIR_LEFT]  == null) idleFrames[DIR_LEFT]  = idleFrames[DIR_DOWN];
+                        if (idleFrames[DIR_RIGHT] == null) idleFrames[DIR_RIGHT] = idleFrames[DIR_DOWN];
                     }
                 }
             } catch (java.io.IOException | RuntimeException e) {

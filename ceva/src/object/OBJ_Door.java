@@ -183,4 +183,28 @@ public class OBJ_Door extends Entity {
         this.spawnId = (namedSpawnId != null) ? namedSpawnId : "";
     }
 
+    /**
+     * Resize the door's collision area (and sprite, if visible) to match
+     * the pixel dimensions drawn in Tiled. Call after construction.
+     *
+     * @param pixelW width  in scaled world-pixels (areaW from MapObjectLoader)
+     * @param pixelH height in scaled world-pixels (areaH from MapObjectLoader)
+     */
+    public void setSize(int pixelW, int pixelH) {
+        if (pixelW <= 0 || pixelH <= 0) return;
+
+        // Full collision box covering the whole drawn area
+        solidArea.x = 0;
+        solidArea.y = 0;
+        solidArea.width  = pixelW;
+        solidArea.height = pixelH;
+        solidAreaDefaultX = 0;
+        solidAreaDefaultY = 0;
+
+        // Rescale sprite to match (visible doors only)
+        if (visible) {
+            down1 = setup("/res/objects/Door", pixelW, pixelH);
+        }
+    }
+
 }

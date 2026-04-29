@@ -882,9 +882,13 @@ public class UI {
         int textW = fm.stringWidth(text);
         int textH = fm.getHeight();
 
+        // Center over the actual entity footprint (solid area width / height)
+        int entityW = (target.solidArea.width  > 0) ? target.solidArea.width  : gp.tileSize;
+        int entityH = (target.solidArea.height > 0) ? target.solidArea.height : gp.tileSize;
+
         // Center above the object
-        int px = screenX + gp.tileSize / 2 - (textW + 24) / 2;
-        int py = screenY - 14 + bob;
+        int px = screenX + target.solidArea.x + entityW / 2 - (textW + 24) / 2;
+        int py = screenY + target.solidArea.y + entityH / 2 - (textH + 8) / 2 + bob;
 
         int pillW = textW + 24;
         int pillH = textH + 8;

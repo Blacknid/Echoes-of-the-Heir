@@ -623,22 +623,22 @@ All new monsters use the `DataDrivenMonster` system (JSON config + spritesheet).
 
 | Weapon | ATK | Knockback | Source | Required |
 |--------|-----|-----------|--------|----------|
-| Wooden Sword | +1 | 2 | Tutorial chest | — |
-| Iron Sword | +2 | 2 | Merchant (Act 2) | 40g |
-| Knight's Blade | +3 | 3 | Shattered Lake chest | — |
-| Royal Scepter | +4 | 3 | Boss 1 drop | — |
-| Shadow Blade | +6 | 4 | Boss 3 drop | — |
+*| Wooden Sword | +1 | 2 | Tutorial chest | — |*
+*| Iron Sword | +2 | 2 | Merchant (Act 2) | 40g |*
+*| Knight's Blade | +3 | 3 | Shattered Lake chest | — |*
+*| Royal Scepter | +4 | 3 | Boss 1 drop | — |*
+*| Shadow Blade | +6 | 4 | Boss 3 drop | — |*
 TODO : | Painted Edge (final) | +8 | 5 | The Gallery secret | All trials complete |
 
 ### 7.2 Shields (DEF progression)
 
 | Shield | DEF | Source |
 |--------|-----|--------|
-| Wooden Shield | +1 | Starting / Merchant |
-| Iron Shield | +2 | Merchant (Act 2) |
-| Knight's Shield | +3 | Citadel Barracks |
-| Golden Locket | +3 + regen | Boss 2 drop |
-| Canvas Guard (final) | +5 | The Gallery secret |
+*| Wooden Shield | +1 | Starting / Merchant |*
+*| Iron Shield | +2 | Merchant (Act 2) |*
+*| Knight's Shield | +3 | Citadel Barracks |*
+*| Golden Locket | +3 + regen | Boss 2 drop |*
+*| Canvas Guard (final) | +5 | The Gallery secret |*
 
 TODO : ### 7.3 Quest Items
 
@@ -651,16 +651,16 @@ TODO : ### 7.3 Quest Items
 | Portrait Key: West | Citadel Dungeon (combat) | Opens throne room (2 of 3) |
 | Portrait Key: Final | Boss 3 drop | Opens throne room (3 of 3) |
 | Throne Shard | Boss 1 drop | Proof of defeating the Hollow King |
-| Spell Notes | Citadel Library (puzzle + Scholar) | Triggers Scholar's memory fragment |
+| Spell Notes | Citadel Library (puzzle + Scholar) | Triggers Scholar's memory fragment |*
 
 ### 7.4 Consumables
 
 | Item | Effect | Source |
 |------|--------|--------|
-| Potion | +5 HP | Merchant, drops, pots |
-| Greater Potion | +15 HP | Merchant (Act 3), boss areas |
+*| Potion | +5 HP | Merchant, drops, pots |*
+*| Greater Potion | +15 HP | Merchant (Act 3), boss areas |*
 TODO : | Mana Crystal | +3 MP | Drops, chests |
-| Elixir | Full HP + MP | Merchant (Act 3), rare drop |
+*| Elixir | Full HP + MP | Merchant (Act 3), rare drop |*
 TODO : | Memory Tonic | Reveals nearest uncollected fragment on minimap for 60s | Merchant (Act 2), rare |
 
 ---
@@ -671,16 +671,16 @@ TODO : ## 8. Quest Design — Full Chain
 
 | # | Quest | Giver | Objective | Reward |
 |---|-------|-------|-----------|--------|
-| 1 | Escape the Cave | Auto | Exit the Awakening Cave | Basic Sword |
-| 2 | Speak to the Elder | Auto | Find the Elder in Canvas Village | Quest chain begins |
-| 3 | Explore the Shattered Lake | Elder | Reach the Hollow Throne area | Access to Boss 1 |
-| 4 | Defeat the Hollow King | Auto | Beat Boss 1 | Fragment + Weapon + 3 fragment gate opens |
-| 5 | The Fading Woods | Elder | Investigate the Ashen Woods | Access to Boss 2 |
-| 6 | Defeat the Gilded Lie | Auto | Beat Boss 2 | Fragment + Locket + 7 fragment gate opens |
-| 7 | Reclaim the Citadel | Elder | Clear the Painted Citadel | Access to Boss 3 |
-| 8 | Defeat the Green Shade | Auto | Beat Boss 3 | Fragment + Weapon + Gallery opens |
-| 9 | Enter the Gallery | Elder | Complete the 3 trials | Final area unlocks |
-| 10 | Face the Truth | Auto | Defeat the Brushstroke | Ending sequence |
+*| 1 | Escape the Cave | Auto | Exit the Awakening Cave | Basic Sword |*
+*| 2 | Speak to the Elder | Auto | Find the Elder in Canvas Village | Quest chain begins |*
+*| 3 | Explore the Shattered Lake | Elder | Reach the Hollow Throne area | Access to Boss 1 |*
+*| 4 | Defeat the Hollow King | Auto | Beat Boss 1 | Fragment + Weapon + 3 fragment gate opens |*
+*| 5 | The Fading Woods | Elder | Investigate the Ashen Woods | Access to Boss 2 |*
+*| 6 | Defeat the Gilded Lie | Auto | Beat Boss 2 | Fragment + Locket + 7 fragment gate opens |*
+*| 7 | Reclaim the Citadel | Elder | Clear the Painted Citadel | Access to Boss 3 |*
+*| 8 | Defeat the Green Shade | Auto | Beat Boss 3 | Fragment + Weapon + Gallery opens |*
+*| 9 | Enter the Gallery | Elder | Complete the 3 trials | Final area unlocks |*
+*| 10 | Face the Truth | Auto | Defeat the Brushstroke | Ending sequence |*
 
 ### 8.2 Side Quests
 
