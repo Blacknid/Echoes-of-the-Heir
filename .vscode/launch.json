@@ -2,6 +2,13 @@
     "configurations": [
         {
             "type": "java",
+            "name": "Updater",
+            "request": "launch",
+            "mainClass": "update.Updater",
+            "projectName": "Michi-s-adventure"
+        },
+        {
+            "type": "java",
             "name": "Main",
             "request": "launch",
             "mainClass": "main.Main",

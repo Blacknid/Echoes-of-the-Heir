@@ -111,6 +111,22 @@ public class CollisionChecker {
     }
 
     /**
+     * Fill an existing list with axis-aligned light occluder rectangles that intersect r.
+     * Uses tileM.lightOccluderRects — a subset of collision shapes that are guaranteed to be
+     * non-rotated rectangles, so their shape exactly matches their bounding box.
+     * Only these are safe to use as shadow casters; polygon/ellipse/rotated bounding boxes
+     * are too large and cause false shadow projections.
+     * Simple linear scan is fine: called only when player moves or on map load.
+     */
+    public void getLightOccludersInRect(Rectangle r, ArrayList<Rectangle> out) {
+        ArrayList<Rectangle> occ = gp.tileM.lightOccluderRects;
+        for (int i = 0, n = occ.size(); i < n; i++) {
+            Rectangle br = occ.get(i);
+            if (br.intersects(r)) out.add(br);
+        }
+    }
+
+    /**
      * Fill an existing list with collision bounding rectangles that intersect r.
      * Caller must clear the list before calling. Avoids any ArrayList allocation.
      *

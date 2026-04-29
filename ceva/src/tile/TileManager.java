@@ -14,6 +14,7 @@ import java.awt.geom.Path2D;
 import java.awt.geom.Rectangle2D;
 import java.awt.image.BufferedImage;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Comparator;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -224,6 +225,86 @@ public class TileManager {
     public ArrayList<Shape> collisionShapes = new ArrayList<>();
     // Bounding boxes for each shape (used by spatial grid for broad-phase)
     public ArrayList<Rectangle> collisionBounds = new ArrayList<>();
+    // Axis-aligned rectangle occluders only — used exclusively by the lighting system for shadow casting.
+    // Non-rectangular and rotated shapes are intentionally excluded to prevent incorrect shadow projections.
+    public ArrayList<Rectangle> lightOccluderRects = new ArrayList<>();
+
+    // Runtime per-tile-position lit state. Cleared + rebuilt every frame by Lightning.draw().
+    // Index: [col][row]. Null until initTileLitMap() is called on first map load.
+    public boolean[][] tileIsLit = null;
+
+    /**
+     * Packed [col, row] tile positions on the current map that contain at least one tile with
+     * reflectsLight = true. Built once at map load by {@link #rebuildReflectiveTilePositions()}.
+     * Lightning iterates this list every frame instead of scanning the full visible viewport,
+     * which collapses the reflective-highlight pass from O(visibleTiles * layers) to O(reflectiveTiles).
+     * Even with hundreds of reflective tiles per map, this is typically <1% of the previous work.
+     */
+    public int[] reflectiveTilePositions = new int[0];
+
+    public void initTileLitMap() {
+        tileIsLit = new boolean[gp.maxWorldCol][gp.maxWorldRow];
+        rebuildReflectiveTilePositions();
+    }
+
+    /**
+     * Scan all map layers once and remember which tile positions contain a reflectsLight tile.
+     * Called automatically by initTileLitMap() on each map load.
+     * Result is stored in reflectiveTilePositions as a flat packed array: [col0, row0, col1, row1, ...].
+     */
+    public void rebuildReflectiveTilePositions() {
+        if (gidToReflectsLight == null || mapLayers.isEmpty()) {
+            reflectiveTilePositions = new int[0];
+            return;
+        }
+        int maxCol = gp.maxWorldCol;
+        int maxRow = gp.maxWorldRow;
+        // First pass: count to size the flat array exactly
+        int count = 0;
+        for (int col = 0; col < maxCol; col++) {
+            for (int row = 0; row < maxRow; row++) {
+                for (int l = 0; l < mapLayers.size(); l++) {
+                    int[][] layer = mapLayers.get(l);
+                    if (col >= layer.length || row >= layer[col].length) continue;
+                    int gid = layer[col][row];
+                    if (gid > 0 && gid < gidToReflectsLight.length && gidToReflectsLight[gid]) {
+                        count++;
+                        break; // one match per (col,row) is enough
+                    }
+                }
+            }
+        }
+        // Second pass: fill
+        int[] out = new int[count * 2];
+        int idx = 0;
+        for (int col = 0; col < maxCol; col++) {
+            for (int row = 0; row < maxRow; row++) {
+                for (int l = 0; l < mapLayers.size(); l++) {
+                    int[][] layer = mapLayers.get(l);
+                    if (col >= layer.length || row >= layer[col].length) continue;
+                    int gid = layer[col][row];
+                    if (gid > 0 && gid < gidToReflectsLight.length && gidToReflectsLight[gid]) {
+                        out[idx++] = col;
+                        out[idx++] = row;
+                        break;
+                    }
+                }
+            }
+        }
+        reflectiveTilePositions = out;
+        System.out.println("Reflective tile cache: " + count + " tiles flagged");
+    }
+
+    public boolean isTileLit(int col, int row) {
+        if (tileIsLit == null || col < 0 || col >= tileIsLit.length) return false;
+        if (row < 0 || row >= tileIsLit[col].length) return false;
+        return tileIsLit[col][row];
+    }
+
+    public void clearTileLitMap() {
+        if (tileIsLit == null) return;
+        for (boolean[] column : tileIsLit) Arrays.fill(column, false);
+    }
 
     // --- Configurable collision settings ---
     // Objectgroup layer names whose rectangles provide collision (default: "Collision")
@@ -862,6 +943,7 @@ public class TileManager {
 
             collisionShapes.clear();
             collisionBounds.clear();
+            lightOccluderRects.clear();
             int matchedLayers = 0;
 
             NodeList objectGroups = doc.getElementsByTagName("objectgroup");
@@ -905,6 +987,7 @@ public class TileManager {
                                 if (shape != null) {
                                     collisionShapes.add(shape);
                                     collisionBounds.add(shape.getBounds());
+                                    if (isAxisAlignedCollisionRect(tmpl)) lightOccluderRects.add(shape.getBounds());
                                 }
                             } else {
                                 System.out.println("WARNING: collisionTemplate '" + tmplName
@@ -912,10 +995,12 @@ public class TileManager {
                                         + " (is the template in the same Collision layer?)");
                             }
                         } else {
+                            boolean isAARect = isAxisAlignedCollisionRect(obj);
                             Shape shape = parseCollisionObject(obj);
                             if (shape != null) {
                                 collisionShapes.add(shape);
                                 collisionBounds.add(shape.getBounds());
+                                if (isAARect) lightOccluderRects.add(shape.getBounds());
                             }
                         }
                     } catch (Exception objEx) {
@@ -934,6 +1019,25 @@ public class TileManager {
             System.out.println("Failed to load collision layer: " + path);
             e.printStackTrace(System.out);
         }
+    }
+
+    /**
+     * Returns true when a Tiled collision object is a plain axis-aligned rectangle (no rotation,
+     * no polygon/ellipse/polyline child). Only these shapes are safe to use as light occluders;
+     * bounding boxes of non-rectangular shapes are too large and cause false shadows.
+     */
+    private boolean isAxisAlignedCollisionRect(Element obj) {
+        if (obj.getElementsByTagName("polygon").getLength()  > 0) return false;
+        if (obj.getElementsByTagName("ellipse").getLength()  > 0) return false;
+        if (obj.getElementsByTagName("polyline").getLength() > 0) return false;
+        String rot = obj.getAttribute("rotation");
+        if (!rot.isEmpty()) {
+            try { if (Math.abs(Double.parseDouble(rot)) > 0.01) return false; }
+            catch (NumberFormatException ignored) {}
+        }
+        String w = obj.getAttribute("width");
+        String h = obj.getAttribute("height");
+        return !w.isEmpty() && !h.isEmpty();
     }
 
     /**
@@ -1121,6 +1225,7 @@ public class TileManager {
     private boolean[] gidToForeground;
     private boolean[] gidToBackground;
     private int[]     gidToSortYOffset;
+    public  boolean[] gidToReflectsLight;
 
     // OPTIMIZATION: Dirty tracking — skip rebuild when viewport is identical to last frame
     private int lastVisMinCol = -99, lastVisMaxCol = -99;
@@ -1561,12 +1666,13 @@ public class TileManager {
         }
 
         // Build O(1) direct GID lookup arrays — eliminates per-tile linear tileset scan
-        gidToTile         = new Tile[maxGIDValue + 1];
-        gidToRenderOrder  = new int[maxGIDValue + 1];
-        gidToDepthSort    = new boolean[maxGIDValue + 1];
-        gidToForeground   = new boolean[maxGIDValue + 1];
-        gidToBackground   = new boolean[maxGIDValue + 1];
-        gidToSortYOffset  = new int[maxGIDValue + 1];
+        gidToTile          = new Tile[maxGIDValue + 1];
+        gidToRenderOrder   = new int[maxGIDValue + 1];
+        gidToDepthSort     = new boolean[maxGIDValue + 1];
+        gidToForeground    = new boolean[maxGIDValue + 1];
+        gidToBackground    = new boolean[maxGIDValue + 1];
+        gidToSortYOffset   = new int[maxGIDValue + 1];
+        gidToReflectsLight = new boolean[maxGIDValue + 1];
         for (Tileset ts : tilesets) {
             for (int i = 0; i < ts.tileCount && i < ts.tiles.length; i++) {
                 int gid = ts.firstGID + i;
@@ -1586,6 +1692,7 @@ public class TileManager {
                     if (ts.tiles[i].sortYOffset != 0 && !ts.tiles[i].background) {
                         gidToDepthSort[gid] = true;
                     }
+                    if (ts.tiles[i].reflectsLight) gidToReflectsLight[gid] = true;
                 }
             }
         }
@@ -1728,6 +1835,9 @@ public class TileManager {
                 if (tileId < 0 || tileId >= ts.tiles.length || ts.tiles[tileId] == null) continue;
                 int sortYOff = getIntProperty(tileEl, "sortYOffset", 0);
                 if (sortYOff != 0) ts.tiles[tileId].sortYOffset = sortYOff;
+
+                String reflStr = getStringProperty(tileEl, "reflectsLight", null);
+                if (reflStr != null) ts.tiles[tileId].reflectsLight = Boolean.parseBoolean(reflStr.trim());
 
                 // Read unified "render" enum (RenderBucket) — takes priority over legacy booleans
                 String renderProp = getStringProperty(tileEl, "render", null);

@@ -44,6 +44,8 @@ import javax.crypto.spec.SecretKeySpec;
  */
 public class MultiplayerClient {
 
+    private static final String DEBUG_LICENSE = "DEBUG000-0000";
+
     // ── Embedded RSA public key (must match the MP server's private key) ─
     private static final String RSA_PUBLIC_KEY_B64 =
             "MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAuEwRNiBMB0MkhCI7+3Xs"
@@ -99,7 +101,7 @@ public class MultiplayerClient {
 
         new Thread(() -> {
             try {
-                String license = Main.LICENSE_KEY;
+                String license = Main.DEBUG_MODE ? DEBUG_LICENSE : Main.LICENSE_KEY;
                 if (license == null || license.isBlank()) {
                     connecting.set(false);
                     connectionStatus = "No license key. Multiplayer requires a valid license.";
@@ -225,6 +227,7 @@ public class MultiplayerClient {
             String handshakeJson = "{"
                     + "\"license\":\""      + jsonEscape(license)            + "\","
                     + "\"ts\":"             + (System.currentTimeMillis() / 1000L) + ","
+                    + "\"debug\":"          + Main.DEBUG_MODE                  + ","
                     + "\"client_nonce\":\"" + toHex(clientNonce)              + "\","
                     + "\"server_nonce\":\"" + toHex(serverNonce)              + "\","
                     + "\"name\":\""         + jsonEscape(name)                + "\","

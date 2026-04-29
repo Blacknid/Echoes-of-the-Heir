@@ -400,7 +400,109 @@ journalctl -u michi-multiplayer -f
 
 ---
 
-## 5. Java client side
+## 5. Patch server (`ceva/patch_server/server.py`)
+
+A separate, **independent** server that delivers signed game-update patches.
+It is intentionally decoupled from the cloud-save and multiplayer stacks:
+patching is *publisher-to-player* and uses a different RSA keypair from
+the save-server handshake. **Licenses are not involved at all** — every JAR
+keeps the same per-build license forever.
+
+### Wire protocol
+
+```
+PING\n                                       → PONG\n
+CHECK <current_version>\n                    → UPTODATE\n
+                                             | UPDATE <to> <size> <sha256_hex> <sig_b64>\n
+FETCH <from_version>\n                       → 8 bytes BE size, then raw patch ZIP
+```
+
+The signature in the `UPDATE` line covers
+`SHA-256(patch_bytes) || from || to`, so a malicious mirror cannot serve an
+unrelated (still-validly-signed) patch in place of the real one. The client
+recomputes this payload after download and verifies with the embedded
+`UpdateClient.PATCH_PUBLIC_KEY_B64`.
+
+### Patch ZIP layout
+
+```
+patch.zip
+├── manifest.json       {"from": "x.y.z", "to": "a.b.c",
+│                        "replace": [...], "add": [...], "delete": [...]}
+├── add/<entry>         new files inside the JAR
+└── replace/<entry>     replacement bytes for changed files
+```
+
+Files **outside** the JAR are never touched by a patch:
+`license.properties`, `save_servers.txt`, `update_servers.txt`,
+`servers.txt`, `local_save.dat`. The current version is read from
+`/res/build.properties` *inside* the JAR — auto-incremented by
+`compile.cmd` on every build, and overwritten by the patch as a normal
+replace[] entry. There is no external version file to keep in sync.
+
+### Building a patch
+
+```bash
+cd ceva/patch_server
+python3 build_patch.py /path/to/old.jar /path/to/new.jar 1.0.0 1.0.1
+# → patches/v1.0.0_to_v1.0.1.zip
+# → manifest.json updated, signature appended
+sudo systemctl restart michi-patch    # or send SIGHUP if you add one
+```
+
+`build_patch.py` reads both JARs, diffs their entries, ZIPs the differences
+into the patch layout above, signs the SHA-256 with `patch_private_key.pem`,
+and registers the result in `manifest.json` (which the server reloads on
+every connection).
+
+### Setup (Raspberry Pi OS / Bookworm)
+
+```bash
+cd ceva/patch_server
+sudo bash setup.sh
+```
+
+Same shape as the other setup scripts: apt deps, generates
+`patch_private_key.pem` if missing, copies the example config, opens the
+configured port in `ufw`, installs the `michi-patch` systemd service.
+
+### Client-side flow
+
+1. `Main.main()` calls `UpdateClient.checkAndApply()` **before** anything
+   else (window, game thread, license parse).
+2. Client reads its version from `/res/build.properties` inside the
+   running JAR (default `0.0.0` if absent) and tries each entry in
+   `update_servers.txt` (or `FALLBACK_HOSTS` if absent).
+3. On `UPDATE`: shows a confirmation dialog. If accepted, downloads the
+   patch over a new `FETCH` connection, recomputes SHA-256, verifies the
+   RSA signature, and writes the patch to a temp file.
+4. Spawns `update.Updater` as a **separate JVM** (so this process can
+   release the JAR), then `return`s from `main()` so the game exits.
+5. The updater waits for the parent PID, rewrites the JAR by overlaying
+   the patch's `add/` + `replace/` entries and dropping `delete[]` entries,
+   atomically swaps the new JAR in, and relaunches the game. The new
+   version takes effect immediately because `/res/build.properties`
+   inside the JAR was updated as part of the patch.
+
+If the patch server is unreachable in step 2, startup continues normally —
+the game stays playable offline. If the user **declines** a confirmed
+update, the game closes (per design: "the game cannot start until you
+make the update").
+
+### Threat coverage (patches)
+
+| Threat | Mitigation |
+| --- | --- |
+| Forged patch from a hostile mirror | RSA-2048 + SHA-256 signature on `(patch_hash, from, to)`. Public key embedded in client. |
+| Downgrade attack | Signature is bound to *both* `from` and `to` versions; mirror cannot replay an old (from, to) pair to a fresher client. |
+| Truncated download | Client checks declared size and recomputes SHA-256 before applying. |
+| JAR locked on Windows during write | Updater is a separate JVM that waits for the game's PID to exit, then swaps the file. |
+| Failed mid-write | Atomic `Files.move`; original is kept as `.bak` and restored on failure. |
+| Tampering with external configs | The patch only writes the JAR file. License and server lists, save files, and config files outside the JAR are never touched. |
+
+---
+
+## 6. Java client side
 
 | File | Responsibility |
 | --- | --- |
@@ -414,6 +516,7 @@ journalctl -u michi-multiplayer -f
 | --- | --- |
 | `license.properties` | License key for this player (written at build time by `LicenseGenerator`). |
 | `save_servers.txt` | List of cloud-save servers to try, in order. |
+| `update_servers.txt` | List of patch servers to ping at startup. |
 | `servers.txt` | List of multiplayer servers the player has saved in-game. |
 | `local_save.dat` | Encrypted offline save cache (AEAD-GCM, license-bound). |
 
@@ -438,7 +541,7 @@ Both Java clients implement:
 
 ---
 
-## 6. Operational checklist
+## 7. Operational checklist
 
 When deploying (Raspberry Pi 5 / Raspberry Pi OS):
 
@@ -468,6 +571,23 @@ When deploying (Raspberry Pi 5 / Raspberry Pi OS):
 - [ ] Verify: `sudo systemctl status michi-save michi-multiplayer`
 - [ ] Back up `saves.db` and `mp_licenses.db` regularly — they contain
       per-license crypto material that cannot be regenerated.
+- [ ] `sudo bash ceva/patch_server/setup.sh` — installs patch server,
+      generates the patch-signing keypair, creates `michi-patch` systemd service.
+- [ ] Copy the public key from `patch_server/patch_public_key.b64` into
+      `UpdateClient.PATCH_PUBLIC_KEY_B64` in the Java source; recompile.
+- [ ] Distribute `update_servers.txt` next to the game JAR (`compile.cmd`
+      bundles it automatically; the Inno Setup installer ships it too).
+      The version itself lives in `/res/build.properties` inside the JAR.
+
+When publishing a new game version:
+
+- [ ] On a build host, produce `new.jar` (with the new code) and keep the
+      previous `old.jar` accessible.
+- [ ] On the patch server: `python3 build_patch.py old.jar new.jar 1.0.0 1.0.1`.
+- [ ] `sudo systemctl restart michi-patch` (manifest is reread per-connection,
+      but a restart guarantees a clean state).
+- [ ] Optionally repeat `build_patch.py` for older `from` versions if you
+      want to support multi-step jumps in a single download.
 
 When rotating the global salt:
 
@@ -485,7 +605,7 @@ When a license leaks:
 
 ---
 
-## 7. Glossary
+## 8. Glossary
 
 - **AEAD** — Authenticated Encryption with Associated Data. The cipher
   produces both ciphertext and a tag that authenticates *the ciphertext

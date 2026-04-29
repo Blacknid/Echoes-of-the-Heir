@@ -208,6 +208,7 @@ public class MapManager {
         gp.tileM.mapLayers.clear();
         gp.tileM.loadMapFromTMX(path);
         gp.tileM.loadCollisionLayer(path);
+        gp.tileM.initTileLitMap();
         gp.mapObjectLoader.loadMapProperties(path);
         gp.cChecker.updateCollisionRectsCache();
         if (gp.minimap != null) gp.minimap.bakeTerrainImage();

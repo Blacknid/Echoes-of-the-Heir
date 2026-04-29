@@ -67,6 +67,22 @@ jar --create --file="%DEPLOY_DIR%\%JAR_NAME%" --main-class=%MAIN_CLASS% -C "%BIN
 if %ERRORLEVEL% NEQ 0 (echo [FAIL] JAR creation failed! & pause & exit /b 1)
 echo   [OK] JAR created: %DEPLOY_DIR%\%JAR_NAME%
 
+:: Ship the patch-server endpoint list next to the JAR (used by UpdateClient).
+:: Renamed to update_servers.txt only if the player hasn't customized it.
+if exist "%ROOT%\update_servers.example.txt" (
+    if not exist "%DEPLOY_DIR%\update_servers.txt" (
+        copy /Y "%ROOT%\update_servers.example.txt" "%DEPLOY_DIR%\update_servers.txt" >nul
+        echo   [OK] Bundled update_servers.txt
+    )
+)
+:: Same for save server endpoints.
+if exist "%ROOT%\save_servers.example.txt" (
+    if not exist "%DEPLOY_DIR%\save_servers.txt" (
+        copy /Y "%ROOT%\save_servers.example.txt" "%DEPLOY_DIR%\save_servers.txt" >nul
+        echo   [OK] Bundled save_servers.txt
+    )
+)
+
 echo [4/5] Verifying JAR...
 java -jar "%DEPLOY_DIR%\%JAR_NAME%" --version >nul 2>&1
 :: Quick smoke test — just verify JAR is runnable (exits immediately with --version)

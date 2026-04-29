@@ -2,39 +2,47 @@
 ; Basic App Info
 AppName=Michi Game
 AppVersion=1.0
-DefaultDirName={autopf}\MichiGame
+DefaultDirName={localappdata}\MichiGame
 DefaultGroupName=Michi Game
+PrivilegesRequired=lowest
 ; The icon for the uninstaller in Control Panel
-UninstallDisplayIcon={app}\MichiGame.exe
+UninstallDisplayIcon={app}\MichisAdventure-2.0.exe
 Compression=lzma
 SolidCompression=yes
 ; Where the final Setup.exe will be saved
-OutputDir=C:\Users\iulia\OneDrive\Desktop\java\Output
+OutputDir=..\deploy
 OutputBaseFilename=MichiGame_Setup
 
 [Files]
 ; 1. The Launcher (.exe) you made with Launch4j
-Source: "C:\Users\iulia\OneDrive\Desktop\java\MichiGame.exe"; DestDir: "{app}"; Flags: ignoreversion
+Source: "..\output\MichisAdventure-2.0.exe"; DestDir: "{app}"; Flags: ignoreversion
 
 ; 2. The Code (.jar) - Required for the .exe to run
-Source: "C:\Users\iulia\OneDrive\Desktop\java\MichiGame.jar"; DestDir: "{app}"; Flags: ignoreversion
+Source: "..\deploy\Michi-s-adventure.jar"; DestDir: "{app}"; Flags: ignoreversion
 
 ; 3. The Java Runtime (JRE folder)
 ; This pulls your JDK 24 (renamed to jre) and all subfolders (bin, lib, etc.)
-Source: "C:\Users\iulia\OneDrive\Desktop\java\jre\*"; DestDir: "{app}\jre"; Flags: ignoreversion recursesubdirs createallsubdirs
+Source: "..\deploy\jre\*"; DestDir: "{app}\jre"; Flags: ignoreversion recursesubdirs createallsubdirs skipifsourcedoesntexist
+
+; 4. Patch-server endpoint list (used by UpdateClient at startup).
+;    onlyifdoesntexist preserves any local edits the player may have made.
+Source: "..\update_servers.example.txt"; DestDir: "{app}"; DestName: "update_servers.txt"; Flags: ignoreversion onlyifdoesntexist
+
+; 5. Save-server endpoint list (used by CloudSaveService).
+Source: "..\save_servers.example.txt"; DestDir: "{app}"; DestName: "save_servers.txt"; Flags: ignoreversion onlyifdoesntexist
 
 [Icons]
 ; Creates a shortcut in the Start Menu
-Name: "{group}\Michi Game"; Filename: "{app}\MichiGame.exe"
+Name: "{group}\Michi Game"; Filename: "{app}\MichisAdventure-2.0.exe"; WorkingDir: "{app}"
 ; Creates a shortcut on the Desktop
-Name: "{autodesktop}\Michi Game"; Filename: "{app}\MichiGame.exe"; Tasks: desktopicon
+Name: "{autodesktop}\Michi Game"; Filename: "{app}\MichisAdventure-2.0.exe"; WorkingDir: "{app}"; Tasks: desktopicon
 
 [Tasks]
 Name: "desktopicon"; Description: "{cm:CreateDesktopIcon}"; GroupDescription: "{cm:AdditionalIcons}"; Flags: unchecked
 
 [Run]
 ; Option to launch the game immediately after installation
-Filename: "{app}\MichiGame.exe"; Description: "{cm:LaunchProgram,Michi Game}"; Flags: nowait postinstall skipifsilent
+Filename: "{app}\MichisAdventure-2.0.exe"; WorkingDir: "{app}"; Description: "{cm:LaunchProgram,Michi Game}"; Flags: nowait postinstall skipifsilent
 
 [UninstallDelete]
 ; Clean up generated license and local save files on uninstall
@@ -80,8 +88,25 @@ begin
   DeleteFile(ScriptPath);
 end;
 
+procedure EnsureDefaultMultiplayerServers();
+var
+  ServersPath: String;
+  Lines: TArrayOfString;
+begin
+  ServersPath := ExpandConstant('{app}\servers.txt');
+  if FileExists(ServersPath) then
+    exit;
+
+  SetArrayLength(Lines, 1);
+  Lines[0] := 'Local Server|127.0.0.1|7777';
+  SaveStringsToFile(ServersPath, Lines, False);
+end;
+
 procedure CurStepChanged(CurStep: TSetupStep);
 begin
   if CurStep = ssPostInstall then
+  begin
     GenerateLicenseKey();
+    EnsureDefaultMultiplayerServers();
+  end;
 end;
