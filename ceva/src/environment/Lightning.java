@@ -344,89 +344,99 @@ public class Lightning {
     }
 
     /**
-     * After the darkness overlay has been blitted, draw a warm highlight over every visible
-     * tile marked as reflectsLight=true that is currently within a light's radius.
-     * Intensity falls off quadratically with distance. The highlight is drawn with
-     * SRC_OVER onto the already-lit game world, making polished/wet surfaces sparkle.
+     * After the darkness overlay has been blitted, draw a warm highlight over every reflective
+     * tile that is currently within a light's radius and on screen. Iterates the precomputed
+     * tileM.reflectiveTilePositions list (built once at map load) instead of the visible viewport.
      */
     private void drawReflectiveHighlights(Graphics2D g2, float maxDarkness,
                                           int playerWX, int playerWY,
                                           int playerSX, int playerSY) {
         if (maxDarkness < 0.04f) return;
-        boolean[] gidRefl = gp.tileM.gidToReflectsLight;
+        int[]       refl   = gp.tileM.reflectiveTilePositions;
         boolean[][] litMap = gp.tileM.tileIsLit;
-        if (gidRefl == null || litMap == null) return;
+        if (refl == null || refl.length == 0 || litMap == null) return;
 
-        int ts          = gp.tileSize;
-        int cameraWX    = playerWX - playerSX;
-        int cameraWY    = playerWY - playerSY;
-        int minCol      = Math.max(0, cameraWX / ts - 1);
-        int maxCol      = Math.min(gp.maxWorldCol - 1, (cameraWX + gp.screenWidth)  / ts + 1);
-        int minRow      = Math.max(0, cameraWY / ts - 1);
-        int maxRow      = Math.min(gp.maxWorldRow - 1, (cameraWY + gp.screenHeight) / ts + 1);
+        int ts        = gp.tileSize;
+        int cameraWX  = playerWX - playerSX;
+        int cameraWY  = playerWY - playerSY;
+        int screenW   = gp.screenWidth;
+        int screenH   = gp.screenHeight;
+
+        // Player light center + squared radius (computed once)
+        int   plx        = playerWX + ts / 2;
+        int   ply        = playerWY + ts / 2;
+        long  playerR2   = (long) playerLightRadius * ts * playerLightRadius * ts;
+        float invPlayerR = 1f / (playerLightRadius * ts);
+
+        // Snapshot torch lights into local arrays once (avoids array bounds + null checks per tile)
+        int torchCount = 0;
+        int[]   tcx = reusableTorchCX;
+        int[]   tcy = reusableTorchCY;
+        long[]  tr2 = reusableTorchR2;
+        float[] trI = reusableTorchInvR;
+        for (int i = 0; i < gp.obj.length && torchCount < tcx.length; i++) {
+            entity.Entity o = gp.obj[i];
+            if (o == null || !o.lightSource || o.lightRadius <= 0) continue;
+            int rPx = o.lightRadius * ts;
+            tcx[torchCount] = o.worldX + ts / 2;
+            tcy[torchCount] = o.worldY + ts / 2;
+            tr2[torchCount] = (long) rPx * rPx;
+            trI[torchCount] = 1f / rPx;
+            torchCount++;
+        }
 
         Composite saved = g2.getComposite();
         g2.setColor(REFLECT_GLOW);
 
-        for (int col = minCol; col <= maxCol; col++) {
-            for (int row = minRow; row <= maxRow; row++) {
-                if (col >= litMap.length || row >= litMap[col].length || !litMap[col][row]) continue;
+        for (int p = 0; p < refl.length; p += 2) {
+            int col = refl[p];
+            int row = refl[p + 1];
 
-                // Check if any map layer has a reflective tile here
-                boolean hasReflective = false;
-                for (int l = 0; l < gp.tileM.mapLayers.size(); l++) {
-                    int gid = gp.tileM.mapLayers.get(l)[col][row];
-                    if (gid > 0 && gid < gidRefl.length && gidRefl[gid]) {
-                        hasReflective = true;
-                        break;
-                    }
-                }
-                if (!hasReflective) continue;
+            // Lit-state gate (cheap)
+            if (col >= litMap.length || row >= litMap[col].length || !litMap[col][row]) continue;
 
-                // Compute best (strongest) light intensity reaching this tile
-                int tcx = col * ts + ts / 2;
-                int tcy = row * ts + ts / 2;
-                float bestIntensity = 0f;
+            // Viewport cull
+            int screenX = col * ts - cameraWX;
+            int screenY = row * ts - cameraWY;
+            if (screenX + ts < 0 || screenX > screenW || screenY + ts < 0 || screenY > screenH) continue;
 
-                // Player light
-                int plx = playerWX + ts / 2, ply = playerWY + ts / 2;
-                int lightPxP = playerLightRadius * ts;
-                {
-                    int dx = tcx - plx, dy = tcy - ply;
-                    float dist = (float) Math.sqrt(dx * dx + dy * dy);
-                    if (dist < lightPxP) {
-                        float t = 1f - dist / lightPxP;
-                        bestIntensity = Math.max(bestIntensity, t * t);
-                    }
-                }
+            int wx = col * ts + ts / 2;
+            int wy = row * ts + ts / 2;
 
-                // Torch lights
-                for (int i = 0; i < gp.obj.length; i++) {
-                    if (gp.obj[i] == null || !gp.obj[i].lightSource) continue;
-                    int tRad = gp.obj[i].lightRadius * ts;
-                    int twx  = gp.obj[i].worldX + ts / 2;
-                    int twy  = gp.obj[i].worldY + ts / 2;
-                    int dx = tcx - twx, dy = tcy - twy;
-                    float dist = (float) Math.sqrt(dx * dx + dy * dy);
-                    if (dist < tRad) {
-                        float t = 1f - dist / tRad;
-                        bestIntensity = Math.max(bestIntensity, t * t);
-                    }
-                }
-
-                if (bestIntensity < 0.01f) continue;
-
-                float alpha = bestIntensity * maxDarkness * 0.38f;
-                if (alpha > 0.55f) alpha = 0.55f;
-
-                int screenX = col * ts - cameraWX;
-                int screenY = row * ts - cameraWY;
-                g2.setComposite(cachedAlpha(alpha));
-                g2.fillRect(screenX, screenY, ts, ts);
+            // Best intensity from any light touching this tile (no sqrt)
+            float bestIntensity = 0f;
+            long dx = wx - plx, dy = wy - ply;
+            long d2 = dx * dx + dy * dy;
+            if (d2 < playerR2) {
+                float t = 1f - (float) Math.sqrt(d2) * invPlayerR;
+                bestIntensity = t * t;
             }
+            for (int i = 0; i < torchCount; i++) {
+                long tdx = wx - tcx[i], tdy = wy - tcy[i];
+                long td2 = tdx * tdx + tdy * tdy;
+                if (td2 < tr2[i]) {
+                    float t = 1f - (float) Math.sqrt(td2) * trI[i];
+                    float intensity = t * t;
+                    if (intensity > bestIntensity) bestIntensity = intensity;
+                }
+            }
+
+            if (bestIntensity < 0.01f) continue;
+
+            float alpha = bestIntensity * maxDarkness * 0.38f;
+            if (alpha > 0.55f) alpha = 0.55f;
+            g2.setComposite(cachedAlpha(alpha));
+            g2.fillRect(screenX, screenY, ts, ts);
         }
         g2.setComposite(saved);
     }
+
+    // Reusable scratch arrays for the torch snapshot in drawReflectiveHighlights.
+    // Sized to MAX_LIGHTS — enough headroom for all dynamic torches on any map.
+    private final int[]   reusableTorchCX  = new int[MAX_LIGHTS];
+    private final int[]   reusableTorchCY  = new int[MAX_LIGHTS];
+    private final long[]  reusableTorchR2  = new long[MAX_LIGHTS];
+    private final float[] reusableTorchInvR = new float[MAX_LIGHTS];
 
     // ===================== MAIN DRAW =====================
     public void draw(Graphics2D g2, float currentMaxDarkness) {

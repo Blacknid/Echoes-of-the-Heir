@@ -233,8 +233,66 @@ public class TileManager {
     // Index: [col][row]. Null until initTileLitMap() is called on first map load.
     public boolean[][] tileIsLit = null;
 
+    /**
+     * Packed [col, row] tile positions on the current map that contain at least one tile with
+     * reflectsLight = true. Built once at map load by {@link #rebuildReflectiveTilePositions()}.
+     * Lightning iterates this list every frame instead of scanning the full visible viewport,
+     * which collapses the reflective-highlight pass from O(visibleTiles * layers) to O(reflectiveTiles).
+     * Even with hundreds of reflective tiles per map, this is typically <1% of the previous work.
+     */
+    public int[] reflectiveTilePositions = new int[0];
+
     public void initTileLitMap() {
         tileIsLit = new boolean[gp.maxWorldCol][gp.maxWorldRow];
+        rebuildReflectiveTilePositions();
+    }
+
+    /**
+     * Scan all map layers once and remember which tile positions contain a reflectsLight tile.
+     * Called automatically by initTileLitMap() on each map load.
+     * Result is stored in reflectiveTilePositions as a flat packed array: [col0, row0, col1, row1, ...].
+     */
+    public void rebuildReflectiveTilePositions() {
+        if (gidToReflectsLight == null || mapLayers.isEmpty()) {
+            reflectiveTilePositions = new int[0];
+            return;
+        }
+        int maxCol = gp.maxWorldCol;
+        int maxRow = gp.maxWorldRow;
+        // First pass: count to size the flat array exactly
+        int count = 0;
+        for (int col = 0; col < maxCol; col++) {
+            for (int row = 0; row < maxRow; row++) {
+                for (int l = 0; l < mapLayers.size(); l++) {
+                    int[][] layer = mapLayers.get(l);
+                    if (col >= layer.length || row >= layer[col].length) continue;
+                    int gid = layer[col][row];
+                    if (gid > 0 && gid < gidToReflectsLight.length && gidToReflectsLight[gid]) {
+                        count++;
+                        break; // one match per (col,row) is enough
+                    }
+                }
+            }
+        }
+        // Second pass: fill
+        int[] out = new int[count * 2];
+        int idx = 0;
+        for (int col = 0; col < maxCol; col++) {
+            for (int row = 0; row < maxRow; row++) {
+                for (int l = 0; l < mapLayers.size(); l++) {
+                    int[][] layer = mapLayers.get(l);
+                    if (col >= layer.length || row >= layer[col].length) continue;
+                    int gid = layer[col][row];
+                    if (gid > 0 && gid < gidToReflectsLight.length && gidToReflectsLight[gid]) {
+                        out[idx++] = col;
+                        out[idx++] = row;
+                        break;
+                    }
+                }
+            }
+        }
+        reflectiveTilePositions = out;
+        System.out.println("Reflective tile cache: " + count + " tiles flagged");
     }
 
     public boolean isTileLit(int col, int row) {
