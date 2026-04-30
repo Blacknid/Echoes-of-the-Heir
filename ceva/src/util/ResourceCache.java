@@ -128,6 +128,34 @@ public final class ResourceCache {
         missingXmlCache.remove(path);
     }
 
+    /**
+     * Inject a parsed XML document into the cache for {@code path}.
+     *
+     * <p>This is the integration point used by the multiplayer client's map
+     * streamer: the server sends a "skeleton" TMX (no tile data) which the
+     * client preloads here under the same {@code /res/maps/<id>.tmx} virtual
+     * path that the rest of the engine already understands. The existing
+     * TileManager / MapObjectLoader pipeline picks it up via
+     * {@link #loadXml(String)} as if the TMX had been loaded from the JAR.
+     *
+     * <p>Subsequent calls overwrite any previous entry for the same path —
+     * this is what allows the same map id to be re-streamed when the
+     * multiplayer server changes worlds.
+     */
+    public static synchronized void preloadXml(String path, byte[] xmlBytes) throws Exception {
+        if (path == null || xmlBytes == null) {
+            throw new IllegalArgumentException("preloadXml: null arg");
+        }
+        DocumentBuilder builder = xmlFactory.newDocumentBuilder();
+        Document document;
+        try (java.io.ByteArrayInputStream bin = new java.io.ByteArrayInputStream(xmlBytes)) {
+            document = builder.parse(bin);
+        }
+        document.getDocumentElement().normalize();
+        xmlCache.put(path, document);
+        missingXmlCache.remove(path);
+    }
+
     public static synchronized void invalidateImage(String path) {
         imageCache.remove(path);
         missingImageCache.remove(path);

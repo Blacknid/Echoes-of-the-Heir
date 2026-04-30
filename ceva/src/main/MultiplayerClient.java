@@ -45,6 +45,8 @@ import javax.crypto.spec.SecretKeySpec;
 public class MultiplayerClient {
 
     private static final String DEBUG_LICENSE = "DEBUG000-0000";
+    private static final String DEBUG_FALLBACK_HOST = "127.0.0.1";
+    private static final int DEBUG_FALLBACK_PORT = 7777;
 
     // ── Embedded RSA public key (must match the MP server's private key) ─
     private static final String RSA_PUBLIC_KEY_B64 =
@@ -83,15 +85,20 @@ public class MultiplayerClient {
     public String serverMessage = "";
     public String connectionStatus = "";
 
+    // ── World streaming ──
+    public final MpMapStreamer mapStreamer;
+
     private int sendCounter = 0;
     private static final int SEND_INTERVAL = 3;
 
     public MultiplayerClient(GamePanel gp) {
         this.gp = gp;
+        this.mapStreamer = new MpMapStreamer(gp, this);
     }
 
     public boolean isConnected()  { return connected.get(); }
     public boolean isConnecting() { return connecting.get(); }
+    public boolean isWorldReady() { return mapStreamer.isWorldReady(); }
 
     /** Async connect.  Sends license-authenticated handshake before joining. */
     public void connect(String ip, int port, String playerName, String playerClass) {
@@ -109,15 +116,7 @@ public class MultiplayerClient {
                     return;
                 }
 
-                socket = new Socket();
-                socket.connect(new java.net.InetSocketAddress(ip, port), 5000);
-                socket.setTcpNoDelay(true);
-                socket.setSoTimeout(15000);
-
-                out = new BufferedWriter(new OutputStreamWriter(socket.getOutputStream(), StandardCharsets.UTF_8));
-                in  = new BufferedReader(new InputStreamReader(socket.getInputStream(),  StandardCharsets.UTF_8));
-
-                if (!performHandshake(license, playerName, playerClass)) {
+                if (!connectAndHandshake(ip, port, license, playerName, playerClass)) {
                     connecting.set(false);
                     connectionStatus = "Handshake failed (auth rejected or bad protocol).";
                     closeQuietly();
@@ -146,6 +145,37 @@ public class MultiplayerClient {
         }, "MP-Connect").start();
     }
 
+    private boolean connectAndHandshake(String ip, int port, String license, String playerName, String playerClass) throws IOException {
+        try {
+            openSocket(ip, port);
+            return performHandshake(license, playerName, playerClass);
+        } catch (IOException first) {
+            closeQuietly();
+            if (!Main.DEBUG_MODE || isLocalhost(ip)) {
+                throw first;
+            }
+            System.out.println("[MP Client] " + ip + ":" + port + " unreachable (" + first.getMessage()
+                    + "), retrying " + DEBUG_FALLBACK_HOST + ":" + DEBUG_FALLBACK_PORT + " because DEBUG_MODE is enabled.");
+            connectionStatus = "Retrying local debug server...";
+            openSocket(DEBUG_FALLBACK_HOST, DEBUG_FALLBACK_PORT);
+            return performHandshake(license, playerName, playerClass);
+        }
+    }
+
+    private void openSocket(String ip, int port) throws IOException {
+        socket = new Socket();
+        socket.connect(new java.net.InetSocketAddress(ip, port), 5000);
+        socket.setTcpNoDelay(true);
+        socket.setSoTimeout(15000);
+        out = new BufferedWriter(new OutputStreamWriter(socket.getOutputStream(), StandardCharsets.UTF_8));
+        in  = new BufferedReader(new InputStreamReader(socket.getInputStream(),  StandardCharsets.UTF_8));
+    }
+
+    private boolean isLocalhost(String ip) {
+        String host = ip == null ? "" : ip.trim().toLowerCase();
+        return host.equals("localhost") || host.equals("127.0.0.1") || host.equals("::1");
+    }
+
     public void disconnect() {
         connected.set(false);
         connecting.set(false);
@@ -155,6 +185,7 @@ public class MultiplayerClient {
         sessionKey = null;
         sendSeq.set(0);
         recvSeq.set(0);
+        if (mapStreamer != null) mapStreamer.reset();
         closeQuietly();
     }
 
@@ -199,6 +230,27 @@ public class MultiplayerClient {
             sendEncrypted("{\"type\":\"chat\",\"msg\":\"" + jsonEscape(message) + "\"}");
         } catch (Exception e) {
             System.out.println("[MP Client] Error sending chat: " + e.getMessage());
+        }
+    }
+
+    /** Request a single map chunk from the server. Called by MpMapStreamer. */
+    public void sendChunkRequest(int layerIdx, int cx, int cy) {
+        if (!connected.get()) return;
+        try {
+            sendEncrypted("{\"type\":\"chunk_request\",\"layer_idx\":" + layerIdx
+                    + ",\"cx\":" + cx + ",\"cy\":" + cy + "}");
+        } catch (Exception e) {
+            System.out.println("[MP Client] Error sending chunk_request: " + e.getMessage());
+        }
+    }
+
+    /** Inform the server the client has finished applying every chunk. */
+    public void sendWorldReady() {
+        if (!connected.get()) return;
+        try {
+            sendEncrypted("{\"type\":\"world_ready\"}");
+        } catch (Exception e) {
+            System.out.println("[MP Client] Error sending world_ready: " + e.getMessage());
         }
     }
 
@@ -367,8 +419,30 @@ public class MultiplayerClient {
             case "welcome" -> {
                 localId = extractInt(json, "id", -1);
                 connectionStatus = "Connected (ID: " + localId + ")";
+                int sx = extractInt(json, "spawn_x", -1);
+                int sy = extractInt(json, "spawn_y", -1);
+                if (sx >= 0 && sy >= 0) {
+                    gp.player.worldX = sx;
+                    gp.player.worldY = sy;
+                }
                 System.out.println("[MP Client] Welcome! Local ID = " + localId);
                 parsePlayerList(json);
+            }
+            case "world_info" -> handleWorldInfo(json);
+            case "chunk"      -> handleChunk(json);
+            case "pos_correction" -> {
+                int cx = extractInt(json, "x", gp.player.worldX);
+                int cy = extractInt(json, "y", gp.player.worldY);
+                String reason = extractString(json, "reason");
+                mapStreamer.applyPositionCorrection(cx, cy, reason);
+            }
+            case "trigger" -> handleTrigger(json);
+            case "map_change" -> {
+                String newMap = extractString(json, "map_id");
+                connectionStatus = "Server requested map change to '" + newMap
+                        + "' (cross-map transitions require reconnect).";
+                System.out.println("[MP Client] map_change -> " + newMap);
+                disconnect();
             }
             case "player_join" -> {
                 int id = extractInt(json, "id", -1);
@@ -423,6 +497,132 @@ public class MultiplayerClient {
                 disconnect();
             }
             default -> { /* ignore unknown */ }
+        }
+    }
+
+    // ── World streaming message decoders ──
+    private void handleWorldInfo(String json) {
+        try {
+            MpMapStreamer.WorldInfo info = new MpMapStreamer.WorldInfo();
+            info.mapId      = stringOr(extractString(json, "map_id"), "");
+            info.width      = extractInt(json, "width", 0);
+            info.height     = extractInt(json, "height", 0);
+            info.tilewidth  = extractInt(json, "tilewidth", 32);
+            info.tileheight = extractInt(json, "tileheight", 32);
+            info.chunkSize  = extractInt(json, "chunk_size", 32);
+            info.chunksX    = extractInt(json, "chunks_x", 0);
+            info.chunksY    = extractInt(json, "chunks_y", 0);
+            int[] spawn = extractIntPair(json, "default_spawn");
+            info.spawnCol   = spawn != null ? spawn[0] : 0;
+            info.spawnRow   = spawn != null ? spawn[1] : 0;
+            info.layerNames = extractLayerNames(json);
+
+            String skeletonB64 = extractString(json, "skeleton_xml_b64");
+            if (skeletonB64 == null) {
+                System.out.println("[MP Client] world_info missing skeleton_xml_b64");
+                return;
+            }
+            info.skeletonXmlBytes = Base64.getDecoder().decode(skeletonB64);
+            mapStreamer.applyWorldInfo(info);
+        } catch (Exception e) {
+            System.out.println("[MP Client] handleWorldInfo error: " + e.getMessage());
+            e.printStackTrace(System.out);
+        }
+    }
+
+    private void handleChunk(String json) {
+        try {
+            MpMapStreamer.ChunkPacket ch = new MpMapStreamer.ChunkPacket();
+            ch.layerIdx   = extractInt(json, "layer_idx", -1);
+            ch.layerName  = stringOr(extractString(json, "layer"), "");
+            ch.cx         = extractInt(json, "cx", -1);
+            ch.cy         = extractInt(json, "cy", -1);
+            ch.w          = extractInt(json, "w", 0);
+            ch.h          = extractInt(json, "h", 0);
+            ch.dataBase64 = extractString(json, "data");
+            if (ch.layerIdx < 0 || ch.cx < 0 || ch.cy < 0 || ch.dataBase64 == null) return;
+            mapStreamer.applyChunk(ch);
+        } catch (Exception e) {
+            System.out.println("[MP Client] handleChunk error: " + e.getMessage());
+        }
+    }
+
+    private void handleTrigger(String json) {
+        try {
+            MpMapStreamer.TriggerPacket t = new MpMapStreamer.TriggerPacket();
+            t.id          = extractInt(json, "id", 0);
+            t.name        = stringOr(extractString(json, "name"), "");
+            t.triggerType = stringOr(extractString(json, "trigger_type"), "");
+            t.x = extractDouble(json, "x", 0);
+            t.y = extractDouble(json, "y", 0);
+            t.w = extractDouble(json, "w", 0);
+            t.h = extractDouble(json, "h", 0);
+            t.rawJson     = json;
+            mapStreamer.applyTrigger(t);
+        } catch (Exception e) {
+            System.out.println("[MP Client] handleTrigger error: " + e.getMessage());
+        }
+    }
+
+    private static String stringOr(String s, String fallback) {
+        return (s == null || s.isEmpty()) ? fallback : s;
+    }
+
+    /**
+     * Parse a JSON array of two ints, e.g. {@code "default_spawn":[24,15]}.
+     * Returns {@code null} if the key is missing or malformed.
+     */
+    private static int[] extractIntPair(String json, String key) {
+        String search = "\"" + key + "\":";
+        int i = json.indexOf(search);
+        if (i < 0) return null;
+        int start = json.indexOf('[', i);
+        int end   = json.indexOf(']', start);
+        if (start < 0 || end < 0) return null;
+        String[] parts = json.substring(start + 1, end).split(",");
+        if (parts.length < 2) return null;
+        try {
+            return new int[]{ Integer.parseInt(parts[0].trim()),
+                              Integer.parseInt(parts[1].trim()) };
+        } catch (NumberFormatException e) {
+            return null;
+        }
+    }
+
+    /** Extract the {@code layers} array of objects, returning each layer's {@code name}. */
+    private static java.util.List<String> extractLayerNames(String json) {
+        java.util.ArrayList<String> out = new java.util.ArrayList<>();
+        int idx = json.indexOf("\"layers\"");
+        if (idx < 0) return out;
+        int arrStart = json.indexOf('[', idx);
+        int arrEnd   = json.indexOf(']', arrStart);
+        if (arrStart < 0 || arrEnd < 0) return out;
+        String arr = json.substring(arrStart + 1, arrEnd);
+        for (String entry : arr.split("\\},\\s*\\{")) {
+            String wrapped = "{" + entry.replace("{", "").replace("}", "") + "}";
+            String name = extractString(wrapped, "name");
+            out.add(name != null ? name : "");
+        }
+        return out;
+    }
+
+    private static double extractDouble(String json, String key, double fallback) {
+        String search = "\"" + key + "\":";
+        int i = json.indexOf(search);
+        if (i < 0) return fallback;
+        int start = i + search.length();
+        while (start < json.length() && json.charAt(start) == ' ') start++;
+        int end = start;
+        while (end < json.length()) {
+            char c = json.charAt(end);
+            if (Character.isDigit(c) || c == '.' || c == '-' || c == 'e' || c == 'E' || c == '+') end++;
+            else break;
+        }
+        if (end == start) return fallback;
+        try {
+            return Double.parseDouble(json.substring(start, end));
+        } catch (NumberFormatException e) {
+            return fallback;
         }
     }
 
