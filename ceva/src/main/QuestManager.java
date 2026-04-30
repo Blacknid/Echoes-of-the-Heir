@@ -59,6 +59,7 @@ public class QuestManager {
         public final String failDialogue;  // dialogue when player lacks required item
         public final String give;          // ItemFactory id to give the player
         public final String item;          // item required (deliver) or to collect
+        public final String map;           // map id required (for go action)
         public final int    count;         // target count (collect / kill, default 1)
         public final boolean consume;      // consume the delivered item
         public final String description;   // step description shown in quest log
@@ -70,6 +71,7 @@ public class QuestManager {
             this.failDialogue = m.get("failDialogue");
             this.give         = m.get("give");
             this.item         = m.get("item");
+            this.map          = m.get("map");
             this.count        = intVal(m, "count", 1);
             this.consume      = "true".equals(m.get("consume"));
             this.description  = m.get("description");
@@ -148,24 +150,41 @@ public class QuestManager {
     private boolean logOpen = false;
 
     // Display colours / fonts (cached, not allocated per frame)
-    private static final Color BG         = new Color(15, 12, 20, 210);
-    private static final Color BORDER     = new Color(180, 160, 100);
-    private static final Color TEXT       = new Color(220, 215, 200);
-    private static final Color COMPLETE   = new Color(80, 200, 80);
-    private static final Color INCOMPLETE = new Color(200, 180, 100);
-    private static final Color NEW_QUEST  = new Color(255, 220, 80);
+    private static final Color BG              = new Color(15, 12, 20, 225);
+    private static final Color BORDER          = new Color(180, 160, 100);
+    private static final Color TEXT            = new Color(220, 215, 200);
+    private static final Color COMPLETE        = new Color(80, 200, 80);
+    private static final Color INCOMPLETE      = new Color(200, 180, 100);
+    private static final Color NEW_QUEST       = new Color(255, 220, 80);
+    private static final Color OBJECTIVE_COLOR = new Color(160, 210, 240);
+    private static final Color SECTION_COLOR   = new Color(230, 200, 100);
+    private static final Color DONE_TEXT       = new Color(100, 160, 100);
+    private static final Color CARD_BG         = new Color(30, 25, 35, 180);
+    private static final Color CARD_BORDER     = new Color(60, 55, 65, 200);
+    private static final Color PROG_BG         = new Color(15, 10, 20, 255);
+    private static final Color PROG_FILL       = new Color(90, 160, 200, 255);
 
     private static final java.awt.BasicStroke STROKE_2 = new java.awt.BasicStroke(2f);
-    private static final Color CHECKBOX_GRAY = new Color(100, 100, 100);
+    private static final java.awt.BasicStroke STROKE_1 = new java.awt.BasicStroke(1f);
     private static final Color DESC_COLOR    = new Color(160, 155, 145);
     private static final Color HINT_COLOR    = new Color(150, 150, 150);
-    private Font fontPlain14, fontBold28, fontPlain20, fontPlain16, fontPlain14b;
+    private Font fontPlain14, fontBold28, fontBold16, fontPlain20, fontPlain16, fontPlain14b;
+
+    // Scroll state for the quest log
+    private int logScrollOffset = 0;
+    private int logScrollMax    = 0;
+
+    /** Scroll the quest log. dir = -1 (up) or +1 (down). */
+    public void scrollLog(int dir) {
+        logScrollOffset = Math.max(0, Math.min(logScrollMax, logScrollOffset + dir * 22));
+    }
 
     private void ensureFonts(Graphics2D g2) {
         if (fontPlain14 == null) {
             Font base = g2.getFont();
             fontPlain14  = base.deriveFont(Font.PLAIN, 14f);
             fontBold28   = base.deriveFont(Font.BOLD, 28f);
+            fontBold16   = base.deriveFont(Font.BOLD, 16f);
             fontPlain20  = base.deriveFont(Font.PLAIN, 20f);
             fontPlain16  = base.deriveFont(16f);
             fontPlain14b = base.deriveFont(14f);
@@ -283,7 +302,7 @@ public class QuestManager {
                 if (q.currentStep >= q.steps.length) return false;
                 QuestStep step = q.steps[q.currentStep];
                 String a = step.action;
-                if ("collect".equals(a) || "kill".equals(a) || "go".equals(a)) {
+                if ("collect".equals(a) || "kill".equals(a) || "defeat".equals(a) || "go".equals(a)) {
                     q.stepProgress = Math.min(q.stepProgress + amount, step.count);
                     if (q.stepProgress >= step.count) {
                         q.currentStep++;
@@ -310,6 +329,32 @@ public class QuestManager {
             return false;
         }
         return false;
+    }
+
+    /**
+     * Called whenever the player enters a new map.
+     * Automatically completes any active {@code go} step whose {@code map} matches {@code mapId}.
+     */
+    public void notifyMapEntered(String mapId) {
+        if (mapId == null) return;
+        for (int i = 0, n = quests.size(); i < n; i++) {
+            Quest q = quests.get(i);
+            if (q.isComplete()) continue;
+
+            // Step-based quest with a go step
+            if (q.steps != null && q.currentStep < q.steps.length) {
+                QuestStep step = q.steps[q.currentStep];
+                if ("go".equals(step.action) && mapId.equalsIgnoreCase(step.map)) {
+                    q.currentStep++;
+                    q.stepProgress = 0;
+                    if (q.isComplete()) {
+                        gp.ui.addMessage("Quest complete: " + q.name + "!", COMPLETE);
+                        grantRewards(q.id);
+                        chainNext(q.id);
+                    }
+                }
+            }
+        }
     }
 
     /**
@@ -478,76 +523,206 @@ public class QuestManager {
     public void drawLog(Graphics2D g2) {
         if (!logOpen) return;
 
-        int w = 400, h = 350;
-        int x = (gp.screenWidth - w) / 2;
-        int y = (gp.screenHeight - h) / 2;
+        ensureFonts(g2);
 
+        final int W = 520, H = 500;
+        final int x = (gp.screenWidth - W) / 2;
+        final int y = (gp.screenHeight - H) / 2;
+        final int TITLE_H   = 48;
+        final int FOOTER_H  = 26;
+        final int PADDING   = 16;
+        final int contentTop    = y + TITLE_H;
+        final int contentBottom = y + H - FOOTER_H;
+        final int contentH      = contentBottom - contentTop;
+
+        // ── Background ──
+        g2.setComposite(AlphaComposite.getInstance(AlphaComposite.SRC_OVER, 0.97f));
         g2.setColor(BG);
-        g2.fillRoundRect(x, y, w, h, 16, 16);
+        g2.fillRoundRect(x, y, W, H, 18, 18);
+        g2.setComposite(AlphaComposite.getInstance(AlphaComposite.SRC_OVER, 1f));
         g2.setColor(BORDER);
         g2.setStroke(STROKE_2);
-        g2.drawRoundRect(x + 3, y + 3, w - 6, h - 6, 12, 12);
+        g2.drawRoundRect(x + 2, y + 2, W - 4, H - 4, 16, 16);
 
-        ensureFonts(g2);
+        // ── Title bar ──
+        g2.setColor(new Color(25, 20, 15, 240));
+        g2.fillRect(x + 3, y + 3, W - 6, TITLE_H - 3);
+        // thin gold separator under title
+        g2.setColor(BORDER);
+        g2.setStroke(STROKE_1);
+        g2.drawLine(x + PADDING, y + TITLE_H, x + W - PADDING, y + TITLE_H);
+        g2.setStroke(STROKE_2);
+
         g2.setFont(fontBold28);
-        g2.setColor(TEXT);
-        g2.drawString("Quest Log", x + 20, y + 35);
+        g2.setColor(NEW_QUEST);
+        g2.drawString("Quest Log", x + PADDING + 2, y + 36);
 
-        g2.setFont(fontPlain20);
-        int qy = y + 65;
-        for (int i = 0, n = quests.size(); i < n; i++) {
-            Quest q = quests.get(i);
-            boolean done = q.isComplete();
-            g2.setColor(done ? COMPLETE : CHECKBOX_GRAY);
-            g2.drawRect(x + 20, qy - 14, 16, 16);
-            if (done) {
-                g2.drawLine(x + 22, qy - 6, x + 28, qy);
-                g2.drawLine(x + 28, qy, x + 34, qy - 12);
-            }
-            g2.setColor(done ? COMPLETE : TEXT);
-            g2.drawString(q.name, x + 44, qy);
+        // quest count summary (top-right of title)
+        int activeCount = 0, doneCount = 0;
+        for (int i = 0; i < quests.size(); i++) {
+            if (quests.get(i).isComplete()) doneCount++; else activeCount++;
+        }
+        g2.setFont(fontPlain14b);
+        g2.setColor(DESC_COLOR);
+        String summary = activeCount + " active  •  " + doneCount + " done";
+        int sw = g2.getFontMetrics().stringWidth(summary);
+        g2.drawString(summary, x + W - sw - PADDING, y + 36);
 
-            // Progress display
-            String prog;
-            if (q.steps != null) {
-                if (done) {
-                    prog = "done";
-                } else if (q.currentStep < q.steps.length && q.steps[q.currentStep].count > 1) {
-                    prog = q.stepProgress + "/" + q.steps[q.currentStep].count;
-                } else {
-                    prog = (q.currentStep + 1) + "/" + q.steps.length;
+        // ── Clip content area ──
+        java.awt.Shape oldClip = g2.getClip();
+        g2.setClip(x + 4, contentTop, W - 8, contentH);
+
+        int qy = contentTop + 10 - logScrollOffset;
+
+        // ── ACTIVE QUESTS section ──
+        if (activeCount > 0) {
+            drawSectionHeader(g2, x, qy, W, PADDING, "\u25B6  ACTIVE QUESTS", SECTION_COLOR, 130);
+            qy += 34;
+
+            for (int i = 0; i < quests.size(); i++) {
+                Quest q = quests.get(i);
+                if (q.isComplete()) continue;
+
+                // Determine objective and progress
+                String objective = null;
+                boolean hasProgress = false;
+                int progC = 0, progT = 1;
+                String badgeText = null;
+
+                if (q.steps != null && q.currentStep < q.steps.length) {
+                    QuestStep step = q.steps[q.currentStep];
+                    if (step.description != null && !step.description.isEmpty()) {
+                        objective = step.description;
+                    } else if (step.count > 1) {
+                        objective = String.format("Gather/Kill %d required", step.count);
+                    } else {
+                        objective = q.description;
+                    }
+
+                    // Progress bar values?
+                    if (step.count > 1) {
+                        hasProgress = true;
+                        progC = q.stepProgress;
+                        progT = step.count;
+                    } else if (q.steps.length > 1) {
+                        hasProgress = true;
+                        progC = q.currentStep;
+                        progT = q.steps.length;
+                        badgeText = "Step " + (q.currentStep + 1) + " / " + q.steps.length;
+                    }
+
+                } else if (q.steps == null) {
+                    objective = q.description;
+                    if (q.target > 1) {
+                        hasProgress = true;
+                        progC = q.current;
+                        progT = q.target;
+                        badgeText = "Progress " + q.current + " / " + q.target;
+                    }
                 }
-            } else {
-                prog = q.current + "/" + q.target;
-            }
-            g2.setColor(done ? COMPLETE : INCOMPLETE);
-            g2.setFont(fontPlain16);
-            g2.drawString(prog, x + w - 60, qy);
-            g2.setFont(fontPlain20);
 
-            // Description: use current step description if available
-            String descText = q.description;
-            if (q.steps != null && !done && q.currentStep < q.steps.length) {
-                QuestStep step = q.steps[q.currentStep];
-                if (step.description != null && !step.description.isEmpty()) {
-                    descText = step.description;
+                // Card Height Calculation
+                int cardH = 34;
+                if (objective != null && !objective.isEmpty()) cardH += 22;
+                if (hasProgress) cardH += 18;
+
+                // Draw Card Background
+                g2.setColor(CARD_BG);
+                g2.fillRoundRect(x + PADDING, qy - 20, W - PADDING * 2, cardH, 12, 12);
+                g2.setColor(CARD_BORDER);
+                g2.setStroke(STROKE_1);
+                g2.drawRoundRect(x + PADDING, qy - 20, W - PADDING * 2, cardH, 12, 12);
+                g2.setStroke(STROKE_2);
+
+                // Quest Title
+                g2.setFont(fontPlain20);
+                g2.setColor(TEXT);
+                g2.drawString("\u2694  " + q.name, x + PADDING + 12, qy);
+
+                qy += 6;
+
+                // Objective
+                if (objective != null && !objective.isEmpty()) {
+                    g2.setFont(fontPlain14b);
+                    g2.setColor(OBJECTIVE_COLOR);
+                    g2.drawString("\u2192  " + objective, x + PADDING + 20, qy + 14);
+                    qy += 22;
                 }
-            }
-            g2.setColor(DESC_COLOR);
-            g2.setFont(fontPlain14b);
-            String[] descLines = descText.split("\\n", -1);
-            for (int dl = 0; dl < descLines.length; dl++) {
-                g2.drawString(descLines[dl].trim(), x + 44, qy + 18 + dl * 16);
-            }
-            g2.setFont(fontPlain20);
 
-            qy += 50 + (descLines.length - 1) * 16;
-            if (qy > y + h - 30) break;
+                // Progress Bar
+                if (hasProgress) {
+                    qy += 4;
+                    int bx = x + PADDING + 20;
+                    int bw = W - PADDING * 2 - 40;
+                    g2.setColor(PROG_BG);
+                    g2.fillRoundRect(bx, qy, bw, 6, 3, 3);
+                    int fillW = (int) ((double) progC / progT * bw);
+                    if (fillW > 0) {
+                        g2.setColor(PROG_FILL);
+                        g2.fillRoundRect(bx, qy, fillW, 6, 3, 3);
+                    }
+                    g2.setColor(CARD_BORDER);
+                    g2.setStroke(STROKE_1);
+                    g2.drawRoundRect(bx, qy, bw, 6, 3, 3);
+                    g2.setStroke(STROKE_2);
+
+                    if (badgeText == null) badgeText = progC + " / " + progT;
+                    g2.setFont(fontPlain14b);
+                    g2.setColor(INCOMPLETE);
+                    int tw = g2.getFontMetrics().stringWidth(badgeText);
+                    g2.drawString(badgeText, bx + bw - tw, qy - 6);
+                    qy += 14;
+                }
+
+                qy += 26; // Space after card
+            }
+            qy += 6;
         }
 
+        // ── COMPLETED section ──
+        if (doneCount > 0) {
+            drawSectionHeader(g2, x, qy, W, PADDING, "\u2713  COMPLETED (" + doneCount + ")", COMPLETE, 150);
+            qy += 30;
+
+            for (int i = 0; i < quests.size(); i++) {
+                Quest q = quests.get(i);
+                if (!q.isComplete()) continue;
+                g2.setFont(fontPlain16);
+                g2.setColor(DONE_TEXT);
+                g2.drawString("\u2714  " + q.name, x + PADDING + 14, qy);
+                qy += 28;
+            }
+        }
+
+        // Update scroll max
+        logScrollMax = Math.max(0, (qy + logScrollOffset) - contentBottom + 8);
+
+        g2.setClip(oldClip);
+
+        // ── Footer ──
+        g2.setColor(new Color(20, 16, 12, 230));
+        g2.fillRect(x + 3, contentBottom, W - 6, FOOTER_H - 1);
+        g2.setColor(BORDER);
+        g2.setStroke(STROKE_1);
+        g2.drawLine(x + PADDING, contentBottom, x + W - PADDING, contentBottom);
+        g2.setStroke(STROKE_2);
         g2.setFont(fontPlain14b);
         g2.setColor(HINT_COLOR);
-        g2.drawString("Press Q to close", x + w / 2 - 40, y + h - 12);
+        String hint = logScrollMax > 0 ? "\u2191 \u2193 to scroll  \u2022  Q to close" : "Q to close";
+        int hw = g2.getFontMetrics().stringWidth(hint);
+        g2.drawString(hint, x + (W - hw) / 2, contentBottom + 17);
+    }
+
+    /** Helper: draws a section header with label and a horizontal rule. */
+    private void drawSectionHeader(Graphics2D g2, int x, int qy, int W, int pad,
+                                    String label, Color col, int lineStart) {
+        g2.setFont(fontBold16);
+        g2.setColor(col);
+        g2.drawString(label, x + pad, qy + 14);
+        g2.setColor(new Color(col.getRed(), col.getGreen(), col.getBlue(), 80));
+        g2.setStroke(STROKE_1);
+        g2.drawLine(x + pad + lineStart, qy + 10, x + W - pad, qy + 10);
+        g2.setStroke(STROKE_2);
     }
 
     // ══════════════════════════════════════════════════════════════════════

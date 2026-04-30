@@ -181,7 +181,7 @@ public class Player extends Entity {
         defaultSpeed = 4;
         speed = defaultSpeed;
         direction = DIR_DOWN;
-        level = 1;
+        level = 100;
         maxLife = 3;
         life = maxLife;
         strenght = 2;
@@ -1504,11 +1504,50 @@ public class Player extends Entity {
             if (i != 999) {
                 attackCanceled = true;
                 gp.npc[i].speak();
-            } else if (!attackCanceled && currentWeapon != null) {
-                gp.playSE(SFX.WEAPON_SWING);
-                attacking = true;
+            } else {
+                int rangedIdx = findRangedInteractNPC();
+                if (rangedIdx != 999) {
+                    attackCanceled = true;
+                    gp.npc[rangedIdx].speak();
+                } else if (!attackCanceled && currentWeapon != null) {
+                    gp.playSE(SFX.WEAPON_SWING);
+                    attacking = true;
+                }
             }
         }
+    }
+
+    /** Returns the index of the nearest NPC with interactRange > 0 that is within
+     *  range and roughly in the player's facing direction, or 999 if none found. */
+    private int findRangedInteractNPC() {
+        int playerCX = getCenterX();
+        int playerCY = getCenterY();
+        int bestIdx  = 999;
+        int bestDistSq = Integer.MAX_VALUE;
+        for (int k = 0; k < gp.npc.length; k++) {
+            Entity n = gp.npc[k];
+            if (n == null || n.interactRange <= 0) continue;
+            int dx = n.getCenterX() - playerCX;
+            int dy = n.getCenterY() - playerCY;
+            int distSq = dx * dx + dy * dy;
+            int range  = n.interactRange;
+            if (distSq > range * range) continue;
+            // Must be in the forward hemisphere of the player's facing direction
+            int dot;
+            switch (direction) {
+                case DIR_DOWN  -> dot =  dy;
+                case DIR_UP    -> dot = -dy;
+                case DIR_LEFT  -> dot = -dx;
+                case DIR_RIGHT -> dot =  dx;
+                default        -> dot = 0;
+            }
+            if (dot <= 0) continue;
+            if (distSq < bestDistSq) {
+                bestDistSq = distSq;
+                bestIdx = k;
+            }
+        }
+        return bestIdx;
     }
 
     public void damageInteractiveTile(int i) {

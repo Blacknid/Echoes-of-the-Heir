@@ -108,6 +108,16 @@ public class NPCFactory {
         if (boolVal(def.props, "guardMode", false)) npc.guardMode = true;
         int idleDir = intVal(def.props, "idleDirection", -1);
         if (idleDir >= 0) npc.idleDirection = idleDir;
+        int idleRowsVal = intVal(def.props, "idleRows", 4);
+        npc.idleRows = idleRowsVal;
+        int spriteAspectVal = intVal(def.props, "spriteAspect", 1);
+        npc.spriteAspect = Math.max(1, spriteAspectVal);
+        float spriteScaleVal = floatVal(def.props, "spriteScale", 1.0f);
+        if (spriteScaleVal > 0) npc.spriteScale = spriteScaleVal;
+        int interactRangeVal = intVal(def.props, "interactRange", 0);
+        npc.interactRange = interactRangeVal;
+        int depthSortYOffsetVal = intVal(def.props, "depthSortYOffset", 0);
+        npc.depthSortYOffset = depthSortYOffsetVal;
         String portrait = def.props.get("portrait");
         if (portrait != null && !portrait.isBlank()) npc.portraitPath = portrait;
 
@@ -121,20 +131,48 @@ public class NPCFactory {
             ActivityDef act = entry.getValue();
             if (act.sprite == null) continue;
             try {
-                BufferedImage[][] frames = npc.loadSheetVariable(act.sprite, act.framesPerRow);
-                if (frames != null) {
-                    if (npc.activityAnimations == null) npc.activityAnimations = new HashMap<>();
-                    // Map rows: 0=down, 1=up, 2=left, 3=right (standard walk sheet order)
-                    BufferedImage[][] mapped = new BufferedImage[4][];
+                BufferedImage[][] mapped = new BufferedImage[4][];
+                if (act.aspect > 1) {
+                    // Non-square frames: use loadSpriteMatrix with explicit cell dimensions.
+                    // Cell height = sheet.height / rows; cell width = cellHeight * aspect.
+                    java.awt.image.BufferedImage rawSheet = util.ResourceCache.loadImage(act.sprite + ".png");
+                    int rows = act.framesPerRow.length;
+                    int cellH = rawSheet.getHeight() / Math.max(1, rows);
+                    int cellW = cellH * act.aspect;
+                    BufferedImage[][] matrix = npc.loadSpriteMatrix(act.sprite, cellW, cellH);
+                    // Scale each frame to a tileSize-wide, tileSize-tall square
+                    int ts = gp.tileSize;
+                    BufferedImage[][] scaled = new BufferedImage[matrix.length][];
+                    for (int r = 0; r < matrix.length; r++) {
+                        scaled[r] = new BufferedImage[matrix[r].length];
+                        for (int c = 0; c < matrix[r].length; c++) {
+                            scaled[r][c] = util.UtilityTool.scaleImage(matrix[r][c], ts, ts);
+                        }
+                    }
+                    // Map rows: 0=down, 1=left, 2=right, 3=up (standard walk sheet order)
+                    int[] dirMap = {Entity.DIR_DOWN, Entity.DIR_LEFT, Entity.DIR_RIGHT, Entity.DIR_UP};
+                    for (int r = 0; r < Math.min(scaled.length, dirMap.length); r++) {
+                        mapped[dirMap[r]] = scaled[r];
+                    }
+                    // Fill missing directions from row 0
+                    if (mapped[Entity.DIR_DOWN] != null) {
+                        if (mapped[Entity.DIR_UP]    == null) mapped[Entity.DIR_UP]    = mapped[Entity.DIR_DOWN];
+                        if (mapped[Entity.DIR_LEFT]  == null) mapped[Entity.DIR_LEFT]  = mapped[Entity.DIR_DOWN];
+                        if (mapped[Entity.DIR_RIGHT] == null) mapped[Entity.DIR_RIGHT] = mapped[Entity.DIR_DOWN];
+                    }
+                } else {
+                    BufferedImage[][] frames = npc.loadSheetVariable(act.sprite, act.framesPerRow);
+                    if (frames == null) continue;
                     mapped[Entity.DIR_DOWN]  = frames.length > 0 ? frames[0] : null;
                     mapped[Entity.DIR_UP]    = frames.length > 1 ? frames[1] : null;
                     mapped[Entity.DIR_LEFT]  = frames.length > 2 ? frames[2] : null;
                     mapped[Entity.DIR_RIGHT] = frames.length > 3 ? frames[3] : null;
-                    npc.activityAnimations.put(actName, mapped);
-                    if (act.speed > 0) {
-                        if (npc.activityAnimSpeeds == null) npc.activityAnimSpeeds = new HashMap<>();
-                        npc.activityAnimSpeeds.put(actName, act.speed);
-                    }
+                }
+                if (npc.activityAnimations == null) npc.activityAnimations = new HashMap<>();
+                npc.activityAnimations.put(actName, mapped);
+                if (act.speed > 0) {
+                    if (npc.activityAnimSpeeds == null) npc.activityAnimSpeeds = new HashMap<>();
+                    npc.activityAnimSpeeds.put(actName, act.speed);
                 }
             } catch (Exception e) {
                 System.out.println("[NPCFactory] Failed to load activity '" + actName + "' sprite for NPC '" + id + "': " + e.getMessage());
@@ -221,6 +259,7 @@ public class NPCFactory {
         String sprite;
         int[] framesPerRow = {6, 6, 6, 6};
         int speed = 0; // 0 = use default idle interval
+        int aspect = 1; // cell width multiplier: 1 = square cells, 2 = each frame is twice as wide as tall
     }
 
     private static class StateDef {
@@ -366,6 +405,10 @@ public class NPCFactory {
             act.sprite = actProps.get("sprite");
             if (actProps.containsKey("speed")) {
                 try { act.speed = Integer.parseInt(actProps.get("speed")); }
+                catch (NumberFormatException e) { /* keep default */ }
+            }
+            if (actProps.containsKey("aspect")) {
+                try { act.aspect = Math.max(1, Integer.parseInt(actProps.get("aspect"))); }
                 catch (NumberFormatException e) { /* keep default */ }
             }
 
@@ -534,5 +577,11 @@ public class NPCFactory {
         String v = m.get(key);
         if (v == null) return def;
         return "true".equalsIgnoreCase(v);
+    }
+
+    private static float floatVal(Map<String, String> m, String key, float def) {
+        String v = m.get(key);
+        if (v == null) return def;
+        try { return Float.parseFloat(v); } catch (NumberFormatException e) { return def; }
     }
 }

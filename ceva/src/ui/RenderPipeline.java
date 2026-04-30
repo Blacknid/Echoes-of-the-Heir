@@ -159,7 +159,7 @@ public class RenderPipeline {
         java.awt.Composite savedComp = g2.getComposite();
         for (int i = 0; i < entityListIndex; i++) {
             Entity e = entityList.get(i);
-            int entityY = e.worldY + gp.tileSize;
+            int entityY = e.worldY + gp.tileSize + e.depthSortYOffset;
 
             while (true) {
                 float nextDepthTileY = depthTileIdx < depthTileCount ? gp.tileM.getDepthTileSortY(depthTileIdx) : Float.MAX_VALUE;
