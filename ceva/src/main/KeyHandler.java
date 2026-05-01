@@ -397,29 +397,46 @@ public class KeyHandler implements KeyListener {
         gp.mpClient.connect(ip.trim(), port, "Player", "Fighter");
         // Start game in multiplayer mode
         gp.multiplayerMode = true;
-        // We'll check connection status and transition to play state
-        // Start a watcher thread that transitions to play state on connection success
+        // Watcher thread:
+        //   1. wait up to 6 s for the TCP handshake to succeed
+        //   2. then wait up to 60 s for the streamed world to fully load
+        // Only after the world is ready do we enter playState — entering
+        // earlier would render an empty map until chunks arrived.
         new Thread(() -> {
             long start = System.currentTimeMillis();
+            // Phase 1: handshake
             while (System.currentTimeMillis() - start < 6000) {
-                if (gp.mpClient.isConnected()) {
-                    gp.gameState = gp.playState;
-                    gp.playMusic(SFX.MAIN_THEME);
-                    return;
-                }
+                if (gp.mpClient.isConnected()) break;
                 if (!gp.mpClient.isConnecting()) {
-                    // Connection failed
                     gp.multiplayerMode = false;
                     return;
                 }
                 try { Thread.sleep(100); } catch (InterruptedException ex) { break; }
             }
-            // Timeout
             if (!gp.mpClient.isConnected()) {
                 gp.mpClient.connectionStatus = "Connection timed out.";
                 gp.mpClient.disconnect();
                 gp.multiplayerMode = false;
+                return;
             }
+            // Phase 2: world streaming
+            long worldDeadline = System.currentTimeMillis() + 60_000;
+            while (System.currentTimeMillis() < worldDeadline) {
+                if (!gp.mpClient.isConnected()) {
+                    gp.multiplayerMode = false;
+                    return;
+                }
+                gp.mpClient.connectionStatus = gp.mpClient.mapStreamer.progressString();
+                if (gp.mpClient.isWorldReady()) {
+                    gp.gameState = gp.playState;
+                    gp.playMusic(SFX.MAIN_THEME);
+                    return;
+                }
+                try { Thread.sleep(150); } catch (InterruptedException ex) { break; }
+            }
+            gp.mpClient.connectionStatus = "World load timed out.";
+            gp.mpClient.disconnect();
+            gp.multiplayerMode = false;
         }, "MP-Watcher").start();
     }
 
@@ -605,7 +622,7 @@ public class KeyHandler implements KeyListener {
         if ( code == KeyEvent.VK_V ) { overdrivePressed = true; }
     }
 
-    /** Returns true if any overlay (quest log, minimap) is currently open */
+    /** Returns true if any overlay (quest log, world map) is currently open */
     private boolean isOverlayOpen() {
         return (gp.questManager != null && gp.questManager.isLogOpen()) ||
                (gp.minimap != null && gp.minimap.isWorldMapOpen());

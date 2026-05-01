@@ -13,7 +13,7 @@ import org.w3c.dom.NodeList;
 
 import entity.Entity;
 import main.GamePanel;
-import tiles_interactive.interactiveTile;
+import tile.interactiveTile;
 import util.ResourceCache;
 
 /**

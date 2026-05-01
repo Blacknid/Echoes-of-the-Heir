@@ -10,4 +10,9 @@ Michi-s-adventure.jar
 save.dat
 servers.txt
 config.txt
-.vscode/*
+build/*
+output/*
+*.patch
+save.dat
+config.txt
+

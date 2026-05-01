@@ -1729,7 +1729,7 @@ public class TileManager {
     /**
      * Sample the center pixel colour of the tile image for a given GID.
      * Returns the Color of the center pixel, or null if the GID is invalid or has no image.
-     * Used by Minimap for accurate terrain representation instead of name-based biome heuristics.
+     * Samples the actual tile art for accurate terrain representation.
      */
     public Color sampleTileColor(int gid) {
         if (gid <= 0 || gidToTile == null || gid >= gidToTile.length) return null;

@@ -40,21 +40,21 @@ import javax.crypto.spec.PSource;
 import javax.crypto.spec.SecretKeySpec;
 
 /**
- * Cloud-save client v2.
+ * Cloud-save client
  *
- * <h3>Crypto</h3>
+ * Crypto
  *  - RSA-OAEP-SHA256 for the licensed handshake
  *  - AES-256-GCM (AEAD) for every framed message after the handshake
  *  - HKDF-SHA256 for delivery- and local-key derivation
  *  - Per-direction sequence counters bound into AES-GCM AAD (anti-replay)
  *
- * <h3>Server discovery</h3>
+ * Server discovery
  *  Reads {@code save_servers.txt} from the game's working directory. One
  *  endpoint per line (host or host:port, # for comments). The client tries
  *  each entry in order and uses the first that responds to {@code PING}.
  *  If the file is missing or empty, falls back to {@link #FALLBACK_HOSTS}.
  *
- * <h3>Offline cache</h3>
+ * Offline cache
  *  When all save servers are unreachable, the game state is encrypted with a
  *  key derived from {@code (license_key, machine_fingerprint)} and written
  *  to {@code local_save.dat}. No plaintext key file is left on disk. The

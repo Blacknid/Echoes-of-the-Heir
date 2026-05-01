@@ -545,8 +545,8 @@ public class Player extends Entity {
             int iTileIndex = gp.cChecker.checkEntity(this, gp.iTile);
             if (iTileIndex != 999 && gp.iTile[iTileIndex] != null) {
                 if (gp.iTile[iTileIndex].collision) collisionOn = true;
-                if (gp.iTile[iTileIndex] instanceof tiles_interactive.IT_Coins) {
-                    tiles_interactive.IT_Coins coinTile = (tiles_interactive.IT_Coins) gp.iTile[iTileIndex];
+                if (gp.iTile[iTileIndex] instanceof tile.IT_Coins) {
+                    tile.IT_Coins coinTile = (tile.IT_Coins) gp.iTile[iTileIndex];
                     coin += coinTile.coinValue;
                     gp.playSE(SFX.GOT_GEM);
                     generateParticle(coinTile, coinTile);
@@ -1558,7 +1558,7 @@ public class Player extends Entity {
             gp.screenShake.shakeLight();
 
             // Random drop from destructible pots
-            if (tile instanceof tiles_interactive.IT_Pot) {
+            if (tile instanceof tile.IT_Pot) {
                 double roll = Math.random();
                 if (roll < 0.3) {
                     // 30% chance: drop a heart at pot location
