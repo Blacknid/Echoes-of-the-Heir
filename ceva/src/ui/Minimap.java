@@ -163,22 +163,6 @@ public class Minimap {
     }
 
     // -----------------------------------------------------------------------
-    // Corner HUD minimap
-    // -----------------------------------------------------------------------
-
-    public void draw(Graphics2D g2) {
-        if (terrainImage == null) return;
-
-        int cx = gp.screenWidth - MARGIN - MINIMAP_RADIUS;
-        int cy = MARGIN + MINIMAP_RADIUS;
-
-        java.awt.Composite savedComp = g2.getComposite();
-        g2.setComposite(AlphaComposite.getInstance(AlphaComposite.SRC_OVER, ALPHA));
-        drawCircularMap(g2, cx, cy, MINIMAP_RADIUS, false);
-        g2.setComposite(savedComp);
-    }
-
-    // -----------------------------------------------------------------------
     // Full world map overlay
     // -----------------------------------------------------------------------
 

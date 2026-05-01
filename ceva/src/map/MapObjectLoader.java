@@ -26,8 +26,8 @@ import object.OBJ_Potion;
 import object.OBJ_Tent;
 import object.OBJ_Torch;
 import object.OBJ_Tower;
-import tiles_interactive.IT_Coins;
-import tiles_interactive.IT_Pot;
+import tile.IT_Coins;
+import tile.IT_Pot;
 import util.ResourceCache;
 
 /**
@@ -411,7 +411,7 @@ public class MapObjectLoader {
                                 System.out.println("MapObjectLoader WARNING: iTile[] full, skipping " + type);
                                 continue;
                             }
-                            tiles_interactive.interactiveTile tile =
+                            tile.interactiveTile tile =
                                 createInteractiveTile(type, col, row, obj);
                             if (tile != null) {
                                 applyCommonProperties(tile, obj);
@@ -934,7 +934,7 @@ public class MapObjectLoader {
         npc.choiceResultKey = getStringProperty(obj, "choiceResultKey", null);
     }
 
-    private tiles_interactive.interactiveTile createInteractiveTile(String type, int col, int row,
+    private tile.interactiveTile createInteractiveTile(String type, int col, int row,
                                                                      Element obj) {
         switch (type) {
             case "IT_Pot"   -> { return new IT_Pot(gp, col, row); }
@@ -1249,7 +1249,7 @@ public class MapObjectLoader {
         return arr.length;
     }
 
-    private int firstFreeSlot(tiles_interactive.interactiveTile[] arr) {
+    private int firstFreeSlot(tile.interactiveTile[] arr) {
         for (int i = 0; i < arr.length; i++) if (arr[i] == null) return i;
         return arr.length;
     }

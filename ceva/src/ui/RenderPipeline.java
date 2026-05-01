@@ -236,16 +236,16 @@ public class RenderPipeline {
     private void drawWorldOverlays(Graphics2D g2) {
         gp.ui.draw(g2);
 
-        if (gp.minimap != null && gp.gameState == GamePanel.playState) {
-            gp.minimap.draw(g2);
-        }
-
         if (gp.questManager != null && gp.gameState == GamePanel.playState) {
             gp.questManager.drawTracker(g2);
         }
 
         if (gp.questManager != null && gp.questManager.isLogOpen()) {
             gp.questManager.drawLog(g2);
+        }
+
+        if (gp.minimap != null && gp.gameState == GamePanel.playState) {
+            gp.minimap.drawWorldMap(g2);
         }
     }
 

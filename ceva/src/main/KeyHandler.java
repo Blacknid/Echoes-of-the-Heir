@@ -622,7 +622,7 @@ public class KeyHandler implements KeyListener {
         if ( code == KeyEvent.VK_V ) { overdrivePressed = true; }
     }
 
-    /** Returns true if any overlay (quest log, minimap) is currently open */
+    /** Returns true if any overlay (quest log, world map) is currently open */
     private boolean isOverlayOpen() {
         return (gp.questManager != null && gp.questManager.isLogOpen()) ||
                (gp.minimap != null && gp.minimap.isWorldMapOpen());

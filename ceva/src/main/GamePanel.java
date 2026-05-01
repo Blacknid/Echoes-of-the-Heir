@@ -33,7 +33,7 @@ import map.MapManager;
 import map.MapObjectLoader;
 import map.MobSpawner;
 import tile.TileManager;
-import tiles_interactive.interactiveTile;
+import tile.interactiveTile;
 import ui.CutsceneManager;
 import ui.Minimap;
 import ui.RenderPipeline;
@@ -134,7 +134,8 @@ public class GamePanel extends JPanel implements Runnable{
     private static final java.awt.BasicStroke MP_STROKE_2 = new java.awt.BasicStroke(2f);
     private java.awt.Font mpNametagFont; // lazily derived
 
-    // MINIMAP
+
+    // WORLD MAP (full-screen overlay, no corner HUD)
     public Minimap minimap;
 
     // RENDER PIPELINE (extracted from GamePanel)
@@ -333,7 +334,7 @@ public class GamePanel extends JPanel implements Runnable{
         15, 10
     );
 
-    // MINIMAP: create and bake initial terrain
+    // WORLD MAP: create and bake initial terrain
     minimap = new Minimap(this);
     minimap.bakeTerrainImage();
 

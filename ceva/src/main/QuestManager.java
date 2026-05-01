@@ -482,7 +482,7 @@ public class QuestManager {
     //  DRAWING
     // ══════════════════════════════════════════════════════════════════════
 
-    /** Draw the current objective tracker (small overlay under minimap). */
+    /** Draw the current objective tracker (small HUD overlay). */
     public void drawTracker(Graphics2D g2) {
         Quest active = null;
         for (int i = 0, n = quests.size(); i < n; i++) {

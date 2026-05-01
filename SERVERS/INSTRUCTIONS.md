@@ -14,6 +14,249 @@ Acestea sunt necesitatile *de baza* pentru a rula oricare dintre servere. In caz
 
 ##**SAVE SERVER**
 
+
+
+
+
+
+
+## Detailed Save Server Communication Scheme
+
+```
+┌─────────────────────────────────────────────────────────────────────────────────────┐
+│                              CONNECTION ESTABLISHMENT                               │
+├─────────────────────────────────────────────────────────────────────────────────────┤
+
+   ┌─────────────┐                                              ┌─────────────┐
+   │    CLIENT   │                                              │    SERVER   │
+   │             │  1. TCP connect to save_servers.txt endpoint │   (port     │
+   │             │ ────────────────────────────────────────────→│    5005)    │
+   │             │                                              │              │
+   │             │  2. Protocol banner                          │              │
+   │             │ ←──────────────── "MICHISAVEv2\n" ────────────│              │
+   │             │                                              │              │
+   │             │  3. RSA-OAEP-SHA256 Handshake                │              │
+   │             │     • Client generates ephemeral RSA keypair   │              │
+   │             │     • Sends: base64(license) + " " +         │              │
+   │             │              base64(client_rsa_pub)          │              │
+   │             │ ────────────────────────────────────────────→│              │
+   │             │                                              │              │
+   │             │     • Server validates license structure     │              │
+   │             │     • Gets/creates DB record (salt, pepper)  │              │
+   │             │     • Generates: session_key (32 bytes)      │              │
+   │             │                server_nonce (16 bytes)       │              │
+   │             │     • Encrypts session_key with client RSA   │              │
+   │             │                                              │              │
+   │             │  4. Session key delivery                     │              │
+   │             │ ←──────────────── base64(enc_session_key) +  │              │
+   │             │                  " " + server_nonce ─────────│              │
+   │             │                                              │              │
+   │             │     • Client derives AES-GCM key:            │              │
+   │             │       HKDF(secret=license+lic_pepper,        │              │
+   │             │            salt=lic_salt+server_nonce,        │              │
+   │             │            info="michi-delivery-v2")          │              │
+   │             │                                              │              │
+   │             │ ═══════════════════════════════════════════│══════════════│
+   │             │        SECURE SESSION ESTABLISHED            │              │
+   │             │          (AES-256-GCM for all frames)        │              │
+   └─────────────┘                                              └─────────────┘
+
+
+┌─────────────────────────────────────────────────────────────────────────────────────┐
+│                                   UPLOAD FLOW (SAVE)                                │
+├─────────────────────────────────────────────────────────────────────────────────────┤
+
+   ┌─────────────┐                                              ┌─────────────┐
+   │    CLIENT   │                                              │    SERVER   │
+   │             │                                              │              │
+   │  PREPARE:   │  1. Serialize GameState to JSON             │              │
+   │  • Collect  │     {"timestamp": 1234567890,                │              │
+   │    player   │      "player": {...},                        │              │
+   │    position │      "inventory": [...],                     │              │
+   │  • Include  │      "quests": {...},                        │              │
+   │    quest    │      "current_map": "village"}               │              │
+   │    state    │                                              │              │
+   │  • Add      │                                              │              │
+   │    timestamp│                                              │              │
+   │             │  2. Encrypt JSON with AES-256-GCM             │              │
+   │             │     • Generate random IV (12 bytes)           │              │
+   │             │     • Encrypt: ciphertext + 16-byte auth tag  │              │
+   │             │     • Format: IV (12) + ciphertext + tag (16) │              │
+   │             │                                              │              │
+   │             │  3. Build frame                               │              │
+   │             │     "SAVE " + length + "\n" + aes_payload     │              │
+   │             │                                              │              │
+   │             │ ─────────────── 4. SEND ────────────────────→│              │
+   │             │     [encrypted save data over wire]           │              │
+   │             │                                              │              │
+   │             │                           5. Server processes:│              │
+   │             │                              • Decrypt AES    │              │
+   │             │                                payload        │              │
+   │             │                              • Validate JSON │              │
+   │             │                                structure       │              │
+   │             │                              • Check timestamp│              │
+   │             │                                              │              │
+   │             │  6. Conflict Resolution (timestamp-based)     │              │
+   │             │                                              │              │
+   │             │     IF incoming_ts >= existing_ts:            │              │
+   │             │        • Store: UPDATE licenses SET            │              │
+   │             │          save_data=?, timestamp=?             │              │
+   │             │          WHERE license_key=?                  │              │
+   │             │        • Return "SAVED\n"                     │              │
+   │             │ ←────────────────────────────────────────────│              │
+   │             │                                              │              │
+   │             │     IF incoming_ts < existing_ts:             │              │
+   │             │        (server has newer data)                │              │
+   │             │        • Return "SYNC\n" + length + encrypted │              │
+   │             │          (server's newer save data)           │              │
+   │             │ ←──────────────── "SYNC 2456\n" + payload ──│              │
+   │             │                                              │              │
+   │             │  7. Client receives SAVED:                    │              │
+   │             │     • Mark pendingUpload = false              │              │
+   │             │     • Delete local_save.dat if exists         │              │
+   │             │                                              │              │
+   │             │  7b. Client receives SYNC:                    │              │
+   │             │     • Decrypt server payload                  │              │
+   │             │     • Overwrite local GameState               │              │
+   │             │     • Show "synced with server" to user       │              │
+   │             │                                              │              │
+   │             │  8. If network fails at any step:             │              │
+   │             │     • Encrypt to local_save.dat (fallback)    │              │
+   │             │     • Set pendingUpload = true                │              │
+   │             │     • Return success (offline mode)           │              │
+   └─────────────┘                                              └─────────────┘
+
+
+┌─────────────────────────────────────────────────────────────────────────────────────┐
+│                                 DOWNLOAD FLOW                                       │
+├─────────────────────────────────────────────────────────────────────────────────────┤
+
+   ┌─────────────┐                                              ┌─────────────┐
+   │    CLIENT   │                                              │    SERVER   │
+   │             │                                              │              │
+   │             │  1. Request download (after handshake)      │              │
+   │             │     "DOWNLOAD\n"                            │              │
+   │             │ ────────────────────────────────────────────→│              │
+   │             │                                              │              │
+   │             │                           2. Server checks DB:│              │
+   │             │                              • SELECT save  │              │
+   │             │                                data FROM    │              │
+   │             │                                licenses     │              │
+   │             │                                WHERE key=?  │              │
+   │             │                                              │              │
+   │             │     IF no save found:                       │              │
+   │             │ ←──────────────── "NO_SAVE\n" ──────────────│              │
+   │             │     → Client tries local_save.dat fallback    │              │
+   │             │                                              │              │
+   │             │     IF save exists:                         │              │
+   │             │        • Read encrypted JSON from DB         │              │
+   │             │        • Decrypt with server's storage key   │              │
+   │             │        • Re-encrypt with session AES-GCM key │              │
+   │             │        (session-specific encryption)         │              │
+   │             │                                              │              │
+   │             │ ←──────── 3. "OK " + length + "\n" + payload ─│              │
+   │             │     [encrypted JSON over wire]                │              │
+   │             │                                              │              │
+   │             │  4. Client processes response:                │              │
+   │             │     • Extract IV from beginning of payload   │              │
+   │             │     • Decrypt AES-GCM using session key       │              │
+   │             │     • Verify authentication tag              │              │
+   │             │     • Parse JSON → GameState object           │              │
+   │             │                                              │              │
+   │             │  5. Post-download actions:                  │              │
+   │             │     • pendingUpload = false (we're synced)   │              │
+   │             │     • Delete local_save.dat (now redundant)  │              │
+   │             │     • Return DownloadResult.ok(json)         │              │
+   │             │                                              │              │
+   │             │  6. If server unreachable or NO_SAVE:       │              │
+   │             │     • Try loadLocalEncrypted(licenseKey)     │              │
+   │             │     • Decrypt local_save.dat using           │              │
+   │             │       HKDF(license, machine_fingerprint)       │              │
+   │             │     • Return local data or empty state       │              │
+   └─────────────┘                                              └─────────────┘
+
+
+┌─────────────────────────────────────────────────────────────────────────────────────┐
+│                              OFFLINE FALLBACK MECHANISM                             │
+├─────────────────────────────────────────────────────────────────────────────────────┤
+
+   When server is unreachable (ConnectException or timeout):
+   
+   SAVE PATH:
+   ┌─────────────┐
+   │  GameState  │
+   │  (memory)   │
+   └──────┬──────┘
+          │ 1. Serialize to JSON
+          ▼
+   ┌─────────────┐     2. Derive local key:       ┌─────────────┐
+   │   encrypt   │────► HKDF(license_key,        │ local_save  │
+   │  AES-256    │      machine_fingerprint,      │   .dat      │
+   │    -GCM     │      info="michi-local-v1")    │ (encrypted) │
+   └─────────────┘                                └─────────────┘
+   
+   DOWNLOAD PATH:
+   ┌─────────────┐     1. Derive same key         ┌─────────────┐
+   │ local_save  │◄───────────────────────────────│   license   │
+   │   .dat      │                                │    + MAC    │
+   └──────┬──────┘                                └─────────────┘
+          │ 2. Decrypt
+          ▼
+   ┌─────────────┐
+   │  GameState  │────► Return to game
+   │  (memory)   │
+   └─────────────┘
+   
+   PENDING SYNC:
+   • pendingUpload flag set when local save is newer than server
+   • On next successful connection: automatically re-uploads
+   • Server conflict resolution handles timestamp comparison
+
+
+┌─────────────────────────────────────────────────────────────────────────────────────┐
+│                              SECURITY LAYERS                                        │
+├─────────────────────────────────────────────────────────────────────────────────────┤
+
+   Per-License Security:
+   ┌─────────────────┐
+   │  license_key    │
+   │  (client input) │
+   └────────┬────────┘
+            │
+            ▼
+   ┌─────────────────┐     ┌─────────────────┐     ┌─────────────────┐
+   │   license_salt  │────►│    HKDF-SHA256  │────►│  delivery_key  │
+   │  (from server   │     │  (per-session)  │     │ (AES-256-GCM)  │
+   │   DB, unique)   │     │                 │     │                │
+   └─────────────────┘     │  secret: lic+   │     └────────────────┘
+   ┌─────────────────┐     │  lic_pepper     │              │
+   │  license_pepper │────►│  salt: salt+    │              │
+   │  (from server   │     │  server_nonce   │              │
+   │   DB, unique)   │     │  info: "michi-  │              │
+   └─────────────────┘     │  delivery-v2"   │              │
+                            └─────────────────┘              │
+                                                               │
+                            ┌─────────────────┐                │
+                            │  server_nonce   │◄───────────────┘
+                            │  (per-session,  │   (sent during
+                            │   16 bytes)     │    handshake)
+                            └─────────────────┘
+
+   
+   Data Flow Encryption:
+   
+   Client Memory ──► JSON ──► AES-GCM ──► Network ──► AES-GCM ──► JSON ──► Server DB
+   (plaintext)      (text)    (encrypt)   (encrypted)  (decrypt)  (text)   (encrypted
+                                                                              at rest)
+```
+
+
+
+
+
+
+
+
 ### Arhitectura Generala
 
 Save Server este un server TCP multi-threaded scris in Python 3.11+, conceput pentru stocarea si sincronizarea salvarilor de joc in cloud. Serverul ruleaza pe portul 5005 (default) si accepta conexiuni de la clienti Java printr-un protocol binar/text hibrid.

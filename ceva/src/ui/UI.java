@@ -1172,7 +1172,6 @@ public class UI {
                 {"\u2605", "Level-up stat selection screen"},
                 {"\u2302", "Breakable pots with random loot"},
                 {"\u2611", "Quest tracking system"},
-                {"\u2726", "Minimap with entity markers"},
                 {"\u2694", "Teleport ability with particles"},
                 {"\u2605", "Floating damage numbers"},
                 {"\u2302", "Screen shake & hit flash FX"}
@@ -2717,7 +2716,6 @@ public class UI {
             "Inventory",
             "Skill Tree",
             "Quest Log",
-            "Minimap",
             "Pause",
             "Options",
             "Debug Tools"
@@ -2735,7 +2733,6 @@ public class UI {
             "E",
             "K",
             "Q",
-            "M",
             "P",
             "ESC",
             "T / H / R / Y"
