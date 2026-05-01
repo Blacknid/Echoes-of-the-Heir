@@ -797,6 +797,59 @@ public class Entity {
             shotAvailableCounter++;
         }
     }
+
+    /**
+     * Advances idle and activity animation counters without running any AI or movement.
+     * Safe to call during dialogue state so NPC animations keep playing while talking.
+     */
+    public void tickAnimations() {
+        entityIdle = true;
+        // Idle frames
+        if (idleFrames != null) {
+            int dir = (idleDirection >= 0) ? idleDirection : direction;
+            if (dir >= 0 && dir < idleFrames.length && idleFrames[dir] != null && idleFrames[dir].length > 0) {
+                idleSpriteCounter++;
+                if (idleSpriteCounter > idleAnimationInterval) {
+                    int maxIdle = idleFrames[dir].length;
+                    if (maxIdle == 1) {
+                        idleSpriteNum = 1;
+                    } else {
+                        idleSpriteNum += idleFrameDirection;
+                        if (idleSpriteNum >= maxIdle) { idleSpriteNum = maxIdle; idleFrameDirection = -1; }
+                        if (idleSpriteNum <= 1)        { idleSpriteNum = 1;       idleFrameDirection =  1; }
+                    }
+                    idleSpriteCounter = 0;
+                }
+            }
+        }
+        // Activity animation
+        if (currentActivity != null && activityAnimations != null) {
+            BufferedImage[][] actFrames = activityAnimations.get(currentActivity);
+            if (actFrames != null) {
+                int dir = (idleDirection >= 0) ? idleDirection : direction;
+                if (dir >= 0 && dir < actFrames.length && actFrames[dir] != null && actFrames[dir].length > 0) {
+                    int interval = idleAnimationInterval;
+                    if (activityAnimSpeeds != null) {
+                        Integer customSpeed = activityAnimSpeeds.get(currentActivity);
+                        if (customSpeed != null) interval = customSpeed;
+                    }
+                    activitySpriteCounter++;
+                    if (activitySpriteCounter > interval) {
+                        int maxFrames = actFrames[dir].length;
+                        if (maxFrames == 1) {
+                            activitySpriteNum = 1;
+                        } else {
+                            activitySpriteNum += activityFrameDirection;
+                            if (activitySpriteNum >= maxFrames) { activitySpriteNum = maxFrames; activityFrameDirection = -1; }
+                            if (activitySpriteNum <= 1)          { activitySpriteNum = 1;         activityFrameDirection =  1; }
+                        }
+                        activitySpriteCounter = 0;
+                    }
+                }
+            }
+        }
+    }
+
     public void draw(Graphics2D g2) {
         
         // Use a local variable to determine which sprite to draw

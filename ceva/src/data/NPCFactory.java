@@ -167,6 +167,12 @@ public class NPCFactory {
                     mapped[Entity.DIR_UP]    = frames.length > 1 ? frames[1] : null;
                     mapped[Entity.DIR_LEFT]  = frames.length > 2 ? frames[2] : null;
                     mapped[Entity.DIR_RIGHT] = frames.length > 3 ? frames[3] : null;
+                    // Fill missing directions from row 0 (single-row sprite sheets)
+                    if (mapped[Entity.DIR_DOWN] != null) {
+                        if (mapped[Entity.DIR_UP]    == null) mapped[Entity.DIR_UP]    = mapped[Entity.DIR_DOWN];
+                        if (mapped[Entity.DIR_LEFT]  == null) mapped[Entity.DIR_LEFT]  = mapped[Entity.DIR_DOWN];
+                        if (mapped[Entity.DIR_RIGHT] == null) mapped[Entity.DIR_RIGHT] = mapped[Entity.DIR_DOWN];
+                    }
                 }
                 if (npc.activityAnimations == null) npc.activityAnimations = new HashMap<>();
                 npc.activityAnimations.put(actName, mapped);
@@ -486,6 +492,13 @@ public class NPCFactory {
             sd.posCol = intVal(stProps, "posCol", -1);
             sd.posRow = intVal(stProps, "posRow", -1);
             sd.dialogueSet = intVal(stProps, "dialogueSet", -1);
+            // If "dialogueSet" was a non-numeric string (e.g. "greeting"), treat it as a named dialogue key
+            if (sd.dialogueName == null && sd.dialogueSet < 0) {
+                String rawDs = stProps.get("dialogueSet");
+                if (rawDs != null && !rawDs.isBlank()) {
+                    try { Integer.parseInt(rawDs); } catch (NumberFormatException ignore) { sd.dialogueName = rawDs; }
+                }
+            }
             sd.stationary = boolVal(stProps, "stationary", false);
             sd.requiredQuestComplete = stProps.get("requiredQuestComplete");
             sd.requiredQuestActive = stProps.get("requiredQuestActive");

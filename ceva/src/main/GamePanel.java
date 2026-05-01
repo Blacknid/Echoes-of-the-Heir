@@ -615,6 +615,16 @@ public class GamePanel extends JPanel implements Runnable{
         // INPUT COOLDOWNS & MENU KEY-REPEAT: must tick every frame regardless of state
         keyH.update();
 
+        // ANIMATIONS DURING DIALOGUE: keep player and NPC animations playing while talking
+        if (gameState == dialogueState) {
+            player.tickAnimations();
+            for (int i = 0; i < npc.length; i++) {
+                if (npc[i] != null && isEntityInViewport(npc[i], tileSize * 2)) {
+                    npc[i].tickAnimations();
+                }
+            }
+        }
+
         if(gameState == playState) {
             // Refresh viewport cache once per frame
             vpCacheValid = false;

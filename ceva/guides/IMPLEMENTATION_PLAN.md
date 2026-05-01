@@ -984,8 +984,8 @@ Already exists (`savedObjects/savedNPCs` in `MapManager`). No changes needed —
 ### Phase 3: World Building (Maps)
 **Goal:** All maps created in Tiled and functional.
 
-- [ ] `awakening_cave.tmx` — 40×30, tutorial
-- [ ] `canvas_village.tmx` — 100×100, hub (replace current `harta.tmx`)
+*[ ] `awakening_cave.tmx` — 40×30, tutorial*
+- **[ ] `canvas_village.tmx` — 100×100, hub (replace current `harta.tmx`)**
 - [ ] `shattered_lake.tmx` — 80×80, water region
 - [ ] `ashen_woods.tmx` — 100×100, forest region
 - [ ] `painted_citadel.tmx` — 100×100, castle region
