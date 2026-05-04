@@ -274,20 +274,20 @@ public class CutsceneManager {
     /** Draw typewriter text centered on a white-background cutscene. */
     private void drawTypewriterText(String fullText, float yFraction, float fontSize) {
         String visible = fullText.substring(0, Math.min(typewriterIndex, fullText.length()));
-        g2.setRenderingHint(RenderingHints.KEY_TEXT_ANTIALIASING, RenderingHints.VALUE_TEXT_ANTIALIAS_ON);
-        g2.setFont(new Font("Serif", Font.ITALIC, (int) fontSize));
+        g2.setRenderingHint(RenderingHints.KEY_TEXT_ANTIALIASING, RenderingHints.VALUE_TEXT_ANTIALIAS_LCD_HRGB);
+        g2.setFont(new Font("Segoe UI", Font.ITALIC, (int) fontSize));
         g2.setColor(new Color(60, 50, 50));
         FontMetrics fm = g2.getFontMetrics();
         int tx = (gp.screenWidth - fm.stringWidth(visible)) / 2;
         int ty = (int) (gp.screenHeight * yFraction);
         g2.drawString(visible, tx, ty);
-        g2.setRenderingHint(RenderingHints.KEY_TEXT_ANTIALIASING, RenderingHints.VALUE_TEXT_ANTIALIAS_OFF);
+        g2.setRenderingHint(RenderingHints.KEY_TEXT_ANTIALIASING, RenderingHints.VALUE_TEXT_ANTIALIAS_LCD_HRGB);
     }
 
     /** Draw semi-transparent overlay text at the bottom of the screen during gameplay reveal. */
     private void drawOverlayText(String fullText, float yFraction, float fontSize) {
         String visible = fullText.substring(0, Math.min(typewriterIndex, fullText.length()));
-        g2.setRenderingHint(RenderingHints.KEY_TEXT_ANTIALIASING, RenderingHints.VALUE_TEXT_ANTIALIAS_ON);
+        g2.setRenderingHint(RenderingHints.KEY_TEXT_ANTIALIASING, RenderingHints.VALUE_TEXT_ANTIALIAS_LCD_HRGB);
         // Dark semi-transparent bar behind text
         int barH = 60;
         int barY = (int) (gp.screenHeight * yFraction) - 35;
@@ -296,13 +296,13 @@ public class CutsceneManager {
         g2.fillRect(0, barY, gp.screenWidth, barH);
         g2.setComposite(AlphaComposite.getInstance(AlphaComposite.SRC_OVER, 1f));
         // Text
-        g2.setFont(new Font("Serif", Font.ITALIC, (int) fontSize));
+        g2.setFont(new Font("Segoe UI", Font.ITALIC, (int) fontSize));
         g2.setColor(new Color(240, 230, 210));
-        FontMetrics fm = g2.getFontMetrics();
-        int tx = (gp.screenWidth - fm.stringWidth(visible)) / 2;
-        int ty = (int) (gp.screenHeight * yFraction);
-        g2.drawString(visible, tx, ty);
-        g2.setRenderingHint(RenderingHints.KEY_TEXT_ANTIALIASING, RenderingHints.VALUE_TEXT_ANTIALIAS_OFF);
+        FontMetrics fmOverlay = g2.getFontMetrics();
+        int txOverlay = (gp.screenWidth - fmOverlay.stringWidth(visible)) / 2;
+        int tyOverlay = (int) (gp.screenHeight * yFraction);
+        g2.drawString(visible, txOverlay, tyOverlay);
+        g2.setRenderingHint(RenderingHints.KEY_TEXT_ANTIALIASING, RenderingHints.VALUE_TEXT_ANTIALIAS_LCD_HRGB);
     }
 
     public void scene_ending() {

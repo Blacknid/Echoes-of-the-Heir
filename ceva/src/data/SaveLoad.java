@@ -536,16 +536,18 @@ public class SaveLoad {
                 Math.min(state.questDescriptions.size(), Math.min(state.questProgress.size(), state.questTargets.size()))
             );
             for (int i = 0; i < questSize; i++) {
+                Integer csRaw = (state.questCurrentSteps != null && i < state.questCurrentSteps.size())
+                        ? state.questCurrentSteps.get(i) : null;
+                Integer spRaw = (state.questStepProgress  != null && i < state.questStepProgress.size())
+                        ? state.questStepProgress.get(i) : null;
                 gp.questManager.restoreQuest(
                     state.questIds.get(i),
                     state.questNames.get(i),
                     state.questDescriptions.get(i),
                     state.questTargets.get(i),
                     state.questProgress.get(i),
-                    (state.questCurrentSteps != null && i < state.questCurrentSteps.size())
-                        ? state.questCurrentSteps.get(i) : -1,
-                    (state.questStepProgress != null && i < state.questStepProgress.size())
-                        ? state.questStepProgress.get(i) : 0
+                    csRaw != null ? csRaw : -1,
+                    spRaw != null ? spRaw : 0
                 );
             }
         }

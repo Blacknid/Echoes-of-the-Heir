@@ -63,16 +63,40 @@
     "idleAnimSpeed": 12,
 
     "dialogues": {
-      "greeting": ["Welcome, traveler.\nNeed a blade?", "Bring me iron ore\nfrom the mines."],
-      "forging": ["Good iron!\nLet me work on this.", "Come back soon."],
-      "sword_ready": ["Your sword is ready!\nForged with care."],
-      "post_quest": ["Need anything sharpened?\nI'm always at the anvil."]
+      "greeting": [
+        "Welcome, traveler.\nNeed a blade?",
+        "Bring me iron ore\nfrom the mines."
+      ],
+      "forging": [
+        "Good iron!\nLet me work on this.",
+        "Come back soon."
+      ],
+      "sword_ready": [
+        "Your sword is ready!\nForged with care."
+      ],
+      "post_quest": [
+        "Need anything sharpened?\nI'm always at the anvil."
+      ]
+    },
+
+    "activities": {
+        "idle": {
+        "sprite": "/res/NPC/Main/Blacksmith_idle",
+        "frames": [6],
+        "speed": 12
+        },
+        "forge": {
+          "sprite": "/res/NPC/Main/Blacksmith_forging",
+          "frames": [6],
+          "speed": 12
+        }
     },
 
     "states": [
       {
         "id": "idle_shop",
         "direction": 0,
+        "animation": "idle",
         "dialogueSet": "greeting",
         "stationary": true
       },
@@ -185,48 +209,6 @@
         "dialogue": "done",
         "stationary": true,
         "requiredQuestComplete": "fruit_trader_quest"
-      }
-    ]
-  },
-
-"sword_giver_npc": {
-    "name": "Soldier",
-    "sprite": "/res/NPC/Tutorial_idle",
-    "idleSprite": "/res/NPC/Tutorial_idle",
-    "staticNPC": true,
-    "idleDirection": 2,
-    "idleAnimSpeed": 12,
-    "portrait": "/res/NPC/portraits/soldier.png",
-
-    "dialogues": {
-      "intro": [
-        "...Hey. I was ambushed on the road.",
-        "My arm is useless, and I can't swing anymore.",
-        "Take this sword. Use it better than I can right now.",
-        "If you find a bandage, come back. I still need help."
-      ],
-      "waiting": [
-        "You're back... but I still need a bandage.",
-        "Check the cave rooms.",
-        "I'll hold on a little longer."
-      ],
-      "thanks": [
-        "You found one... good.",
-        "This should stop the bleeding.",
-        "Thank you. Here, take these 25 coins for the trouble."
-      ],
-      "done": [
-        "The bandage helped a lot.",
-        "Keep the sword. You earned it."
-      ]
-    },
-
-    "states": [
-      {
-        "id": "post_quest",
-        "dialogue": "done",
-        "stationary": true,
-        "requiredQuestComplete": "sword_giver_bandage"
       }
     ]
   },
@@ -428,44 +410,6 @@
       }
     ]
   },
-  "weapon_trader": {
-    "name": "Weapon Trader",
-    "idleSprite": "/res/NPC/Weapon_Trader_idle",
-    "idleRows": 1,
-    "staticNPC": true,
-    "idleAnimSpeed": 12,
-
-    "dialogues": {
-      "training": [
-        "Welcome to the weapon shop!",
-        "I can teach you how to use different weapons.",
-        "Practice makes perfect, so keep trying!"
-      ],
-      "waiting": [
-        "Welcome back, traveler!",
-        "I have more weapons if you need them.",
-        "Did you find any new challenges?\nI love trying new things!"
-      ],
-      "thanks": [
-        "No way, you mastered that weapon!\nThat's amazing!",
-        "Here, take this as a reward for your skill.",
-        "I hope it helps you on your adventure!"
-      ],
-      "done": [
-        "In need of more weapons?\nI have plenty to share!",
-        "Feel free to come back anytime.\nI love teaching weapon skills!"
-      ]
-    },
-
-    "states": [
-      {
-        "id": "post_quest",
-        "dialogue": "done",
-        "stationary": true,
-        "requiredQuestComplete": "weapon_trader_quest"
-      }
-    ]
-  },
   "potion_trader": {
     "name": "Potion Trader",
     "idleSprite": "/res/NPC/Potions_Trader",
@@ -495,7 +439,6 @@
         "Feel free to come back anytime.\nI love teaching potion brewing!"
       ]
     },
-
     "states": [
       {
         "id": "post_quest",

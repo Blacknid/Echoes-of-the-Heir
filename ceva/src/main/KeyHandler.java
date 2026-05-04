@@ -58,6 +58,12 @@ public class KeyHandler implements KeyListener {
             return;
         }
 
+        // F11 — fullscreen toggle, works in every game state (standard PC game convention)
+        if (code == KeyEvent.VK_F11) {
+            gp.applyFullScreenSetting(!gp.fullScreenOn);
+            return;
+        }
+
         // TITLE STATE
         if (gp.gameState == GamePanel.titleState) {
             handleTitleState(code);

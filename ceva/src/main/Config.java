@@ -41,11 +41,16 @@ public class Config {
         return "v" + gameVersion + "." + buildNumber;
     }
 
+    // UI reference resolution — every pixel offset in the HUD is authored at 1280x768.
+    // uiSf() / uiSfH() in GamePanel produce the scale factor when the internal resolution changes.
+    public static final int UI_BASE_W = 1280;
+    public static final int UI_BASE_H = 720;
+
     // Rendering scale configuration
     // `originalTileSize` is the native pixel size used when authoring spritesheets (default 32).
-    // `scale` is an integer multiplier applied at runtime (1,2,3...).
+    // `scale` controls zoom level: 2.0 = 64px tiles (20x12 view), 2.5 = 80px tiles (16x9 view)
     public static int originalTileSize = 32;
-    public static double scale = 2;
+    public static double scale = 2.0;
     public static int tileSize = (int)(originalTileSize * scale);
 
     /** Set the scale multiplier and update derived values. */
@@ -66,6 +71,10 @@ public class Config {
         this.gp = gp;
     }
 
+    // Last known windowed position — persisted so the window reopens where the player left it.
+    public int windowX = -1;
+    public int windowY = -1;
+
     public void saveConfig () {
 
         try (BufferedWriter bw = new BufferedWriter(new FileWriter("config.txt"))) {
@@ -74,6 +83,22 @@ public class Config {
             bw.write("musicVolume=" + gp.audio.getMusicVolume());        bw.newLine();
             bw.write("seVolume=" + gp.audio.getSEVolume());              bw.newLine();
             bw.write("vsync=" + (gp.vSyncOn ? "On" : "Off"));           bw.newLine();
+            // Save window position: use live coords when windowed, saved bounds when fullscreen
+            int wx, wy;
+            if (!gp.fullScreenOn && Main.window != null) {
+                wx = Main.window.getX();
+                wy = Main.window.getY();
+            } else if (gp.windowedBounds != null) {
+                wx = gp.windowedBounds.x;
+                wy = gp.windowedBounds.y;
+            } else {
+                wx = windowX;
+                wy = windowY;
+            }
+            if (wx >= 0 && wy >= 0) {
+                bw.write("windowX=" + wx); bw.newLine();
+                bw.write("windowY=" + wy); bw.newLine();
+            }
 
         } catch (IOException e) {
             e.printStackTrace();
@@ -95,6 +120,8 @@ public class Config {
             int seVol    = Integer.parseInt(map.getOrDefault("seVolume", "5"));
             gp.audio.applyConfig(musicVol, seVol);
             gp.vSyncOn = "On".equals(map.getOrDefault("vsync", "Off"));
+            try { windowX = Integer.parseInt(map.getOrDefault("windowX", "-1")); } catch (Exception ignored) {}
+            try { windowY = Integer.parseInt(map.getOrDefault("windowY", "-1")); } catch (Exception ignored) {}
 
         } catch (Exception e) {
             e.printStackTrace();

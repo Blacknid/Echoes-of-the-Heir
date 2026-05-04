@@ -55,7 +55,6 @@ public class BOSS_WitheredTree extends Entity {
     private static final int ATK_LEAF_BOLT   = 4;
     private static final int ATK_TRIPLE_BOLT = 5;
     private static final int ATK_THORN_RING  = 6;
-    private int currentAttackType = ATK_MELEE;
 
     // ── Leaf Bolt ranged attack ──────────────────────────────────────────
     private BufferedImage[][] leafBoltFrames; // [direction][frame]
@@ -100,7 +99,7 @@ public class BOSS_WitheredTree extends Entity {
     // ── Whirlwind Fury state (Phase 3) ───────────────────────────────────
     private boolean whirlwindActive = false;
     private int whirlwindTimer = 0;
-    private int whirlwindHits = 0;
+
     private static final int WHIRLWIND_DURATION = 90;
     private static final int WHIRLWIND_HIT_INTERVAL = 15;
     private float whirlwindAngle = 0;
@@ -189,7 +188,6 @@ public class BOSS_WitheredTree extends Entity {
     private static final Color ROOT_TIP     = new Color(50, 120, 30);
     private static final Color WHIRL_TRAIL  = new Color(100, 160, 60, 150);
     private static final Color THORN_COLOR  = new Color(180, 220, 60, 200);
-    private static final Color THORN_GLOW   = new Color(120, 200, 40, 100);
     private static final Color HP_DAMAGE_FLASH = new Color(255, 255, 255, 120);
 
     public BOSS_WitheredTree(GamePanel gp) {
@@ -237,7 +235,6 @@ public class BOSS_WitheredTree extends Entity {
         for (int p = 0; p < 3; p++) {
 //            String pre  = prefixes[p];    nu avem neaparat nevoie de asa ceva, dar nu sterg pentru a intelege mai bine
             String base = "/res/bosses/" + prefixes[p];
-            String ws   = base + "/With_shadow/" + prefixes[p];
             // Sheet rows: DOWN(0), RIGHT(1), LEFT(2), UP(3)
             // Game dirs:  DOWN(0), LEFT(1),  RIGHT(2), UP(3)
             // Swap rows 1 & 2 so sprites match direction constants
@@ -464,39 +461,32 @@ public class BOSS_WitheredTree extends Entity {
             if (attackCooldown <= 0) {
                 int atkType = chooseAttack(dist);
                 if (atkType == ATK_MELEE && dist <= ATTACK_RANGE) {
-                    currentAttackType = ATK_MELEE;
                     consecutiveMelees++;
                     startAttack();
                 } else if (atkType == ATK_STOMP && dist <= STOMP_RANGE) {
-                    currentAttackType = ATK_STOMP;
                     consecutiveMelees = 0;
                     startStomp();
                 } else if (atkType == ATK_ROOT) {
-                    currentAttackType = ATK_ROOT;
                     consecutiveMelees = 0;
                     startRootBarrage();
                 } else if (atkType == ATK_WHIRLWIND && dist <= STOMP_RANGE) {
-                    currentAttackType = ATK_WHIRLWIND;
                     consecutiveMelees = 0;
                     startWhirlwind();
                 } else if (atkType == ATK_THORN_RING) {
-                    currentAttackType = ATK_THORN_RING;
                     consecutiveMelees = 0;
                     startThornRing();
                 } else if (atkType == ATK_LEAF_BOLT && leafBoltCooldown <= 0) {
-                    currentAttackType = ATK_LEAF_BOLT;
                     consecutiveMelees = 0;
                     fireLeafBolt();
                 } else if (atkType == ATK_TRIPLE_BOLT && leafBoltCooldown <= 0) {
-                    currentAttackType = ATK_TRIPLE_BOLT;
                     consecutiveMelees = 0;
                     fireTripleBolt();
                 } else {
                     // Chase toward player
-                    chasePlayer(dx, dy);
+                    chasePlayer();
                 }
             } else {
-                chasePlayer(dx, dy);
+                chasePlayer();
             }
         } else {
             onPath = false;
@@ -509,7 +499,7 @@ public class BOSS_WitheredTree extends Entity {
         }
     }
 
-    private void chasePlayer(int dx, int dy) {
+    private void chasePlayer() {
         onPath = true;
         isMoving = true;
         int goalCol = gp.player.getTileCol();
@@ -947,7 +937,6 @@ public class BOSS_WitheredTree extends Entity {
         faceBossTowardPlayer();
         whirlwindActive = true;
         whirlwindTimer = 0;
-        whirlwindHits = 0;
         whirlwindAngle = 0;
         speed = PHASE_SPEED[currentPhase] + 1; // faster during whirlwind
         isMoving = true;
@@ -990,7 +979,6 @@ public class BOSS_WitheredTree extends Entity {
                 gp.player.invincible = true;
                 gp.playSE(SFX.PLAYER_HIT);
                 gp.screenShake.shakeLight();
-                whirlwindHits++;
             }
 
             // Swing trail particles
@@ -1309,7 +1297,7 @@ public class BOSS_WitheredTree extends Entity {
         if (stompActive && stompTelegraphTimer > 0) {
             float telegraphPulse = (float)(0.5 + 0.5 * Math.sin(stompTelegraphTimer * 0.4));
             int warnAlpha = (int)(80 * telegraphPulse);
-            Color warn = new Color(255, 200, 80, Math.min(255, Math.max(0, warnAlpha)));
+            Color warn = new Color(STOMP_WARN.getRed(), STOMP_WARN.getGreen(), STOMP_WARN.getBlue(), Math.min(255, Math.max(0, warnAlpha)));
             int warnR = (int) stompRingMaxRadius;
             g2.setColor(warn);
             g2.fillOval(bossCX - warnR, bossCY - warnR, warnR * 2, warnR * 2);
@@ -1319,14 +1307,14 @@ public class BOSS_WitheredTree extends Entity {
         if (stompActive && stompTimer > 0 && stompRingRadius > 0) {
             float alpha = Math.max(0, 1f - stompRingRadius / stompRingMaxRadius);
             int ringAlpha = (int)(180 * alpha);
-            Color ring = new Color(160, 120, 60, Math.min(255, Math.max(0, ringAlpha)));
+            Color ring = new Color(STOMP_RING.getRed(), STOMP_RING.getGreen(), STOMP_RING.getBlue(), Math.min(255, Math.max(0, ringAlpha)));
             g2.setColor(ring);
             Stroke oldStroke = g2.getStroke();
             g2.setStroke(new BasicStroke(4f));
             int r = (int) stompRingRadius;
             g2.drawOval(bossCX - r, bossCY - r, r * 2, r * 2);
             // Inner fill
-            Color fill = new Color(160, 120, 60, Math.min(255, Math.max(0, ringAlpha / 3)));
+            Color fill = new Color(STOMP_RING.getRed(), STOMP_RING.getGreen(), STOMP_RING.getBlue(), Math.min(255, Math.max(0, ringAlpha / 3)));
             g2.setColor(fill);
             g2.fillOval(bossCX - r, bossCY - r, r * 2, r * 2);
             g2.setStroke(oldStroke);
@@ -1462,8 +1450,8 @@ public class BOSS_WitheredTree extends Entity {
     // ────────── Epic Death Sequence ──────────
 
     private void drawDeathSequence(Graphics2D g2, int screenX, int screenY, int drawSize) {
-        int drawW = drawSize;
-        int drawH = drawSize;
+        int drawW;
+        int drawH;
         // Center offset relative to screenX/screenY (jitter/collapse shift screenX/Y)
         int cxOff = solidArea.x + solidArea.width / 2;
         int cyOff = solidArea.y + solidArea.height / 2;

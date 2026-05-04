@@ -1,5 +1,5 @@
 {
-    "activeFile": "maps/Canvas_Village.tmx",
+    "activeFile": "C:/Users/cstyl/AppData/Local/Temp/488b104b-026d-4e18-81b4-213a657e8dac_craftpix-net-189510-grassland-top-down-tileset-pixel-art.zip.dac/Tiled_files/Glades.tmx",
     "expandedProjectPaths": [
     ],
     "fileStates": {
@@ -12,6 +12,32 @@
         },
         "#Walls_interior": {
             "scaleInDock": 0.75
+        },
+        "C:/Users/cstyl/AppData/Local/Temp/488b104b-026d-4e18-81b4-213a657e8dac_craftpix-net-189510-grassland-top-down-tileset-pixel-art.zip.dac/Tiled_files/Glades.tmx": {
+            "scale": 1.0476146788990826,
+            "selectedLayer": 0,
+            "viewCenter": {
+                "x": 400.9107627638148,
+                "y": 272.5238637358788
+            }
+        },
+        "C:/Users/cstyl/AppData/Local/Temp/488b104b-026d-4e18-81b4-213a657e8dac_craftpix-net-189510-grassland-top-down-tileset-pixel-art.zip.dac/Tiled_files/Glades.tmx#Details": {
+            "scaleInDock": 1
+        },
+        "C:/Users/cstyl/AppData/Local/Temp/488b104b-026d-4e18-81b4-213a657e8dac_craftpix-net-189510-grassland-top-down-tileset-pixel-art.zip.dac/Tiled_files/Glades.tmx#Ground_grass": {
+            "scaleInDock": 1
+        },
+        "C:/Users/cstyl/AppData/Local/Temp/488b104b-026d-4e18-81b4-213a657e8dac_craftpix-net-189510-grassland-top-down-tileset-pixel-art.zip.dac/Tiled_files/Glades.tmx#Trees_rocks": {
+            "scaleInDock": 1
+        },
+        "C:/Users/cstyl/AppData/Local/Temp/488b104b-026d-4e18-81b4-213a657e8dac_craftpix-net-189510-grassland-top-down-tileset-pixel-art.zip.dac/Tiled_files/Glades.tmx#Water_coasts": {
+            "scaleInDock": 1
+        },
+        "C:/Users/cstyl/AppData/Local/Temp/488b104b-026d-4e18-81b4-213a657e8dac_craftpix-net-189510-grassland-top-down-tileset-pixel-art.zip.dac/Tiled_files/Glades.tmx#Water_detilazation": {
+            "scaleInDock": 1
+        },
+        "C:/Users/cstyl/AppData/Local/Temp/488b104b-026d-4e18-81b4-213a657e8dac_craftpix-net-189510-grassland-top-down-tileset-pixel-art.zip.dac/Tiled_files/Water_detilazation2.tsx": {
+            "scaleInDock": 1
         },
         "C:/Users/cstyl/AppData/Local/Temp/6adcd62b-2bad-407a-8edb-10f4e7358b57_craftpix-net-666104-tavern-top-down-pixel-rpg-asset-pack.zip.b57/Tiled_files/Characters.tmx": {
             "scale": 2,
@@ -82,6 +108,44 @@
             "scaleInDock": 1
         },
         "C:/Users/cstyl/AppData/Local/Temp/6adcd62b-2bad-407a-8edb-10f4e7358b57_craftpix-net-666104-tavern-top-down-pixel-rpg-asset-pack.zip.b57/Tiled_files/Characters.tmx#Lute_player_shadow": {
+            "scaleInDock": 1
+        },
+        "C:/Users/cstyl/AppData/Local/Temp/a899a842-ee87-4253-8120-d9ba7cbef68c_craftpix-net-728196-forest-top-down-tileset-pixel-art.zip.68c/Tiled_files/Forest.tmx": {
+            "scale": 1.1151367187499999,
+            "selectedLayer": 0,
+            "viewCenter": {
+                "x": 383.8094404063404,
+                "y": 256.0224187757247
+            }
+        },
+        "C:/Users/cstyl/AppData/Local/Temp/a899a842-ee87-4253-8120-d9ba7cbef68c_craftpix-net-728196-forest-top-down-tileset-pixel-art.zip.68c/Tiled_files/Forest.tmx#Ground_grass": {
+            "scaleInDock": 1
+        },
+        "C:/Users/cstyl/AppData/Local/Temp/a899a842-ee87-4253-8120-d9ba7cbef68c_craftpix-net-728196-forest-top-down-tileset-pixel-art.zip.68c/Tiled_files/Forest.tmx#Objects": {
+            "scaleInDock": 1
+        },
+        "C:/Users/cstyl/AppData/Local/Temp/a899a842-ee87-4253-8120-d9ba7cbef68c_craftpix-net-728196-forest-top-down-tileset-pixel-art.zip.68c/Tiled_files/Forest.tmx#Water_coasts": {
+            "scaleInDock": 1
+        },
+        "C:/Users/cstyl/AppData/Local/Temp/a899a842-ee87-4253-8120-d9ba7cbef68c_craftpix-net-728196-forest-top-down-tileset-pixel-art.zip.68c/Tiled_files/Forest.tmx#Water_detilazation": {
+            "scaleInDock": 1
+        },
+        "C:/Users/cstyl/AppData/Local/Temp/a899a842-ee87-4253-8120-d9ba7cbef68c_craftpix-net-728196-forest-top-down-tileset-pixel-art.zip.68c/Tiled_files/Forest.tmx#lianas": {
+            "scaleInDock": 1
+        },
+        "C:/Users/cstyl/AppData/Local/Temp/a899a842-ee87-4253-8120-d9ba7cbef68c_craftpix-net-728196-forest-top-down-tileset-pixel-art.zip.68c/Tiled_files/Forest.tmx#spots": {
+            "scaleInDock": 1
+        },
+        "C:/Users/cstyl/AppData/Local/Temp/a899a842-ee87-4253-8120-d9ba7cbef68c_craftpix-net-728196-forest-top-down-tileset-pixel-art.zip.68c/Tiled_files/Forest.tmx#spots_rock": {
+            "scaleInDock": 1
+        },
+        "C:/Users/cstyl/AppData/Local/Temp/a899a842-ee87-4253-8120-d9ba7cbef68c_craftpix-net-728196-forest-top-down-tileset-pixel-art.zip.68c/Tiled_files/Forest.tmx#stairs_grass": {
+            "scaleInDock": 1
+        },
+        "C:/Users/cstyl/AppData/Local/Temp/a899a842-ee87-4253-8120-d9ba7cbef68c_craftpix-net-728196-forest-top-down-tileset-pixel-art.zip.68c/Tiled_files/Forest.tmx#water_lilis": {
+            "scaleInDock": 1
+        },
+        "C:/Users/cstyl/AppData/Local/Temp/a899a842-ee87-4253-8120-d9ba7cbef68c_craftpix-net-728196-forest-top-down-tileset-pixel-art.zip.68c/Tiled_files/Water_detilazation2.tsx": {
             "scaleInDock": 1
         },
         "C:/Users/cstyl/Desktop/Awakening_Cave.tmx": {
@@ -191,6 +255,57 @@
             "scaleInDock": 1
         },
         "C:/Users/cstyl/Desktop/Canvas_Village.tmx#piles": {
+            "scaleInDock": 1
+        },
+        "C:/Users/cstyl/Desktop/EPIC RPG World Pack - [FREE Demo]Ancient Ruins - Copia/TiledMap Editor/Ancient Ruins-Tileset-wall-8.tsx": {
+            "scaleInDock": 1
+        },
+        "C:/Users/cstyl/Desktop/EPIC RPG World Pack - [FREE Demo]Ancient Ruins - Copia/TiledMap Editor/Ancient Ruins-wall-8-rule.tmx": {
+            "scale": 0.6583203125,
+            "selectedLayer": 0,
+            "viewCenter": {
+                "x": 1133.186969678989,
+                "y": 638.7468106568563
+            }
+        },
+        "C:/Users/cstyl/Desktop/Tiled_files/Glades.tmx": {
+            "scale": 1.5,
+            "selectedLayer": 0,
+            "viewCenter": {
+                "x": 400,
+                "y": 262.3333333333333
+            }
+        },
+        "C:/Users/cstyl/Desktop/Tiled_files/Glades.tmx#Details": {
+            "scaleInDock": 1
+        },
+        "C:/Users/cstyl/Desktop/Tiled_files/Glades.tmx#Ground_grass": {
+            "scaleInDock": 1
+        },
+        "C:/Users/cstyl/Desktop/Tiled_files/Glades.tmx#Trees_rocks": {
+            "scaleInDock": 1
+        },
+        "C:/Users/cstyl/Desktop/Tiled_files/Glades.tmx#Water_coasts": {
+            "scaleInDock": 1
+        },
+        "C:/Users/cstyl/Desktop/Tiled_files/Glades.tmx#Water_detilazation": {
+            "scaleInDock": 1
+        },
+        "C:/Users/cstyl/Desktop/Tiled_files/Water_detilazation2.tsx": {
+            "scaleInDock": 1
+        },
+        "C:/Users/cstyl/Desktop/map.tmx": {
+            "scale": 0.75,
+            "selectedLayer": 0,
+            "viewCenter": {
+                "x": 442.66666666666663,
+                "y": 288.6666666666667
+            }
+        },
+        "C:/Users/cstyl/Desktop/map.tmx#field": {
+            "scaleInDock": 1
+        },
+        "C:/Users/cstyl/Desktop/map.tmx#objects": {
             "scaleInDock": 1
         },
         "C:/Users/cstyl/Downloads/Tiled_files/Characters ΓÇö ╨║╨╛╨┐╨╕╤Å.tmx": {
@@ -466,6 +581,156 @@
         "C:/Users/cstyl/Downloads/Tiled_foles/Boats_fish_characters.tmx#Small_boat_v2_1-Sheet": {
             "scaleInDock": 1
         },
+        "C:/Users/cstyl/Downloads/craftpix-net-189510-grassland-top-down-tileset-pixel-art/Tiled_files/Glades.tmx": {
+            "scale": 2,
+            "selectedLayer": 6,
+            "viewCenter": {
+                "x": 387.5,
+                "y": 348.25
+            }
+        },
+        "C:/Users/cstyl/Downloads/craftpix-net-189510-grassland-top-down-tileset-pixel-art/Tiled_files/Glades.tmx#Details": {
+            "scaleInDock": 1
+        },
+        "C:/Users/cstyl/Downloads/craftpix-net-189510-grassland-top-down-tileset-pixel-art/Tiled_files/Glades.tmx#Ground_grass": {
+            "scaleInDock": 1
+        },
+        "C:/Users/cstyl/Downloads/craftpix-net-189510-grassland-top-down-tileset-pixel-art/Tiled_files/Glades.tmx#Trees_rocks": {
+            "scaleInDock": 1
+        },
+        "C:/Users/cstyl/Downloads/craftpix-net-189510-grassland-top-down-tileset-pixel-art/Tiled_files/Glades.tmx#Water_coasts": {
+            "dynamicWrapping": false,
+            "scaleInDock": 1
+        },
+        "C:/Users/cstyl/Downloads/craftpix-net-189510-grassland-top-down-tileset-pixel-art/Tiled_files/Glades.tmx#Water_detilazation": {
+            "scaleInDock": 1
+        },
+        "C:/Users/cstyl/Downloads/craftpix-net-477438-free-chapel-pixel-art-top-down-asset-pack/Tiled_files/Characters.tmx": {
+            "scale": 2,
+            "selectedLayer": 0,
+            "viewCenter": {
+                "x": 187.5,
+                "y": -40.75
+            }
+        },
+        "C:/Users/cstyl/Downloads/craftpix-net-477438-free-chapel-pixel-art-top-down-asset-pack/Tiled_files/Characters.tmx#Characters_shadow": {
+            "scaleInDock": 1
+        },
+        "C:/Users/cstyl/Downloads/craftpix-net-477438-free-chapel-pixel-art-top-down-asset-pack/Tiled_files/Characters.tmx#Citizen1_Idle_without_shadow": {
+            "scaleInDock": 1
+        },
+        "C:/Users/cstyl/Downloads/craftpix-net-477438-free-chapel-pixel-art-top-down-asset-pack/Tiled_files/Characters.tmx#Citizen1_Walk_without_shadow": {
+            "scaleInDock": 1
+        },
+        "C:/Users/cstyl/Downloads/craftpix-net-477438-free-chapel-pixel-art-top-down-asset-pack/Tiled_files/Characters.tmx#Mon1k_Pray": {
+            "scaleInDock": 1
+        },
+        "C:/Users/cstyl/Downloads/craftpix-net-477438-free-chapel-pixel-art-top-down-asset-pack/Tiled_files/Characters.tmx#Parishioner1": {
+            "scaleInDock": 1
+        },
+        "C:/Users/cstyl/Downloads/craftpix-net-477438-free-chapel-pixel-art-top-down-asset-pack/Tiled_files/Characters.tmx#Parishioner10": {
+            "scaleInDock": 1
+        },
+        "C:/Users/cstyl/Downloads/craftpix-net-477438-free-chapel-pixel-art-top-down-asset-pack/Tiled_files/Characters.tmx#Parishioner11": {
+            "scaleInDock": 1
+        },
+        "C:/Users/cstyl/Downloads/craftpix-net-477438-free-chapel-pixel-art-top-down-asset-pack/Tiled_files/Characters.tmx#Parishioner2": {
+            "scaleInDock": 1
+        },
+        "C:/Users/cstyl/Downloads/craftpix-net-477438-free-chapel-pixel-art-top-down-asset-pack/Tiled_files/Characters.tmx#Priest_Idle": {
+            "scaleInDock": 1
+        },
+        "C:/Users/cstyl/Downloads/craftpix-net-477438-free-chapel-pixel-art-top-down-asset-pack/Tiled_files/Characters.tmx#Priest_Walk": {
+            "scaleInDock": 1
+        },
+        "C:/Users/cstyl/Downloads/craftpix-net-477438-free-chapel-pixel-art-top-down-asset-pack/Tiled_files/Characters.tmx#Priest_making_spell": {
+            "scaleInDock": 1
+        },
+        "C:/Users/cstyl/Downloads/craftpix-net-477438-free-chapel-pixel-art-top-down-asset-pack/Tiled_files/Characters.tmx#Priest_shadow": {
+            "scaleInDock": 1
+        },
+        "C:/Users/cstyl/Downloads/craftpix-net-477438-free-chapel-pixel-art-top-down-asset-pack/Tiled_files/Characters.tmx#Priest_speech": {
+            "scaleInDock": 1
+        },
+        "C:/Users/cstyl/Downloads/craftpix-net-477438-free-chapel-pixel-art-top-down-asset-pack/Tiled_files/Characters.tmx#Priest_spell": {
+            "scaleInDock": 1
+        },
+        "C:/Users/cstyl/Downloads/craftpix-net-477438-free-chapel-pixel-art-top-down-asset-pack/Tiled_files/Exterior.tmx": {
+            "scale": 2,
+            "selectedLayer": 0,
+            "viewCenter": {
+                "x": 12.5,
+                "y": -7.75
+            }
+        },
+        "C:/Users/cstyl/Downloads/craftpix-net-477438-free-chapel-pixel-art-top-down-asset-pack/Tiled_files/Exterior.tmx#Decorative_cracks": {
+            "scaleInDock": 1
+        },
+        "C:/Users/cstyl/Downloads/craftpix-net-477438-free-chapel-pixel-art-top-down-asset-pack/Tiled_files/Exterior.tmx#Dragon_body": {
+            "scaleInDock": 1
+        },
+        "C:/Users/cstyl/Downloads/craftpix-net-477438-free-chapel-pixel-art-top-down-asset-pack/Tiled_files/Exterior.tmx#Dragon_head": {
+            "scaleInDock": 1
+        },
+        "C:/Users/cstyl/Downloads/craftpix-net-477438-free-chapel-pixel-art-top-down-asset-pack/Tiled_files/Exterior.tmx#Dragon_tail": {
+            "scaleInDock": 1
+        },
+        "C:/Users/cstyl/Downloads/craftpix-net-477438-free-chapel-pixel-art-top-down-asset-pack/Tiled_files/Exterior.tmx#Dragon_wing_animation": {
+            "scaleInDock": 1
+        },
+        "C:/Users/cstyl/Downloads/craftpix-net-477438-free-chapel-pixel-art-top-down-asset-pack/Tiled_files/Exterior.tmx#Exterior": {
+            "scaleInDock": 1
+        },
+        "C:/Users/cstyl/Downloads/craftpix-net-477438-free-chapel-pixel-art-top-down-asset-pack/Tiled_files/Exterior.tmx#Walls_street": {
+            "scaleInDock": 1
+        },
+        "C:/Users/cstyl/Downloads/craftpix-net-477438-free-chapel-pixel-art-top-down-asset-pack/Tiled_files/Interior.tmx": {
+            "scale": 3,
+            "selectedLayer": 8,
+            "viewCenter": {
+                "x": -39.33333333333334,
+                "y": -0.1666666666666572
+            }
+        },
+        "C:/Users/cstyl/Downloads/craftpix-net-477438-free-chapel-pixel-art-top-down-asset-pack/Tiled_files/Interior.tmx#Altar": {
+            "scaleInDock": 1
+        },
+        "C:/Users/cstyl/Downloads/craftpix-net-477438-free-chapel-pixel-art-top-down-asset-pack/Tiled_files/Interior.tmx#Candelabra": {
+            "scaleInDock": 1
+        },
+        "C:/Users/cstyl/Downloads/craftpix-net-477438-free-chapel-pixel-art-top-down-asset-pack/Tiled_files/Interior.tmx#Candelabra_alternative_fit": {
+            "scaleInDock": 1
+        },
+        "C:/Users/cstyl/Downloads/craftpix-net-477438-free-chapel-pixel-art-top-down-asset-pack/Tiled_files/Interior.tmx#Candles": {
+            "scaleInDock": 1
+        },
+        "C:/Users/cstyl/Downloads/craftpix-net-477438-free-chapel-pixel-art-top-down-asset-pack/Tiled_files/Interior.tmx#Interior_objects": {
+            "scaleInDock": 1
+        },
+        "C:/Users/cstyl/Downloads/craftpix-net-477438-free-chapel-pixel-art-top-down-asset-pack/Tiled_files/Interior.tmx#Mon1k_Pray": {
+            "scaleInDock": 1
+        },
+        "C:/Users/cstyl/Downloads/craftpix-net-477438-free-chapel-pixel-art-top-down-asset-pack/Tiled_files/Interior.tmx#Parishioner1": {
+            "scaleInDock": 1
+        },
+        "C:/Users/cstyl/Downloads/craftpix-net-477438-free-chapel-pixel-art-top-down-asset-pack/Tiled_files/Interior.tmx#Parishioner10": {
+            "scaleInDock": 1
+        },
+        "C:/Users/cstyl/Downloads/craftpix-net-477438-free-chapel-pixel-art-top-down-asset-pack/Tiled_files/Interior.tmx#Parishioner11": {
+            "scaleInDock": 1
+        },
+        "C:/Users/cstyl/Downloads/craftpix-net-477438-free-chapel-pixel-art-top-down-asset-pack/Tiled_files/Interior.tmx#Parishioner2": {
+            "scaleInDock": 1
+        },
+        "C:/Users/cstyl/Downloads/craftpix-net-477438-free-chapel-pixel-art-top-down-asset-pack/Tiled_files/Interior.tmx#Priest_speech": {
+            "scaleInDock": 1
+        },
+        "C:/Users/cstyl/Downloads/craftpix-net-477438-free-chapel-pixel-art-top-down-asset-pack/Tiled_files/Interior.tmx#Statues": {
+            "scaleInDock": 1
+        },
+        "C:/Users/cstyl/Downloads/craftpix-net-477438-free-chapel-pixel-art-top-down-asset-pack/Tiled_files/Interior.tmx#Walls_Interior": {
+            "scaleInDock": 1
+        },
         "C:/Users/cstyl/Downloads/craftpix-net-587497-pixel-art-market-square-rpg-shop-and-npc-assets-pack/Tiled_files/Characters.tmx": {
             "scale": 1.64580078125,
             "selectedLayer": 0,
@@ -650,6 +915,42 @@
             "scaleInDock": 1
         },
         "C:/Users/cstyl/Downloads/craftpix-net-587497-pixel-art-market-square-rpg-shop-and-npc-assets-pack/Tiled_files/Market_square.tmx#candles": {
+            "scaleInDock": 1
+        },
+        "C:/Users/cstyl/Downloads/craftpix-net-624156-swamp-top-down-tileset-pixel-art/Tiled_files/Swamp.tmx": {
+            "scale": 1.5,
+            "selectedLayer": 0,
+            "viewCenter": {
+                "x": 359.33333333333337,
+                "y": 238.33333333333331
+            }
+        },
+        "C:/Users/cstyl/Downloads/craftpix-net-624156-swamp-top-down-tileset-pixel-art/Tiled_files/Swamp.tmx#Ground_grass_swamp": {
+            "scaleInDock": 1
+        },
+        "C:/Users/cstyl/Downloads/craftpix-net-624156-swamp-top-down-tileset-pixel-art/Tiled_files/Swamp.tmx#Objects": {
+            "scaleInDock": 1
+        },
+        "C:/Users/cstyl/Downloads/craftpix-net-624156-swamp-top-down-tileset-pixel-art/Tiled_files/Swamp.tmx#duckweed": {
+            "scaleInDock": 1
+        },
+        "C:/Users/cstyl/Downloads/craftpix-net-624156-swamp-top-down-tileset-pixel-art/Tiled_files/Swamp.tmx#spots": {
+            "scaleInDock": 1
+        },
+        "C:/Users/cstyl/Downloads/craftpix-net-624156-swamp-top-down-tileset-pixel-art/Tiled_files/Swamp.tmx#sprites_animated": {
+            "scaleInDock": 1
+        },
+        "C:/Users/cstyl/Downloads/craftpix-net-624156-swamp-top-down-tileset-pixel-art/Tiled_files/Water_coasts..tsx": {
+            "dynamicWrapping": false,
+            "scaleInDock": 1
+        },
+        "C:/Users/cstyl/Downloads/craftpix-net-624156-swamp-top-down-tileset-pixel-art/Tiled_files/Water_detilazation2.tsx": {
+            "scaleInDock": 1
+        },
+        "C:/Users/cstyl/Downloads/craftpix-net-624156-swamp-top-down-tileset-pixel-art/Tiled_files/Water_detilazation3.tsx": {
+            "scaleInDock": 1
+        },
+        "C:/Users/cstyl/Downloads/craftpix-net-624156-swamp-top-down-tileset-pixel-art/Tiled_files/water_lilis.tsx": {
             "scaleInDock": 1
         },
         "C:/Users/cstyl/Downloads/craftpix-net-666104-tavern-top-down-pixel-rpg-asset-pack/Tiled_files/Characters.tmx": {
@@ -840,6 +1141,45 @@
         "C:/Users/cstyl/Downloads/craftpix-net-666104-tavern-top-down-pixel-rpg-asset-pack/Tiled_files/Tavern_interior_2st_floor.tmx#int-Sheet": {
             "scaleInDock": 1
         },
+        "C:/Users/cstyl/Downloads/craftpix-net-728196-forest-top-down-tileset-pixel-art/Tiled_files/Forest.tmx": {
+            "scale": 1.5,
+            "selectedLayer": 0,
+            "viewCenter": {
+                "x": 437.33333333333337,
+                "y": 239
+            }
+        },
+        "C:/Users/cstyl/Downloads/craftpix-net-728196-forest-top-down-tileset-pixel-art/Tiled_files/Forest.tmx#Ground_grass": {
+            "scaleInDock": 1
+        },
+        "C:/Users/cstyl/Downloads/craftpix-net-728196-forest-top-down-tileset-pixel-art/Tiled_files/Forest.tmx#Objects": {
+            "scaleInDock": 1
+        },
+        "C:/Users/cstyl/Downloads/craftpix-net-728196-forest-top-down-tileset-pixel-art/Tiled_files/Forest.tmx#Water_coasts": {
+            "scaleInDock": 1
+        },
+        "C:/Users/cstyl/Downloads/craftpix-net-728196-forest-top-down-tileset-pixel-art/Tiled_files/Forest.tmx#Water_detilazation": {
+            "scaleInDock": 1
+        },
+        "C:/Users/cstyl/Downloads/craftpix-net-728196-forest-top-down-tileset-pixel-art/Tiled_files/Forest.tmx#lianas": {
+            "scaleInDock": 1
+        },
+        "C:/Users/cstyl/Downloads/craftpix-net-728196-forest-top-down-tileset-pixel-art/Tiled_files/Forest.tmx#spots": {
+            "scaleInDock": 1
+        },
+        "C:/Users/cstyl/Downloads/craftpix-net-728196-forest-top-down-tileset-pixel-art/Tiled_files/Forest.tmx#spots_rock": {
+            "scaleInDock": 1
+        },
+        "C:/Users/cstyl/Downloads/craftpix-net-728196-forest-top-down-tileset-pixel-art/Tiled_files/Forest.tmx#stairs_grass": {
+            "dynamicWrapping": false,
+            "scaleInDock": 2
+        },
+        "C:/Users/cstyl/Downloads/craftpix-net-728196-forest-top-down-tileset-pixel-art/Tiled_files/Forest.tmx#water_lilis": {
+            "scaleInDock": 1
+        },
+        "C:/Users/cstyl/Downloads/craftpix-net-728196-forest-top-down-tileset-pixel-art/Tiled_files/Water_detilazation2.tsx": {
+            "scaleInDock": 1
+        },
         "C:/Users/cstyl/Downloads/craftpix-net-741016-pixel-blacksmith-house-interior-and-exterior-assets/Tiled_files/Blacksmith_house_interior.tmx": {
             "scale": 3,
             "selectedLayer": 11,
@@ -1018,15 +1358,15 @@
         },
         "maps/Blacksmith_interior.tmx": {
             "expandedObjectLayers": [
-                9,
+                11,
                 10,
-                11
+                9
             ],
             "scale": 2,
             "selectedLayer": 10,
             "viewCenter": {
-                "x": 88.5,
-                "y": 374.25
+                "x": 379,
+                "y": 240
             }
         },
         "maps/Blacksmith_interior.tmx#Forge_animation": {
@@ -1045,25 +1385,26 @@
             "scaleInEditor": 1
         },
         "maps/Blacksmith_interior.tmx#Walls_interior": {
+            "dynamicWrapping": false,
             "scaleInDock": 0.75
         },
         "maps/Canvas_Village.tmx": {
             "expandedGroupLayers": [
                 43,
-                45,
+                31,
                 54,
-                31
+                45
             ],
             "expandedObjectLayers": [
-                10,
                 8,
+                10,
                 12
             ],
-            "scale": 0.75,
-            "selectedLayer": 30,
+            "scale": 1,
+            "selectedLayer": 5,
             "viewCenter": {
-                "x": 1806.6666666666665,
-                "y": 1711.3333333333333
+                "x": 1173,
+                "y": 1261.5
             }
         },
         "maps/Canvas_Village.tmx#Archer": {
@@ -1071,6 +1412,9 @@
         },
         "maps/Canvas_Village.tmx#Arrow": {
             "scaleInDock": 1
+        },
+        "maps/Canvas_Village.tmx#Assets_source": {
+            "scaleInDock": 0.5
         },
         "maps/Canvas_Village.tmx#Blacksmith_Exterior": {
             "scaleInDock": 0.5,
@@ -1082,6 +1426,9 @@
         "maps/Canvas_Village.tmx#Details": {
             "scaleInDock": 0.75,
             "scaleInEditor": 1
+        },
+        "maps/Canvas_Village.tmx#Exterior": {
+            "scaleInDock": 0.5
         },
         "maps/Canvas_Village.tmx#Exterior_objetcs": {
             "scaleInDock": 0.5,
@@ -1102,14 +1449,16 @@
             "scaleInDock": 0.75
         },
         "maps/Canvas_Village.tmx#Trees_rocks": {
-            "scaleInDock": 0.75,
+            "scaleInDock": 0.33,
             "scaleInEditor": 1
         },
         "maps/Canvas_Village.tmx#Walls_street": {
-            "scaleInDock": 0.75,
+            "dynamicWrapping": false,
+            "scaleInDock": 1.5,
             "scaleInEditor": 1
         },
         "maps/Canvas_Village.tmx#Water_coasts": {
+            "dynamicWrapping": false,
             "scaleInDock": 0.75,
             "scaleInEditor": 3
         },
@@ -1117,7 +1466,7 @@
             "scaleInDock": 1
         },
         "maps/Canvas_Village.tmx#ground_grasss": {
-            "scaleInDock": 0.5
+            "scaleInDock": 0.25
         },
         "maps/Canvas_Village.tmx#piles": {
             "scaleInDock": 0.33,
@@ -1142,34 +1491,37 @@
             "scaleInEditor": 1
         },
         "tiles/water.tsx": {
+            "dynamicWrapping": true,
             "scaleInDock": 0.5,
             "scaleInEditor": 1
         }
     },
     "frame.defaultDuration": 120,
-    "last.imagePath": "C:/Users/cstyl/Documents/Michi-s-adventure/ceva/src/res/tiles/CANVAS VILLAGE/Square Market/Blacksmith",
+    "last.imagePath": "C:/Users/cstyl/Documents/Michi-s-adventure/ceva/src/res/tiles/CANVAS VILLAGE/Field",
     "map.height": 15,
     "map.lastUsedFormat": "tmx",
     "map.width": 20,
     "openFiles": [
         "maps/Canvas_Village.tmx",
-        "maps/Blacksmith_interior.tmx"
+        "maps/Blacksmith_interior.tmx",
+        "C:/Users/cstyl/Downloads/craftpix-net-477438-free-chapel-pixel-art-top-down-asset-pack/Tiled_files/Interior.tmx",
+        "C:/Users/cstyl/AppData/Local/Temp/488b104b-026d-4e18-81b4-213a657e8dac_craftpix-net-189510-grassland-top-down-tileset-pixel-art.zip.dac/Tiled_files/Glades.tmx"
     ],
     "project": "MichiAdventure.tiled-project",
     "property.type": "bool",
     "recentFiles": [
-        "maps/Blacksmith_interior.tmx",
         "maps/Canvas_Village.tmx",
-        "maps/Awakening_Cave.tmx",
-        "C:/Users/cstyl/Downloads/craftpix-net-741016-pixel-blacksmith-house-interior-and-exterior-assets/Tiled_files/Blacksmith_house_interior.tmx",
-        "C:/Users/cstyl/Downloads/craftpix-net-587497-pixel-art-market-square-rpg-shop-and-npc-assets-pack/Tiled_files/Characters.tmx",
-        "C:/Users/cstyl/Downloads/craftpix-net-666104-tavern-top-down-pixel-rpg-asset-pack/Tiled_files/Tavern_interior_1nd_floor.tmx",
-        "C:/Users/cstyl/Downloads/craftpix-net-666104-tavern-top-down-pixel-rpg-asset-pack/Tiled_files/Characters.tmx",
-        "C:/Users/cstyl/Downloads/craftpix-net-666104-tavern-top-down-pixel-rpg-asset-pack/Tiled_files/Tavern_interior_2st_floor.tmx",
-        "C:/Users/cstyl/Downloads/craftpix-net-587497-pixel-art-market-square-rpg-shop-and-npc-assets-pack/Tiled_files/Market_square.tmx",
-        "C:/Users/cstyl/Downloads/craftpix-net-666104-tavern-top-down-pixel-rpg-asset-pack/Tiled_files/Tavern_exterior.tmx",
-        "C:/Users/cstyl/Downloads/menu.tmx",
-        "C:/Users/cstyl/Downloads/legend-of-lua-main/legend-of-lua-main/maps/_old2/testDungeon2-2.tmx"
+        "maps/Blacksmith_interior.tmx",
+        "C:/Users/cstyl/Downloads/craftpix-net-477438-free-chapel-pixel-art-top-down-asset-pack/Tiled_files/Interior.tmx",
+        "C:/Users/cstyl/AppData/Local/Temp/488b104b-026d-4e18-81b4-213a657e8dac_craftpix-net-189510-grassland-top-down-tileset-pixel-art.zip.dac/Tiled_files/Glades.tmx",
+        "C:/Users/cstyl/Desktop/map.tmx",
+        "C:/Users/cstyl/Desktop/EPIC RPG World Pack - [FREE Demo]Ancient Ruins - Copia/TiledMap Editor/Ancient Ruins-wall-8-rule.tmx",
+        "C:/Users/cstyl/Downloads/craftpix-net-728196-forest-top-down-tileset-pixel-art/Tiled_files/Forest.tmx",
+        "C:/Users/cstyl/Downloads/craftpix-net-624156-swamp-top-down-tileset-pixel-art/Tiled_files/Swamp.tmx",
+        "C:/Users/cstyl/AppData/Local/Temp/a899a842-ee87-4253-8120-d9ba7cbef68c_craftpix-net-728196-forest-top-down-tileset-pixel-art.zip.68c/Tiled_files/Forest.tmx",
+        "C:/Users/cstyl/Desktop/Tiled_files/Glades.tmx",
+        "C:/Users/cstyl/Downloads/craftpix-net-477438-free-chapel-pixel-art-top-down-asset-pack/Tiled_files/Exterior.tmx",
+        "C:/Users/cstyl/Downloads/craftpix-net-477438-free-chapel-pixel-art-top-down-asset-pack/Tiled_files/Characters.tmx"
     ],
     "tileset.embedInMap": true,
     "tileset.lastUsedFormat": "tsx"

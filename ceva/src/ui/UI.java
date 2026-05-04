@@ -113,6 +113,8 @@ public class UI {
     // â”€â”€ CACHED HUD FONTS â€” derived once, not per frame â”€â”€
     private Font hudFont_bold15, hudFont_bold8, hudFont_bold13;
     private Font hudFont_plain10, hudFont_bold10, hudFont_bold9, hudFont_bold22;
+    /** Prompt font ("ENTER" floating above interactables) — initialized in initHudFonts(). */
+    private Font hudFont_prompt;
     // â”€â”€ CACHED STROKES â”€â”€
     private static final BasicStroke STROKE_1  = new BasicStroke(1f);
     private static final BasicStroke STROKE_15 = new BasicStroke(1.5f);
@@ -195,8 +197,19 @@ public class UI {
     public UI(GamePanel gp) {
         this.gp = gp;
 
-        arial_40 = new Font("Georgia", Font.PLAIN, 40);
-        arial_80B = new Font("Arial", Font.BOLD, 80);
+        // Load the custom pixel font from resources.
+        // Integer-size derivations are used throughout to keep pixel-perfect rendering.
+        Font pixelBase;
+        try {
+            pixelBase = Font.createFont(Font.TRUETYPE_FONT,
+                    getClass().getResourceAsStream("/res/fonts/Pixeloid Sans.ttf"));
+            java.awt.GraphicsEnvironment.getLocalGraphicsEnvironment().registerFont(pixelBase);
+        } catch (Exception e) {
+            System.out.println("[UI] Pixeloid Sans not found, falling back to Segoe UI");
+            pixelBase = new Font("Segoe UI", Font.PLAIN, 12);
+        }
+        arial_40 = pixelBase.deriveFont(Font.PLAIN, 40);
+        arial_80B = pixelBase.deriveFont(Font.BOLD, 80);
 
         // CREATE HUB OBJECT
         Entity heart = new OBJ_Heart(gp);
@@ -230,24 +243,29 @@ public class UI {
 
     /** Cached font lookup â€” avoids expensive deriveFont() every frame. */
     private Font cachedFont(int style, float size) {
-        long key = ((long) style << 32) | Float.floatToIntBits(size);
+        // Round to integer size — keeps pixel fonts crisp (avoids sub-pixel rounding blur).
+        float roundedSize = (float) Math.round(size);
+        long key = ((long) style << 32) | Float.floatToIntBits(roundedSize);
         Font f = fontCache.get(key);
         if (f == null) {
-            f = arial_40.deriveFont(style, size);
+            f = arial_40.deriveFont(style, roundedSize);
             fontCache.put(key, f);
         }
         return f;
     }
 
     private void initHudFonts() {
-        float sf = gp.screenWidth / 1280f;
-        hudFont_bold15  = arial_40.deriveFont(Font.BOLD,  15f * sf);
-        hudFont_bold8   = arial_40.deriveFont(Font.BOLD,   8f * sf);
-        hudFont_bold13  = arial_40.deriveFont(Font.BOLD,  13f * sf);
-        hudFont_plain10 = arial_40.deriveFont(Font.PLAIN, 10f * sf);
-        hudFont_bold10  = arial_40.deriveFont(Font.BOLD,  10f * sf);
-        hudFont_bold9   = arial_40.deriveFont(Font.BOLD,   9f * sf);
-        hudFont_bold22  = arial_40.deriveFont(Font.BOLD,  22f);
+        // All sizes are integers — avoids sub-pixel rounding that blurs pixel fonts.
+        // At 1280-wide (sf=1.0) the sizes match the design values exactly.
+        float sf = gp.uiSf();
+        hudFont_bold15  = arial_40.deriveFont(Font.BOLD,  (float) Math.round(15f * sf));
+        hudFont_bold8   = arial_40.deriveFont(Font.BOLD,  (float) Math.round( 8f * sf));
+        hudFont_bold13  = arial_40.deriveFont(Font.BOLD,  (float) Math.round(13f * sf));
+        hudFont_plain10 = arial_40.deriveFont(Font.PLAIN, (float) Math.round(10f * sf));
+        hudFont_bold10  = arial_40.deriveFont(Font.BOLD,  (float) Math.round(10f * sf));
+        hudFont_bold9   = arial_40.deriveFont(Font.BOLD,  (float) Math.round( 9f * sf));
+        hudFont_bold22  = arial_40.deriveFont(Font.BOLD,  (float) Math.round(22f * sf));
+        hudFont_prompt  = arial_40.deriveFont(Font.BOLD,  (float) Math.round(14f * sf));
     }
 
     public void addMessage(String text, Color color) {
@@ -273,9 +291,10 @@ public class UI {
 
         this.g2 = g2;
     
-        // Enable anti-aliasing for smoother text and shapes
-        g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
-        g2.setRenderingHint(RenderingHints.KEY_TEXT_ANTIALIASING, RenderingHints.VALUE_TEXT_ANTIALIAS_ON);
+        // Crisp pixel art: shapes rendered without shape AA, text with LCD sub-pixel AA
+        // (LCD gives sharp edges on modern monitors without the blurry halo of regular AA)
+        g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_OFF);
+        g2.setRenderingHint(RenderingHints.KEY_TEXT_ANTIALIASING, RenderingHints.VALUE_TEXT_ANTIALIAS_LCD_HRGB);
 
         g2.setFont(arial_40);
         g2.setColor(Color.white);
@@ -821,11 +840,11 @@ public class UI {
             BufferedImage icon = messageIcon.get(i);
             int iconSpace = icon != null ? 28 : 0;
             int pillW = txtW + iconSpace + 24;
-            int pillH = 34;
+            int pillH = 34; // fixed: renders into tempScreen which is always 768px tall
 
-            // Position: left side of screen
+            // Position: left side, roughly 39% down the screen (sf-safe reference point)
             int px = 16 - slideOffset;
-            int py = 300 + totalHeight;
+            int py = (int)(gp.screenHeight * 0.39f) + totalHeight;
 
             Color baseColor = messageColor.get(i);
 
@@ -870,7 +889,6 @@ public class UI {
 
     // â”€â”€ INTERACTION PROMPT: floating "ENTER" prompt when near an interactable â”€â”€
     private int promptBobCounter = 0;
-    private static final Font PROMPT_FONT = new Font("Georgia", Font.BOLD, 14);
 
     public void drawInteractionPrompt() {
         Entity target = gp.nearbyInteractable;
@@ -889,8 +907,8 @@ public class UI {
         int screenX = target.worldX - gp.player.worldX + gp.player.screenX;
         int screenY = target.worldY - gp.player.worldY + gp.player.screenY;
 
-        g2.setFont(PROMPT_FONT);
-        FontMetrics fm = cachedFM(PROMPT_FONT);
+        g2.setFont(hudFont_prompt);
+        FontMetrics fm = cachedFM(hudFont_prompt);
         int textW = fm.stringWidth(text);
         int textH = fm.getHeight();
 
@@ -946,7 +964,8 @@ public class UI {
             g2.fillRect(0, vigTop, gp.screenWidth, 380);
 
             // â”€â”€ TITLE â€” Georgia Bold Italic, cream-to-gold gradient â”€â”€
-            g2.setFont(cachedFont(Font.BOLD | Font.ITALIC, 72F));
+            g2.setRenderingHint(RenderingHints.KEY_TEXT_ANTIALIASING, RenderingHints.VALUE_TEXT_ANTIALIAS_ON);
+            g2.setFont(cachedFont(Font.BOLD, 72F));
             String text = "Echoes of the Heir";
             FontMetrics titleFM = cachedFM();
             int tw = (int) titleFM.getStringBounds(text, g2).getWidth();
@@ -978,7 +997,7 @@ public class UI {
             g2.drawLine(symX + symW + 6, ruleY, tx + tw, ruleY);
 
             // â”€â”€ SUBTITLE â€” soft violet-lavender, strong shadow, readable over bright canvas â”€â”€
-            g2.setFont(cachedFont(Font.ITALIC, 19F));
+            g2.setFont(cachedFont(Font.PLAIN, 19F));
             String sub = "The Canvas Realm Awaits";
             int sw = (int) cachedFM().getStringBounds(sub, g2).getWidth();
             int subX = (gp.screenWidth - sw) / 2;
@@ -2263,10 +2282,10 @@ public class UI {
     }
     public void drawInventory() {
 
-        int frameX = gp.tileSize * 12;
-        int frameY = gp.tileSize;
-        int frameWidth = gp.tileSize * 6;
+        int frameWidth  = gp.tileSize * 6;
         int frameHeight = gp.tileSize * 5;
+        int frameX = gp.screenWidth - frameWidth - 16;  // right-aligned: works at any tileSize/resolution
+        int frameY = gp.tileSize;
         drawSubWindow(frameX, frameY, frameWidth, frameHeight);
 
         // Title and size (size shown only in inventory screen)

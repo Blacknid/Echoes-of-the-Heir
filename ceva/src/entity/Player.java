@@ -65,6 +65,10 @@ public class Player extends Entity {
     KeyHandler keyH;
     public int screenX;
     public int screenY;
+    // Smooth camera: camScreenX/Y lerp toward the clamped target screenX/Y each tick
+    private float camScreenX;
+    private float camScreenY;
+    private static final float CAM_LERP = 0.15f;
     public ArrayList<Entity> inventory = new ArrayList<>();
     public int hasKey = 0;
     public int hasArtefact = 0;
@@ -163,12 +167,12 @@ public class Player extends Entity {
         screenX = gp.screenWidth / 2 - (gp.tileSize / 2);
         screenY = gp.screenHeight / 2 - (gp.tileSize / 2);
         solidArea = new Rectangle();
-        solidArea.x = 20;  // 20px padding left = 20px right, centered
-        solidArea.y = 22;  // Slight top offset for upper body
+        solidArea.x = 25;  // scaled from 20 for 80px tile (proportional to tile size)
+        solidArea.y = 27;  // scaled from 22
         solidAreaDefaultX = solidArea.x;
         solidAreaDefaultY = solidArea.y;
-        solidArea.width = 24;  // 20 + 24 + 20 = 64 (full width)
-        solidArea.height = 22; // Covers main body mass
+        solidArea.width = 30;  // scaled from 24
+        solidArea.height = 27; // scaled from 22
         setDefaultValues();
     }
 
@@ -178,7 +182,7 @@ public class Player extends Entity {
         // setDefaultPositions() will apply it once events are loaded.
         worldX = 0;
         worldY = 0;
-        defaultSpeed = 4;
+        defaultSpeed = 5;
         speed = defaultSpeed;
         direction = DIR_DOWN;
         level = 100;
@@ -251,6 +255,9 @@ public class Player extends Entity {
             worldY = (int)(gp.tileSize * 15.5);
         }
         direction = DIR_DOWN;
+        // Snap camera instantly to new spawn position (no lerp drift across map transitions)
+        camScreenX = 0f;
+        camScreenY = 0f;
     }
 
     public void setPlayerStats(int life, int strenght, int dexterity, int speed, int mana) {
@@ -592,8 +599,8 @@ public class Player extends Entity {
                 int moveSpeedY = speed;
                 if (diagonal) {
                     // 70.71% per axis — total vector equals cardinal speed, balanced feel
-                    moveSpeedX = Math.max(1, (int)(speed * 0.7071));
-                    moveSpeedY = Math.max(1, (int)(speed * 0.7071));
+                    moveSpeedX = Math.max(1, Math.round(speed * 0.7071f));
+                    moveSpeedY = Math.max(1, Math.round(speed * 0.7071f));
                 }
                 // Slowed: halve effective movement speed (e.g. Canvas Moth dust debuff)
                 if (slowed && !dashing) {
@@ -718,45 +725,52 @@ public class Player extends Entity {
             }
         }
 
-        // CAMERA EDGE CLAMPING: prevent the camera from scrolling past map boundaries
+        // SMOOTH CAMERA: compute the hard-clamped target screenX/Y from worldX/Y,
+        // then lerp the actual screenX/Y toward it. Because the target is always
+        // within valid map bounds, void can never appear at map edges.
         int mapPixelW = gp.tileM.currentMapCols * gp.tileSize;
         int mapPixelH = gp.tileM.currentMapRows * gp.tileSize;
         int defaultScreenX = gp.screenWidth / 2 - (gp.tileSize / 2);
         int defaultScreenY = gp.screenHeight / 2 - (gp.tileSize / 2);
 
+        // --- Compute fully-clamped target screen position from real worldX/Y ---
+        int targetScreenX, targetScreenY;
         if (mapPixelW <= gp.screenWidth) {
-            // Map narrower than screen: center horizontally
-            screenX = worldX + (gp.screenWidth - mapPixelW) / 2;
+            targetScreenX = worldX + (gp.screenWidth - mapPixelW) / 2;
         } else {
-            int camX = worldX - defaultScreenX;
-            if (camX < 0) {
-                screenX = worldX;
-            } else if (camX > mapPixelW - gp.screenWidth) {
-                screenX = worldX - (mapPixelW - gp.screenWidth);
-            } else {
-                screenX = defaultScreenX;
-            }
+            int offX = worldX - defaultScreenX;
+            if (offX < 0)                              targetScreenX = worldX;
+            else if (offX > mapPixelW - gp.screenWidth) targetScreenX = worldX - (mapPixelW - gp.screenWidth);
+            else                                        targetScreenX = defaultScreenX;
+        }
+        if (mapPixelH <= gp.screenHeight) {
+            targetScreenY = worldY + (gp.screenHeight - mapPixelH) / 2;
+        } else {
+            int offY = worldY - defaultScreenY;
+            if (offY < 0)                               targetScreenY = worldY;
+            else if (offY > mapPixelH - gp.screenHeight) targetScreenY = worldY - (mapPixelH - gp.screenHeight);
+            else                                         targetScreenY = defaultScreenY;
         }
 
-        if (mapPixelH <= gp.screenHeight) {
-            // Map shorter than screen: center vertically
-            screenY = worldY + (gp.screenHeight - mapPixelH) / 2;
-        } else {
-            int camY = worldY - defaultScreenY;
-            if (camY < 0) {
-                screenY = worldY;
-            } else if (camY > mapPixelH - gp.screenHeight) {
-                screenY = worldY - (mapPixelH - gp.screenHeight);
-            } else {
-                screenY = defaultScreenY;
-            }
+        // Initialise smooth cam on first tick
+        if (camScreenX == 0f && camScreenY == 0f) {
+            camScreenX = targetScreenX;
+            camScreenY = targetScreenY;
         }
+        camScreenX += (targetScreenX - camScreenX) * CAM_LERP;
+        camScreenY += (targetScreenY - camScreenY) * CAM_LERP;
+        screenX = Math.round(camScreenX);
+        screenY = Math.round(camScreenY);
     }
 
     private void updateSprite() {
         spriteCounter++;
-        if (spriteCounter > 7) {
-            spriteNum = (spriteNum % 7) + 1; // loops 1-7
+        // Tie animation cadence to movement speed so feet never slide:
+        // at defaultSpeed (5) interval = 40/5 = 8 ticks — same as before.
+        // During a dash speed rises to ~16 so interval drops to ~2 (snappy).
+        int interval = Math.max(1, 40 / Math.max(1, speed));
+        if (spriteCounter > interval) {
+            spriteNum = (spriteNum % 7) + 1; // loops 1–7
             spriteCounter = 0;
         }
     }
