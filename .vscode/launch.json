@@ -1,18 +1,17 @@
 {
+    "version": "0.2.0",
     "configurations": [
+        {
+            "type": "java",
+            "name": "Play Michi's Adventure",
+            "request": "launch",
+            "mainClass": "main.Main"
+        },
         {
             "type": "java",
             "name": "Updater",
             "request": "launch",
-            "mainClass": "update.Updater",
-            "projectName": "Michi-s-adventure"
-        },
-        {
-            "type": "java",
-            "name": "Main",
-            "request": "launch",
-            "mainClass": "main.Main",
-            "projectName": "Michi-s-adventure"
+            "mainClass": "update.Updater"
         }
     ]
 }
