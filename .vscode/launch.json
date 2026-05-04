@@ -5,14 +5,16 @@
             "name": "Updater",
             "request": "launch",
             "mainClass": "update.Updater",
-            "projectName": "Michi-s-adventure"
+            "classPaths": ["${workspaceFolder}/ceva/bin"],
+            "cwd": "${workspaceFolder}"
         },
         {
             "type": "java",
             "name": "Main",
             "request": "launch",
             "mainClass": "main.Main",
-            "projectName": "Michi-s-adventure"
+            "classPaths": ["${workspaceFolder}/ceva/bin"],
+            "cwd": "${workspaceFolder}"
         }
     ]
 }

@@ -8,6 +8,7 @@
     "ceva/src"
   ],
   "java.project.outputPath": "ceva/bin",
+  "java.project.referencedLibraries": [],
   "java.compile.nullAnalysis.mode": "disabled",
   "java.debug.settings.onBuildFailureProceed": true,
   "C_Cpp_Runner.cCompilerPath": "gcc",

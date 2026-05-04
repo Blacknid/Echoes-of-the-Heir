@@ -19,7 +19,6 @@ import javax.swing.SwingUtilities;
 
 import ai.PathFinder;
 import audio.AudioManager;
-import audio.Sound;
 import data.SaveLoad;
 import entity.Entity;
 import entity.Particle;
@@ -52,10 +51,16 @@ public class GamePanel extends JPanel implements Runnable{
     public final double scale = Config.scale;
 
     public final int tileSize = Config.tileSize; // runtime tile size (originalTileSize * scale)
-    public final int maxScreenCol = 20;
-    public final int maxScreenRow = 12;
-    public final int screenWidth = tileSize * maxScreenCol; // 1280 pixels
-    public final int screenHeight = tileSize * maxScreenRow; // 768 pixels
+    // Fixed display resolution — independent of tile size so zooming in doesn't change window size
+    public final int screenWidth = 1280;
+    public final int screenHeight = 720; // 16:9
+    // Visible tile counts derived from resolution + tile size (+1 to cover partial edge tiles)
+    public final int maxScreenCol = (int)Math.ceil((double)screenWidth / tileSize) + 1;
+    public final int maxScreenRow = (int)Math.ceil((double)screenHeight / tileSize) + 1;
+    /** UI horizontal scale factor: how much bigger the screen is than the 1280-wide reference. */
+    public float uiSf()  { return screenWidth  / (float) Config.UI_BASE_W; }
+    /** UI vertical scale factor: how much bigger the screen is than the 768-high reference. */
+    public float uiSfH() { return screenHeight / (float) Config.UI_BASE_H; }
 
     // DEBUG
     public boolean HitBoxes = false;
@@ -94,9 +99,6 @@ public class GamePanel extends JPanel implements Runnable{
     public TileManager tileM = new TileManager(this);
     public KeyHandler keyH = new KeyHandler(this);
     public AudioManager audio = new AudioManager();
-    // Legacy delegates — forward to AudioManager so old code still compiles
-    Sound music = audio.getMusicSound();
-    Sound se = audio.getSESound();
     public CollisionChecker cChecker = new CollisionChecker(this);
     public AssetSetter aSetter = new AssetSetter(this);
     public MapObjectLoader mapObjectLoader = new MapObjectLoader(this);
@@ -250,6 +252,30 @@ public class GamePanel extends JPanel implements Runnable{
         this.setDoubleBuffered(true);
         this.addKeyListener(keyH);
         this.setFocusable(true);
+
+        // Window drag — the window is always undecorated (no title bar), so we let
+        // the player drag it by clicking anywhere on the panel when in windowed mode.
+        // Ignored in fullscreen (dragging a maximized window does nothing anyway).
+        java.awt.Point[] dragStart = {null};
+        addMouseListener(new java.awt.event.MouseAdapter() {
+            @Override public void mousePressed(java.awt.event.MouseEvent e) {
+                if (!fullScreenOn) dragStart[0] = e.getLocationOnScreen();
+            }
+            @Override public void mouseReleased(java.awt.event.MouseEvent e) {
+                dragStart[0] = null;
+            }
+        });
+        addMouseMotionListener(new java.awt.event.MouseMotionAdapter() {
+            @Override public void mouseDragged(java.awt.event.MouseEvent e) {
+                if (!fullScreenOn && dragStart[0] != null && Main.window != null) {
+                    java.awt.Point cur = e.getLocationOnScreen();
+                    java.awt.Point loc = Main.window.getLocation();
+                    Main.window.setLocation(loc.x + cur.x - dragStart[0].x,
+                                            loc.y + cur.y - dragStart[0].y);
+                    dragStart[0] = cur;
+                }
+            }
+        });
     }
 
     public void setupGame() {
@@ -376,9 +402,8 @@ public class GamePanel extends JPanel implements Runnable{
     // Save the clean identity transform so we can reset to it at the start of every frame
     identityTransform = g2.getTransform();
 
-    if (fullScreenOn) {
-        setFullScreen();
-    }
+    // Startup fullscreen is applied in Main.java (invokeAndWait) before this method
+    // runs, so no action needed here.
     }
 
     // --- MAP MANAGEMENT DELEGATION (methods now in MapManager) ---
@@ -410,37 +435,23 @@ public class GamePanel extends JPanel implements Runnable{
 
     private void applyWindowMode(boolean enableFullScreen) {
         JFrame window = Main.window;
-        if (window == null) {
-            return;
-        }
+        if (window == null) return;
 
+        // The window is always undecorated (set in Main.java before first setVisible).
+        // This means we never need dispose() to change decoration — we just toggle
+        // the extended state. No dispose = no OpenGL surface destruction = no black screen.
         if (enableFullScreen) {
-            if (!window.isUndecorated()) {
-                windowedBounds = window.getBounds();
-            }
-            if (window.isDisplayable()) {
-                window.dispose();
-            }
-            window.setUndecorated(true);
-            window.setResizable(false);
-            window.setExtendedState(JFrame.NORMAL);
-
-            Rectangle screenBounds = GraphicsEnvironment
-                    .getLocalGraphicsEnvironment()
-                    .getMaximumWindowBounds();
-            window.setBounds(screenBounds);
-            window.setVisible(true);
+            windowedBounds = window.getBounds();  // save for restore
+            window.setExtendedState(JFrame.MAXIMIZED_BOTH);
         } else {
-            if (window.isDisplayable()) {
-                window.dispose();
-            }
-            window.setUndecorated(false);
-            window.setResizable(true);
-            window.setVisible(true);
-            if (windowedBounds != null) {
+            window.setExtendedState(JFrame.NORMAL);
+            if (windowedBounds != null && windowedBounds.width > 0) {
                 window.setBounds(windowedBounds);
+            } else if (config.windowX >= 0 && config.windowY >= 0) {
+                window.setSize(screenWidth, screenHeight);
+                window.setLocation(config.windowX, config.windowY);
             } else {
-                window.pack();
+                window.setSize(screenWidth, screenHeight);
                 window.setLocationRelativeTo(null);
             }
         }
@@ -582,11 +593,41 @@ public class GamePanel extends JPanel implements Runnable{
 
     @Override
     protected void paintComponent(Graphics g) {
-        // OPTIMIZATION: Skip super.paintComponent() — it fills background which we overwrite
-        // with tempScreen anyway. Saves one full-screen fill per frame.
+        int panelW = getWidth();
+        int panelH = getHeight();
+        // Guard: panel not yet laid out (happens during window initialization/dispose cycle)
+        if (panelW <= 0 || panelH <= 0) return;
+
         synchronized (this) {
+            Graphics2D g2d = (Graphics2D) g;
+
+            // Deep atmospheric dark — matches the game's dungeon/night palette rather
+            // than jarring pure black; fills letterbox/pillarbox bars around the game image.
+            g2d.setColor(new java.awt.Color(8, 6, 14));
+            g2d.fillRect(0, 0, panelW, panelH);
+
             if (tempScreen != null) {
-                g.drawImage(tempScreen, 0, 0, getWidth(), getHeight(), null);
+                // Aspect-ratio-correct scale: largest uniform scale that fits the game
+                // resolution inside the panel without distorting square pixels.
+                float scaleX = (float) panelW / screenWidth;
+                float scaleY = (float) panelH / screenHeight;
+                float scale  = Math.min(scaleX, scaleY);
+
+                int dstW = (int)(screenWidth  * scale);
+                int dstH = (int)(screenHeight * scale);
+                int dstX = (panelW - dstW) / 2;  // center horizontally
+                int dstY = (panelH - dstH) / 2;  // center vertically
+
+                g2d.setRenderingHint(java.awt.RenderingHints.KEY_INTERPOLATION,
+                        java.awt.RenderingHints.VALUE_INTERPOLATION_NEAREST_NEIGHBOR);
+                g2d.drawImage(tempScreen, dstX, dstY, dstW, dstH, null);
+
+                // Subtle 1px accent border — frames the game image intentionally
+                // against the bars so it looks designed, not accidental.
+                if (dstX > 0 || dstY > 0) {
+                    g2d.setColor(new java.awt.Color(55, 45, 35, 110));
+                    g2d.drawRect(dstX, dstY, dstW - 1, dstH - 1);
+                }
             }
         }
         Toolkit.getDefaultToolkit().sync();

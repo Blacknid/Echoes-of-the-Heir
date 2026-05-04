@@ -44,7 +44,10 @@ public class Main {
 
         window = new JFrame();
         window.setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
-        window.setResizable(true);
+        // Always undecorated: avoids dispose()+setVisible() cycles when toggling fullscreen,
+        // which destroy the OpenGL rendering surface and cause a blank window on many systems.
+        window.setUndecorated(true);
+        window.setResizable(false);
         window.setTitle("Michi's Adventure " + Config.getVersionString());
         new Main().setIcon();
 
@@ -55,8 +58,29 @@ public class Main {
 
         window.pack();
 
-        window.setLocationRelativeTo(null);
+        if (gamePanel.fullScreenOn) {
+            // Pre-size the window to the full screen BEFORE setVisible so the OpenGL
+            // rendering surface initialises at the correct resolution on the very first
+            // paint. Resizing an already-visible OpenGL surface often destroys the
+            // hardware context on Windows drivers, causing the black screen.
+            java.awt.Dimension screen = java.awt.Toolkit.getDefaultToolkit().getScreenSize();
+            window.setLocation(0, 0);
+            window.setSize(screen.width, screen.height);
+        } else {
+            if (gamePanel.config.windowX >= 0 && gamePanel.config.windowY >= 0) {
+                window.setLocation(gamePanel.config.windowX, gamePanel.config.windowY);
+            } else {
+                window.setLocationRelativeTo(null);
+            }
+        }
+
         window.setVisible(true);
+
+        // Tell the OS the window is maximised AFTER it is already the right size.
+        // No geometry change happens here — only the OS window-manager state updates.
+        if (gamePanel.fullScreenOn) {
+            window.setExtendedState(JFrame.MAXIMIZED_BOTH);
+        }
 
         gamePanel.setupGame();
         gamePanel.startGameThread();

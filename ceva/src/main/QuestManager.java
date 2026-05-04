@@ -181,13 +181,22 @@ public class QuestManager {
 
     private void ensureFonts(Graphics2D g2) {
         if (fontPlain14 == null) {
-            Font base = g2.getFont();
-            fontPlain14  = base.deriveFont(Font.PLAIN, 14f);
-            fontBold28   = base.deriveFont(Font.BOLD, 28f);
-            fontBold16   = base.deriveFont(Font.BOLD, 16f);
-            fontPlain20  = base.deriveFont(Font.PLAIN, 20f);
-            fontPlain16  = base.deriveFont(16f);
-            fontPlain14b = base.deriveFont(14f);
+            // Load the custom pixel font once. Integer sizes keep the font crisp.
+            Font base;
+            try {
+                base = Font.createFont(Font.TRUETYPE_FONT,
+                        QuestManager.class.getResourceAsStream("/res/fonts/Pixeloid Sans.ttf"));
+            } catch (Exception e) {
+                System.out.println("[QuestManager] Pixeloid Sans not found, using system font");
+                base = g2.getFont();
+            }
+            float sf = gp.screenWidth / (float) Config.UI_BASE_W;
+            fontPlain14  = base.deriveFont(Font.PLAIN, (float) Math.round(14f * sf));
+            fontBold28   = base.deriveFont(Font.BOLD,  (float) Math.round(28f * sf));
+            fontBold16   = base.deriveFont(Font.BOLD,  (float) Math.round(16f * sf));
+            fontPlain20  = base.deriveFont(Font.PLAIN, (float) Math.round(20f * sf));
+            fontPlain16  = base.deriveFont(Font.PLAIN, (float) Math.round(16f * sf));
+            fontPlain14b = base.deriveFont(Font.PLAIN, (float) Math.round(14f * sf));
         }
     }
 
@@ -491,16 +500,10 @@ public class QuestManager {
         }
         if (active == null) return;
 
-        int x = gp.screenWidth - 180;
-        int y = 150;
-        g2.setComposite(AlphaComposite.getInstance(AlphaComposite.SRC_OVER, 0.75f));
-        g2.setColor(BG);
-        g2.fillRoundRect(x, y, 168, 36, 8, 8);
-        g2.setComposite(AlphaComposite.getInstance(AlphaComposite.SRC_OVER, 1f));
-
         ensureFonts(g2);
         g2.setFont(fontPlain14);
-        g2.setColor(INCOMPLETE);
+
+        // Build tracker text
         String tracker;
         if (active.steps != null && active.currentStep < active.steps.length) {
             QuestStep step = active.steps[active.currentStep];
@@ -516,7 +519,47 @@ public class QuestManager {
         } else {
             tracker = active.name + "  (" + active.current + "/" + active.target + ")";
         }
-        g2.drawString(tracker, x + 8, y + 23);
+
+        // Layout — mirror the pill dimensions from UI.drawPlayerLife()
+        float sf    = gp.screenWidth / (float) Config.UI_BASE_W;
+        int margin  = (int)(12 * sf);
+        int pillH   = (int)(28 * sf);
+        int pillGap = (int)(5 * sf);
+        int maxW    = (int)(230 * sf);   // maximum tracker width (truncate beyond this)
+        int padH    = (int)(8 * sf);     // horizontal text padding inside pill
+
+        // Measure text; truncate with … if too wide
+        java.awt.FontMetrics fm = g2.getFontMetrics();
+        String display = tracker;
+        int textW = fm.stringWidth(display);
+        if (textW > maxW - padH * 2) {
+            // Binary-ish shrink: strip from right until it fits
+            while (display.length() > 3 && fm.stringWidth(display + "\u2026") > maxW - padH * 2) {
+                display = display.substring(0, display.length() - 1).stripTrailing();
+            }
+            display = display + "\u2026";
+            textW = fm.stringWidth(display);
+        }
+        int trackerW = Math.min(maxW, textW + padH * 2);
+
+        // Position: right-aligned with the pill stack; vertically below the 3 pills + gap
+        int x = gp.screenWidth - margin - trackerW;
+        int y = margin + 3 * pillH + 2 * pillGap + (int)(6 * sf);
+
+        // Draw background pill
+        g2.setComposite(AlphaComposite.getInstance(AlphaComposite.SRC_OVER, 0.82f));
+        g2.setColor(BG);
+        g2.fillRoundRect(x, y, trackerW, pillH, 8, 8);
+        // Left accent line (quest gold)
+        g2.setColor(INCOMPLETE);
+        g2.fillRoundRect(x, y + (int)(4 * sf), (int)(3 * sf), pillH - (int)(8 * sf), 3, 3);
+        g2.setComposite(AlphaComposite.getInstance(AlphaComposite.SRC_OVER, 1f));
+
+        // Text
+        g2.setFont(fontPlain14);
+        g2.setColor(INCOMPLETE);
+        int textY = y + pillH / 2 + fm.getAscent() / 2 - 1;
+        g2.drawString(display, x + padH, textY);
     }
 
     /** Draw the full quest log screen. */
