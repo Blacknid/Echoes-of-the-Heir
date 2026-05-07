@@ -19,6 +19,7 @@ import javax.swing.SwingUtilities;
 
 import ai.PathFinder;
 import audio.AudioManager;
+import audio.SFX;
 import data.SaveLoad;
 import entity.Entity;
 import entity.Particle;
@@ -40,6 +41,7 @@ import ui.ScreenShake;
 import ui.ThoughtBubble;
 import ui.UI;
 import util.ObjectPool;
+import util.ResourceCache;
 
 public class GamePanel extends JPanel implements Runnable{
 
@@ -65,8 +67,9 @@ public class GamePanel extends JPanel implements Runnable{
     // DEBUG
     public boolean HitBoxes = false;
     public boolean drawPath = false;
-    // Debug map switcher (F9)
-    public boolean debugMapSwitcherOpen = false;
+    // Debug panel (F9)
+    public boolean debugMenuOpen = false;
+    public int debugMenuSelectedIndex = 0;
     public java.util.List<String> debugMapList = new java.util.ArrayList<>();
     public int debugMapSelectedIndex = 0;
 
@@ -134,6 +137,17 @@ public class GamePanel extends JPanel implements Runnable{
     private static final java.awt.Color MP_BAR_GREEN   = new java.awt.Color(60, 200, 80);
     private static final java.awt.Color MP_BAR_RED     = new java.awt.Color(220, 60, 60);
     private static final java.awt.BasicStroke MP_STROKE_2 = new java.awt.BasicStroke(2f);
+    private static final int DEBUG_ROW_DEBUG_TEXT = 0;
+    private static final int DEBUG_ROW_HITBOXES = 1;
+    private static final int DEBUG_ROW_PATHS = 2;
+    private static final int DEBUG_ROW_SEPIA = 3;
+    private static final int DEBUG_ROW_RELOAD_MAP = 4;
+    private static final int DEBUG_ROW_FLASHBACK = 5;
+    private static final int DEBUG_ROW_FRAGMENTS = 6;
+    private static final int DEBUG_ROW_AWAKENING = 7;
+    private static final int DEBUG_ROW_TARGET_MAP = 8;
+    private static final int DEBUG_ROW_TELEPORT_TARGET = 9;
+    private static final int DEBUG_MENU_ROWS = 10;
     private java.awt.Font mpNametagFont; // lazily derived
 
 
@@ -160,6 +174,9 @@ public class GamePanel extends JPanel implements Runnable{
     public boolean boss4Defeated;
     public int storyAct;       // 0=tutorial, 1=shatterLake, 2=ashenWoods, 3=citadel, 4=gallery, 5=frame
     public int endingChosen;   // 0=none, 1=confront, 2=sacrifice, 3=forgive
+
+    // PERMANENTLY OPENED GATES (LevelGates with permanentOpen=true that the player has passed through)
+    public java.util.Set<String> openedGates = new java.util.HashSet<>();
 
     // MAP MANAGEMENT (extracted from GamePanel)
     public MapManager mapManager;
@@ -903,9 +920,6 @@ public class GamePanel extends JPanel implements Runnable{
     }
 
     // DEBUG TEXT
-    // Debug map switcher overlay (always on top)
-    if (debugMapSwitcherOpen) drawDebugMapSwitcher(g2);
-
     if(keyH.showDebugText) {
         final int x = 10;
         int y = 400;
@@ -944,6 +958,8 @@ public class GamePanel extends JPanel implements Runnable{
             g2.drawString("TileParticles: " + tileParticleEmitter.getActiveCount(), x, y); y += lineHeight;
         }
     }
+
+    if (debugMenuOpen) drawDebugMenu(g2);
     }
 
     /** Rebuild the debug map list from the current registry (sorted). */
@@ -955,12 +971,147 @@ public class GamePanel extends JPanel implements Runnable{
         debugMapSelectedIndex = idx >= 0 ? idx : 0;
     }
 
-    /** Draw the debug map switcher overlay. */
-    private void drawDebugMapSwitcher(Graphics2D g2) {
-        final int panelW = 360;
-        final int rowH   = 22;
-        final int visibleRows = Math.min(debugMapList.size(), 12);
-        final int panelH = visibleRows * rowH + 56; // header + footer padding
+    public void toggleDebugMenu() {
+        debugMenuOpen = !debugMenuOpen;
+        if (debugMenuOpen) {
+            refreshDebugMapList();
+            debugMenuSelectedIndex = 0;
+            keyH.upPressed = false;
+            keyH.downPressed = false;
+            keyH.leftPressed = false;
+            keyH.rightPressed = false;
+            keyH.shotKeyPressed = false;
+            keyH.enterPressed = false;
+            keyH.dashPressed = false;
+        }
+        playSE(SFX.MENU_SELECT);
+    }
+
+    public void moveDebugMenuSelection(int delta) {
+        if (!debugMenuOpen) return;
+        debugMenuSelectedIndex = Math.floorMod(debugMenuSelectedIndex + delta, DEBUG_MENU_ROWS);
+        playSE(SFX.MENU_CURSOR);
+    }
+
+    public void adjustDebugMenuValue(int delta) {
+        if (!debugMenuOpen || debugMapList.isEmpty()) return;
+        if (debugMenuSelectedIndex == DEBUG_ROW_TARGET_MAP || debugMenuSelectedIndex == DEBUG_ROW_TELEPORT_TARGET) {
+            debugMapSelectedIndex = Math.floorMod(debugMapSelectedIndex + delta, debugMapList.size());
+            playSE(SFX.MENU_CURSOR);
+        }
+    }
+
+    public void activateDebugMenuSelection() {
+        switch (debugMenuSelectedIndex) {
+            case DEBUG_ROW_DEBUG_TEXT -> {
+                keyH.showDebugText = !keyH.showDebugText;
+                playSE(SFX.MENU_SELECT);
+            }
+            case DEBUG_ROW_HITBOXES -> {
+                HitBoxes = !HitBoxes;
+                playSE(SFX.MENU_SELECT);
+            }
+            case DEBUG_ROW_PATHS -> {
+                drawPath = !drawPath;
+                playSE(SFX.MENU_SELECT);
+            }
+            case DEBUG_ROW_SEPIA -> toggleDebugSepia();
+            case DEBUG_ROW_RELOAD_MAP -> reloadCurrentMapDebug();
+            case DEBUG_ROW_FLASHBACK -> triggerDebugFlashback();
+            case DEBUG_ROW_FRAGMENTS -> collectDebugFragments();
+            case DEBUG_ROW_AWAKENING -> teleportToAwakeningDebug();
+            case DEBUG_ROW_TARGET_MAP -> adjustDebugMenuValue(1);
+            case DEBUG_ROW_TELEPORT_TARGET -> teleportToSelectedDebugMap();
+            default -> {
+            }
+        }
+    }
+
+    public void toggleDebugSepia() {
+        if (mapShader == null) return;
+        mapShader.sepiaMode = !mapShader.sepiaMode;
+        playSE(SFX.MENU_SELECT);
+    }
+
+    public void triggerDebugFlashback() {
+        if (memoryFlashback == null) return;
+        debugMenuOpen = false;
+        data.MemoryJournal.MemoryFragment testFrag = new data.MemoryJournal.MemoryFragment(
+                "test_sepia", "A Lost Moment",
+                new String[]{"The rain fell on cobblestones...", "She never looked back.", "Neither did he."},
+                0, "debug");
+        memoryFlashback.trigger(testFrag);
+        playSE(SFX.MENU_SELECT);
+    }
+
+    public void collectDebugFragments() {
+        if (memoryJournal == null) return;
+        debugMenuOpen = false;
+        memoryJournal.collect("frag_prologue");
+        memoryJournal.collect("frag_forest");
+        memoryJournal.collect("frag_lake");
+        gameState = GamePanel.journalState;
+        playSE(SFX.MENU_SELECT);
+    }
+
+    public void teleportToAwakeningDebug() {
+        debugMenuOpen = false;
+        playSE(SFX.MENU_SELECT);
+        startTransition("awakening_cave", 20, 15);
+    }
+
+    public void teleportToSelectedDebugMap() {
+        if (debugMapList.isEmpty()) return;
+        String targetId = debugMapList.get(debugMapSelectedIndex);
+        debugMenuOpen = false;
+        playSE(SFX.MENU_SELECT);
+        startTransition(targetId, -1, -1);
+    }
+
+    public void reloadCurrentMapDebug() {
+        if (mapManager == null) return;
+        String path = mapManager.mapRegistry.getOrDefault(mapManager.currentMapId, mapManager.currentMapId);
+        ResourceCache.invalidateXml(path);
+        tileM.loadMapFromTMX(path);
+        tileM.loadCollisionLayer(path);
+        mapObjectLoader.loadMapProperties(path);
+        eHandler.reset();
+        aSetter.loadEventsFromTMX();
+        cChecker.updateCollisionRectsCache();
+        if (minimap != null) {
+            minimap.invalidateTerrainCache(mapManager.currentMapId);
+            minimap.bakeTerrainImage();
+        }
+        playSE(SFX.MENU_SELECT);
+    }
+
+    private String debugToggleLabel(String label, boolean enabled) {
+        return label + ": " + (enabled ? "ON" : "OFF");
+    }
+
+    private String getDebugMenuLabel(int row) {
+        return switch (row) {
+            case DEBUG_ROW_DEBUG_TEXT -> debugToggleLabel("Debug text", keyH.showDebugText);
+            case DEBUG_ROW_HITBOXES -> debugToggleLabel("Hitboxes", HitBoxes);
+            case DEBUG_ROW_PATHS -> debugToggleLabel("Path overlay", drawPath);
+            case DEBUG_ROW_SEPIA -> mapShader == null
+                    ? "Sepia shader: unavailable"
+                    : debugToggleLabel("Sepia shader", mapShader.sepiaMode);
+            case DEBUG_ROW_RELOAD_MAP -> "Reload current map";
+            case DEBUG_ROW_FLASHBACK -> "Trigger memory flashback";
+            case DEBUG_ROW_FRAGMENTS -> "Collect test fragments";
+            case DEBUG_ROW_AWAKENING -> "Teleport: Awakening Cave";
+            case DEBUG_ROW_TARGET_MAP -> "Target map: " + (debugMapList.isEmpty() ? "<none>" : debugMapList.get(debugMapSelectedIndex));
+            case DEBUG_ROW_TELEPORT_TARGET -> "Teleport to target map";
+            default -> "";
+        };
+    }
+
+    /** Draw the debug panel overlay. */
+    private void drawDebugMenu(Graphics2D g2) {
+        final int panelW = 520;
+        final int rowH = 24;
+        final int panelH = DEBUG_MENU_ROWS * rowH + 82;
         final int px = screenWidth / 2 - panelW / 2;
         final int py = screenHeight / 2 - panelH / 2;
 
@@ -973,40 +1124,35 @@ public class GamePanel extends JPanel implements Runnable{
         // Title
         g2.setFont(new Font("Consolas", Font.BOLD, 14));
         g2.setColor(new Color(100, 180, 255));
-        g2.drawString("[F9] DEBUG MAP SWITCHER", px + 12, py + 20);
+        g2.drawString("[F9] DEBUG PANEL", px + 12, py + 20);
 
         g2.setFont(DEBUG_FONT);
 
-        // Scrolling: keep selected visible
-        int scroll = 0;
-        if (debugMapList.size() > visibleRows) {
-            scroll = Math.max(0, Math.min(debugMapSelectedIndex - visibleRows / 2,
-                    debugMapList.size() - visibleRows));
-        }
+        g2.setColor(new Color(160, 160, 160));
+        g2.drawString("W/S select  |  A/D change map  |  ENTER toggle/run  |  ESC close", px + 12, py + 40);
 
-        for (int i = 0; i < visibleRows; i++) {
-            int mapIdx = scroll + i;
-            if (mapIdx >= debugMapList.size()) break;
-            String id = debugMapList.get(mapIdx);
-            int ry = py + 36 + i * rowH;
+        for (int row = 0; row < DEBUG_MENU_ROWS; row++) {
+            int ry = py + 64 + row * rowH;
 
-            if (mapIdx == debugMapSelectedIndex) {
+            if (row == debugMenuSelectedIndex) {
                 g2.setColor(new Color(60, 120, 220, 180));
                 g2.fillRoundRect(px + 6, ry - rowH + 5, panelW - 12, rowH, 6, 6);
                 g2.setColor(Color.WHITE);
-            } else if (id.equals(mapManager.currentMapId)) {
-                g2.setColor(new Color(80, 255, 140));
             } else {
                 g2.setColor(new Color(180, 180, 180));
             }
-            String prefix = (mapIdx == debugMapSelectedIndex) ? "> " : "  ";
-            String suffix = id.equals(mapManager.currentMapId) ? " (current)" : "";
-            g2.drawString(prefix + id + suffix, px + 14, ry);
+            String line = getDebugMenuLabel(row);
+            if (row == DEBUG_ROW_TARGET_MAP && !debugMapList.isEmpty()
+                    && debugMapList.get(debugMapSelectedIndex).equals(mapManager.currentMapId)
+                    && row != debugMenuSelectedIndex) {
+                g2.setColor(new Color(80, 255, 140));
+            }
+            String prefix = (row == debugMenuSelectedIndex) ? "> " : "  ";
+            g2.drawString(prefix + line, px + 14, ry);
         }
 
-        // Footer hint
         g2.setColor(new Color(120, 120, 120));
-        g2.drawString("W/S navigate  |  ENTER teleport  |  ESC close",
+        g2.drawString("Current map: " + mapManager.currentMapId,
                 px + 10, py + panelH - 8);
     }
 

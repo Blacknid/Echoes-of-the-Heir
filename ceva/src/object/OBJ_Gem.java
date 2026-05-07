@@ -20,10 +20,10 @@ public class OBJ_Gem extends Entity {
         description = "Dark Heart of an\nancient castle.";
         
         // HITBOX: Medium gem hitbox (32x32) centered
-        solidArea.x = 16;  // 16px left + 32px width + 16px right = 64
-        solidArea.y = 16;  // Centered
-        solidArea.width = 32;
-        solidArea.height = 32;
+        solidArea.x      = gp.tileSize / 4;   // 16 at 64px
+        solidArea.y      = gp.tileSize / 4;   // 16 at 64px
+        solidArea.width  = gp.tileSize / 2;   // 32 at 64px
+        solidArea.height = gp.tileSize / 2;   // 32 at 64px
         solidAreaDefaultX = solidArea.x;
         solidAreaDefaultY = solidArea.y;
 

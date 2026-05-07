@@ -292,13 +292,15 @@ public class RenderPipeline {
         if (gp.player.attacking) {
             g2.setColor(DBG_ATTACK);
             int ts = gp.tileSize;
+            int quarter = ts / 4;
+            int eighth  = ts / 8;
             int attackWorldX = pwx, attackWorldY = pwy;
             int aw = 0, ah = 0;
             switch (gp.player.direction) {
-                case Entity.DIR_UP:    aw = ts - 16; ah = ts + 16; attackWorldX += 8;    attackWorldY -= ts + 16; break;
-                case Entity.DIR_DOWN:  aw = ts - 16; ah = ts + 16; attackWorldX += 8;    attackWorldY += ts;      break;
-                case Entity.DIR_LEFT:  aw = ts + 16; ah = ts - 16; attackWorldX -= ts + 16; attackWorldY += 8;   break;
-                case Entity.DIR_RIGHT: aw = ts + 16; ah = ts - 16; attackWorldX += ts;   attackWorldY += 8;       break;
+                case Entity.DIR_UP:    aw = ts - quarter; ah = ts + quarter; attackWorldX += eighth;    attackWorldY -= ts + quarter; break;
+                case Entity.DIR_DOWN:  aw = ts - quarter; ah = ts + quarter; attackWorldX += eighth;    attackWorldY += ts;            break;
+                case Entity.DIR_LEFT:  aw = ts + quarter; ah = ts - quarter; attackWorldX -= ts + quarter; attackWorldY += eighth;    break;
+                case Entity.DIR_RIGHT: aw = ts + quarter; ah = ts - quarter; attackWorldX += ts;        attackWorldY += eighth;        break;
             }
             int asx = attackWorldX - pwx + psx;
             int asy = attackWorldY - pwy + psy;

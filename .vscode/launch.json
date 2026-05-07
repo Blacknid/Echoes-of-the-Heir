@@ -14,7 +14,8 @@
             "request": "launch",
             "mainClass": "main.Main",
             "classPaths": ["${workspaceFolder}/ceva/bin"],
-            "cwd": "${workspaceFolder}"
+            "cwd": "${workspaceFolder}",
+            "preLaunchTask": "Compile"
         }
     ]
 }

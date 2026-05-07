@@ -32,10 +32,10 @@ public class OBJ_Torch extends Entity {
         // 4. COLLISION
         // If you want the player to be able to walk OVER the torch, set collision = false
         collision = true; 
-        solidArea.x = 16;  // Centered: 16px left + 32px width + 16px right = 64
-        solidArea.y = 16;  // Torch pole starts mid-sprite
-        solidArea.width = 32;  // Narrow torch pole
-        solidArea.height = 40; // Torch height
+        solidArea.x      = gp.tileSize / 4;          // 16 at 64px — centered
+        solidArea.y      = gp.tileSize / 4;          // 16 at 64px
+        solidArea.width  = gp.tileSize / 2;          // 32 at 64px — narrow torch pole
+        solidArea.height = gp.tileSize * 40 / 64;   // 40 at 64px
         solidAreaDefaultX = solidArea.x;
         solidAreaDefaultY = solidArea.y;
     }

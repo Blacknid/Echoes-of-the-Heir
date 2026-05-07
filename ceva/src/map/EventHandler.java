@@ -104,12 +104,16 @@ public class EventHandler {
         String requiredItem;   // item name the player must have (empty = no item check)
         boolean consumeItem;   // if true, remove the item from inventory when passing
         String requiredFragment; // memory fragment ID required to pass (empty = no check)
+        boolean permanentOpen; // once passed (with item consumed), gate stays open forever
+        String gateId;         // persistent key: "mapId:col:row"
         LevelGateData(int c, int r, int ml, String msg, String tm, int tc, int tr, String sid,
-                      String reqItem, boolean consume, String reqFrag) {
+                      String reqItem, boolean consume, String reqFrag,
+                      boolean permOpen, String gid) {
             col=c; row=r; minLevel=ml; blockedMessage=msg;
             targetMap=tm; targetCol=tc; targetRow=tr; spawnId=sid;
             requiredItem=reqItem; consumeItem=consume;
             requiredFragment = (reqFrag != null) ? reqFrag : "";
+            permanentOpen=permOpen; gateId=gid;
         }
     }
 
@@ -245,12 +249,14 @@ public class EventHandler {
                                   String blockedMessage, String targetMap,
                                   int targetCol, int targetRow, String spawnId,
                                   String requiredItem, boolean consumeItem,
-                                  String requiredFragment) {
+                                  String requiredFragment, boolean permanentOpen) {
         int col = wx / gp.tileSize, row = wy / gp.tileSize;
+        String gateId = gp.mapManager.currentMapId + ":" + col + ":" + row;
         levelGates.add(new PixelEvent<>(wx, wy, w, h,
             new LevelGateData(col, row, minLevel, blockedMessage,
                               targetMap, targetCol, targetRow, spawnId,
-                              requiredItem, consumeItem, requiredFragment)));
+                              requiredItem, consumeItem, requiredFragment,
+                              permanentOpen, gateId)));
     }
 
     public void registerCheckpoint(int wx, int wy, int w, int h, boolean silent) {
@@ -568,6 +574,19 @@ public class EventHandler {
 
     /** @return true if the player was blocked (consume touch), false if passed silently. */
     private boolean triggerLevelGate(LevelGateData gate) {
+        // If this gate is permanently open, bypass all requirement checks
+        if (gate.permanentOpen && gp.openedGates.contains(gate.gateId)) {
+            if (!gate.targetMap.isEmpty()) {
+                lastTriggerCol = gate.col;
+                lastTriggerRow = gate.row;
+                gp.mapManager.nextSpawnId = gate.spawnId != null ? gate.spawnId : "";
+                gp.startTransition(gate.targetMap, gate.targetCol, gate.targetRow);
+                touchConsumed();
+                return true;
+            }
+            return false;
+        }
+
         boolean levelOk = (gate.minLevel <= 0 || gp.player.level >= gate.minLevel);
         boolean itemOk  = true;
         int itemIdx = -1;
@@ -580,9 +599,13 @@ public class EventHandler {
             || (gp.memoryJournal != null && gp.memoryJournal.has(gate.requiredFragment));
 
         if (levelOk && itemOk && fragmentOk) {
-            // Consume the item if configured
-            if (gate.consumeItem && itemIdx >= 0 && itemIdx < gp.player.inventory.size()) {
+            // Consume the item only if configured AND the gate is not permanent
+            if (gate.consumeItem && !gate.permanentOpen && itemIdx >= 0 && itemIdx < gp.player.inventory.size()) {
                 gp.player.inventory.remove(itemIdx);
+            }
+            // Mark gate as permanently open if configured
+            if (gate.permanentOpen) {
+                gp.openedGates.add(gate.gateId);
             }
             // Pass through (optionally transition map)
             if (!gate.targetMap.isEmpty()) {

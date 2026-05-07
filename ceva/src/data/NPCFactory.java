@@ -86,6 +86,14 @@ public class NPCFactory {
      * @param row tile row for spawn position
      */
     public static NPC_Generic create(GamePanel gp, String id, int col, int row) {
+        return createAt(gp, id, col * gp.tileSize, row * gp.tileSize);
+    }
+
+    /**
+     * Create an NPC at an exact pixel position. col/row are derived from the
+     * pixel coords so spawnCol/spawnRow always match the actual world position.
+     */
+    public static NPC_Generic createAt(GamePanel gp, String id, int worldX, int worldY) {
         if (!loaded) loadDefinitions();
 
         NPCDef def = npcDefs.get(id);
@@ -94,9 +102,12 @@ public class NPCFactory {
             return null;
         }
 
+        int col = worldX / gp.tileSize;
+        int row = worldY / gp.tileSize;
+
         NPC_Generic npc = new NPC_Generic(gp);
-        npc.worldX = col * gp.tileSize;
-        npc.worldY = row * gp.tileSize;
+        npc.worldX = worldX;
+        npc.worldY = worldY;
         npc.spawnCol = col;
         npc.spawnRow = row;
 
@@ -110,8 +121,8 @@ public class NPCFactory {
         if (idleDir >= 0) npc.idleDirection = idleDir;
         int idleRowsVal = intVal(def.props, "idleRows", 4);
         npc.idleRows = idleRowsVal;
-        int spriteAspectVal = intVal(def.props, "spriteAspect", 1);
-        npc.spriteAspect = Math.max(1, spriteAspectVal);
+        float spriteAspectVal = floatVal(def.props, "spriteAspect", 1.0f);
+        npc.spriteAspect = Math.max(0.1f, spriteAspectVal);
         float spriteScaleVal = floatVal(def.props, "spriteScale", 1.0f);
         if (spriteScaleVal > 0) npc.spriteScale = spriteScaleVal;
         int interactRangeVal = intVal(def.props, "interactRange", 0);

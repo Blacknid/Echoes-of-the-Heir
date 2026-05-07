@@ -1,9 +1,10 @@
 package object;
 
-import entity.Entity;
-import entity.Projectile;
 import java.awt.Color;
 import java.awt.image.BufferedImage;
+
+import entity.Entity;
+import entity.Projectile;
 import main.GamePanel;
 
 public class OBJ_Arrow extends Projectile {
@@ -23,10 +24,10 @@ public class OBJ_Arrow extends Projectile {
         alive = false;
         
         // HITBOX: Small arrow hitbox (16x16) for 32x32 sprite, centered
-        solidArea.x = 8;   // 8px left + 16px width + 8px right = 32
-        solidArea.y = 8;   // Centered
-        solidArea.width = 16;
-        solidArea.height = 16;
+        solidArea.x      = gp.tileSize / 8;   // 8 at 64px
+        solidArea.y      = gp.tileSize / 8;   // 8 at 64px
+        solidArea.width  = gp.tileSize / 4;   // 16 at 64px
+        solidArea.height = gp.tileSize / 4;   // 16 at 64px
         solidAreaDefaultX = solidArea.x;
         solidAreaDefaultY = solidArea.y;
         

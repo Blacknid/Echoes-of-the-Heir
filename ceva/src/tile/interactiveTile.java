@@ -1,6 +1,7 @@
 package tile;
 
 import java.awt.Graphics2D;
+
 import entity.Entity;
 import main.GamePanel;
 
@@ -16,11 +17,11 @@ public class interactiveTile extends Entity {
         this.worldX = gp.tileSize * col;
         this.worldY = gp.tileSize * row;
         
-        // DEFAULT HITBOX: Full tile hitbox (48x48) centered on 64x64 tile
-        solidArea.x = 8;   // 8px left + 48px width + 8px right = 64
-        solidArea.y = 8;   // 8px top + 48px height + 8px bottom = 64
-        solidArea.width = 48;
-        solidArea.height = 48;
+        // DEFAULT HITBOX: 48x48 centered on tile, scales with tileSize
+        solidArea.x      = gp.tileSize / 8;       // 8 at 64px tile
+        solidArea.y      = gp.tileSize / 8;
+        solidArea.width  = gp.tileSize * 3 / 4;   // 48 at 64px tile
+        solidArea.height = gp.tileSize * 3 / 4;
         solidAreaDefaultX = solidArea.x;
         solidAreaDefaultY = solidArea.y;
     }

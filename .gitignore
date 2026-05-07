@@ -15,4 +15,5 @@ output/*
 *.patch
 save.dat
 config.txt
+/.vscode/*
 

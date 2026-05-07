@@ -26,9 +26,9 @@ public class OBJ_Tower extends Entity {
         down2 = setup("/res/objects/Tower_jos", gp.tileSize, gp.tileSize);
 
         // Only the lower tile blocks movement.
-        solidArea.x = 8;
-        solidArea.y = 0;
-        solidArea.width = 48;
+        solidArea.x      = gp.tileSize / 8;     // 8 at 64px
+        solidArea.y      = 0;
+        solidArea.width  = gp.tileSize * 3 / 4;  // 48 at 64px
         solidArea.height = gp.tileSize;
         solidAreaDefaultX = solidArea.x;
         solidAreaDefaultY = solidArea.y;

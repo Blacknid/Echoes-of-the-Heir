@@ -72,7 +72,7 @@ public class NPC_Generic extends Entity {
      * 1 = square cells (default). 2 = each cell is 2x wider than tall.
      * Used when the sprite sheet has non-square frames (e.g. Fighter_Training).
      */
-    public int spriteAspect = 1;
+    public float spriteAspect = 1.0f;
     private boolean imageLoaded = false;
 
     public NPC_Generic(GamePanel gp) {
@@ -85,10 +85,10 @@ public class NPC_Generic extends Entity {
 
         dialogueSet = -1;
 
-        solidArea.x = 20;
-        solidArea.y = 22;
-        solidArea.width = 24;
-        solidArea.height = 22;
+        solidArea.x = gp.tileSize * 20 / 64;
+        solidArea.y = gp.tileSize * 22 / 64;
+        solidArea.width  = gp.tileSize * 24 / 64;
+        solidArea.height = gp.tileSize * 22 / 64;
         solidAreaDefaultX = solidArea.x;
         solidAreaDefaultY = solidArea.y;
     }
@@ -100,14 +100,14 @@ public class NPC_Generic extends Entity {
         if (spritePath != null) {
             try {
                 walkFrames = new BufferedImage[4][];
-                if (spriteAspect > 1) {
+                if (spriteAspect != 1.0f) {
                     // Non-square walk sheet: compute cell dims from sheet height
                     java.io.InputStream is = getClass().getResourceAsStream(spritePath + ".png");
                     if (is != null) {
                         BufferedImage rawWalk = javax.imageio.ImageIO.read(is);
                         is.close();
                         int cellH = rawWalk.getHeight() / 4;
-                        int cellW = cellH * spriteAspect;
+                        int cellW = Math.max(1, Math.round(cellH * spriteAspect));
                         BufferedImage[][] matrix = loadSpriteMatrix(spritePath, cellW, cellH);
                         int ts = gp.tileSize;
                         // Scale each frame to tileSize x tileSize and map directions (0=DOWN,1=LEFT,2=RIGHT,3=UP)
@@ -140,7 +140,7 @@ public class NPC_Generic extends Entity {
                     is.close();
                     int rows = idleRows;
                     int cellH = raw.getHeight() / rows; // cell height
-                    int cellW = cellH * spriteAspect;   // cell width (spriteAspect=1 → square, 2 → twice as wide)
+                    int cellW = Math.max(1, Math.round(cellH * spriteAspect));   // cell width (spriteAspect=1 → square, 0.5 → half-wide, 2 → twice as wide)
                     int maxCols  = raw.getWidth()  / cellW;
 
                     // Count actual (non-transparent) frames per row

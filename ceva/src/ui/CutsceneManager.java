@@ -233,6 +233,9 @@ public class CutsceneManager {
             alpha = 0f;
             gp.gameState = GamePanel.playState;
 
+            // Show actTitle for the starting map if it was marked as newGame-only
+            showNewGameActTitle();
+
             // First inner monologue after waking up
             if (gp.thoughts != null) {
                 gp.thoughts.show("I can't remember anything... Just fragments... like a dream I can't hold.", 150, 60);
@@ -255,9 +258,24 @@ public class CutsceneManager {
         alpha = 0f;
         gp.gameState = GamePanel.playState;
 
+        // Show actTitle for the starting map if it was marked as newGame-only
+        showNewGameActTitle();
+
         // First inner monologue after waking up
         if (gp.thoughts != null) {
             gp.thoughts.show("I can't remember anything... Just fragments... like a dream I can't hold.", 150, 60);
+        }
+    }
+
+    /** Shows the pending actTitle if it is flagged as newGame-only and hasn't been shown yet this run. */
+    private void showNewGameActTitle() {
+        if (!gp.mapManager.pendingActTitle.isEmpty() && gp.mapManager.pendingActTitleNewGameOnly) {
+            String mapId = gp.mapManager.currentMapId;
+            if (!gp.mapManager.shownActTitles.contains(mapId)) {
+                gp.mapManager.shownActTitles.add(mapId);
+                gp.ui.showActTitle(gp.mapManager.pendingActTitle);
+            }
+            gp.mapManager.pendingActTitle = "";
         }
     }
 

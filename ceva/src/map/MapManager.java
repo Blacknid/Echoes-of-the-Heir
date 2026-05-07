@@ -48,6 +48,8 @@ public class MapManager {
     public String currentMapDisplayName = "";
     public int defaultSpawnCol = -1;
     public int defaultSpawnRow = -1;
+    /** True once a SpawnPoint with newGame=true has been registered for the current map load. */
+    public boolean hasNewGameSpawn = false;
     public java.awt.Color mapBackgroundColor = java.awt.Color.BLACK;
     /** Named spawn point to resolve after map loads. */
     public String nextSpawnId = "";
@@ -57,6 +59,10 @@ public class MapManager {
     public int pendingDialogueTriggerDuration = 300;
     /** Act title card text to show on map entry (from actTitle TMX property). */
     public String pendingActTitle = "";
+    /** When true, the pending actTitle is only shown during the New Game cutscene, never on normal map transitions. */
+    public boolean pendingActTitleNewGameOnly = false;
+    /** Map IDs whose actTitle has already been shown this run — never shown again until New Game. */
+    public final java.util.Set<String> shownActTitles = new java.util.HashSet<>();
 
     /** Spawn position to use when retrying after death (set on every map transition). */
     public int retrySpawnCol = -1;
@@ -278,10 +284,18 @@ public class MapManager {
             pendingDialogueTrigger = "";
         }
 
-        // Show act title card if one was defined for this map
+        // Show act title card if one was defined for this map, but only once per run.
+        // If actTitleNewGameOnly=true, skip here — the New Game cutscene will show it instead.
         if (!pendingActTitle.isEmpty()) {
-            gp.ui.showActTitle(pendingActTitle);
-            pendingActTitle = "";
+            if (!pendingActTitleNewGameOnly && !shownActTitles.contains(currentMapId)) {
+                shownActTitles.add(currentMapId);
+                gp.ui.showActTitle(pendingActTitle);
+            }
+            if (pendingActTitleNewGameOnly) {
+                // Leave pendingActTitle set so the cutscene can consume it.
+            } else {
+                pendingActTitle = "";
+            }
         }
 
         doorEntryCol = -1;

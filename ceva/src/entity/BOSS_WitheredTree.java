@@ -216,13 +216,13 @@ public class BOSS_WitheredTree extends Entity {
         // footprint represents the trunk base where the tree stands.
         solidArea.x = 0;
         solidArea.y = 0;
-        solidArea.width = 64;
-        solidArea.height = 64;
+        solidArea.width  = gp.tileSize;         // 64 at 64px tile
+        solidArea.height = gp.tileSize;         // 64 at 64px tile
         solidAreaDefaultX = solidArea.x;
         solidAreaDefaultY = solidArea.y;
 
-        attackArea.width = 80;
-        attackArea.height = 80;
+        attackArea.width  = gp.tileSize * 5 / 4; // 80 at 64px tile
+        attackArea.height = gp.tileSize * 5 / 4; // 80 at 64px tile
 
         loadAllPhaseSprites();
         applyPhase(0);
@@ -1068,10 +1068,10 @@ public class BOSS_WitheredTree extends Entity {
                 bolt.attack = THORN_RING_DMG - gp.player.defense < 1 ? 1 : THORN_RING_DMG;
                 bolt.alive = true;
                 bolt.user = this;
-                bolt.solidArea.x = 20;
-                bolt.solidArea.y = 20;
-                bolt.solidArea.width = 24;
-                bolt.solidArea.height = 24;
+                bolt.solidArea.x      = gp.tileSize * 20 / 64; // 20 at 64px
+                bolt.solidArea.y      = gp.tileSize * 20 / 64;
+                bolt.solidArea.width  = gp.tileSize * 24 / 64; // 24 at 64px
+                bolt.solidArea.height = gp.tileSize * 24 / 64;
                 bolt.solidAreaDefaultX = bolt.solidArea.x;
                 bolt.solidAreaDefaultY = bolt.solidArea.y;
                 // Reuse leaf bolt frames as stand-in visuals
@@ -1124,10 +1124,10 @@ public class BOSS_WitheredTree extends Entity {
         bolt.user = this;
 
         // Hitbox
-        bolt.solidArea.x = 24;
-        bolt.solidArea.y = 24;
-        bolt.solidArea.width = 16;
-        bolt.solidArea.height = 16;
+        bolt.solidArea.x      = gp.tileSize * 24 / 64; // 24 at 64px
+        bolt.solidArea.y      = gp.tileSize * 24 / 64;
+        bolt.solidArea.width  = gp.tileSize / 4;        // 16 at 64px
+        bolt.solidArea.height = gp.tileSize / 4;
         bolt.solidAreaDefaultX = bolt.solidArea.x;
         bolt.solidAreaDefaultY = bolt.solidArea.y;
 
@@ -1172,10 +1172,10 @@ public class BOSS_WitheredTree extends Entity {
             bolt.attack = Math.max(1, LEAF_BOLT_DMG + currentPhase - 1);
             bolt.alive = true;
             bolt.user = this;
-            bolt.solidArea.x = 24;
-            bolt.solidArea.y = 24;
-            bolt.solidArea.width = 16;
-            bolt.solidArea.height = 16;
+            bolt.solidArea.x      = gp.tileSize * 24 / 64; // 24 at 64px
+            bolt.solidArea.y      = gp.tileSize * 24 / 64;
+            bolt.solidArea.width  = gp.tileSize / 4;        // 16 at 64px
+            bolt.solidArea.height = gp.tileSize / 4;
             bolt.solidAreaDefaultX = bolt.solidArea.x;
             bolt.solidAreaDefaultY = bolt.solidArea.y;
             bolt.walkFrames = leafBoltFrames;
