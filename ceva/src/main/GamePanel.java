@@ -499,6 +499,22 @@ public class GamePanel extends JPanel implements Runnable{
             FPS = 0; // Uncapped — render as fast as possible
             System.out.println("[V-SYNC] Disabled - Render target UNCAPPED");
         }
+        applyFpsTarget(config.fpsTarget); // override cap if performance mode is active
+    }
+
+    /**
+     * Apply an explicit FPS cap (30 = performance mode, 60 = normal, 0 = use vSync/uncapped).
+     * Takes priority over V-Sync when non-zero and lower than monitor rate.
+     */
+    public void applyFpsTarget(int target) {
+        config.fpsTarget = target;
+        if (target > 0) {
+            FPS = target;
+            System.out.println("[FPS] Cap set to " + target + " FPS");
+        } else {
+            // 0 means defer to vSync setting
+            FPS = vSyncOn ? monitorRefreshRate : 0;
+        }
     }
 
     /**
@@ -687,6 +703,11 @@ public class GamePanel extends JPanel implements Runnable{
 
         // INPUT COOLDOWNS & MENU KEY-REPEAT: must tick every frame regardless of state
         keyH.update();
+
+        // UI ANIMATION TICK: always advance at the fixed 60 Hz update rate,
+        // independent of render FPS so pulse/breathe animations never speed up on fast machines
+        // or slow down on weak ones.
+        ui.updateAnimations();
 
         // ANIMATIONS DURING DIALOGUE: keep player and NPC animations playing while talking
         if (gameState == dialogueState) {

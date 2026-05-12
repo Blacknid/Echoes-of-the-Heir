@@ -53,7 +53,7 @@ public class Main {
         // Always undecorated: avoids dispose()+setVisible() cycles when toggling fullscreen,
         // which destroy the OpenGL rendering surface and cause a blank window on many systems.
         window.setUndecorated(true);
-        window.setResizable(false);
+        window.setResizable(true);
         window.setTitle("Michi's Adventure " + Config.getVersionString());
         new Main().setIcon();
 
@@ -61,6 +61,7 @@ public class Main {
         window.add(gamePanel);
 
         gamePanel.config.loadConfig();
+        gamePanel.applyFpsTarget(gamePanel.config.fpsTarget);
 
         window.pack();
 

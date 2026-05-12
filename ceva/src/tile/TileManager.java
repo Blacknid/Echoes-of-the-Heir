@@ -233,6 +233,15 @@ public class TileManager {
     // Index: [col][row]. Null until initTileLitMap() is called on first map load.
     public boolean[][] tileIsLit = null;
 
+    // Per-tile solid state — true if the tile is covered by any collision shape.
+    // Built once per map load by initTileSolid(); used by the lighting system for
+    // shadow casting and BFS propagation on all graphics quality levels.
+    public boolean[][] tileSolid = null;
+
+    // Per-tile light intensity for LOW graphics mode (0.0 = dark, 1.0 = fully lit).
+    // Cleared + rebuilt every frame alongside tileIsLit. Null until initTileLitMap().
+    public float[][] tileLightLevel = null;
+
     /**
      * Packed [col, row] tile positions on the current map that contain at least one tile with
      * reflectsLight = true. Built once at map load by {@link #rebuildReflectiveTilePositions()}.
@@ -244,7 +253,34 @@ public class TileManager {
 
     public void initTileLitMap() {
         tileIsLit = new boolean[gp.maxWorldCol][gp.maxWorldRow];
+        tileLightLevel = new float[gp.maxWorldCol][gp.maxWorldRow];
+        initTileSolid();
         rebuildReflectiveTilePositions();
+    }
+
+    /**
+     * Rasterise all collision shapes onto a per-tile boolean grid.
+     * A tile is marked solid if its rectangle intersects any loaded collision shape.
+     * Called once per map load from initTileLitMap().
+     */
+    public void initTileSolid() {
+        int cols = gp.maxWorldCol;
+        int rows = gp.maxWorldRow;
+        tileSolid = new boolean[cols][rows];
+        if (collisionShapes.isEmpty()) return;
+        double ts = gp.tileSize;
+        for (int col = 0; col < cols; col++) {
+            double tx = col * ts;
+            for (int row = 0; row < rows; row++) {
+                double ty = row * ts;
+                for (int s = 0, n = collisionShapes.size(); s < n; s++) {
+                    if (collisionShapes.get(s).intersects(tx, ty, ts, ts)) {
+                        tileSolid[col][row] = true;
+                        break;
+                    }
+                }
+            }
+        }
     }
 
     /**
@@ -304,6 +340,9 @@ public class TileManager {
     public void clearTileLitMap() {
         if (tileIsLit == null) return;
         for (boolean[] column : tileIsLit) Arrays.fill(column, false);
+        if (tileLightLevel != null) {
+            for (float[] column : tileLightLevel) Arrays.fill(column, 0f);
+        }
     }
 
     // --- Configurable collision settings ---
@@ -334,6 +373,7 @@ public class TileManager {
     private void initializeDefaultMap() {
         loadMapFromTMX("/res/maps/Awakening_Cave.tmx");
         loadCollisionLayer("/res/maps/Awakening_Cave.tmx");
+        initTileLitMap();
     }
 
     private void resetCollisionConfig() {
@@ -578,6 +618,7 @@ public class TileManager {
             layerOffsetX.clear();
             layerOffsetY.clear();
             imageLayers.clear();
+            hasFgImagesCacheValid = false;
 
             Document doc = parseXmlResource(path);
             if (doc == null) {
@@ -1227,6 +1268,10 @@ public class TileManager {
     private int[]     gidToSortYOffset;
     public  boolean[] gidToReflectsLight;
 
+    // OPTIMIZATION: Cache whether any image layer is marked foreground — avoids O(n) scan every frame in drawForeground
+    private boolean hasFgImagesCache = false;
+    private boolean hasFgImagesCacheValid = false;
+
     // OPTIMIZATION: Dirty tracking — skip rebuild when viewport is identical to last frame
     private int lastVisMinCol = -99, lastVisMaxCol = -99;
     private int lastVisMinRow = -99, lastVisMaxRow = -99;
@@ -1519,11 +1564,14 @@ public class TileManager {
 
     public void drawForeground(Graphics2D g2) {
         // Fast path: no foreground image layers — just draw tiles
-        boolean hasFgImages = false;
-        for (int j = 0; j < imageLayers.size(); j++) {
-            if (imageLayers.get(j).foreground) { hasFgImages = true; break; }
+        if (!hasFgImagesCacheValid) {
+            hasFgImagesCache = false;
+            for (int j = 0; j < imageLayers.size(); j++) {
+                if (imageLayers.get(j).foreground) { hasFgImagesCache = true; break; }
+            }
+            hasFgImagesCacheValid = true;
         }
-        if (!hasFgImages) {
+        if (!hasFgImagesCache) {
             for (int i = 0, n = foregroundVisibleTiles.size(); i < n; i++) {
                 drawTile(g2, foregroundVisibleTiles.get(i));
             }
@@ -1708,6 +1756,7 @@ public class TileManager {
 
         // Invalidate dirty tracking so the next prepareVisibleTiles does a full rebuild
         lastVisMinCol = -99;
+        hasFgImagesCacheValid = false;
     }
 
     private Tileset getTilesetForGID(int gid) {
