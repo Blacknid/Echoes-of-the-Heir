@@ -75,6 +75,15 @@ public class Config {
     public int windowX = -1;
     public int windowY = -1;
 
+    /** FPS cap: 30 = performance mode, 60 = normal, 0 = follow vSync/uncapped setting. */
+    public int fpsTarget = 60;
+
+    /** Graphics quality: 0 = Low (square lights + shadows), 1 = Medium (circle lights, no shadows), 2 = High (circle lights + shadows). */
+    public static final int GRAPHICS_LOW    = 0;
+    public static final int GRAPHICS_MEDIUM = 1;
+    public static final int GRAPHICS_HIGH   = 2;
+    public int graphicsQuality = GRAPHICS_HIGH;
+
     public void saveConfig () {
 
         try (BufferedWriter bw = new BufferedWriter(new FileWriter("config.txt"))) {
@@ -83,6 +92,8 @@ public class Config {
             bw.write("musicVolume=" + gp.audio.getMusicVolume());        bw.newLine();
             bw.write("seVolume=" + gp.audio.getSEVolume());              bw.newLine();
             bw.write("vsync=" + (gp.vSyncOn ? "On" : "Off"));           bw.newLine();
+            bw.write("fpsTarget=" + fpsTarget);                           bw.newLine();
+            bw.write("graphicsQuality=" + graphicsQuality);                bw.newLine();
             // Save window position: use live coords when windowed, saved bounds when fullscreen
             int wx, wy;
             if (!gp.fullScreenOn && Main.window != null) {
@@ -120,6 +131,8 @@ public class Config {
             int seVol    = Integer.parseInt(map.getOrDefault("seVolume", "5"));
             gp.audio.applyConfig(musicVol, seVol);
             gp.vSyncOn = "On".equals(map.getOrDefault("vsync", "Off"));
+            try { fpsTarget = Integer.parseInt(map.getOrDefault("fpsTarget", "60")); } catch (Exception ignored) {}
+            try { graphicsQuality = Math.max(GRAPHICS_LOW, Math.min(GRAPHICS_HIGH, Integer.parseInt(map.getOrDefault("graphicsQuality", "2")))); } catch (Exception ignored) {}
             try { windowX = Integer.parseInt(map.getOrDefault("windowX", "-1")); } catch (Exception ignored) {}
             try { windowY = Integer.parseInt(map.getOrDefault("windowY", "-1")); } catch (Exception ignored) {}
 

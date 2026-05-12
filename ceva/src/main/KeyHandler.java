@@ -704,6 +704,8 @@ public class KeyHandler implements KeyListener {
         if (code == KeyEvent.VK_ENTER) {
             if (!gp.player.skillTree.unlockSelected(gp.player)) {
                 gp.playSE(SFX.PLAYER_HIT);
+            } else {
+                gp.ui.invalidateSkillTreeConnectorCache();
             }
         }
     }
@@ -730,7 +732,7 @@ public class KeyHandler implements KeyListener {
         if (code == KeyEvent.VK_ENTER) enterPressed = true;
 
         int maxCommandNum = switch (gp.ui.subState) {
-            case 0 -> 7;
+            case 0 -> 8;
             case 3 -> 1;
             default -> 0;
         };
@@ -744,11 +746,20 @@ public class KeyHandler implements KeyListener {
     private void adjustOptionsVolume(int change) {
         if (gp.ui.subState != 0) return;
 
-        if (gp.ui.commandNum == 2) {
+        if (gp.ui.commandNum == 3) { // Graphics quality
+            int q = gp.config.graphicsQuality + change;
+            if (q < 0) q = 2;
+            if (q > 2) q = 0;
+            gp.config.graphicsQuality = q;
+            if (gp.eManager.lightning != null) gp.eManager.lightning.clearShadowCaches();
+            gp.playSE(SFX.MENU_SELECT);
+            gp.config.saveConfig();
+        }
+        if (gp.ui.commandNum == 4) {
             gp.audio.setMusicVolume(gp.audio.getMusicVolume() + change);
             gp.playSE(SFX.MENU_SELECT);
         }
-        if (gp.ui.commandNum == 3) {
+        if (gp.ui.commandNum == 5) {
             gp.audio.setSEVolume(gp.audio.getSEVolume() + change);
             gp.playSE(SFX.MENU_SELECT);
         }
@@ -878,7 +889,7 @@ public class KeyHandler implements KeyListener {
             if (menuRight) { gp.player.skillTree.moveSelection(0, +1); gp.playSE(SFX.MENU_CURSOR); }
         }
         else if (state == GamePanel.optionsState) {
-            int maxCmd = switch (gp.ui.subState) { case 0 -> 7; case 3 -> 1; default -> 0; };
+            int maxCmd = switch (gp.ui.subState) { case 0 -> 8; case 3 -> 1; default -> 0; };
             if (menuUp)   gp.ui.commandNum = (gp.ui.commandNum - 1 + maxCmd + 1) % (maxCmd + 1);
             if (menuDown) gp.ui.commandNum = (gp.ui.commandNum + 1) % (maxCmd + 1);
             if (menuLeft)  adjustOptionsVolume(-1);

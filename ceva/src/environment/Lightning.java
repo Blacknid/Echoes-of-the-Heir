@@ -10,11 +10,13 @@ import java.awt.geom.Path2D;
 import java.awt.geom.Point2D;
 import java.awt.image.BufferedImage;
 import java.awt.image.DataBufferInt;
+import java.awt.RenderingHints;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashMap;
 import java.util.List;
 
+import main.Config;
 import main.GamePanel;
 
 public class Lightning {
@@ -53,29 +55,37 @@ public class Lightning {
 
     // ===================== IMAGE CACHES =====================
     private final HashMap<Integer, BufferedImage> dstOutLightCache = new HashMap<>();
+    private final HashMap<Integer, BufferedImage> squareDstOutLightCache = new HashMap<>();
     private final HashMap<Long,    BufferedImage> gradientCache    = new HashMap<>();
     private final HashMap<Integer, BufferedImage> lightMaskImages  = new HashMap<>();
     private final HashMap<Integer, Graphics2D>    lightMaskG2s     = new HashMap<>();
-    private final HashMap<Integer, int[]>         lightMaskPixels  = new HashMap<>();
+    // lightMaskPixels removed: mask is now cleared via AlphaComposite.Src (GPU-side, no DataBuffer write)
 
     // ===================== SHADOW GEOMETRY CACHE =====================
     // Torch polys: computed once per map load (torches never move).
-    // Player polys: recomputed only when player moves > PLAYER_SHADOW_DIRTY_PX world pixels.
+    // Player polys: recomputed every frame (sub-5µs, eliminates threshold-snap saccading).
     // Format: float[8] = {nearS.x, nearS.y, nearE.x, nearE.y, farE.x, farE.y, farS.x, farS.y}
     // Coords are world-space, relative to the light center.
     private final HashMap<Integer, List<float[]>> torchShadowPolys = new HashMap<>();
     private boolean torchShadowCacheDirty = true;
 
-    private List<float[]> playerShadowPolys      = null;
-    private int playerLastCacheWorldX            = Integer.MIN_VALUE;
-    private int playerLastCacheWorldY            = Integer.MIN_VALUE;
-    // Increased to 16 px: halves shadow-recomputation frequency vs the old 8 px threshold.
-    private static final int PLAYER_SHADOW_DIRTY_PX = 16;
+    private List<float[]> playerShadowPolys = null;
+    // Player shadow polys are recomputed every frame: the math is <5 µs and avoids the
+    // saccadating "snap" that caching at a fixed pixel threshold causes.
 
     // ===================== REUSABLE OBJECTS (zero per-frame allocation) =====================
     private final Path2D.Double        reusableShadowPath = new Path2D.Double();
-    private final ArrayList<Rectangle> reusableOccluders  = new ArrayList<>(32);
+    private final ArrayList<Rectangle> reusableOccluders  = new ArrayList<>(128);
+    // Pre-allocated pool for buildSolidTileOccluders — avoids per-frame Rectangle allocation.
+    private static final int SOLID_POOL_SIZE = 128;
+    private final Rectangle[] solidTilePool  = new Rectangle[SOLID_POOL_SIZE];
+    { for (int i = 0; i < SOLID_POOL_SIZE; i++) solidTilePool[i] = new Rectangle(); }
+    private int solidTilePoolUsed = 0;
     private final Rectangle            reusableWorldRect  = new Rectangle();
+
+    // ===================== TILE-SHADOW OCCLUDER SCRATCH =====================
+    private final ArrayList<Rectangle> tileShadowOccluders = new ArrayList<>(32);
+    private final Rectangle            reusableLightBounds = new Rectangle();
 
     // Warm highlight color for reflective tiles (water, crystals, polished stone, …)
     private static final Color REFLECT_GLOW = new Color(255, 245, 200);
@@ -119,13 +129,11 @@ public class Lightning {
         torchShadowPolys.clear();
         torchShadowCacheDirty = true;
         playerShadowPolys     = null;
-        playerLastCacheWorldX = Integer.MIN_VALUE;
-        playerLastCacheWorldY = Integer.MIN_VALUE;
         // Also clear per-radius mask caches so they are rebuilt at the new downscale
         lightMaskImages.clear();
         lightMaskG2s.clear();
-        lightMaskPixels.clear();
         dstOutLightCache.clear();
+        squareDstOutLightCache.clear();
     }
 
     // ===================== PRIVATE HELPERS =====================
@@ -145,8 +153,8 @@ public class Lightning {
         if (img != null) return img;
         img = new BufferedImage(rad * 2, rad * 2, BufferedImage.TYPE_INT_ARGB);
         lightMaskImages.put(rad, img);
-        lightMaskG2s.put(rad, img.createGraphics());
-        lightMaskPixels.put(rad, ((DataBufferInt) img.getRaster().getDataBuffer()).getData());
+        Graphics2D mg = img.createGraphics();
+        lightMaskG2s.put(rad, mg);
         return img;
     }
 
@@ -172,6 +180,35 @@ public class Lightning {
         ig.fillOval(0, 0, diameter, diameter);
         ig.dispose();
         dstOutLightCache.put(radiusPx, img);
+        return img;
+    }
+
+    /**
+     * Pre-rendered white square gradient (Chebyshev distance: center opaque → edge transparent).
+     * Used by LOW graphics mode for square-shaped lights.
+     */
+    private BufferedImage getDstOutLightSquare(int radiusPx) {
+        BufferedImage img = squareDstOutLightCache.get(radiusPx);
+        if (img != null) return img;
+        int size = radiusPx * 2;
+        img = new BufferedImage(size, size, BufferedImage.TYPE_INT_ARGB);
+        int[] px = ((DataBufferInt) img.getRaster().getDataBuffer()).getData();
+        float invRad = 1f / radiusPx;
+        for (int y = 0; y < size; y++) {
+            float dy = Math.abs(y - radiusPx + 0.5f) * invRad;
+            int rowOff = y * size;
+            for (int x = 0; x < size; x++) {
+                float dx = Math.abs(x - radiusPx + 0.5f) * invRad;
+                float dist = Math.max(dx, dy);
+                int alpha;
+                if (dist <= 0.30f)      alpha = 255;
+                else if (dist <= 0.65f) alpha = 230 - (int)((dist - 0.30f) * (120f / 0.35f));
+                else if (dist < 1.0f)   alpha = 110 - (int)((dist - 0.65f) * (110f / 0.35f));
+                else                     alpha = 0;
+                px[rowOff + x] = (alpha << 24) | 0x00FFFFFF;
+            }
+        }
+        squareDstOutLightCache.put(radiusPx, img);
         return img;
     }
 
@@ -292,11 +329,10 @@ public class Lightning {
                            List<float[]> shadowPolys, float polyScale) {
         BufferedImage mask = ensureLightMaskImage(rad);
         Graphics2D    mg   = lightMaskG2s.get(rad);
-        int[]         px   = lightMaskPixels.get(rad);
 
-        Arrays.fill(px, 0);
-
-        mg.setComposite(AlphaComposite.SrcOver);
+        // Src composite replaces every pixel: clears transparent areas AND draws gradient in one pass.
+        // Keeps the mask image GPU-resident (no DataBuffer write = no CPU↔GPU texture re-upload).
+        mg.setComposite(AlphaComposite.Src);
         mg.drawImage(getDstOutLight(rad), 0, 0, null);
 
         if (shadowPolys != null && !shadowPolys.isEmpty()) {
@@ -319,12 +355,191 @@ public class Lightning {
     }
 
     /**
-     * Mark all tile positions within a circular light radius as lit in tileM.tileIsLit.
-     * Uses a bounding-box pre-filter then a per-tile distance check.
+     * LOW graphics mode: BFS flood-fill propagation on the tile grid.
+     * Light starts at the origin tile and expands to 4-neighbors. Each step is weaker
+     * than the previous (linear falloff over `radiusTiles` steps). When the BFS reaches
+     * a solid (collision) tile, that tile is lit with its remaining intensity but
+     * light does NOT propagate through it.
      */
-    private void markTilesLit(int lightWX, int lightWY, int radiusPx) {
+    private void markTilesLitLowBFS(int lightWX, int lightWY, int radiusPx) {
+        boolean[][] litMap = gp.tileM.tileIsLit;
+        float[][]   lightLevel = gp.tileM.tileLightLevel;
+        if (litMap == null) return;
+
+        int ts      = gp.tileSize;
+        int maxCol  = litMap.length;
+        int maxRow  = maxCol > 0 ? litMap[0].length : 0;
+
+        int originCol = lightWX / ts;
+        int originRow = lightWY / ts;
+        if (originCol < 0 || originCol >= maxCol || originRow < 0 || originRow >= maxRow) return;
+
+        int radiusTiles = Math.max(1, radiusPx / ts);
+
+        int minCol = Math.max(0, originCol - radiusTiles);
+        int maxColI = Math.min(maxCol - 1, originCol + radiusTiles);
+        int minRow = Math.max(0, originRow - radiusTiles);
+        int maxRowI = Math.min(maxRow - 1, originRow + radiusTiles);
+
+        // Pre-filter occluders to bounding box
+        tileShadowOccluders.clear();
+        reusableLightBounds.setBounds(minCol * ts, minRow * ts,
+                                      (maxColI - minCol + 1) * ts,
+                                      (maxRowI - minRow + 1) * ts);
+        ArrayList<Rectangle> allOcc = gp.tileM.lightOccluderRects;
+        for (int i = 0, n = allOcc.size(); i < n; i++) {
+            if (allOcc.get(i).intersects(reusableLightBounds))
+                tileShadowOccluders.add(allOcc.get(i));
+        }
+
+        int bw = maxColI - minCol + 1;
+        int bh = maxRowI - minRow + 1;
+        int cells = bw * bh;
+        if (bfsVisited == null || bfsVisited.length < cells) bfsVisited = new boolean[cells];
+        Arrays.fill(bfsVisited, 0, cells, false);
+
+        int cap = cells;
+        if (bfsQCol == null || bfsQCol.length < cap) {
+            bfsQCol   = new int[cap];
+            bfsQRow   = new int[cap];
+            bfsQDepth = new int[cap];
+        }
+
+        int head = 0, tail = 0;
+        bfsQCol[tail] = originCol;
+        bfsQRow[tail] = originRow;
+        bfsQDepth[tail] = 0;
+        tail++;
+        bfsVisited[(originRow - minRow) * bw + (originCol - minCol)] = true;
+
+        float invRad = 1f / radiusTiles;
+
+        while (head < tail) {
+            int col = bfsQCol[head];
+            int row = bfsQRow[head];
+            int depth = bfsQDepth[head];
+            head++;
+
+            litMap[col][row] = true;
+            float intensity = 1f - depth * invRad;
+            if (intensity < 0f) intensity = 0f;
+            if (lightLevel != null && intensity > lightLevel[col][row])
+                lightLevel[col][row] = intensity;
+
+            // Solid tile = terminal (lit, but no further propagation)
+            if (isTileSolid(col, row, ts, tileShadowOccluders)) continue;
+            if (depth >= radiusTiles) continue;
+
+            // 4-way neighbors
+            for (int k = 0; k < 4; k++) {
+                int nc = col + BFS_DCOL[k];
+                int nr = row + BFS_DROW[k];
+                if (nc < minCol || nc > maxColI || nr < minRow || nr > maxRowI) continue;
+                int vIdx = (nr - minRow) * bw + (nc - minCol);
+                if (bfsVisited[vIdx]) continue;
+                bfsVisited[vIdx] = true;
+                bfsQCol[tail]   = nc;
+                bfsQRow[tail]   = nr;
+                bfsQDepth[tail] = depth + 1;
+                tail++;
+            }
+        }
+    }
+
+    private static final int[] BFS_DCOL = { 1, -1, 0, 0 };
+    private static final int[] BFS_DROW = { 0, 0, 1, -1 };
+    private boolean[] bfsVisited;
+    private int[]     bfsQCol;
+    private int[]     bfsQRow;
+    private int[]     bfsQDepth;
+
+    /** Does the tile at (col,row) intersect any occluder rectangle? Uses the tileSolid grid when available. */
+    private boolean isTileSolid(int col, int row, int ts, ArrayList<Rectangle> occ) {
+        boolean[][] solid = gp.tileM.tileSolid;
+        if (solid != null) {
+            return col >= 0 && col < solid.length
+                && row >= 0 && row < solid[col].length
+                && solid[col][row];
+        }
+        int tx = col * ts, ty = row * ts;
+        for (int i = 0, n = occ.size(); i < n; i++) {
+            Rectangle r = occ.get(i);
+            if (tx + ts > r.x && tx < r.x + r.width
+             && ty + ts > r.y && ty < r.y + r.height) return true;
+        }
+        return false;
+    }
+
+    /**
+     * Fill `out` with one tile-sized Rectangle per solid tile that lies within lightBounds.
+     * Uses the rasterised tileSolid grid when available; falls back to lightOccluderRects.
+     * Called during HIGH-mode shadow polygon computation (cached, infrequent).
+     */
+    private void buildSolidTileOccluders(Rectangle lightBounds, ArrayList<Rectangle> out) {
+        solidTilePoolUsed = 0;
+        boolean[][] solid = gp.tileM.tileSolid;
+        if (solid == null) {
+            ArrayList<Rectangle> fallback = gp.tileM.lightOccluderRects;
+            for (int i = 0, n = fallback.size(); i < n; i++)
+                if (fallback.get(i).intersects(lightBounds)) out.add(fallback.get(i));
+            return;
+        }
+        int ts     = gp.tileSize;
+        int maxCol = solid.length;
+        int maxRow = maxCol > 0 ? solid[0].length : 0;
+        int minCol = Math.max(0, lightBounds.x / ts);
+        int maxColI = Math.min(maxCol - 1, (lightBounds.x + lightBounds.width)  / ts);
+        int minRow = Math.max(0, lightBounds.y / ts);
+        int maxRowI = Math.min(maxRow - 1, (lightBounds.y + lightBounds.height) / ts);
+        for (int col = minCol; col <= maxColI; col++) {
+            for (int row = minRow; row <= maxRowI; row++) {
+                if (solid[col][row] && solidTilePoolUsed < SOLID_POOL_SIZE) {
+                    Rectangle r = solidTilePool[solidTilePoolUsed++];
+                    r.setBounds(col * ts, row * ts, ts, ts);
+                    out.add(r);
+                }
+            }
+        }
+    }
+
+    /**
+     * Bresenham tile walk from the light origin tile to the target tile.
+     * Returns true if any INTERMEDIATE tile (not the target) is solid.
+     * Uses tileSolid grid directly — no per-frame allocation.
+     */
+    private boolean isRayBlockedByGrid(int ox, int oy, int tx, int ty) {
+        boolean[][] solid = gp.tileM.tileSolid;
+        if (solid == null) return false;
+        int ts   = gp.tileSize;
+        int c0   = ox / ts, r0 = oy / ts;
+        int c1   = tx / ts, r1 = ty / ts;
+        int dc   = Math.abs(c1 - c0), dr = Math.abs(r1 - r0);
+        int sc   = c0 < c1 ? 1 : -1,  sr = r0 < r1 ? 1 : -1;
+        int err  = dc - dr;
+        int c = c0, r = r0;
+        while (c != c1 || r != r1) {
+            int e2 = err * 2;
+            if (e2 > -dr) { err -= dr; c += sc; }
+            if (e2 <  dc) { err += dc; r += sr; }
+            if (c == c1 && r == r1) break;
+            if (c < 0 || c >= solid.length || r < 0 || r >= solid[c].length) break;
+            if (solid[c][r]) return true;
+        }
+        return false;
+    }
+
+    /**
+     * Mark tile positions within a light radius as lit in tileM.tileIsLit.
+     * When useTileShadows is true, rays are cast from the light center to each tile center;
+     * tiles occluded by collision rectangles are skipped (shadow).
+     * For LOW mode (isLow=true), also writes per-tile intensity into tileM.tileLightLevel
+     * with a smooth quadratic falloff using Chebyshev (square) distance.
+     */
+    private void markTilesLit(int lightWX, int lightWY, int radiusPx,
+                               boolean useTileShadows, boolean isLow) {
         boolean[][] litMap = gp.tileM.tileIsLit;
         if (litMap == null) return;
+
         int ts      = gp.tileSize;
         int maxCol  = litMap.length;
         int maxRow  = maxCol > 0 ? litMap[0].length : 0;
@@ -332,13 +547,159 @@ public class Lightning {
         int maxColI = Math.min(maxCol - 1, (lightWX + radiusPx) / ts);
         int minRow  = Math.max(0, (lightWY - radiusPx) / ts);
         int maxRowI = Math.min(maxRow - 1, (lightWY + radiusPx) / ts);
-        int r2 = radiusPx * radiusPx;
+
+        // Pre-filter occluders into the light's bounding box (avoids testing far-away rects)
+        boolean useTileGrid = (useTileShadows && gp.tileM.tileSolid != null);
+        if (useTileShadows && !useTileGrid) {
+            tileShadowOccluders.clear();
+            reusableLightBounds.setBounds(lightWX - radiusPx, lightWY - radiusPx,
+                                          radiusPx * 2, radiusPx * 2);
+            ArrayList<Rectangle> allOcc = gp.tileM.lightOccluderRects;
+            for (int i = 0, n = allOcc.size(); i < n; i++) {
+                if (allOcc.get(i).intersects(reusableLightBounds))
+                    tileShadowOccluders.add(allOcc.get(i));
+            }
+        }
+        ArrayList<Rectangle> occ = null;
+        if (useTileShadows && !tileShadowOccluders.isEmpty()) occ = tileShadowOccluders;
+
+        float[][] lightLevel = gp.tileM.tileLightLevel;
+        int   r2     = radiusPx * radiusPx;
+        float invRad = 1f / radiusPx;
+
         for (int col = minCol; col <= maxColI; col++) {
             for (int row = minRow; row <= maxRowI; row++) {
                 int tcx = col * ts + ts / 2;
                 int tcy = row * ts + ts / 2;
-                int dx = tcx - lightWX, dy = tcy - lightWY;
-                if (dx * dx + dy * dy <= r2) litMap[col][row] = true;
+                int dx  = tcx - lightWX, dy = tcy - lightWY;
+
+                // Distance gate
+                if (isLow) {
+                    if (Math.abs(dx) > radiusPx || Math.abs(dy) > radiusPx) continue;
+                } else {
+                    if (dx * dx + dy * dy > r2) continue;
+                }
+
+                // Shadow gate: ray from light center → tile center blocked?
+                if (useTileGrid && isRayBlockedByGrid(lightWX, lightWY, tcx, tcy)) continue;
+                if (occ != null && isRayBlocked(lightWX, lightWY, tcx, tcy, occ)) continue;
+
+                litMap[col][row] = true;
+
+                // LOW mode: write per-tile intensity (max of all contributing lights)
+                if (isLow && lightLevel != null) {
+                    float dist = Math.max(Math.abs(dx), Math.abs(dy)) * invRad; // Chebyshev
+                    float intensity = Math.max(0f, 1f - dist);
+                    intensity *= intensity; // quadratic falloff
+                    if (intensity > lightLevel[col][row])
+                        lightLevel[col][row] = intensity;
+                }
+            }
+        }
+    }
+
+    // ===================== RAY-AABB SHADOW TEST =====================
+
+    /**
+     * Returns true if the segment from (ox,oy) → (tx,ty) is blocked by any occluder.
+     * Skips occluders that contain the light origin (prevents self-shadowing).
+     */
+    private boolean isRayBlocked(int ox, int oy, int tx, int ty,
+                                  ArrayList<Rectangle> occluders) {
+        float dx = tx - ox, dy = ty - oy;
+        for (int i = 0, n = occluders.size(); i < n; i++) {
+            Rectangle r = occluders.get(i);
+            // Skip if light origin is inside this occluder
+            if (ox >= r.x && ox <= r.x + r.width && oy >= r.y && oy <= r.y + r.height) continue;
+            if (segmentIntersectsAABB(ox, oy, dx, dy, r.x, r.y, r.x + r.width, r.y + r.height))
+                return true;
+        }
+        return false;
+    }
+
+    /**
+     * Slab method: does the segment (ox,oy)+(dx,dy)*t, t∈[0,1] intersect the AABB [minX,minY,maxX,maxY]?
+     */
+    private static boolean segmentIntersectsAABB(float ox, float oy, float dx, float dy,
+                                                  int minX, int minY, int maxX, int maxY) {
+        float tmin = 0f, tmax = 1f;
+        if (dx != 0f) {
+            float inv = 1f / dx;
+            float t1 = (minX - ox) * inv;
+            float t2 = (maxX - ox) * inv;
+            if (t1 > t2) { float tmp = t1; t1 = t2; t2 = tmp; }
+            tmin = Math.max(tmin, t1);
+            tmax = Math.min(tmax, t2);
+            if (tmin > tmax) return false;
+        } else {
+            if (ox < minX || ox > maxX) return false;
+        }
+        if (dy != 0f) {
+            float inv = 1f / dy;
+            float t1 = (minY - oy) * inv;
+            float t2 = (maxY - oy) * inv;
+            if (t1 > t2) { float tmp = t1; t1 = t2; t2 = tmp; }
+            tmin = Math.max(tmin, t1);
+            tmax = Math.min(tmax, t2);
+            if (tmin > tmax) return false;
+        } else {
+            if (oy < minY || oy > maxY) return false;
+        }
+        return true;
+    }
+
+    // ===================== LOW-MODE TILE OVERLAY =====================
+
+    /**
+     * Build the darkness overlay directly from tileLightLevel.
+     * Each tile-sized block is filled with a single darkness value = maxDark × (1 − lightLevel).
+     * Called only in LOW graphics mode (replaces the radial-gradient drawLight path).
+     */
+    private void renderLowModeOverlay(float currentMaxDarkness,
+                                       int playerWorldX, int playerWorldY,
+                                       int playerScreenX, int playerScreenY,
+                                       int ds) {
+        float[][] lightLevel = gp.tileM.tileLightLevel;
+        if (lightLevel == null) return;
+
+        int ts   = gp.tileSize;
+        int tsOv = Math.max(1, ts / ds);
+
+        int cameraWX = playerWorldX - playerScreenX;
+        int cameraWY = playerWorldY - playerScreenY;
+
+        int startCol = Math.max(0, cameraWX / ts);
+        int endCol   = Math.min(lightLevel.length - 1, (cameraWX + gp.screenWidth) / ts);
+        int maxRow   = lightLevel.length > 0 ? lightLevel[0].length : 0;
+        int startRow = Math.max(0, cameraWY / ts);
+        int endRow   = Math.min(maxRow - 1, (cameraWY + gp.screenHeight) / ts);
+
+        int maxDark = (int)(currentMaxDarkness * 255 + 0.5f);
+
+        for (int col = startCol; col <= endCol; col++) {
+            for (int row = startRow; row <= endRow; row++) {
+                float level = lightLevel[col][row];
+                if (level <= 0f) continue; // stays at full darkness (already filled)
+
+                int tileAlpha = (int)((1f - level) * maxDark + 0.5f);
+                if (tileAlpha < 0) tileAlpha = 0;
+                if (tileAlpha >= maxDark) continue; // no visible change
+                int argb = tileAlpha << 24;
+
+                int sx = (col * ts - cameraWX) / ds;
+                int sy = (row * ts - cameraWY) / ds;
+
+                int x0 = Math.max(0, sx);
+                int x1 = Math.min(overlayWidth,  sx + tsOv);
+                int y0 = Math.max(0, sy);
+                int y1 = Math.min(overlayHeight, sy + tsOv);
+
+                for (int py = y0; py < y1; py++) {
+                    int off = py * overlayWidth;
+                    for (int px = x0; px < x1; px++) {
+                        darknessPixels[off + px] = argb;
+                    }
+                }
             }
         }
     }
@@ -453,15 +814,30 @@ public class Lightning {
         int playerLightCY = playerWorldY + gp.tileSize / 2;
         int lightPxWorld  = playerLightRadius * gp.tileSize;
 
-        // ========= ALWAYS: update tileIsLit (used by gameplay + reflective highlights) =========
+        boolean isLow       = (gp.config.graphicsQuality == Config.GRAPHICS_LOW);
+        boolean useTileShadows = (gp.config.graphicsQuality != Config.GRAPHICS_MEDIUM);
+
+        // ========= ALWAYS: update tileIsLit (+ tileLightLevel for LOW) =========
         if (gp.tileM.tileIsLit != null) {
             gp.tileM.clearTileLitMap();
-            markTilesLit(playerLightCX, playerLightCY, lightPxWorld);
-            for (int i = 0; i < gp.obj.length; i++) {
-                if (gp.obj[i] != null && gp.obj[i].lightSource && gp.obj[i].lightRadius > 0) {
-                    markTilesLit(gp.obj[i].worldX + gp.tileSize / 2,
-                                 gp.obj[i].worldY + gp.tileSize / 2,
-                                 gp.obj[i].lightRadius * gp.tileSize);
+            if (isLow) {
+                markTilesLitLowBFS(playerLightCX, playerLightCY, lightPxWorld);
+                for (int i = 0; i < gp.obj.length; i++) {
+                    if (gp.obj[i] != null && gp.obj[i].lightSource && gp.obj[i].lightRadius > 0) {
+                        markTilesLitLowBFS(gp.obj[i].worldX + gp.tileSize / 2,
+                                           gp.obj[i].worldY + gp.tileSize / 2,
+                                           gp.obj[i].lightRadius * gp.tileSize);
+                    }
+                }
+            } else {
+                markTilesLit(playerLightCX, playerLightCY, lightPxWorld, useTileShadows, false);
+                for (int i = 0; i < gp.obj.length; i++) {
+                    if (gp.obj[i] != null && gp.obj[i].lightSource && gp.obj[i].lightRadius > 0) {
+                        markTilesLit(gp.obj[i].worldX + gp.tileSize / 2,
+                                     gp.obj[i].worldY + gp.tileSize / 2,
+                                     gp.obj[i].lightRadius * gp.tileSize,
+                                     useTileShadows, false);
+                    }
                 }
             }
         }
@@ -479,58 +855,64 @@ public class Lightning {
         int darkArgb = ((int)(currentMaxDarkness * 255 + 0.5f)) << 24;
         Arrays.fill(darknessPixels, darkArgb);
 
-        Graphics2D og = overlayG2;
+        if (isLow) {
+            // ========= LOW: tile-based overlay from tileLightLevel (shadows via raycasting) =========
+            renderLowModeOverlay(currentMaxDarkness, playerWorldX, playerWorldY,
+                                 playerScreenX, playerScreenY, ds);
+        } else {
+            // ========= MEDIUM / HIGH: radial-gradient overlay =========
+            Graphics2D og = overlayG2;
 
-        // Overlay-space screen position of player light center
-        int playerSXov = (playerScreenX + gp.tileSize / 2) / ds;
-        int playerSYov = (playerScreenY + gp.tileSize / 2) / ds;
-        int lightPxOv  = lightPxWorld / ds;
+            int playerSXov = (playerScreenX + gp.tileSize / 2) / ds;
+            int playerSYov = (playerScreenY + gp.tileSize / 2) / ds;
+            int lightPxOv  = lightPxWorld / ds;
 
-        // ========= PLAYER LIGHT =========
-        int dxP = playerWorldX - playerLastCacheWorldX;
-        int dyP = playerWorldY - playerLastCacheWorldY;
-        if (playerShadowPolys == null
-                || dxP * dxP + dyP * dyP > PLAYER_SHADOW_DIRTY_PX * PLAYER_SHADOW_DIRTY_PX) {
-            reusableOccluders.clear();
-            reusableWorldRect.setBounds(
-                    playerLightCX - lightPxWorld, playerLightCY - lightPxWorld,
-                    lightPxWorld * 2, lightPxWorld * 2);
-            // BUG FIX: use lightOccluderRects (AA rects only) instead of all collision bounds.
-            // Polygon/ellipse/rotated bounding boxes caused false shadows in open areas.
-            gp.cChecker.getLightOccludersInRect(reusableWorldRect, reusableOccluders);
-            playerShadowPolys     = computeShadowPolysWorld(
-                    playerLightCX, playerLightCY, lightPxWorld, reusableOccluders);
-            playerLastCacheWorldX = playerWorldX;
-            playerLastCacheWorldY = playerWorldY;
-        }
+            // Polygon shadows only for HIGH (tiles can be half-lit at shadow edges)
+            boolean usePolyShadows = (gp.config.graphicsQuality == Config.GRAPHICS_HIGH);
 
-        drawLight(og, playerSXov, playerSYov, lightPxOv, playerShadowPolys, polyScale);
-
-        // ========= TORCH LIGHTS =========
-        for (int i = 0; i < gp.obj.length; i++) {
-            if (gp.obj[i] == null || !gp.obj[i].lightSource || gp.obj[i].lightRadius <= 0) continue;
-
-            int tRadWorld = gp.obj[i].lightRadius * gp.tileSize;
-            int tRadOv    = tRadWorld / ds;
-            int tx = (gp.obj[i].worldX - playerWorldX + playerScreenX + gp.tileSize / 2) / ds;
-            int ty = (gp.obj[i].worldY - playerWorldY + playerScreenY + gp.tileSize / 2) / ds;
-
-            if (tx + tRadOv < 0 || tx - tRadOv > overlayW
-                    || ty + tRadOv < 0 || ty - tRadOv > overlayH) continue;
-
-            if (torchShadowCacheDirty || !torchShadowPolys.containsKey(i)) {
-                int twx = gp.obj[i].worldX + gp.tileSize / 2;
-                int twy = gp.obj[i].worldY + gp.tileSize / 2;
+            // ========= PLAYER LIGHT =========
+            if (usePolyShadows) {
                 reusableOccluders.clear();
-                reusableWorldRect.setBounds(twx - tRadWorld, twy - tRadWorld,
-                                            tRadWorld * 2, tRadWorld * 2);
-                gp.cChecker.getLightOccludersInRect(reusableWorldRect, reusableOccluders);
-                torchShadowPolys.put(i, computeShadowPolysWorld(twx, twy, tRadWorld, reusableOccluders));
+                reusableWorldRect.setBounds(
+                        playerLightCX - lightPxWorld, playerLightCY - lightPxWorld,
+                        lightPxWorld * 2, lightPxWorld * 2);
+                buildSolidTileOccluders(reusableWorldRect, reusableOccluders);
+                playerShadowPolys = computeShadowPolysWorld(
+                        playerLightCX, playerLightCY, lightPxWorld, reusableOccluders);
             }
 
-            drawLight(og, tx, ty, tRadOv, torchShadowPolys.get(i), polyScale);
+            drawLight(og, playerSXov, playerSYov, lightPxOv,
+                      usePolyShadows ? playerShadowPolys : null, polyScale);
+
+            // ========= TORCH LIGHTS =========
+            for (int i = 0; i < gp.obj.length; i++) {
+                if (gp.obj[i] == null || !gp.obj[i].lightSource || gp.obj[i].lightRadius <= 0) continue;
+
+                int tRadWorld = gp.obj[i].lightRadius * gp.tileSize;
+                int tRadOv    = tRadWorld / ds;
+                int tx = (gp.obj[i].worldX - playerWorldX + playerScreenX + gp.tileSize / 2) / ds;
+                int ty = (gp.obj[i].worldY - playerWorldY + playerScreenY + gp.tileSize / 2) / ds;
+
+                if (tx + tRadOv < 0 || tx - tRadOv > overlayW
+                        || ty + tRadOv < 0 || ty - tRadOv > overlayH) continue;
+
+                if (usePolyShadows) {
+                    if (torchShadowCacheDirty || !torchShadowPolys.containsKey(i)) {
+                        int twx = gp.obj[i].worldX + gp.tileSize / 2;
+                        int twy = gp.obj[i].worldY + gp.tileSize / 2;
+                        reusableOccluders.clear();
+                        reusableWorldRect.setBounds(twx - tRadWorld, twy - tRadWorld,
+                                                    tRadWorld * 2, tRadWorld * 2);
+                        buildSolidTileOccluders(reusableWorldRect, reusableOccluders);
+                        torchShadowPolys.put(i, computeShadowPolysWorld(twx, twy, tRadWorld, reusableOccluders));
+                    }
+                }
+
+                drawLight(og, tx, ty, tRadOv,
+                          usePolyShadows ? torchShadowPolys.get(i) : null, polyScale);
+            }
+            if (usePolyShadows) torchShadowCacheDirty = false;
         }
-        torchShadowCacheDirty = false;
 
         // Blit darkness overlay — scale up to full screen when downscaling is active
         if (ds > 1) {

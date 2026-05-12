@@ -176,11 +176,56 @@ public class UI {
             k -> new java.awt.GradientPaint(x1, y1, c1, x2, y2, c2));
     }
 
+    // ── FAST SINE LOOKUP TABLE (512 entries, 0..2π) ──────────────────────────────────────────
+    // Replaces Math.sin(animTick * k) calls in every draw method.
+    // All pulse animations do: sinLUT[(animTick * SPEED) & 511]  → range -1..1
+    // The table is built once at class-load time; lookup is a single array access + int mask.
+    private static final int SIN_LUT_SIZE = 512;
+    private static final float[] sinLUT = new float[SIN_LUT_SIZE];
+    static {
+        for (int i = 0; i < SIN_LUT_SIZE; i++) {
+            sinLUT[i] = (float) Math.sin(i * (2.0 * Math.PI / SIN_LUT_SIZE));
+        }
+    }
+    /** Fast sin lookup. {@code freq} controls speed: 1=slowest, higher=faster. Result is -1..1. */
+    private static float fastSin(int tick, int freq) {
+        return sinLUT[(tick * freq) & (SIN_LUT_SIZE - 1)];
+    }
+    /** Convenience: returns (sin+1)/2 → range 0..1 (pulse form). */
+    private static float fastPulse(int tick, int freq) {
+        return (fastSin(tick, freq) + 1.0f) * 0.5f;
+    }
+
     private int[] skillTreeNodeX = new int[0];
     private int[] skillTreeNodeY = new int[0];
     private int[] skillTreeReqIndex = new int[0];
     private boolean[] skillTreeRevealed = new boolean[0];
     private boolean[] skillTreeCanUnlock = new boolean[0];
+
+    // ── SKILL TREE CONNECTOR GEOMETRY CACHE ─────────────────────────────────────────────────
+    // atan2/cos/sin per connector is expensive. The graph layout is static (node positions
+    // never change) so we compute all endpoint/arrow geometry once and reuse it every frame.
+    private int[]   stConnLx1 = new int[0], stConnLy1 = new int[0];
+    private int[]   stConnLx2 = new int[0], stConnLy2 = new int[0];
+    private int[][] stConnArrowX = new int[0][];
+    private int[][] stConnArrowY = new int[0][];
+    private boolean[] stConnHasArrow = new boolean[0];
+    private boolean stConnGeomValid = false;
+    private int     stConnGeomScrollPx = Integer.MIN_VALUE;
+
+    private void ensureSkillTreeConnectorCache(int size) {
+        if (stConnLx1.length < size) {
+            stConnLx1 = new int[size]; stConnLy1 = new int[size];
+            stConnLx2 = new int[size]; stConnLy2 = new int[size];
+            stConnArrowX = new int[size][3]; stConnArrowY = new int[size][3];
+            stConnHasArrow = new boolean[size];
+        }
+    }
+
+    /** Call after any skill unlock to force the connector arrow cache to rebuild next frame. */
+    public void invalidateSkillTreeConnectorCache() {
+        stConnGeomValid = false;
+    }
 
     private void ensureSkillTreeCacheCapacity(int size) {
         if (skillTreeNodeX.length >= size) {
@@ -464,9 +509,14 @@ public class UI {
         if (actTitleTimer <= 0) actTitleText = null;
     }
 
+    /** Called once per game-logic update (60 Hz). Advances animation state independently of render FPS.
+     *  Must be called from GamePanel.update() so animations run at a fixed rate on weak hardware. */
+    public void updateAnimations() {
+        animTick++;
+    }
+
     public void drawPlayerLife() {
 
-        animTick++;
 
         // â”€â”€ SCALE FACTORS â”€â”€
         float sf = gp.screenWidth / 1280f;
@@ -485,8 +535,8 @@ public class UI {
         smoothExp  += (targetExp  - smoothExp)  * 0.08f;
 
         // â”€â”€ ALIVE PULSE (breathing animation) â”€â”€
-        float pulse = (float)((Math.sin(animTick * 0.05) + 1.0) * 0.5); // 0..1 slow breathe
-        float fastPulse = (float)((Math.sin(animTick * 0.15) + 1.0) * 0.5);
+        float pulse = fastPulse(animTick, 1);       // 0..1 slow breathe (~1 Hz at 60 UPS)
+        float hpFastPulse = fastPulse(animTick, 3); // faster pulse for HP glow
 
         // â”€â”€ HUD PANEL â”€â”€
         int panelW = (int)(270 * sf);
@@ -546,7 +596,7 @@ public class UI {
         drawStatBar(barStartX, barsY + (int)(1 * sf), barContentW, barH, smoothLife, HP_BAR_BG, HP_BAR_FILL, HP_BAR_GLOW);
         // Low HP warning pulse
         if (smoothLife < 0.3f) {
-            g2.setColor(cachedColor(255, 40, 40, (int)(40 * fastPulse)));
+            g2.setColor(cachedColor(255, 40, 40, (int)(40 * hpFastPulse)));
             g2.fillRoundRect(barStartX, barsY + (int)(1 * sf), barContentW, barH, barH, barH);
         }
 
@@ -646,7 +696,7 @@ public class UI {
             g2.fillRoundRect(tpX, tpY, tpW, tpH, 8, 8);
             // Cyan accent line
             float tpPct = 1f - (float) gp.keyH.teleportCooldown / gp.player.getTeleportCooldownMax();
-            g2.setColor(cachedColor(80, 180, 255, (int)(50 + 40 * (tpPct >= 1f ? fastPulse : 0))));
+            g2.setColor(cachedColor(80, 180, 255, (int)(50 + 40 * (tpPct >= 1f ? fastPulse(animTick, 2) : 0))));
             g2.fillRoundRect(tpX, tpY + 3, (int)(3 * sf), tpH - 6, 3, 3);
             g2.setColor(PILL_BORDER_CLR);
             g2.setStroke(STROKE_1);
@@ -664,12 +714,12 @@ public class UI {
                 g2.setColor(tpFill);
                 g2.fillRoundRect(barX, barY, fillW2, barH2, barH2, barH2);
                 if (tpPct >= 1f) {
-                    g2.setColor(cachedColor(160, 230, 255, (int)(60 + 40 * fastPulse)));
+                    g2.setColor(cachedColor(160, 230, 255, (int)(60 + 40 * fastPulse(animTick, 2))));
                     g2.fillRoundRect(barX, barY, fillW2, barH2 / 2, barH2, barH2);
                 }
             }
             g2.setFont(hudFont_bold9);
-            g2.setColor(tpPct >= 1f ? cachedColor(130, 220, 255, (int)(200 + 55 * fastPulse)) : cachedColor(90, 110, 140));
+            g2.setColor(tpPct >= 1f ? cachedColor(130, 220, 255, (int)(200 + 55 * fastPulse(animTick, 2))) : cachedColor(90, 110, 140));
             g2.drawString(tpPct >= 1f ? "BLINK  READY" : "BLINK", tpX + (int)(9 * sf), tpY + tpH / 2 - (int)(1 * sf));
         }
 
@@ -725,7 +775,7 @@ public class UI {
         g2.setColor(HUD_PANEL_BG);
         g2.fillRoundRect(x, y, w, h, 8, 8);
         // Colored accent line (left edge)
-        float abPulse = (float)((Math.sin(animTick * 0.1) + 1.0) * 0.5);
+        float abPulse = fastPulse(animTick, 2);
         boolean ready = unlocked && cooldown <= 0;
         g2.setColor(cachedColor(accent.getRed(), accent.getGreen(), accent.getBlue(),
                 (int)(ready ? 90 + 50 * abPulse : 50)));
@@ -901,7 +951,7 @@ public class UI {
         }
 
         promptBobCounter++;
-        int bob = (int)(Math.sin(promptBobCounter * 0.08) * 3); // gentle bob
+        int bob = (int)(fastSin(promptBobCounter, 1) * 3); // gentle bob
 
         // World-to-screen conversion for the object
         int screenX = target.worldX - gp.player.worldX + gp.player.screenX;
@@ -952,8 +1002,7 @@ public class UI {
         }
 
         if(titleScreenState == 0) {
-            animTick++;
-            float pulse = (float)(0.5 + Math.sin(animTick * 0.04) * 0.5); // 0.0 .. 1.0
+            float pulse = fastPulse(animTick, 1); // 0.0 .. 1.0
 
             // â”€â”€ TOP VIGNETTE â€” darkens top strip so the title pops â”€â”€
             g2.setPaint(cachedGradient(0, 0, cachedColor(6, 2, 18, 162), 0, 200, cachedColor(6, 2, 18, 0)));
@@ -1536,7 +1585,7 @@ public class UI {
                 gp.screenHeight - gp.tileSize * 4, 20, 20);
 
         // â”€â”€ "PAUSED" TITLE with breathing effect â”€â”€
-        float breathe = (float)((Math.sin(animTick * 0.04) + 1.0) * 0.5);
+        float breathe = fastPulse(animTick, 1);
         g2.setFont(cachedFont(Font.BOLD, 72F));
         String text = "PAUSED";
         int x = getXforCenteredText(text);
@@ -1819,7 +1868,7 @@ public class UI {
 
         // -- BLINKING CONTINUE INDICATOR --
         if (charIndex >= fullLineLen) {
-            float blink = (float)((Math.sin(animTick * 0.1) + 1.0) * 0.5);
+            float blink = fastPulse(animTick, 2);
             int alpha = (int)(80 + 175 * blink);
             g2.setColor(cachedColor(220, 210, 190, alpha));
             g2.setFont(cachedFont(Font.PLAIN, 18F));
@@ -1999,7 +2048,7 @@ public class UI {
         }
 
         // â”€â”€ HORIZONTAL DIVIDER LINE â€” thin ember line across center area â”€â”€
-        float linePulse = (float)((Math.sin(animTick * 0.04) + 1.0) * 0.5);
+        float linePulse = fastPulse(animTick, 1);
         int lineAlpha = (int)((40 + 30 * linePulse) * a);
         int lineY = gp.screenHeight / 2 - gp.tileSize;
         int lineMargin = gp.tileSize * 3;
@@ -2012,7 +2061,7 @@ public class UI {
         String text;
 
         // â”€â”€ "YOU DIED" TITLE â€” elegant, muted gold/bone color â”€â”€
-        float titlePulse = (float)((Math.sin(animTick * 0.035) + 1.0) * 0.5);
+        float titlePulse = fastPulse(animTick, 1);
 
         g2.setFont(cachedFont(Font.BOLD, 84f));
         text = "YOU DIED";
@@ -2105,8 +2154,8 @@ public class UI {
     }
     public void drawCharacterScreen() {
 
-        float pulse = (float)((Math.sin(animTick * 0.05) + 1.0) * 0.5);
-        float leafSway = (float)(Math.sin(animTick * 0.03) * 3);
+        float pulse = fastPulse(animTick, 1);
+        float leafSway = fastSin(animTick, 1) * 3f;
 
         // â”€â”€ FRAME â”€â”€
         final int frameX = gp.tileSize + gp.tileSize / 2;
@@ -2292,7 +2341,7 @@ public class UI {
         g2.setColor(Color.white);
             // simple animation counter for subtle UI motions
             counter++;
-            float pulse = (float)((Math.sin(counter * 0.06) + 1.0) * 0.5); // 0..1
+            float pulse = fastPulse(counter, 1); // 0..1
 
             // Title (moved above frame) with shadow and pulsing gold tint
             String invTitle = "Inventory";
@@ -2376,7 +2425,7 @@ public class UI {
         g2.setColor(cachedColor(255, 255, 255, 40));
         g2.fillRoundRect(cursorX, cursorY, cursorWidth, cursorHeight, 10, 10);
         // pulsing border for selected slot (quantized to reduce allocations)
-        float rawStroke = 2f + 2f * (float)((Math.sin(counter * 0.12) + 1.0) * 0.5f);
+        float rawStroke = 2f + 2f * fastPulse(counter, 2);
         int strokeKey = Math.round(rawStroke * 2); // quantize to 0.5 steps
         g2.setColor(Color.white);
         g2.setStroke(cachedStroke(strokeKey * 0.5f));
@@ -2482,7 +2531,7 @@ public class UI {
 
         int fw = gp.tileSize * 8;
         int pad = 20;                   // inner padding
-        int lineH = 52;                 // row height for menu items
+        int lineH = 46;                 // row height for menu items
         int rightCol = frameX + fw - pad - 155; // right column for controls/sliders
 
         // â”€â”€ TITLE â”€â”€
@@ -2507,13 +2556,13 @@ public class UI {
         int startY = titleY + 42;       // first item Y baseline
         int textX = frameX + pad + 15;
 
-        String[] labels = { "Full Screen", "V-Sync", "Music", "Sound FX", "Controls", "End Game", "Save Game", "Back" };
-        int totalItems = labels.length;  // 8 items, indices 0-7
+        String[] labels = { "Full Screen", "V-Sync", "Perf Mode", "Graphics", "Music", "Sound FX", "Controls", "End Game", "Save Game", "Back" };
+        int totalItems = labels.length;  // 10 items, indices 0-9
 
         for (int i = 0; i < totalItems; i++) {
             int itemY = startY + i * lineH;
             boolean selected = (commandNum == i);
-            boolean isBack = (i == 7);
+            boolean isBack = (i == 9);
 
             // draw separator before "Back"
             if (isBack) {
@@ -2566,20 +2615,47 @@ public class UI {
                     gp.config.saveConfig();
                 }
             }
-            else if (i == 2) { // Music volume bar
+            else if (i == 2) { // Performance Mode (30 FPS cap)
+                boolean perfOn = (gp.config.fpsTarget == 30);
+                drawMedievalToggle(rightCol + 100, ctrlY, perfOn);
+                if (selected && gp.keyH.enterPressed) {
+                    gp.applyFpsTarget(perfOn ? 60 : 30);
+                    gp.playSE(SFX.MENU_SELECT);
+                    gp.keyH.enterPressed = false;
+                    gp.config.saveConfig();
+                }
+            }
+            else if (i == 3) { // Graphics quality selector
+                String[] qualityNames = { "Low", "Medium", "High" };
+                String qText = qualityNames[gp.config.graphicsQuality];
+                int qw = (int) cachedFM().getStringBounds(qText, g2).getWidth();
+                int qx = rightCol + 75 - qw / 2;
+                g2.setColor(selected ? OPT_GOLD : OPT_TEXT);
+                g2.drawString("\u25C0", rightCol + 10, itemY);
+                g2.drawString(qText, qx, itemY);
+                g2.drawString("\u25B6", rightCol + 135, itemY);
+                if (selected && gp.keyH.enterPressed) {
+                    gp.config.graphicsQuality = (gp.config.graphicsQuality + 1) % 3;
+                    if (gp.eManager.lightning != null) gp.eManager.lightning.clearShadowCaches();
+                    gp.playSE(SFX.MENU_SELECT);
+                    gp.keyH.enterPressed = false;
+                    gp.config.saveConfig();
+                }
+            }
+            else if (i == 4) { // Music volume bar
                 drawMedievalSlider(rightCol, ctrlY, gp.audio.getMusicVolume(), 5);
             }
-            else if (i == 3) { // SE volume bar
+            else if (i == 5) { // SE volume bar
                 drawMedievalSlider(rightCol, ctrlY, gp.audio.getSEVolume(), 5);
             }
-            else if (i == 4) { // Controls
+            else if (i == 6) { // Controls
                 if (selected) drawArrowHint(rightCol + 120, itemY);
                 if (selected && gp.keyH.enterPressed) { subState = 2; commandNum = 0; }
             }
-            else if (i == 5) { // End Game
+            else if (i == 7) { // End Game
                 if (selected && gp.keyH.enterPressed) { subState = 3; commandNum = 0; }
             }
-            else if (i == 6) { // Save Game
+            else if (i == 8) { // Save Game
                 if (selected && gp.keyH.enterPressed) {
                     gp.saveLoad.save();
                     addMessage("Game saved.", Color.WHITE);
@@ -2587,7 +2663,7 @@ public class UI {
                     gp.keyH.enterPressed = false;
                 }
             }
-            else if (i == 7) { // Back
+            else if (i == 9) { // Back
                 if (selected && gp.keyH.enterPressed) { gp.gameState = GamePanel.playState; commandNum = 0; gp.config.saveConfig(); }
             }
         }
@@ -3044,7 +3120,7 @@ public class UI {
         if (t > 156) alphaScale = in;
         if (t < 24) alphaScale = out;
 
-        float pulse = (float)((Math.sin(animTick * 0.18f) + 1.0) * 0.5);
+        float pulse = fastPulse(animTick, 3);
         int y = gp.screenHeight / 2 - gp.tileSize * 2;
         int panelW = 420;
         int panelH = 56;
@@ -3177,7 +3253,7 @@ public class UI {
         // clip viewport
         g2.setClip(GRAPH_X, GRAPH_Y, GRAPH_W, GRAPH_H);
 
-        float pulse = (float)((Math.sin(animTick * 0.12f) + 1.0) * 0.5);
+        float pulse = fastPulse(animTick, 2);
 
         // vertical column stripe tints
         for (int b = 0; b < NUM_BRANCHES; b++) {
@@ -3186,13 +3262,39 @@ public class UI {
             g2.fillRect(GRAPH_X + b * COL_STEP, GRAPH_Y, COL_STEP, GRAPH_H);
         }
 
-        // connector lines
+        // connector lines — geometry is precomputed when scrollPx changes (static layout)
+        ensureSkillTreeConnectorCache(nodes.length);
+        if (!stConnGeomValid || stConnGeomScrollPx != scrollPx) {
+            for (int i = 0; i < nodes.length; i++) {
+                stConnHasArrow[i] = false;
+                if (nodes[i].requires == null) continue;
+                int pi = skillTreeReqIndex[i];
+                if (pi < 0) continue;
+                int sx1 = skillTreeNodeX[pi], sy1 = GRAPH_Y + skillTreeNodeY[pi] - scrollPx;
+                int sx2 = skillTreeNodeX[i],  sy2 = GRAPH_Y + skillTreeNodeY[i]  - scrollPx;
+                double ang = Math.atan2(sy2 - sy1, sx2 - sx1);
+                stConnLx1[i] = sx1 + (int)(Math.cos(ang) * (NODE_R + 3));
+                stConnLy1[i] = sy1 + (int)(Math.sin(ang) * (NODE_R + 3));
+                stConnLx2[i] = sx2 - (int)(Math.cos(ang) * (NODE_R + 3));
+                stConnLy2[i] = sy2 - (int)(Math.sin(ang) * (NODE_R + 3));
+                boolean pUnlocked2 = nodes[pi].unlocked;
+                boolean cRevealed2 = skillTreeRevealed[i];
+                if (pUnlocked2 && cRevealed2) {
+                    double perp = ang + Math.PI / 2;
+                    int ax = stConnLx2[i] - (int)(Math.cos(ang) * 7);
+                    int ay = stConnLy2[i] - (int)(Math.sin(ang) * 7);
+                    stConnArrowX[i][0] = stConnLx2[i]; stConnArrowX[i][1] = ax+(int)(Math.cos(perp)*4); stConnArrowX[i][2] = ax-(int)(Math.cos(perp)*4);
+                    stConnArrowY[i][0] = stConnLy2[i]; stConnArrowY[i][1] = ay+(int)(Math.sin(perp)*4); stConnArrowY[i][2] = ay-(int)(Math.sin(perp)*4);
+                    stConnHasArrow[i] = true;
+                }
+            }
+            stConnGeomValid = true;
+            stConnGeomScrollPx = scrollPx;
+        }
         for (int i = 0; i < nodes.length; i++) {
             if (nodes[i].requires == null) continue;
             int pi = skillTreeReqIndex[i];
             if (pi < 0) continue;
-            int sx1 = skillTreeNodeX[pi], sy1 = GRAPH_Y + skillTreeNodeY[pi] - scrollPx;
-            int sx2 = skillTreeNodeX[i],  sy2 = GRAPH_Y + skillTreeNodeY[i]  - scrollPx;
             boolean pUnlocked = nodes[pi].unlocked;
             boolean cUnlocked = nodes[i].unlocked;
             boolean cRevealed = skillTreeRevealed[i];
@@ -3209,19 +3311,9 @@ public class UI {
             }
             g2.setColor(lc);
             g2.setStroke(thick > 2f ? STROKE_R28 : (thick > 1.5f ? STROKE_R18 : STROKE_R12));
-            double ang = Math.atan2(sy2 - sy1, sx2 - sx1);
-            int lx1 = sx1 + (int)(Math.cos(ang) * (NODE_R + 3));
-            int ly1 = sy1 + (int)(Math.sin(ang) * (NODE_R + 3));
-            int lx2 = sx2 - (int)(Math.cos(ang) * (NODE_R + 3));
-            int ly2 = sy2 - (int)(Math.sin(ang) * (NODE_R + 3));
-            g2.drawLine(lx1, ly1, lx2, ly2);
-            if (pUnlocked && cRevealed) {
-                double perp = ang + Math.PI / 2;
-                int ax = lx2 - (int)(Math.cos(ang) * 7);
-                int ay = ly2 - (int)(Math.sin(ang) * 7);
-                int[] arrowX = {lx2, ax+(int)(Math.cos(perp)*4), ax-(int)(Math.cos(perp)*4)};
-                int[] arrowY = {ly2, ay+(int)(Math.sin(perp)*4), ay-(int)(Math.sin(perp)*4)};
-                g2.fillPolygon(arrowX, arrowY, 3);
+            g2.drawLine(stConnLx1[i], stConnLy1[i], stConnLx2[i], stConnLy2[i]);
+            if (stConnHasArrow[i]) {
+                g2.fillPolygon(stConnArrowX[i], stConnArrowY[i], 3);
             }
         }
 
