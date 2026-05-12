@@ -128,5 +128,13 @@
     "description": "Clean cloth wraps.\nUseful for helping the wounded.",
     "sprite": "/res/quest_items/Bandage",
     "solidArea": { "x": 18, "y": 18, "w": 28, "h": 28 }
-  }
+  },
+  {
+    "id": "royal_chalice",
+    "name": "Royal Chalice",
+    "type": "quest",
+    "description": "An ornate chalice.\nOnce owned by royalty.",
+    "sprite": "/res/quest_items/Royal_Chalice",
+    "solidArea": { "x": 18, "y": 18, "w": 28, "h": 28 }
+   }
 ]

@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<map version="1.10" tiledversion="1.12.1" orientation="orthogonal" renderorder="right-down" width="20" height="15" tilewidth="32" tileheight="32" infinite="0" nextlayerid="12" nextobjectid="8">
+<map version="1.10" tiledversion="1.12.1" orientation="orthogonal" renderorder="right-down" width="20" height="15" tilewidth="32" tileheight="32" infinite="0" nextlayerid="15" nextobjectid="11">
  <properties>
   <property name="ambientLight" type="float" value="0"/>
   <property name="weather" value="CLEAR"/>
@@ -7,9 +7,719 @@
  </properties>
  <tileset firstgid="1" name="Walls_interior" tilewidth="32" tileheight="32" tilecount="310" columns="31">
   <image source="../tiles/CANVAS VILLAGE/Square Market/Blacksmith/Walls_interior.png" width="992" height="320"/>
+  <tile id="1">
+   <properties>
+    <property name="foreground" type="bool" value="true"/>
+   </properties>
+  </tile>
+  <tile id="28">
+   <properties>
+    <property name="foreground" type="bool" value="true"/>
+   </properties>
+  </tile>
+  <tile id="29">
+   <properties>
+    <property name="foreground" type="bool" value="true"/>
+   </properties>
+  </tile>
+  <tile id="30">
+   <properties>
+    <property name="foreground" type="bool" value="true"/>
+   </properties>
+  </tile>
+  <tile id="31">
+   <properties>
+    <property name="foreground" type="bool" value="true"/>
+   </properties>
+  </tile>
+  <tile id="33">
+   <properties>
+    <property name="foreground" type="bool" value="true"/>
+   </properties>
+  </tile>
+  <tile id="56">
+   <properties>
+    <property name="foreground" type="bool" value="true"/>
+   </properties>
+  </tile>
+  <tile id="57">
+   <properties>
+    <property name="foreground" type="bool" value="true"/>
+   </properties>
+  </tile>
+  <tile id="58">
+   <properties>
+    <property name="foreground" type="bool" value="true"/>
+   </properties>
+  </tile>
+  <tile id="59">
+   <properties>
+    <property name="foreground" type="bool" value="true"/>
+   </properties>
+  </tile>
+  <tile id="60">
+   <properties>
+    <property name="foreground" type="bool" value="true"/>
+   </properties>
+  </tile>
+  <tile id="61">
+   <properties>
+    <property name="foreground" type="bool" value="true"/>
+   </properties>
+  </tile>
+  <tile id="62">
+   <properties>
+    <property name="foreground" type="bool" value="true"/>
+   </properties>
+  </tile>
+  <tile id="64">
+   <properties>
+    <property name="foreground" type="bool" value="true"/>
+   </properties>
+  </tile>
+  <tile id="65">
+   <properties>
+    <property name="sortYOffset" type="int" value="-64"/>
+   </properties>
+  </tile>
+  <tile id="66">
+   <properties>
+    <property name="sortYOffset" type="int" value="-64"/>
+   </properties>
+  </tile>
+  <tile id="87">
+   <properties>
+    <property name="foreground" type="bool" value="true"/>
+   </properties>
+  </tile>
+  <tile id="89">
+   <properties>
+    <property name="foreground" type="bool" value="true"/>
+   </properties>
+  </tile>
+  <tile id="90">
+   <properties>
+    <property name="foreground" type="bool" value="true"/>
+   </properties>
+  </tile>
+  <tile id="91">
+   <properties>
+    <property name="foreground" type="bool" value="true"/>
+   </properties>
+  </tile>
+  <tile id="93">
+   <properties>
+    <property name="sortYOffset" type="int" value="64"/>
+   </properties>
+  </tile>
+  <tile id="94">
+   <properties>
+    <property name="sortYOffset" type="int" value="64"/>
+   </properties>
+  </tile>
+  <tile id="95">
+   <properties>
+    <property name="sortYOffset" type="int" value="64"/>
+   </properties>
+  </tile>
+  <tile id="96">
+   <properties>
+    <property name="foreground" type="bool" value="true"/>
+   </properties>
+  </tile>
+  <tile id="97">
+   <properties>
+    <property name="foreground" type="bool" value="true"/>
+   </properties>
+  </tile>
+  <tile id="118">
+   <properties>
+    <property name="foreground" type="bool" value="true"/>
+   </properties>
+  </tile>
+  <tile id="119">
+   <properties>
+    <property name="foreground" type="bool" value="true"/>
+   </properties>
+  </tile>
+  <tile id="120">
+   <properties>
+    <property name="foreground" type="bool" value="true"/>
+   </properties>
+  </tile>
+  <tile id="121">
+   <properties>
+    <property name="foreground" type="bool" value="true"/>
+   </properties>
+  </tile>
+  <tile id="122">
+   <properties>
+    <property name="foreground" type="bool" value="true"/>
+   </properties>
+  </tile>
+  <tile id="125">
+   <properties>
+    <property name="sortYOffset" type="int" value="-64"/>
+   </properties>
+  </tile>
+  <tile id="127">
+   <properties>
+    <property name="foreground" type="bool" value="true"/>
+   </properties>
+  </tile>
+  <tile id="128">
+   <properties>
+    <property name="foreground" type="bool" value="true"/>
+   </properties>
+  </tile>
  </tileset>
  <tileset firstgid="311" name="Interior" tilewidth="32" tileheight="32" tilecount="507" columns="39">
   <image source="../tiles/CANVAS VILLAGE/Square Market/Blacksmith/Interior.png" width="1248" height="416"/>
+  <tile id="0">
+   <properties>
+    <property name="foreground" type="bool" value="true"/>
+   </properties>
+  </tile>
+  <tile id="1">
+   <properties>
+    <property name="foreground" type="bool" value="true"/>
+   </properties>
+  </tile>
+  <tile id="2">
+   <properties>
+    <property name="foreground" type="bool" value="true"/>
+   </properties>
+  </tile>
+  <tile id="3">
+   <properties>
+    <property name="foreground" type="bool" value="true"/>
+   </properties>
+  </tile>
+  <tile id="11">
+   <properties>
+    <property name="sortYOffset" type="int" value="96"/>
+   </properties>
+  </tile>
+  <tile id="12">
+   <properties>
+    <property name="sortYOffset" type="int" value="96"/>
+   </properties>
+  </tile>
+  <tile id="34">
+   <properties>
+    <property name="sortYOffset" type="int" value="96"/>
+   </properties>
+  </tile>
+  <tile id="35">
+   <properties>
+    <property name="sortYOffset" type="int" value="96"/>
+   </properties>
+  </tile>
+  <tile id="36">
+   <properties>
+    <property name="sortYOffset" type="int" value="96"/>
+   </properties>
+  </tile>
+  <tile id="37">
+   <properties>
+    <property name="sortYOffset" type="int" value="96"/>
+   </properties>
+  </tile>
+  <tile id="38">
+   <properties>
+    <property name="sortYOffset" type="int" value="96"/>
+   </properties>
+  </tile>
+  <tile id="39">
+   <properties>
+    <property name="foreground" type="bool" value="true"/>
+   </properties>
+  </tile>
+  <tile id="40">
+   <properties>
+    <property name="foreground" type="bool" value="true"/>
+   </properties>
+  </tile>
+  <tile id="41">
+   <properties>
+    <property name="foreground" type="bool" value="true"/>
+   </properties>
+  </tile>
+  <tile id="42">
+   <properties>
+    <property name="foreground" type="bool" value="true"/>
+   </properties>
+  </tile>
+  <tile id="43">
+   <properties>
+    <property name="foreground" type="bool" value="true"/>
+   </properties>
+  </tile>
+  <tile id="44">
+   <properties>
+    <property name="foreground" type="bool" value="true"/>
+   </properties>
+  </tile>
+  <tile id="45">
+   <properties>
+    <property name="foreground" type="bool" value="true"/>
+   </properties>
+  </tile>
+  <tile id="50">
+   <properties>
+    <property name="sortYOffset" type="int" value="64"/>
+   </properties>
+  </tile>
+  <tile id="51">
+   <properties>
+    <property name="sortYOffset" type="int" value="64"/>
+   </properties>
+  </tile>
+  <tile id="73">
+   <properties>
+    <property name="sortYOffset" type="int" value="64"/>
+   </properties>
+  </tile>
+  <tile id="74">
+   <properties>
+    <property name="sortYOffset" type="int" value="64"/>
+   </properties>
+  </tile>
+  <tile id="75">
+   <properties>
+    <property name="sortYOffset" type="int" value="64"/>
+   </properties>
+  </tile>
+  <tile id="76">
+   <properties>
+    <property name="sortYOffset" type="int" value="64"/>
+   </properties>
+  </tile>
+  <tile id="77">
+   <properties>
+    <property name="sortYOffset" type="int" value="64"/>
+   </properties>
+  </tile>
+  <tile id="78">
+   <properties>
+    <property name="sortYOffset" type="int" value="160"/>
+   </properties>
+  </tile>
+  <tile id="79">
+   <properties>
+    <property name="sortYOffset" type="int" value="160"/>
+   </properties>
+  </tile>
+  <tile id="80">
+   <properties>
+    <property name="sortYOffset" type="int" value="160"/>
+   </properties>
+  </tile>
+  <tile id="81">
+   <properties>
+    <property name="sortYOffset" type="int" value="160"/>
+   </properties>
+  </tile>
+  <tile id="82">
+   <properties>
+    <property name="sortYOffset" type="int" value="160"/>
+   </properties>
+  </tile>
+  <tile id="83">
+   <properties>
+    <property name="foreground" type="bool" value="true"/>
+   </properties>
+  </tile>
+  <tile id="84">
+   <properties>
+    <property name="foreground" type="bool" value="true"/>
+   </properties>
+  </tile>
+  <tile id="100">
+   <properties>
+    <property name="sortYOffset" type="int" value="64"/>
+   </properties>
+  </tile>
+  <tile id="101">
+   <properties>
+    <property name="sortYOffset" type="int" value="64"/>
+   </properties>
+  </tile>
+  <tile id="117">
+   <properties>
+    <property name="sortYOffset" type="int" value="128"/>
+   </properties>
+  </tile>
+  <tile id="118">
+   <properties>
+    <property name="sortYOffset" type="int" value="128"/>
+   </properties>
+  </tile>
+  <tile id="119">
+   <properties>
+    <property name="sortYOffset" type="int" value="128"/>
+   </properties>
+  </tile>
+  <tile id="120">
+   <properties>
+    <property name="sortYOffset" type="int" value="128"/>
+   </properties>
+  </tile>
+  <tile id="121">
+   <properties>
+    <property name="sortYOffset" type="int" value="128"/>
+   </properties>
+  </tile>
+  <tile id="122">
+   <properties>
+    <property name="foreground" type="bool" value="true"/>
+   </properties>
+  </tile>
+  <tile id="123">
+   <properties>
+    <property name="foreground" type="bool" value="true"/>
+   </properties>
+  </tile>
+  <tile id="128">
+   <properties>
+    <property name="sortYOffset" type="int" value="-64"/>
+   </properties>
+  </tile>
+  <tile id="129">
+   <properties>
+    <property name="sortYOffset" type="int" value="-64"/>
+   </properties>
+  </tile>
+  <tile id="151">
+   <properties>
+    <property name="sortYOffset" type="int" value="-64"/>
+   </properties>
+  </tile>
+  <tile id="152">
+   <properties>
+    <property name="sortYOffset" type="int" value="-64"/>
+   </properties>
+  </tile>
+  <tile id="153">
+   <properties>
+    <property name="sortYOffset" type="int" value="-64"/>
+   </properties>
+  </tile>
+  <tile id="154">
+   <properties>
+    <property name="sortYOffset" type="int" value="-64"/>
+   </properties>
+  </tile>
+  <tile id="155">
+   <properties>
+    <property name="sortYOffset" type="int" value="-64"/>
+   </properties>
+  </tile>
+  <tile id="156">
+   <properties>
+    <property name="sortYOffset" type="int" value="96"/>
+   </properties>
+  </tile>
+  <tile id="157">
+   <properties>
+    <property name="sortYOffset" type="int" value="96"/>
+   </properties>
+  </tile>
+  <tile id="158">
+   <properties>
+    <property name="sortYOffset" type="int" value="96"/>
+   </properties>
+  </tile>
+  <tile id="159">
+   <properties>
+    <property name="sortYOffset" type="int" value="96"/>
+   </properties>
+  </tile>
+  <tile id="160">
+   <properties>
+    <property name="sortYOffset" type="int" value="96"/>
+   </properties>
+  </tile>
+  <tile id="161">
+   <properties>
+    <property name="foreground" type="bool" value="true"/>
+   </properties>
+  </tile>
+  <tile id="162">
+   <properties>
+    <property name="foreground" type="bool" value="true"/>
+   </properties>
+  </tile>
+  <tile id="178">
+   <properties>
+    <property name="sortYOffset" type="int" value="-64"/>
+   </properties>
+  </tile>
+  <tile id="179">
+   <properties>
+    <property name="sortYOffset" type="int" value="-64"/>
+   </properties>
+  </tile>
+  <tile id="195">
+   <properties>
+    <property name="sortYOffset" type="int" value="64"/>
+   </properties>
+  </tile>
+  <tile id="196">
+   <properties>
+    <property name="sortYOffset" type="int" value="64"/>
+   </properties>
+  </tile>
+  <tile id="197">
+   <properties>
+    <property name="sortYOffset" type="int" value="64"/>
+   </properties>
+  </tile>
+  <tile id="198">
+   <properties>
+    <property name="sortYOffset" type="int" value="64"/>
+   </properties>
+  </tile>
+  <tile id="199">
+   <properties>
+    <property name="sortYOffset" type="int" value="64"/>
+   </properties>
+  </tile>
+  <tile id="200">
+   <properties>
+    <property name="sortYOffset" type="int" value="64"/>
+   </properties>
+  </tile>
+  <tile id="201">
+   <properties>
+    <property name="sortYOffset" type="int" value="64"/>
+   </properties>
+  </tile>
+  <tile id="206">
+   <properties>
+    <property name="sortYOffset" type="int" value="-64"/>
+   </properties>
+  </tile>
+  <tile id="207">
+   <properties>
+    <property name="sortYOffset" type="int" value="-64"/>
+   </properties>
+  </tile>
+  <tile id="229">
+   <properties>
+    <property name="sortYOffset" type="int" value="-64"/>
+   </properties>
+  </tile>
+  <tile id="230">
+   <properties>
+    <property name="sortYOffset" type="int" value="-64"/>
+   </properties>
+  </tile>
+  <tile id="231">
+   <properties>
+    <property name="sortYOffset" type="int" value="-64"/>
+   </properties>
+  </tile>
+  <tile id="269">
+   <properties>
+    <property name="sortYOffset" type="int" value="64"/>
+   </properties>
+  </tile>
+  <tile id="271">
+   <properties>
+    <property name="sortYOffset" type="int" value="96"/>
+   </properties>
+  </tile>
+  <tile id="273">
+   <properties>
+    <property name="sortYOffset" type="int" value="-64"/>
+   </properties>
+  </tile>
+  <tile id="274">
+   <properties>
+    <property name="sortYOffset" type="int" value="-64"/>
+   </properties>
+  </tile>
+  <tile id="275">
+   <properties>
+    <property name="sortYOffset" type="int" value="-64"/>
+   </properties>
+  </tile>
+  <tile id="276">
+   <properties>
+    <property name="sortYOffset" type="int" value="-64"/>
+   </properties>
+  </tile>
+  <tile id="277">
+   <properties>
+    <property name="sortYOffset" type="int" value="-64"/>
+   </properties>
+  </tile>
+  <tile id="278">
+   <properties>
+    <property name="sortYOffset" type="int" value="-64"/>
+   </properties>
+  </tile>
+  <tile id="279">
+   <properties>
+    <property name="sortYOffset" type="int" value="-64"/>
+   </properties>
+  </tile>
+  <tile id="284">
+   <properties>
+    <property name="sortYOffset" type="int" value="-64"/>
+   </properties>
+  </tile>
+  <tile id="285">
+   <properties>
+    <property name="sortYOffset" type="int" value="-64"/>
+   </properties>
+  </tile>
+  <tile id="304">
+   <properties>
+    <property name="sortYOffset" type="int" value="-64"/>
+   </properties>
+  </tile>
+  <tile id="310">
+   <properties>
+    <property name="sortYOffset" type="int" value="64"/>
+   </properties>
+  </tile>
+  <tile id="319">
+   <properties>
+    <property name="sortYOffset" type="int" value="64"/>
+   </properties>
+  </tile>
+  <tile id="320">
+   <properties>
+    <property name="sortYOffset" type="int" value="64"/>
+   </properties>
+  </tile>
+  <tile id="321">
+   <properties>
+    <property name="sortYOffset" type="int" value="64"/>
+   </properties>
+  </tile>
+  <tile id="322">
+   <properties>
+    <property name="sortYOffset" type="int" value="64"/>
+   </properties>
+  </tile>
+  <tile id="323">
+   <properties>
+    <property name="sortYOffset" type="int" value="64"/>
+   </properties>
+  </tile>
+  <tile id="324">
+   <properties>
+    <property name="sortYOffset" type="int" value="64"/>
+   </properties>
+  </tile>
+  <tile id="325">
+   <properties>
+    <property name="sortYOffset" type="int" value="64"/>
+   </properties>
+  </tile>
+  <tile id="326">
+   <properties>
+    <property name="sortYOffset" type="int" value="64"/>
+   </properties>
+  </tile>
+  <tile id="327">
+   <properties>
+    <property name="sortYOffset" type="int" value="64"/>
+   </properties>
+  </tile>
+  <tile id="328">
+   <properties>
+    <property name="sortYOffset" type="int" value="64"/>
+   </properties>
+  </tile>
+  <tile id="329">
+   <properties>
+    <property name="sortYOffset" type="int" value="64"/>
+   </properties>
+  </tile>
+  <tile id="330">
+   <properties>
+    <property name="sortYOffset" type="int" value="64"/>
+   </properties>
+  </tile>
+  <tile id="331">
+   <properties>
+    <property name="sortYOffset" type="int" value="64"/>
+   </properties>
+  </tile>
+  <tile id="388">
+   <properties>
+    <property name="sortYOffset" type="int" value="-64"/>
+   </properties>
+  </tile>
+  <tile id="397">
+   <properties>
+    <property name="sortYOffset" type="int" value="-64"/>
+   </properties>
+  </tile>
+  <tile id="398">
+   <properties>
+    <property name="sortYOffset" type="int" value="-64"/>
+   </properties>
+  </tile>
+  <tile id="399">
+   <properties>
+    <property name="sortYOffset" type="int" value="-64"/>
+   </properties>
+  </tile>
+  <tile id="400">
+   <properties>
+    <property name="sortYOffset" type="int" value="-64"/>
+   </properties>
+  </tile>
+  <tile id="401">
+   <properties>
+    <property name="sortYOffset" type="int" value="-64"/>
+   </properties>
+  </tile>
+  <tile id="402">
+   <properties>
+    <property name="sortYOffset" type="int" value="-64"/>
+   </properties>
+  </tile>
+  <tile id="403">
+   <properties>
+    <property name="sortYOffset" type="int" value="-64"/>
+   </properties>
+  </tile>
+  <tile id="404">
+   <properties>
+    <property name="sortYOffset" type="int" value="-64"/>
+   </properties>
+  </tile>
+  <tile id="405">
+   <properties>
+    <property name="sortYOffset" type="int" value="-64"/>
+   </properties>
+  </tile>
+  <tile id="406">
+   <properties>
+    <property name="sortYOffset" type="int" value="-64"/>
+   </properties>
+  </tile>
+  <tile id="407">
+   <properties>
+    <property name="sortYOffset" type="int" value="-64"/>
+   </properties>
+  </tile>
+  <tile id="408">
+   <properties>
+    <property name="sortYOffset" type="int" value="-64"/>
+   </properties>
+  </tile>
+  <tile id="409">
+   <properties>
+    <property name="sortYOffset" type="int" value="-64"/>
+   </properties>
+  </tile>
  </tileset>
  <tileset firstgid="818" name="Light_animation" tilewidth="32" tileheight="32" tilecount="162" columns="9">
   <image source="../tiles/CANVAS VILLAGE/Square Market/Blacksmith/Light_animation.png" width="288" height="576"/>
@@ -287,6 +997,9 @@
  <tileset firstgid="980" name="Forge_animation" tilewidth="32" tileheight="32" tilecount="72" columns="18">
   <image source="../tiles/CANVAS VILLAGE/Square Market/Blacksmith/Forge_animation.png" width="576" height="128"/>
   <tile id="0">
+   <properties>
+    <property name="sortYOffset" type="int" value="96"/>
+   </properties>
    <animation>
     <frame tileid="0" duration="120"/>
     <frame tileid="3" duration="120"/>
@@ -297,6 +1010,9 @@
    </animation>
   </tile>
   <tile id="1">
+   <properties>
+    <property name="sortYOffset" type="int" value="96"/>
+   </properties>
    <animation>
     <frame tileid="1" duration="120"/>
     <frame tileid="4" duration="120"/>
@@ -307,6 +1023,9 @@
    </animation>
   </tile>
   <tile id="2">
+   <properties>
+    <property name="sortYOffset" type="int" value="96"/>
+   </properties>
    <animation>
     <frame tileid="2" duration="120"/>
     <frame tileid="5" duration="120"/>
@@ -317,6 +1036,9 @@
    </animation>
   </tile>
   <tile id="18">
+   <properties>
+    <property name="sortYOffset" type="int" value="64"/>
+   </properties>
    <animation>
     <frame tileid="18" duration="120"/>
     <frame tileid="21" duration="120"/>
@@ -327,6 +1049,9 @@
    </animation>
   </tile>
   <tile id="19">
+   <properties>
+    <property name="sortYOffset" type="int" value="64"/>
+   </properties>
    <animation>
     <frame tileid="19" duration="120"/>
     <frame tileid="22" duration="120"/>
@@ -337,6 +1062,9 @@
    </animation>
   </tile>
   <tile id="20">
+   <properties>
+    <property name="sortYOffset" type="int" value="64"/>
+   </properties>
    <animation>
     <frame tileid="20" duration="120"/>
     <frame tileid="23" duration="120"/>
@@ -377,6 +1105,9 @@
    </animation>
   </tile>
   <tile id="54">
+   <properties>
+    <property name="sortYOffset" type="int" value="-64"/>
+   </properties>
    <animation>
     <frame tileid="54" duration="120"/>
     <frame tileid="57" duration="120"/>
@@ -387,6 +1118,9 @@
    </animation>
   </tile>
   <tile id="55">
+   <properties>
+    <property name="sortYOffset" type="int" value="-64"/>
+   </properties>
    <animation>
     <frame tileid="55" duration="120"/>
     <frame tileid="58" duration="120"/>
@@ -397,6 +1131,9 @@
    </animation>
   </tile>
   <tile id="56">
+   <properties>
+    <property name="sortYOffset" type="int" value="-64"/>
+   </properties>
    <animation>
     <frame tileid="56" duration="120"/>
     <frame tileid="59" duration="120"/>
@@ -501,6 +1238,9 @@
   </tile>
  </tileset>
  <layer id="2" name="Ground" width="20" height="15">
+  <properties>
+   <property name="render" propertytype="RenderBucket" value="background"/>
+  </properties>
   <data encoding="csv">
 0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
 0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
@@ -520,6 +1260,9 @@
 </data>
  </layer>
  <layer id="4" name="Lighting" width="20" height="15">
+  <properties>
+   <property name="render" propertytype="RenderBucket" value="background"/>
+  </properties>
   <data encoding="csv">
 0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
 0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
@@ -539,6 +1282,9 @@
 </data>
  </layer>
  <layer id="1" name="Walls" width="20" height="15">
+  <properties>
+   <property name="render" propertytype="RenderBucket" value="background"/>
+  </properties>
   <data encoding="csv">
 33,33,33,33,33,33,33,33,33,33,33,33,33,33,33,33,33,33,33,33,
 33,33,33,33,57,58,58,58,58,58,58,58,58,58,59,33,33,33,33,33,
@@ -546,8 +1292,8 @@
 33,33,33,33,88,35,43,44,44,45,50,52,55,36,90,33,33,33,33,33,
 33,57,58,58,123,66,74,75,75,76,81,83,86,67,122,58,58,58,59,33,
 33,88,4,64,64,65,0,0,0,0,0,0,0,63,64,64,64,5,90,33,
-33,88,35,51,52,96,0,0,0,0,0,0,0,94,43,44,45,36,90,33,
-33,88,66,82,83,127,0,0,0,0,0,0,0,125,74,75,76,67,90,33,
+33,88,43,51,52,0,0,0,0,0,0,0,0,0,43,44,45,55,90,33,
+33,88,74,82,83,0,0,0,0,0,0,0,0,0,74,75,76,86,90,33,
 33,88,34,0,0,0,0,0,0,0,0,0,0,0,0,0,0,32,90,33,
 33,88,34,0,0,0,0,0,0,0,0,0,0,0,0,0,0,32,90,33,
 33,88,34,0,0,0,0,0,0,0,0,0,0,0,0,0,0,32,90,33,
@@ -557,7 +1303,54 @@
 33,33,33,33,33,33,33,33,33,33,33,33,33,33,33,33,33,33,33,33
 </data>
  </layer>
+ <layer id="13" name="Walls2" width="20" height="15">
+  <properties>
+   <property name="render" propertytype="RenderBucket" value="foreground"/>
+  </properties>
+  <data encoding="csv">
+0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
+0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
+0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
+0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
+0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
+0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
+0,0,34,0,0,0,0,0,0,0,0,0,0,0,0,0,0,32,0,0,
+0,0,34,0,0,0,0,0,0,0,0,0,0,0,0,0,0,32,0,0,
+0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
+0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
+0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
+0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
+0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
+0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
+0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0
+</data>
+ </layer>
+ <layer id="14" name="Walls3" width="20" height="15">
+  <properties>
+   <property name="render" propertytype="RenderBucket" value="depth"/>
+  </properties>
+  <data encoding="csv">
+0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
+0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
+0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
+0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
+0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
+0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
+0,0,0,0,0,96,0,0,0,0,0,0,0,94,0,0,0,0,0,0,
+0,0,0,0,0,127,0,0,0,0,0,0,0,125,0,0,0,0,0,0,
+0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
+0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
+0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
+0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
+0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
+0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
+0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0
+</data>
+ </layer>
  <layer id="6" name="Walls details" width="20" height="15">
+  <properties>
+   <property name="render" propertytype="RenderBucket" value="background"/>
+  </properties>
   <data encoding="csv">
 0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
 0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
@@ -577,6 +1370,9 @@
 </data>
  </layer>
  <layer id="5" name="Furniture_small" width="20" height="15">
+  <properties>
+   <property name="render" propertytype="RenderBucket" value="depth"/>
+  </properties>
   <data encoding="csv">
 0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
 0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
@@ -596,6 +1392,9 @@
 </data>
  </layer>
  <layer id="3" name="Furniturre_Big" width="20" height="15">
+  <properties>
+   <property name="render" propertytype="RenderBucket" value="depth"/>
+  </properties>
   <data encoding="csv">
 0,0,0,0,0,0,0,311,312,313,314,315,0,0,0,0,0,0,0,0,
 0,0,0,0,0,0,0,350,351,352,353,354,0,0,0,0,0,0,0,0,
@@ -615,6 +1414,9 @@
 </data>
  </layer>
  <layer id="7" name="Details_over" width="20" height="15">
+  <properties>
+   <property name="render" propertytype="RenderBucket" value="depth"/>
+  </properties>
   <data encoding="csv">
 0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
 0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
@@ -622,9 +1424,9 @@
 0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
 0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
 0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
-0,0,0,0,0,638,639,0,0,0,0,0,0,0,0,756,757,0,0,0,
-0,0,0,752,753,677,678,0,0,0,0,0,0,0,0,795,796,0,0,0,
-0,0,0,791,792,716,717,0,0,0,0,0,0,0,0,0,0,0,0,0,
+0,0,0,0,0,638,639,0,0,0,0,0,0,0,0,0,0,0,0,0,
+0,0,0,0,0,677,678,0,0,0,0,0,0,0,0,0,0,0,0,0,
+0,0,0,0,0,716,717,0,0,0,0,0,0,0,0,0,0,0,0,0,
 0,0,0,0,0,0,0,0,0,0,0,0,0,581,2147483996,2147483995,2147483994,2147483993,0,0,
 0,0,0,0,0,0,0,0,0,0,0,0,0,0,2147484035,2147484034,2147484033,2147484032,0,0,
 0,0,0,0,0,0,0,0,0,0,0,0,0,0,2147484074,2147484073,2147484072,2147484071,0,0,
@@ -633,7 +1435,32 @@
 0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0
 </data>
  </layer>
+ <layer id="12" name="Pillers_details" width="20" height="15">
+  <properties>
+   <property name="render" propertytype="RenderBucket" value="foreground"/>
+  </properties>
+  <data encoding="csv">
+0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
+0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
+0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
+0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
+0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
+0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
+0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,756,757,0,0,0,
+0,0,0,752,753,0,0,0,0,0,0,0,0,0,0,795,796,0,0,0,
+0,0,0,791,792,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
+0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
+0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
+0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
+0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
+0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
+0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0
+</data>
+ </layer>
  <layer id="8" name="Torch" width="20" height="15">
+  <properties>
+   <property name="render" propertytype="RenderBucket" value="foreground"/>
+  </properties>
   <data encoding="csv">
 0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
 0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
@@ -653,8 +1480,17 @@
 </data>
  </layer>
  <objectgroup id="10" name="Collision">
-  <object id="7" x="576" y="256">
-   <polyline points="0,0 0,160 -416,160 -416,192 -480,192 -480,160 -512,160 -512,0 -416,0 -416,-96 -128,-96 -128,0 0,0"/>
+  <object id="7" name="Walls" x="576" y="256">
+   <polyline points="0,0 0,160 -416,160 -416,192 -480,192 -480,160 -512,160 -512,0 -352,0 -352,-32 -224,-32 -224,-64 -128,-64 -128,0 0,0"/>
+  </object>
+  <object id="8" name="Tables" x="384" y="224">
+   <polygon points="0,0 0,64 32,64 32,0"/>
+  </object>
+  <object id="9" name="Anvil" x="283.625" y="258">
+   <polygon points="0,0 0,49.0909 49.142,49.0171 48.9091,-0.0909091"/>
+  </object>
+  <object id="10" name="Piller" x="106.5" y="298.833">
+   <polygon points="0,0 0.181818,36.0985 37.0852,36.0308 37.0904,-0.0833473"/>
   </object>
  </objectgroup>
  <objectgroup id="9" name="NPCs">

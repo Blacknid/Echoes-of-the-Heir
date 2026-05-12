@@ -92,19 +92,22 @@
     "target": 1,
     "autoStart": false,
     "rewardCoins": 50,
-    "rewardItemId": "Potion",
+    "rewardItemId": "potion_of_healing",
     "rewardFragmentId": "",
     "chainQuestId": "explore_shattered_lake",
     "steps": [
       { "action": "go", "map": "fisher_interior", "description": "Visit the fisher's house." },
-      { "action": "talk", "npc": "village_elder", "dialogue": "after_fisher",
+      { "action": "talk", "npc": "fisher_trader", "dialogue": "elder_request", "give": "royal_chalice",
+        "description": "Talk to the fisher." },
+      { "action": "deliver", "npc": "village_elder", "dialogue": "after_fisher", "failDialogue": "waiting_for_fisher",
+         "item": "royal_chalice", "consume": true,
         "description": "Return to the Elder with what you found." }
     ]
   },
   {
     "id": "explore_shattered_lake",
     "name": "Explore Shattered Lake",
-    "description": "Explore the mysterious Shattered Lake.",
+    "description": "Explore the mysterious Shattered Lake and find the source of its corruption.",
     "target": 1,
     "autoStart": false,
     "rewardCoins": 0,
@@ -112,7 +115,10 @@
     "rewardFragmentId": "",
     "chainQuestId": "defeat_hollow_king",
     "steps": [
-      { "action": "go", "map": "shattered_lake", "description": "Reach Shattered Lake." }
+      { "action": "go", "map": "shattered_lake",
+        "description": "Reach Shattered Lake." },
+      { "action": "collect", "count": 1,
+        "description": "Find the source of the disturbance in the lake's depths." }
     ]
   },
   {

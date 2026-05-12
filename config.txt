@@ -1,6 +1,6 @@
 fullscreen=Off
-musicVolume=0
+musicVolume=3
 seVolume=1
-vsync=Off
+vsync=On
 windowX=320
 windowY=132

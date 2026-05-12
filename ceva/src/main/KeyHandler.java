@@ -537,7 +537,7 @@ public class KeyHandler implements KeyListener {
         // DEBUGS   
 
         // Dash
-        if ( (code == KeyEvent.VK_SHIFT ) && ( leftPressed || rightPressed 
+        if ( (code == KeyEvent.VK_SHIFT ) && ( leftPressed || rightPressed
                         || upPressed || downPressed ) ) { dashPressed = true; }
 
         // Debug toggle

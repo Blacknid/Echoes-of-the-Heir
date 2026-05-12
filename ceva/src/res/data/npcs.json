@@ -52,6 +52,51 @@
     ]
   },
 
+  "cobold": {
+    "name": "Cobold",
+    "idleSprite": "/res/NPC/Cobold_on_shark",
+    "staticNPC": true,
+    "idleRows": 1,
+    "spriteAspect": 0.667,
+    "interactRange": 96,
+    "idleAnimSpeed": 12,
+
+    "dialogues": {
+      "greeting": [
+        "Grr... See this shark? He was tough to defeat, but I did it! I'm the strongest cobold around here!",
+        "If you want to find strong monsters to fight, you should check out the Shattered Lake. It's full of them!",
+        "I bet you can't defeat the big one that lives there. He's way stronger than me!"
+      ],
+      "waiting": [
+        "Welcome back, weakling! What are waiting for? Go find that big monster in the lake!",
+        "I can't believe you haven't defeated it yet! It's not that hard, just go there and fight it!"
+      ],
+      "defeated": [
+        "What?! You defeated the big one in the lake? That's incredible! I can't believe it!",
+        "I guess you really are stronger than me. Maybe I should start training harder to keep up with you!"
+      ]
+    },
+    "states": [
+      {
+        "id": "default",
+        "dialogue": "greeting",
+        "stationary": true
+      },
+        {
+          "id": "waiting",
+          "dialogue": "waiting",
+          "stationary": true,
+          "requiredQuestActive": "explore_shattered_lake"
+        },
+      {
+        "id": "defeated",
+        "dialogue": "defeated",
+        "stationary": true,
+        "requiredQuestComplete": "defeat_hollow_king"
+      }
+    ]
+  },
+  
   "blacksmith": {
     "name": "Blacksmith",
     "idleSprite": "/res/NPC/Main/Blacksmith_forging",
@@ -219,6 +264,61 @@
       }
     ]
   },
+
+  "drink_trader": {
+    "name": "Drink Trader",
+    "idleSprite": "/res/NPC/Drinks_Trader",
+    "idleRows": 1,
+    "spriteAspect": 1.0,
+    "staticNPC": true,
+    "idleDirection": 1,
+    "idleAnimSpeed": 12,
+    "interactRange": 192,
+    "depthSortYOffset": 128,
+
+    "dialogues": {
+      "intro": [
+        "Thirsty? I have the best drinks in the castle!",
+        "I have water, juice, and soda.",
+        "Care for some?\nThey might help you on your journey."
+      ],
+      "waiting": [
+        "Welcome back, traveler!",
+        "I have more drinks if you need them.",
+        "Did you find any new ones?\nI love trying new drinks!"
+      ],
+      "thanks": [
+        "No way, you found a rare drink!\nThat's amazing!",
+        "Here, take this as a reward for your find.",
+        "I hope it helps you on your adventure!"
+      ],
+      "done": [
+        "In need of more drinks?\nI have plenty to share!",
+        "Feel free to come back anytime.\nI love chatting about drinks!"
+      ]
+    },
+
+    "states": [
+      {
+        "id": "post_quest",
+        "dialogue": "done",
+        "stationary": true,
+        "requiredQuestComplete": "drink_trader_quest"
+      },
+      {
+        "id": "waiting",
+        "dialogue": "waiting",
+        "stationary": true,
+        "requiredQuestActive": "drink_trader_quest"
+      },
+      {
+        "id": "intro",
+        "dialogue": "intro",
+        "stationary": true
+      }
+    ]
+  },
+
   "archer": {
     "name": "Archer",
     "idleSprite": "/res/NPC/Archer_idle",
@@ -443,6 +543,19 @@
         "Here, take this as a reward for your find.",
         "I hope it helps you on your adventure!"
         ],
+      "elder_request": [
+        "Oh... the Elder sent you? I see.",
+        "He comes here sometimes to buy fish. He's a nice guy, but he's been acting strange lately.",
+        "I've heard him muttering about a fight and losing something important. He seemed really upset about it.",
+        "Luckly for him, I has there to help him out. I found what he lost and I want you to give it back to him.", 
+        "I don't want to get involved in whatever drama he's going through, but I know he needs it.",
+        "It's a weight, I think. It looks like it might be important to him. Please give it back to him."
+      ],
+      "post_quest": [
+        "You returned the weight to the Elder. That's good of you.",
+        "I hope it helps him with whatever he's going through.",
+        "If you need any fish, just let me know. I'm always happy to share my catch!"
+      ],
       "done": [
         "In need of more fish?\nI have plenty to share!",
         "Feel free to come back anytime.\nI love teaching fishing to travelers!"
@@ -451,10 +564,21 @@
 
     "states": [
       {
+        "id": "default",
+        "dialogue": "intro",
+        "stationary": true
+      },
+      {
         "id": "post_quest",
         "dialogue": "done",
         "stationary": true,
-        "requiredQuestComplete": "fisher_trader_quest"
+        "requiredQuestComplete": "a_familiar_weight"
+      },
+      {
+        "id": "elder_request",
+        "dialogue": "elder_request",
+        "stationary": true,
+        "requiredQuestActive": "a_familiar_weight"
       }
     ]
   },
@@ -517,7 +641,7 @@
         "Would you go in my place? Perhaps you'll find something I cannot."
       ],
       "waiting_fisher": [
-        "The fisher's house is just through the square. I'll be here when you return."
+        "The fisher's house is East from the village gate. I'll be here when you return."
       ],
       "waiting_shattered_lake": [
         "East of the village gate. The lake — that's where your answers start.",
@@ -554,9 +678,9 @@
         "You found it. I thought I had lost it forever.",
         "Thank you. I can feel a weight lifting off of me.",
         "I don't know how to explain it, but I feel like I can remember something now.",
-        "The gate... the lake... the woods... I can see them in my mind, but they're still blurry.",
-        "I think... I think there was a fight. I think I lost something important in that fight. Something I need to find again.",
-        "maybe... you can help me find it. I think it might be in the lake."
+        "The lake... I can see it in my mind, but it's still blurry.",
+        "I think... I think there was something in the lake. Something that shouldn't have been there.",
+        "I don't remember what it was, but I know it was important. I just hope you can find it and get rid of it."
       ],
       "post_boss3": [
         "I dreamed of two boys last night. Playing in a courtyard I can almost picture.",
@@ -717,5 +841,4 @@
       }
     ]
   }
-
 }

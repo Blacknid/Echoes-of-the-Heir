@@ -21,6 +21,13 @@ public class CutsceneManager {
     // OPTIMIZATION: Font cache to avoid deriveFont() per frame
     private final java.util.HashMap<Float, Font> fontCache = new java.util.HashMap<>();
 
+    // Cached cutscene fonts — one per distinct pixel size used in scenes (42, 48, 52, 36).
+    // Keyed by int size to avoid Float boxing equality issues.
+    private final java.util.HashMap<Integer, Font> cutsceneFontCache = new java.util.HashMap<>();
+    private Font getCutsceneFont(int size) {
+        return cutsceneFontCache.computeIfAbsent(size, s -> new Font("Segoe UI", Font.ITALIC, s));
+    }
+
     // Scene Number
     public final int NA = 0;
     public final int awakening = 1;
@@ -293,7 +300,7 @@ public class CutsceneManager {
     private void drawTypewriterText(String fullText, float yFraction, float fontSize) {
         String visible = fullText.substring(0, Math.min(typewriterIndex, fullText.length()));
         g2.setRenderingHint(RenderingHints.KEY_TEXT_ANTIALIASING, RenderingHints.VALUE_TEXT_ANTIALIAS_LCD_HRGB);
-        g2.setFont(new Font("Segoe UI", Font.ITALIC, (int) fontSize));
+        g2.setFont(getCutsceneFont((int) fontSize));
         g2.setColor(new Color(60, 50, 50));
         FontMetrics fm = g2.getFontMetrics();
         int tx = (gp.screenWidth - fm.stringWidth(visible)) / 2;
@@ -314,7 +321,7 @@ public class CutsceneManager {
         g2.fillRect(0, barY, gp.screenWidth, barH);
         g2.setComposite(AlphaComposite.getInstance(AlphaComposite.SRC_OVER, 1f));
         // Text
-        g2.setFont(new Font("Segoe UI", Font.ITALIC, (int) fontSize));
+        g2.setFont(getCutsceneFont((int) fontSize));
         g2.setColor(new Color(240, 230, 210));
         FontMetrics fmOverlay = g2.getFontMetrics();
         int txOverlay = (gp.screenWidth - fmOverlay.stringWidth(visible)) / 2;
