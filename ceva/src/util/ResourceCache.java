@@ -3,8 +3,8 @@ package util;
 import java.awt.image.BufferedImage;
 import java.io.IOException;
 import java.io.InputStream;
-import java.util.HashSet;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.Map;
 import java.util.Set;
 
@@ -30,6 +30,21 @@ public final class ResourceCache {
     private static final Set<String> missingImageCache = new HashSet<>();
     private static final Set<String> missingXmlCache = new HashSet<>();
     private static final DocumentBuilderFactory xmlFactory = createXmlFactory();
+
+    /**
+     * When set (dev/debug mode only), XML resources are loaded directly from
+     * this filesystem directory instead of the classpath.  This means the
+     * in-game R reload picks up the latest .tmx saved by Tiled without
+     * requiring a resource-sync step first.
+     * Activated by calling {@link #setDevSourcePath} at startup.
+     */
+    private static java.io.File devSourceDir = null;
+
+    /** Call once at startup (DEBUG_MODE only) to enable live .tmx reloading. */
+    public static synchronized void setDevSourcePath(String absPath) {
+        devSourceDir = new java.io.File(absPath);
+        System.out.println("[ResourceCache] Dev source path: " + devSourceDir.getAbsolutePath());
+    }
 
     private ResourceCache() {}
 
@@ -106,6 +121,24 @@ public final class ResourceCache {
         }
         if (missingXmlCache.contains(path)) {
             return null;
+        }
+
+        // Dev mode: read directly from the source folder so edits saved in
+        // Tiled are visible immediately when R is pressed — no sync needed.
+        if (devSourceDir != null) {
+            java.io.File devFile = new java.io.File(devSourceDir, path);
+            if (devFile.exists()) {
+                try {
+                    DocumentBuilder builder = xmlFactory.newDocumentBuilder();
+                    Document document = builder.parse(devFile);
+                    document.getDocumentElement().normalize();
+                    xmlCache.put(path, document);
+                    return document;
+                } catch (Exception e) {
+                    System.out.println("[ResourceCache] Failed to load dev XML: " + devFile + " (" + e.getMessage() + ")");
+                    // fall through to classpath load
+                }
+            }
         }
 
         try (InputStream stream = ResourceCache.class.getResourceAsStream(path)) {

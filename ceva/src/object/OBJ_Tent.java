@@ -21,10 +21,10 @@ public class OBJ_Tent extends Entity {
         stackable = true;
         
         // HITBOX: Larger tent hitbox (40x40) centered
-        solidArea.x = 12;  // 12px left + 40px width + 12px right = 64
-        solidArea.y = 12;  // Centered
-        solidArea.width = 40;
-        solidArea.height = 40;
+        solidArea.x      = gp.tileSize * 3 / 16;  // 12 at 64px
+        solidArea.y      = gp.tileSize * 3 / 16;  // 12 at 64px
+        solidArea.width  = gp.tileSize * 5 / 8;   // 40 at 64px
+        solidArea.height = gp.tileSize * 5 / 8;   // 40 at 64px
         solidAreaDefaultX = solidArea.x;
         solidAreaDefaultY = solidArea.y;
     }

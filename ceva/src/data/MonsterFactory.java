@@ -91,11 +91,12 @@ public class MonsterFactory {
         m.aggroRange = intVal(def, "aggroRange", 6) * gp.tileSize;
         m.fleeDuration = intVal(def, "fleeDuration", 60);
 
-        // Solid area
-        m.solidArea.x = intVal(def, "solidArea.x", 12);
-        m.solidArea.y = intVal(def, "solidArea.y", 8);
-        m.solidArea.width = intVal(def, "solidArea.width", 40);
-        m.solidArea.height = intVal(def, "solidArea.height", 48);
+        // Solid area — JSON values are authored at 64px tile; scale to current tile size
+        int ts = gp.tileSize;
+        m.solidArea.x      = intVal(def, "solidArea.x",      12) * ts / 64;
+        m.solidArea.y      = intVal(def, "solidArea.y",       8) * ts / 64;
+        m.solidArea.width  = intVal(def, "solidArea.width",  40) * ts / 64;
+        m.solidArea.height = intVal(def, "solidArea.height", 48) * ts / 64;
         m.solidAreaDefaultX = m.solidArea.x;
         m.solidAreaDefaultY = m.solidArea.y;
 

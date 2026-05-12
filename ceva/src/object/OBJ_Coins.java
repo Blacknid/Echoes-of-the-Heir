@@ -15,10 +15,10 @@ public class OBJ_Coins extends Entity {
         down1 = setup("/res/interactive/Coins", gp.tileSize, gp.tileSize);
         
         // HITBOX: Small coins hitbox (24x24) centered
-        solidArea.x = 20;  // 20px left + 24px width + 20px right = 64
-        solidArea.y = 22;  // Centered vertically
-        solidArea.width = 24;
-        solidArea.height = 24;
+        solidArea.x      = gp.tileSize * 20 / 64;  // 20 at 64px
+        solidArea.y      = gp.tileSize * 22 / 64;  // 22 at 64px
+        solidArea.width  = gp.tileSize * 24 / 64;  // 24 at 64px
+        solidArea.height = gp.tileSize * 24 / 64;  // 24 at 64px
         solidAreaDefaultX = solidArea.x;
         solidAreaDefaultY = solidArea.y;
 

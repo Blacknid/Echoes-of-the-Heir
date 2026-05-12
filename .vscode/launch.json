@@ -11,7 +11,18 @@
             "type": "java",
             "name": "Updater",
             "request": "launch",
-            "mainClass": "update.Updater"
+            "mainClass": "update.Updater",
+            "classPaths": ["${workspaceFolder}/ceva/bin"],
+            "cwd": "${workspaceFolder}"
+        },
+        {
+            "type": "java",
+            "name": "Main",
+            "request": "launch",
+            "mainClass": "main.Main",
+            "classPaths": ["${workspaceFolder}/ceva/bin"],
+            "cwd": "${workspaceFolder}",
+            "preLaunchTask": "Compile"
         }
     ]
 }

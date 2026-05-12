@@ -61,6 +61,9 @@ public class GameState implements Serializable {
     public int storyAct;           // 0=tutorial, 1=shatterLake, 2=ashenWoods, 3=citadel, 4=gallery, 5=frame
     public int endingChosen;       // 0=none, 1=confront, 2=sacrifice, 3=forgive
 
+    // PERMANENTLY OPENED GATES
+    public ArrayList<String> openedGates = new ArrayList<>();
+
     // NPC / QUEST STATE
     public ArrayList<String> claimedNPCFragments = new ArrayList<>();
     public ArrayList<String> completedSideQuests = new ArrayList<>();

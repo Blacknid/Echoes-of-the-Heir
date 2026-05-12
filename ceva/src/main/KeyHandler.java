@@ -5,7 +5,6 @@ import java.awt.event.KeyListener;
 
 import audio.SFX;
 import entity.Entity;
-import util.ResourceCache;
 
 public class KeyHandler implements KeyListener {
 
@@ -216,6 +215,8 @@ public class KeyHandler implements KeyListener {
     }
 
     private void startNewGame() {
+        // Clear per-run state so act titles show again on the fresh run
+        gp.mapManager.shownActTitles.clear();
         // Enter cutscene state — the Awakening scene handles the rest
         gp.gameState = GamePanel.cutsceneState;
         gp.csManager.sceneNum = gp.csManager.awakening;
@@ -483,6 +484,19 @@ public class KeyHandler implements KeyListener {
     }
 
     private void handlePlayState(int code) {
+        if (code == KeyEvent.VK_F9) {
+            if (gp.debugMenuOpen || !isOverlayOpen()) {
+                gp.toggleDebugMenu();
+            }
+            return;
+        }
+
+        if (gp.debugMenuOpen) {
+            if (code == KeyEvent.VK_ENTER) gp.activateDebugMenuSelection();
+            if (code == KeyEvent.VK_ESCAPE) gp.toggleDebugMenu();
+            return;
+        }
+
         // World map overlay control (open/close)
         if (code == KeyEvent.VK_M && gp.minimap != null && !isOverlayOpen()) {
             gp.minimap.toggleWorldMap();
@@ -530,75 +544,22 @@ public class KeyHandler implements KeyListener {
         if (code == KeyEvent.VK_T) { showDebugText = !showDebugText; }
 
         // [DEBUG] F5 = toggle persistent sepia overlay (MapShaderManager.sepiaMode)
-        if (code == KeyEvent.VK_F5 && gp.mapShader != null) {
-            gp.mapShader.sepiaMode = !gp.mapShader.sepiaMode;
-        }
+        if (code == KeyEvent.VK_F5) { gp.toggleDebugSepia(); }
 
         // [DEBUG] F7 = collect all registered test fragments (visible in journal via J)
-        if (code == KeyEvent.VK_F7 && gp.memoryJournal != null) {
-            gp.memoryJournal.collect("frag_prologue");
-            gp.memoryJournal.collect("frag_forest");
-            gp.memoryJournal.collect("frag_lake");
-            gp.gameState = GamePanel.journalState;
-        }
+        if (code == KeyEvent.VK_F7) { gp.collectDebugFragments(); }
 
         // [DEBUG] F8 = teleport to Awakening Cave
-        if (code == KeyEvent.VK_F8) {
-            gp.startTransition("awakening_cave", 20, 15);
-        }
+        if (code == KeyEvent.VK_F8) { gp.teleportToAwakeningDebug(); }
 
         // [DEBUG] F6 = trigger a test MemoryFlashback sequence
-        if (code == KeyEvent.VK_F6 && gp.memoryFlashback != null) {
-            data.MemoryJournal.MemoryFragment testFrag = new data.MemoryJournal.MemoryFragment(
-                "test_sepia", "A Lost Moment",
-                new String[]{"The rain fell on cobblestones...", "She never looked back.", "Neither did he."},
-                0, "debug");
-            gp.memoryFlashback.trigger(testFrag);
-        }
-
-        // [DEBUG] F9 = open/close debug map switcher
-        if (code == KeyEvent.VK_F9) {
-            gp.debugMapSwitcherOpen = !gp.debugMapSwitcherOpen;
-            if (gp.debugMapSwitcherOpen) gp.refreshDebugMapList();
-        }
-
-        // Debug map switcher navigation (W/S/Enter/Escape consumed by switcher when open)
-        if (gp.debugMapSwitcherOpen) {
-            if (code == KeyEvent.VK_W || code == KeyEvent.VK_UP) {
-                gp.debugMapSelectedIndex = Math.max(0, gp.debugMapSelectedIndex - 1);
-            }
-            if (code == KeyEvent.VK_S || code == KeyEvent.VK_DOWN) {
-                gp.debugMapSelectedIndex = Math.min(gp.debugMapList.size() - 1, gp.debugMapSelectedIndex + 1);
-            }
-            if (code == KeyEvent.VK_ENTER && !gp.debugMapList.isEmpty()) {
-                String targetId = gp.debugMapList.get(gp.debugMapSelectedIndex);
-                gp.debugMapSwitcherOpen = false;
-                gp.startTransition(targetId, -1, -1); // -1,-1 = use map default spawn
-            }
-            if (code == KeyEvent.VK_ESCAPE) {
-                gp.debugMapSwitcherOpen = false;
-            }
-            return; // swallow all keys while switcher is openr
-        }
+        if (code == KeyEvent.VK_F6) { gp.triggerDebugFlashback(); }
 
         // Hitboxes toggle
         if (code == KeyEvent.VK_H) { gp.HitBoxes = !gp.HitBoxes; }
 
         // Reload map
-        if (code == KeyEvent.VK_R && gp.mapManager != null) {
-            String path = gp.mapManager.mapRegistry.getOrDefault(gp.mapManager.currentMapId, gp.mapManager.currentMapId);
-            ResourceCache.invalidateXml(path);
-            gp.tileM.loadMapFromTMX(path);
-            gp.tileM.loadCollisionLayer(path);
-            gp.mapObjectLoader.loadMapProperties(path);
-            gp.eHandler.reset();
-            gp.aSetter.loadEventsFromTMX();
-            gp.cChecker.updateCollisionRectsCache();
-            if (gp.minimap != null) {
-                gp.minimap.invalidateTerrainCache(gp.mapManager.currentMapId);
-                gp.minimap.bakeTerrainImage();
-            }
-        }
+        if (code == KeyEvent.VK_R) { gp.reloadCurrentMapDebug(); }
 
         // Path toggle
         if (code == KeyEvent.VK_Y) { gp.drawPath = !gp.drawPath; } 
@@ -630,7 +591,8 @@ public class KeyHandler implements KeyListener {
 
     /** Returns true if any overlay (quest log, world map) is currently open */
     private boolean isOverlayOpen() {
-        return (gp.questManager != null && gp.questManager.isLogOpen()) ||
+         return gp.debugMenuOpen ||
+             (gp.questManager != null && gp.questManager.isLogOpen()) ||
                (gp.minimap != null && gp.minimap.isWorldMapOpen());
     }
 
@@ -841,10 +803,19 @@ public class KeyHandler implements KeyListener {
         }
         return s == GamePanel.characterState || s == GamePanel.levelUpState ||
                s == GamePanel.skillTreeState || s == GamePanel.optionsState ||
-               s == GamePanel.journalState   || s == GamePanel.gameOverState;
+               s == GamePanel.journalState   || s == GamePanel.gameOverState ||
+               gp.debugMenuOpen;
     }
 
     private void fireMenuNavigation() {
+        if (gp.debugMenuOpen) {
+            if (menuUp) gp.moveDebugMenuSelection(-1);
+            if (menuDown) gp.moveDebugMenuSelection(+1);
+            if (menuLeft) gp.adjustDebugMenuValue(-1);
+            if (menuRight) gp.adjustDebugMenuValue(+1);
+            return;
+        }
+
         int state = gp.gameState;
 
         if (state == GamePanel.titleState) {

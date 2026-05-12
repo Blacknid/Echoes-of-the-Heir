@@ -397,7 +397,7 @@ public class MapObjectLoader {
                                 System.out.println("MapObjectLoader WARNING: npc[] full, skipping " + type);
                                 continue;
                             }
-                            Entity npc = createNPC(type, obj);
+                            Entity npc = createNPC(type, obj, worldX, worldY);
                             if (npc != null) {
                                 npc.worldX = worldX;
                                 npc.worldY = worldY;
@@ -471,6 +471,7 @@ public class MapObjectLoader {
         gp.eManager.weatherCycleEnabled = true;
         gp.mapManager.defaultSpawnCol = -1;
         gp.mapManager.defaultSpawnRow = -1;
+        gp.mapManager.hasNewGameSpawn = false;
         gp.mapManager.mapBackgroundColor = java.awt.Color.BLACK;
 
         String mapName = getStringProperty(mapEl, "mapName", null);
@@ -535,6 +536,8 @@ public class MapObjectLoader {
         // actTitle: large fade-in/fade-out title card shown on map entry (e.g. "Act I: The Awakening Cave")
         String actTitle = getStringProperty(mapEl, "actTitle", null);
         gp.mapManager.pendingActTitle = (actTitle != null && !actTitle.isBlank()) ? actTitle.trim() : "";
+        // actTitleNewGameOnly: when true the title only shows during the New Game cutscene, not on normal transitions
+        gp.mapManager.pendingActTitleNewGameOnly = getBoolProperty(mapEl, "actTitleNewGameOnly", false);
     }
 
     private void applyMapMusic(String value) {
@@ -550,6 +553,9 @@ public class MapObjectLoader {
         } else {
             System.out.println("MapObjectLoader: Unknown music '" + value + "'. Add to MUSIC_MAP.");
         }
+
+
+        
     }
 
     // ---- Entity Factories -----------------------------------------------------
@@ -682,7 +688,7 @@ public class MapObjectLoader {
         return m;
     }
 
-    private Entity createNPC(String type, Element obj) {
+    private Entity createNPC(String type, Element obj, int worldX, int worldY) {
         Entity npc = switch (type) {
             case "NPC_Generic", "NPC_Alucard" -> {
                 // ── NPCFactory path: if npcId is set, build from JSON definition ──
@@ -690,14 +696,7 @@ public class MapObjectLoader {
                 String npcId = getStringProperty(obj, "npcId", null);
                 if (npcId == null && "NPC_Alucard".equals(type)) npcId = "alucard";
                 if (npcId != null && !npcId.isBlank() && data.NPCFactory.has(npcId)) {
-                    int tileCol = getIntProperty(obj, "x", 0) / gp.tileSize;
-                    int tileRow = getIntProperty(obj, "y", 0) / gp.tileSize;
-                    // Tiled objects use pixel coords; if x/y are in the obj attributes, parse them
-                    String xAttr = obj.getAttribute("x");
-                    String yAttr = obj.getAttribute("y");
-                    if (xAttr != null && !xAttr.isEmpty()) tileCol = (int)(Double.parseDouble(xAttr) / gp.tileSize);
-                    if (yAttr != null && !yAttr.isEmpty()) tileRow = (int)(Double.parseDouble(yAttr) / gp.tileSize);
-                    NPC_Generic g = data.NPCFactory.create(gp, npcId, tileCol, tileRow);
+                    NPC_Generic g = data.NPCFactory.createAt(gp, npcId, worldX, worldY);
                     if (g != null) {
                         // Allow Tiled property overrides on top of JSON definitions
                         String overrideSprite = getStringProperty(obj, "sprite", null);
@@ -1014,8 +1013,9 @@ public class MapObjectLoader {
                 String reqItem = getStringProperty(obj, "requiredItem", "");
                 boolean consume = getBoolProperty(obj, "consumeItem", false);
                 String reqFrag = getStringProperty(obj, "requiredFragment", "");
+                boolean permOpen = getBoolProperty(obj, "permanentOpen", false);
                 gp.eHandler.registerLevelGate(worldX, worldY, ew, eh,
-                    min, msg, tMap, tCol, tRow, sid, reqItem, consume, reqFrag);
+                    min, msg, tMap, tCol, tRow, sid, reqItem, consume, reqFrag, permOpen);
             }
             case "Checkpoint" -> {
                 boolean silent = getBoolProperty(obj, "silent", false);
@@ -1035,10 +1035,17 @@ public class MapObjectLoader {
                     gp.eHandler.registerFragmentTrigger(worldX, worldY, ew, eh, fId, one);
             }
             case "SpawnPoint" -> {
-                // Always record this as the default map spawn position
-                gp.mapManager.defaultSpawnCol = col;
-                gp.mapManager.defaultSpawnRow = row;
-                System.out.println("MapObjectLoader: Default SpawnPoint at (" + col + "," + row + ")");
+                // If this SpawnPoint has newGame=true it is the authoritative New Game spawn.
+                // Otherwise it only overwrites the default if no newGame spawn has been set yet.
+                boolean isNewGameSpawn = getBoolProperty(obj, "newGame", false);
+                boolean hasNewGameSpawn = gp.mapManager.hasNewGameSpawn;
+                if (isNewGameSpawn || !hasNewGameSpawn) {
+                    gp.mapManager.defaultSpawnCol = col;
+                    gp.mapManager.defaultSpawnRow = row;
+                    if (isNewGameSpawn) gp.mapManager.hasNewGameSpawn = true;
+                    System.out.println("MapObjectLoader: Default SpawnPoint at (" + col + "," + row + ")"
+                        + (isNewGameSpawn ? " [newGame]" : ""));
+                }
                 // Also register as a named spawn if an 'id' is provided (for door transitions)
                 String sid = getStringProperty(obj, "id", "");
                 if (!sid.isEmpty()) {

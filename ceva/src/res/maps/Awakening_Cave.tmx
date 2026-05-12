@@ -1,7 +1,8 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<map version="1.10" tiledversion="1.12.1" orientation="orthogonal" renderorder="right-down" width="40" height="30" tilewidth="32" tileheight="32" infinite="0" nextlayerid="24" nextobjectid="125">
+<map version="1.10" tiledversion="1.12.1" orientation="orthogonal" renderorder="right-down" width="40" height="30" tilewidth="32" tileheight="32" infinite="0" nextlayerid="24" nextobjectid="126">
  <properties>
   <property name="actTitle" value="Act I: The Awakening Cave"/>
+  <property name="actTitleNewGameOnly" type="bool" value="true"/>
   <property name="ambientLight" type="float" value="0.7"/>
   <property name="music" type="int" value="2"/>
   <property name="weather" value="CLEAR"/>
@@ -4631,7 +4632,7 @@
    <polyline points="0,0 -0.5,-52.5 32,-52.5 31.0625,-80.25 62.75,-80 62.75,-112.25 95.25,-113 95,-208 127.667,-208.667 127,-272.5 160,-272.5 159.182,-351 159.5,-390.75 144.024,-350.688 53.5588,-351.737 53.7678,-382.573 0.475731,-383.194 0.75,-421.5 -14.6667,-383 -14.3333,-351.333 -47.6667,-351.333 -48,-325.333 -86.75,-323.833 -86.3333,-262.667 -113.333,-262.75 -113,-229.667 -147.583,-229.417 -147,-164 -209.333,-164 -210.667,-99.3333 -243,-99 -243.333,-69 -305.667,-69.3333 -305.667,-39.6667 -336.667,-40 -336.333,1.33333"/>
   </object>
   <object id="99" x="1280" y="960">
-   <polyline points="0,0 -1280,0 -1280,-960 0,-960 0,0"/>
+   <polyline points="0,0 -1280,0 -1280,-960 -800,-960 -800,-992 -672,-992 -672,-960 0,-960 0,0"/>
   </object>
   <object id="100" x="1236.59" y="781.682">
    <polygon points="-0.497792,-3.00017 -0.46875,8.53125 19,8.5 19,-3"/>
@@ -4778,6 +4779,7 @@
   <object id="78" name="SpawnPoint" type="SpawnPoint" x="1104" y="885.667">
    <properties>
     <property name="id" value="start"/>
+    <property name="newGame" type="bool" value="true"/>
    </properties>
    <point/>
   </object>
@@ -4785,6 +4787,7 @@
    <properties>
     <property name="message">You are not ready! 
 Keep searching.</property>
+    <property name="permanentOpen" type="bool" value="true"/>
     <property name="requiredItem" value="wooden_sword"/>
    </properties>
    <polyline points="0,0 32,0"/>
@@ -4800,6 +4803,7 @@ Keep searching.</property>
   <object id="82" type="LevelGate" x="777" y="319.333" width="32" height="128">
    <properties>
     <property name="message" value="You haven't completed the Combat Tutorial yet."/>
+    <property name="permanentOpen" type="bool" value="true"/>
     <property name="requiredItem" value="Key"/>
    </properties>
   </object>
@@ -4816,7 +4820,7 @@ Keep searching.</property>
     <property name="oneShot" type="bool" value="true"/>
    </properties>
   </object>
-  <object id="109" name="Tutorial ( Done )" type="MemoryGate" x="480" y="0" width="128" height="32">
+  <object id="109" name="Tutorial ( Done )" type="MemoryGate" x="480" y="-32" width="128" height="32">
    <properties>
     <property name="requiredFragments" type="int" value="1"/>
     <property name="spawnId" value="awakening_cave"/>
@@ -4828,6 +4832,12 @@ Keep searching.</property>
     <property name="fragmentId" value="frag_cave"/>
     <property name="oneShot" type="bool" value="true"/>
    </properties>
+  </object>
+  <object id="125" name="Coming from Canvas" type="SpawnPoint" x="512" y="0">
+   <properties>
+    <property name="id" value="Coming_from_canvas"/>
+   </properties>
+   <point/>
   </object>
  </objectgroup>
 </map>

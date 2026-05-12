@@ -64,7 +64,7 @@
     "rewardFragmentId": "",
     "chainQuestId": "speak_to_elder",
     "steps": [
-      { "action": "go", "map": "blacksmith_shop", "description": "Go to the blacksmith's shop." },
+      { "action": "go", "map": "blacksmith_interior", "description": "Go to the blacksmith's shop." },
       { "action": "talk", "npc": "blacksmith", "dialogue": "intro",
         "description": "Talk to the blacksmith" }
     ]
@@ -78,6 +78,7 @@
     "rewardCoins": 0,
     "rewardItemId": "",
     "rewardFragmentId": "",
+    "prerequisite": "tutorial_shop",
     "chainQuestId": "a_familiar_weight",
     "steps": [
       { "action": "talk", "npc": "village_elder", "dialogue": "intro",
@@ -87,7 +88,7 @@
   {
     "id": "a_familiar_weight",
     "name": "A Familiar Weight",
-    "description": "The Elder is drawn to the village chapel but can't bring himself to go. Investigate for him.",
+    "description": "The elder was in a fight with the fisher and lost something important. He asks you to find it for him.",
     "target": 1,
     "autoStart": false,
     "rewardCoins": 50,
@@ -95,8 +96,8 @@
     "rewardFragmentId": "",
     "chainQuestId": "explore_shattered_lake",
     "steps": [
-      { "action": "go", "map": "chapel_interior", "description": "Visit the village chapel." },
-      { "action": "talk", "npc": "village_elder", "dialogue": "after_chapel",
+      { "action": "go", "map": "fisher_interior", "description": "Visit the fisher's house." },
+      { "action": "talk", "npc": "village_elder", "dialogue": "after_fisher",
         "description": "Return to the Elder with what you found." }
     ]
   },

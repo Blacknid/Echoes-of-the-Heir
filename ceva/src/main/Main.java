@@ -42,6 +42,12 @@ public class Main {
         // Disable Marlin anti-aliasing sub-pixel rendering for faster shape fills
         System.setProperty("sun.java2d.renderer.useSimpleStroke", "true");
 
+        // Dev mode: let ResourceCache read .tmx/.tsx files directly from src/res
+        // so in-game R reload picks up Tiled edits without a resource sync step.
+        if (DEBUG_MODE) {
+            util.ResourceCache.setDevSourcePath(System.getProperty("user.dir") + "/ceva/src");
+        }
+
         window = new JFrame();
         window.setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
         // Always undecorated: avoids dispose()+setVisible() cycles when toggling fullscreen,

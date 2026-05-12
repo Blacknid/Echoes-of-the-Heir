@@ -167,12 +167,12 @@ public class Player extends Entity {
         screenX = gp.screenWidth / 2 - (gp.tileSize / 2);
         screenY = gp.screenHeight / 2 - (gp.tileSize / 2);
         solidArea = new Rectangle();
-        solidArea.x = 25;  // scaled from 20 for 80px tile (proportional to tile size)
-        solidArea.y = 27;  // scaled from 22
+        solidArea.x = gp.tileSize * 20 / 64;   // 20px at 64px tile, scales proportionally
+        solidArea.y = gp.tileSize * 22 / 64;   // 22px at 64px tile
         solidAreaDefaultX = solidArea.x;
         solidAreaDefaultY = solidArea.y;
-        solidArea.width = 30;  // scaled from 24
-        solidArea.height = 27; // scaled from 22
+        solidArea.width  = gp.tileSize * 24 / 64;  // 24px at 64px tile
+        solidArea.height = gp.tileSize * 22 / 64;  // 22px at 64px tile
         setDefaultValues();
     }
 
@@ -759,6 +759,20 @@ public class Player extends Entity {
         }
         camScreenX += (targetScreenX - camScreenX) * CAM_LERP;
         camScreenY += (targetScreenY - camScreenY) * CAM_LERP;
+
+        // Hard-clamp the lerped camera so fast movement (dash/knockback) near a
+        // map border can never let the interpolated position drift into void.
+        if (mapPixelW >= gp.screenWidth) {
+            float minCamX = worldX - (mapPixelW - gp.screenWidth);
+            float maxCamX = worldX;
+            camScreenX = Math.max(minCamX, Math.min(maxCamX, camScreenX));
+        }
+        if (mapPixelH >= gp.screenHeight) {
+            float minCamY = worldY - (mapPixelH - gp.screenHeight);
+            float maxCamY = worldY;
+            camScreenY = Math.max(minCamY, Math.min(maxCamY, camScreenY));
+        }
+
         screenX = Math.round(camScreenX);
         screenY = Math.round(camScreenY);
     }
@@ -911,35 +925,33 @@ public class Player extends Entity {
         attackHitbox.solidArea = new Rectangle(solidArea);
         
         int ts = gp.tileSize;
-        // IMPROVED: Attack hitbox is now bigger and more forgiving, matches sprite dimensions
+        int quarter = ts / 4;  // 16px at 64px tile — scales with tile size
+        int eighth  = ts / 8;  // 8px  at 64px tile — scales with tile size
+        // Attack hitbox: proportional to tile size so it stays correct at any resolution
         switch(direction) {
             case DIR_UP:
-                // Vertical attack sprite is tileSize × tileSize*2, extends upward
-                attackHitbox.solidArea.width = ts - 16;  // 48 width (centered)
-                attackHitbox.solidArea.height = ts + 16; // 80 height (larger reach)
-                attackHitbox.worldX += 8;   // Center horizontally
-                attackHitbox.worldY -= ts + 16; // Extend upward
+                attackHitbox.solidArea.width  = ts - quarter;  // 48 at 64px
+                attackHitbox.solidArea.height = ts + quarter;  // 80 at 64px
+                attackHitbox.worldX += eighth;                 // center horizontally
+                attackHitbox.worldY -= ts + quarter;           // extend upward
                 break;
             case DIR_DOWN:
-                // Vertical attack sprite is tileSize × tileSize*2, extends downward
-                attackHitbox.solidArea.width = ts - 16;  // 48 width (centered)
-                attackHitbox.solidArea.height = ts + 16; // 80 height (larger reach)
-                attackHitbox.worldX += 8;   // Center horizontally
-                attackHitbox.worldY += ts;  // Extend downward from player
+                attackHitbox.solidArea.width  = ts - quarter;  // 48 at 64px
+                attackHitbox.solidArea.height = ts + quarter;  // 80 at 64px
+                attackHitbox.worldX += eighth;                 // center horizontally
+                attackHitbox.worldY += ts;                     // extend downward
                 break;
             case DIR_LEFT:
-                // Horizontal attack sprite is tileSize*2 × tileSize, extends leftward
-                attackHitbox.solidArea.width = ts + 16;  // 80 width (larger reach)
-                attackHitbox.solidArea.height = ts - 16; // 48 height (centered)
-                attackHitbox.worldX -= ts + 16; // Extend leftward
-                attackHitbox.worldY += 8;   // Center vertically
+                attackHitbox.solidArea.width  = ts + quarter;  // 80 at 64px
+                attackHitbox.solidArea.height = ts - quarter;  // 48 at 64px
+                attackHitbox.worldX -= ts + quarter;           // extend leftward
+                attackHitbox.worldY += eighth;                 // center vertically
                 break;
             case DIR_RIGHT:
-                // Horizontal attack sprite is tileSize*2 × tileSize, extends rightward
-                attackHitbox.solidArea.width = ts + 16;  // 80 width (larger reach)
-                attackHitbox.solidArea.height = ts - 16; // 48 height (centered)
-                attackHitbox.worldX += ts;  // Extend rightward from player
-                attackHitbox.worldY += 8;   // Center vertically
+                attackHitbox.solidArea.width  = ts + quarter;  // 80 at 64px
+                attackHitbox.solidArea.height = ts - quarter;  // 48 at 64px
+                attackHitbox.worldX += ts;                     // extend rightward
+                attackHitbox.worldY += eighth;                 // center vertically
                 break;
         }
         // Check for tile using the attack hitbox instead of player

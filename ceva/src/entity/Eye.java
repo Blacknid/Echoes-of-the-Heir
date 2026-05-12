@@ -99,26 +99,27 @@ public class Eye extends Entity {
     }
 
     private void updateHitbox() {
-        int eyeTopOffset = gp.tileSize + 12;
+        int ts = gp.tileSize;
+        int eyeTopOffset = ts + ts * 12 / 64;  // (tileSize + 12) at 64px, scales proportionally
 
         switch (direction) {
             case DIR_UP -> {
-                solidArea.x = 16;
-                solidArea.y = -eyeTopOffset + 6;
-                solidArea.width = 32;
-                solidArea.height = 48;
+                solidArea.x      = ts / 4;                      // 16 at 64px
+                solidArea.y      = -eyeTopOffset + ts * 6 / 64; // +6 at 64px
+                solidArea.width  = ts / 2;                      // 32 at 64px
+                solidArea.height = ts * 3 / 4;                  // 48 at 64px
             }
             case DIR_DOWN -> {
-                solidArea.x = 16;
-                solidArea.y = -eyeTopOffset + 10;
-                solidArea.width = 32;
-                solidArea.height = 48;
+                solidArea.x      = ts / 4;                       // 16 at 64px
+                solidArea.y      = -eyeTopOffset + ts * 10 / 64; // +10 at 64px
+                solidArea.width  = ts / 2;                       // 32 at 64px
+                solidArea.height = ts * 3 / 4;                   // 48 at 64px
             }
             case DIR_LEFT, DIR_RIGHT -> {
-                solidArea.x = 8;
-                solidArea.y = -eyeTopOffset + 16;
-                solidArea.width = 48;
-                solidArea.height = 32;
+                solidArea.x      = ts / 8;                       // 8 at 64px
+                solidArea.y      = -eyeTopOffset + ts / 4;       // +16 at 64px
+                solidArea.width  = ts * 3 / 4;                   // 48 at 64px
+                solidArea.height = ts / 2;                       // 32 at 64px
             }
         }
 

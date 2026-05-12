@@ -20,10 +20,10 @@ public class OBJ_Heart extends Entity {
         image1 = setup("/res/objects/empty_heart", gp.tileSize , gp.tileSize);
 
         // Small pickup hitbox
-        solidArea.x = 18;
-        solidArea.y = 20;
-        solidArea.width = 28;
-        solidArea.height = 28;
+        solidArea.x      = gp.tileSize * 18 / 64;  // 18 at 64px
+        solidArea.y      = gp.tileSize * 20 / 64;  // 20 at 64px
+        solidArea.width  = gp.tileSize * 28 / 64;  // 28 at 64px
+        solidArea.height = gp.tileSize * 28 / 64;  // 28 at 64px
         solidAreaDefaultX = solidArea.x;
         solidAreaDefaultY = solidArea.y;
     }

@@ -56,26 +56,32 @@
     "name": "Blacksmith",
     "idleSprite": "/res/NPC/Main/Blacksmith_forging",
     "idleRows": 1,
-    "spriteAspect": 1.5,
+    "spriteAspect": 1,
     "spriteScale": 2.0,
     "staticNPC": true,
     "interactRange": 96,
     "idleAnimSpeed": 12,
 
     "dialogues": {
+      "intro": [
+        "A new face huh? Welcome to my shop!",
+        "The elder should have told me about your visit ", 
+        "But I don't mind. It's nice to have some company around here.",
+        "If you find yourself lost, you can always bet on the Elder to point you in the right direction.",
+        "He's a good guy, even if he's a bit... out of it.",
+        "Anyway, if you need any weapons or armor, just let me know.",
+        "I can forge you something nice if you bring me the right materials."
+      ],
       "greeting": [
-        "Welcome, traveler.\nNeed a blade?",
-        "Bring me iron ore\nfrom the mines."
+        "Welcome, wanderer.\nNeed a new weapon?",
+        "I can forge you something special if you bring me the right materials.",
+        "The Elder is a good guy, but he's not much help when it comes to finding materials.",
+        "You'll have to explore the world to find what you need."
       ],
-      "forging": [
-        "Good iron!\nLet me work on this.",
-        "Come back soon."
-      ],
-      "sword_ready": [
-        "Your sword is ready!\nForged with care."
-      ],
-      "post_quest": [
-        "Need anything sharpened?\nI'm always at the anvil."
+      "waiting": [
+        "The blade can't be forged without the materials.",
+        "Check the cave rooms for iron ore and coal.",
+        "I can start forging once you bring them to me."
       ]
     },
 
@@ -175,6 +181,7 @@
     "name": "Fruit Trader",
     "idleSprite": "/res/NPC/Fruit_Trader",
     "idleRows": 1,
+    "spriteAspect": 1.0,
     "staticNPC": true,
     "idleDirection": 1,
     "idleAnimSpeed": 12,
@@ -410,11 +417,52 @@
       }
     ]
   },
+
+  "fisher_trader": {
+    "name": "Fisher Trader",
+    "idleSprite": "/res/NPC/Fisher_Trader",
+    "idleRows": 1,
+    "spriteAspect": 0.5,
+    "interactRange": 96,
+    "staticNPC": true,
+    "idleAnimSpeed": 12,
+
+    "dialogues": {
+      "intro": [
+        "Hello there, traveler!\nCare for some fresh fish?",
+        "I have a variety of fish, perfect for cooking or eating raw.",
+        "If you find some bait, I can teach you how to fish!"
+       ],
+      "waiting": [
+        "Welcome back, traveler!",
+        "I have more fish if you need them.",
+        "Did you find any bait?\nI love fishing and sharing my catch!"
+        ],
+      "thanks": [
+        "No way, you found bait!\nThat's amazing!",
+        "Here, take this as a reward for your find.",
+        "I hope it helps you on your adventure!"
+        ],
+      "done": [
+        "In need of more fish?\nI have plenty to share!",
+        "Feel free to come back anytime.\nI love teaching fishing to travelers!"
+      ]
+    },
+
+    "states": [
+      {
+        "id": "post_quest",
+        "dialogue": "done",
+        "stationary": true,
+        "requiredQuestComplete": "fisher_trader_quest"
+      }
+    ]
+  },
   "potion_trader": {
     "name": "Potion Trader",
     "idleSprite": "/res/NPC/Potions_Trader",
     "idleRows": 1,
-    "spriteAspect": 1.5,
+    "spriteAspect": 1,
     "staticNPC": true,
     "idleAnimSpeed": 12,
 
@@ -454,7 +502,7 @@
   "village_elder": {
     "name": "Village Elder",
     "idleSprite": "/res/NPC/Main/Elder",
-    "spriteAspect": 1.5,
+    "spriteAspect": 1,
     "idleRows": 1,
     "idleDirection": 0,
     "staticNPC": true,
@@ -465,11 +513,11 @@
         "Ah... another lost soul finds his way here.",
         "I don't remember much about who I was, but I know this place is not where we belong.",
         "You have the look of someone who's been through something they can't explain.",
-        "There is a chapel at the edge of the village. I find myself drawn to it, but I cannot bring myself to go.",
+        "There is a fisher's house at the edge of the village. I find myself drawn to it, but I cannot bring myself to go.",
         "Would you go in my place? Perhaps you'll find something I cannot."
       ],
-      "waiting_chapel": [
-        "The chapel is just through the square. I'll be here when you return."
+      "waiting_fisher": [
+        "The fisher's house is just through the square. I'll be here when you return."
       ],
       "waiting_shattered_lake": [
         "East of the village gate. The lake — that's where your answers start.",
@@ -502,11 +550,13 @@
         "This is as far as I can guide you.",
         "Whatever made this world waits in that place. I'll be here when it's done."
       ],
-      "after_chapel": [
-        "That symbol you found... I've been drawing it in my sleep for weeks.",
-        "I don't know what it means. But when you describe it, something stirs — like a word on the tip of my tongue that won't come.",
-        "There is a place east of here. The lake. Whatever is haunting this world... I think it began there.",
-        "Go. And be careful. The things that live there aren't just monsters. They're memories. Broken ones."
+      "after_fisher": [
+        "You found it. I thought I had lost it forever.",
+        "Thank you. I can feel a weight lifting off of me.",
+        "I don't know how to explain it, but I feel like I can remember something now.",
+        "The gate... the lake... the woods... I can see them in my mind, but they're still blurry.",
+        "I think... I think there was a fight. I think I lost something important in that fight. Something I need to find again.",
+        "maybe... you can help me find it. I think it might be in the lake."
       ],
       "post_boss3": [
         "I dreamed of two boys last night. Playing in a courtyard I can almost picture.",

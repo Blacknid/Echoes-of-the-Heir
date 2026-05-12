@@ -242,6 +242,9 @@ public class SaveLoad {
         gs.storyAct = gp.storyAct;
         gs.endingChosen = gp.endingChosen;
 
+        // PERMANENTLY OPENED GATES
+        gs.openedGates = new java.util.ArrayList<>(gp.openedGates);
+
         gs.timestamp = System.currentTimeMillis();
         return gs;
     }
@@ -329,6 +332,13 @@ public class SaveLoad {
             // STORY PROGRESS
             sb.append("storyAct=").append(gp.storyAct).append('\n');
             sb.append("endingChosen=").append(gp.endingChosen).append('\n');
+
+            // PERMANENTLY OPENED GATES
+            java.util.List<String> gatesList = new java.util.ArrayList<>(gp.openedGates);
+            sb.append("openedGates.size=").append(gatesList.size()).append('\n');
+            for (int i = 0; i < gatesList.size(); i++) {
+                sb.append("openedGates.").append(i).append('=').append(gatesList.get(i)).append('\n');
+            }
 
             byte[] encrypted = encrypt(sb.toString());
             try (FileOutputStream fos = new FileOutputStream("save.dat")) {
@@ -481,6 +491,14 @@ public class SaveLoad {
             gp.storyAct = Integer.parseInt(map.getOrDefault("storyAct", "0"));
             gp.endingChosen = Integer.parseInt(map.getOrDefault("endingChosen", "0"));
 
+            // PERMANENTLY OPENED GATES
+            int gatesSize = Integer.parseInt(map.getOrDefault("openedGates.size", "0"));
+            gp.openedGates.clear();
+            for (int i = 0; i < gatesSize; i++) {
+                String gid = map.get("openedGates." + i);
+                if (gid != null && !gid.isBlank()) gp.openedGates.add(gid);
+            }
+
         } catch (java.io.IOException | java.security.GeneralSecurityException | RuntimeException e) {
             System.out.println("Load from disk failed: " + e.getMessage());
             System.out.println("Load Exception!");
@@ -608,6 +626,12 @@ public class SaveLoad {
         // STORY PROGRESS
         gp.storyAct = state.storyAct;
         gp.endingChosen = state.endingChosen;
+
+        // PERMANENTLY OPENED GATES
+        if (state.openedGates != null) {
+            gp.openedGates.clear();
+            gp.openedGates.addAll(state.openedGates);
+        }
     }
 
     private static String getAt(String[] arr, int index, String fallback) {
