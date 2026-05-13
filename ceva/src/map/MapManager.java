@@ -385,4 +385,16 @@ public class MapManager {
             gp.player.setDefaultPositions();
         }
     }
+
+    /**
+     * Drop the cached entity state for the given map so the next load
+     * (or debug reload) spawns entities fresh from the TMX/JSON definitions
+     * rather than restoring whatever state they were saved in.
+     */
+    public void clearSavedMapEntities(String mapId) {
+        savedObjects.remove(mapId);
+        savedNPCs.remove(mapId);
+        savedMonsters.remove(mapId);
+        savedITiles.remove(mapId);
+    }
 }

@@ -69,6 +69,11 @@ public class GamePanel extends JPanel implements Runnable{
     public boolean drawPath = false;
     // Debug panel (F9)
     public boolean debugMenuOpen = false;
+    // Pending debug reload — set from EDT, consumed by the game-loop thread at the start of update()
+    private volatile boolean pendingReloadAll     = false;
+    private volatile boolean pendingReloadNPCs    = false;
+    private volatile boolean pendingReloadMonsters= false;
+    private volatile boolean pendingReloadObjects = false;
     public int debugMenuSelectedIndex = 0;
     public java.util.List<String> debugMapList = new java.util.ArrayList<>();
     public int debugMapSelectedIndex = 0;
@@ -147,13 +152,16 @@ public class GamePanel extends JPanel implements Runnable{
     private static final int DEBUG_ROW_HITBOXES = 1;
     private static final int DEBUG_ROW_PATHS = 2;
     private static final int DEBUG_ROW_SEPIA = 3;
-    private static final int DEBUG_ROW_RELOAD_MAP = 4;
-    private static final int DEBUG_ROW_FLASHBACK = 5;
-    private static final int DEBUG_ROW_FRAGMENTS = 6;
-    private static final int DEBUG_ROW_AWAKENING = 7;
-    private static final int DEBUG_ROW_TARGET_MAP = 8;
-    private static final int DEBUG_ROW_TELEPORT_TARGET = 9;
-    private static final int DEBUG_MENU_ROWS = 10;
+    private static final int DEBUG_ROW_RELOAD_ALL = 4;
+    private static final int DEBUG_ROW_RELOAD_NPCS = 5;
+    private static final int DEBUG_ROW_RELOAD_MONSTERS = 6;
+    private static final int DEBUG_ROW_RELOAD_OBJECTS = 7;
+    private static final int DEBUG_ROW_FLASHBACK = 8;
+    private static final int DEBUG_ROW_FRAGMENTS = 9;
+    private static final int DEBUG_ROW_AWAKENING = 10;
+    private static final int DEBUG_ROW_TARGET_MAP = 11;
+    private static final int DEBUG_ROW_TELEPORT_TARGET = 12;
+    private static final int DEBUG_MENU_ROWS = 13;
     private java.awt.Font mpNametagFont; // lazily derived
 
 
@@ -789,6 +797,12 @@ public class GamePanel extends JPanel implements Runnable{
     public void update() {
         tickCounter++;
 
+        // PENDING DEBUG RELOADS — executed here on the game-loop thread to avoid race conditions
+        if (pendingReloadAll)      { pendingReloadAll      = false; doReloadAll(); }
+        if (pendingReloadNPCs)     { pendingReloadNPCs     = false; doReloadNPCs(); }
+        if (pendingReloadMonsters) { pendingReloadMonsters = false; doReloadMonsters(); }
+        if (pendingReloadObjects)  { pendingReloadObjects  = false; doReloadObjects(); }
+
         // MEMORY FLASHBACK: update even during other states (it's an overlay)
         if (memoryFlashback != null && memoryFlashback.isActive()) {
             memoryFlashback.update();
@@ -817,6 +831,13 @@ public class GamePanel extends JPanel implements Runnable{
                     npc[i].tickAnimations();
                 }
             }
+        }
+
+        // DIALOGUE LOGIC (60 UPS): typewriter tick + Enter input + gameState transitions.
+        // Must NOT run in the draw path — at 400 FPS that makes dialogue FPS-dependent
+        // and saturates the CPU with wrapText() calls, starving the EDT.
+        if (gameState == dialogueState || gameState == cutsceneState) {
+            ui.updateDialogueState();
         }
 
         if(gameState == playState) {
@@ -1151,7 +1172,10 @@ public class GamePanel extends JPanel implements Runnable{
                 playSE(SFX.MENU_SELECT);
             }
             case DEBUG_ROW_SEPIA -> toggleDebugSepia();
-            case DEBUG_ROW_RELOAD_MAP -> reloadCurrentMapDebug();
+            case DEBUG_ROW_RELOAD_ALL      -> reloadCurrentMapDebug();
+            case DEBUG_ROW_RELOAD_NPCS     -> reloadNPCsDebug();
+            case DEBUG_ROW_RELOAD_MONSTERS -> reloadMonstersDebug();
+            case DEBUG_ROW_RELOAD_OBJECTS  -> reloadObjectsDebug();
             case DEBUG_ROW_FLASHBACK -> triggerDebugFlashback();
             case DEBUG_ROW_FRAGMENTS -> collectDebugFragments();
             case DEBUG_ROW_AWAKENING -> teleportToAwakeningDebug();
@@ -1203,20 +1227,76 @@ public class GamePanel extends JPanel implements Runnable{
         startTransition(targetId, -1, -1);
     }
 
-    public void reloadCurrentMapDebug() {
+    // ── Called from EDT (key/menu) — just schedules; actual work runs on game-loop thread ──
+    public void reloadCurrentMapDebug() { pendingReloadAll      = true; }
+    public void reloadNPCsDebug()       { pendingReloadNPCs     = true; }
+    public void reloadMonstersDebug()   { pendingReloadMonsters = true; }
+    public void reloadObjectsDebug()    { pendingReloadObjects  = true; }
+
+    // ── Actual reload implementations — MUST be called from the game-loop thread ──
+    private void doReloadAll() {
         if (mapManager == null) return;
-        String path = mapManager.mapRegistry.getOrDefault(mapManager.currentMapId, mapManager.currentMapId);
+        String mapId = mapManager.currentMapId;
+        String path = mapManager.mapRegistry.getOrDefault(mapId, mapId);
         ResourceCache.invalidateXml(path);
         tileM.loadMapFromTMX(path);
         tileM.loadCollisionLayer(path);
+        tileM.initTileLitMap();
         mapObjectLoader.loadMapProperties(path);
+        mapManager.clearSavedMapEntities(mapId);
+        for (int i = 0; i < obj.length; i++) obj[i] = null;
+        for (int i = 0; i < npc.length; i++) npc[i] = null;
+        for (int i = 0; i < monster.length; i++) monster[i] = null;
+        for (int i = 0; i < iTile.length; i++) iTile[i] = null;
+        projectilesList.clear();
+        particleList.clear();
+        if (eManager != null && eManager.lightning != null) eManager.lightning.clearShadowCaches();
         eHandler.reset();
+        aSetter.setObject();
+        aSetter.setInteractiveTile();
+        aSetter.setNPC();
+        aSetter.setMonster();
+        aSetter.loadEntitiesFromTMX();
         aSetter.loadEventsFromTMX();
         cChecker.updateCollisionRectsCache();
         if (minimap != null) {
-            minimap.invalidateTerrainCache(mapManager.currentMapId);
+            minimap.invalidateTerrainCache(mapId);
             minimap.bakeTerrainImage();
         }
+        ui.addMessage("Map fully reloaded", new java.awt.Color(100, 255, 140), 120);
+        playSE(SFX.MENU_SELECT);
+    }
+
+    private void doReloadNPCs() {
+        if (mapManager == null) return;
+        mapManager.clearSavedMapEntities(mapManager.currentMapId);
+        for (int i = 0; i < npc.length; i++) npc[i] = null;
+        aSetter.setNPC();
+        aSetter.loadEntitiesFromTMX();
+        ui.addMessage("NPCs reloaded", new java.awt.Color(100, 200, 255), 120);
+        playSE(SFX.MENU_SELECT);
+    }
+
+    private void doReloadMonsters() {
+        if (mapManager == null) return;
+        mapManager.clearSavedMapEntities(mapManager.currentMapId);
+        for (int i = 0; i < monster.length; i++) monster[i] = null;
+        projectilesList.clear();
+        aSetter.setMonster();
+        aSetter.loadEntitiesFromTMX();
+        ui.addMessage("Monsters reloaded", new java.awt.Color(255, 120, 120), 120);
+        playSE(SFX.MENU_SELECT);
+    }
+
+    private void doReloadObjects() {
+        if (mapManager == null) return;
+        mapManager.clearSavedMapEntities(mapManager.currentMapId);
+        for (int i = 0; i < obj.length; i++) obj[i] = null;
+        for (int i = 0; i < iTile.length; i++) iTile[i] = null;
+        aSetter.setObject();
+        aSetter.setInteractiveTile();
+        aSetter.loadEntitiesFromTMX();
+        ui.addMessage("Objects reloaded", new java.awt.Color(255, 220, 100), 120);
         playSE(SFX.MENU_SELECT);
     }
 
@@ -1232,7 +1312,10 @@ public class GamePanel extends JPanel implements Runnable{
             case DEBUG_ROW_SEPIA -> mapShader == null
                     ? "Sepia shader: unavailable"
                     : debugToggleLabel("Sepia shader", mapShader.sepiaMode);
-            case DEBUG_ROW_RELOAD_MAP -> "Reload current map";
+            case DEBUG_ROW_RELOAD_ALL      -> "Full reload (tiles + entities)";
+            case DEBUG_ROW_RELOAD_NPCS     -> "Reload NPCs";
+            case DEBUG_ROW_RELOAD_MONSTERS -> "Reload Monsters";
+            case DEBUG_ROW_RELOAD_OBJECTS  -> "Reload Objects";
             case DEBUG_ROW_FLASHBACK -> "Trigger memory flashback";
             case DEBUG_ROW_FRAGMENTS -> "Collect test fragments";
             case DEBUG_ROW_AWAKENING -> "Teleport: Awakening Cave";

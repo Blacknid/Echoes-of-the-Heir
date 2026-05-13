@@ -1,7 +1,12 @@
+<<<<<<< HEAD
 fullscreen=On
 musicVolume=0
+=======
+fullscreen=Off
+musicVolume=3
+>>>>>>> d52f98aace3884794c1bd11f9606cfc3554c536a
 seVolume=1
-vsync=Off
+vsync=On
 fpsTarget=60
 graphicsQuality=2
 windowX=320

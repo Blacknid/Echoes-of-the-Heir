@@ -1,11 +1,12 @@
 {
-    "activeFile": "maps/Fisher_interior.tmx",
+    "activeFile": "maps/Shattered_Lake.tmx",
     "expandedProjectPaths": [
     ],
+    "file.lastUsedOpenFilter": "All Files (*)",
     "fileStates": {
         "": {
             "scaleInDock": 1,
-            "scaleInEditor": 2
+            "scaleInEditor": 1.5
         },
         "#Interior": {
             "scaleInDock": 0.5
@@ -617,7 +618,7 @@
             "selectedLayer": 21,
             "viewCenter": {
                 "x": -145,
-                "y": 127.5
+                "y": 128
             }
         },
         "C:/Users/cstyl/Downloads/craftpix-net-471853-top-down-farm-with-animals-pixel-art-asset-pack (1)/Tiled_files/Farm.tmx#Chicken_animation": {
@@ -996,8 +997,8 @@
             "scale": 1.5,
             "selectedLayer": 0,
             "viewCenter": {
-                "x": 359.33333333333337,
-                "y": 238.33333333333331
+                "x": 502.66666666666663,
+                "y": 233.66666666666666
             }
         },
         "C:/Users/cstyl/Downloads/craftpix-net-624156-swamp-top-down-tileset-pixel-art/Tiled_files/Swamp.tmx#Ground_grass_swamp": {
@@ -1017,7 +1018,8 @@
         },
         "C:/Users/cstyl/Downloads/craftpix-net-624156-swamp-top-down-tileset-pixel-art/Tiled_files/Water_coasts..tsx": {
             "dynamicWrapping": false,
-            "scaleInDock": 1
+            "scaleInDock": 1,
+            "scaleInEditor": 1
         },
         "C:/Users/cstyl/Downloads/craftpix-net-624156-swamp-top-down-tileset-pixel-art/Tiled_files/Water_detilazation2.tsx": {
             "scaleInDock": 1
@@ -1319,6 +1321,137 @@
         "C:/Users/cstyl/Downloads/craftpix-net-741016-pixel-blacksmith-house-interior-and-exterior-assets/Tiled_files/Blacksmith_house_interior.tmx#water_animation": {
             "scaleInDock": 1
         },
+        "C:/Users/cstyl/Downloads/craftpix-net-885927-2d-pixel-fishing-village-pack-dock-interior-boats-npcs/Tiled_foles/Boats_fish_characters.tmx": {
+            "scale": 1.64580078125,
+            "selectedLayer": 0,
+            "viewCenter": {
+                "x": 450.84436005458974,
+                "y": 88.40681184358868
+            }
+        },
+        "C:/Users/cstyl/Downloads/craftpix-net-885927-2d-pixel-fishing-village-pack-dock-interior-boats-npcs/Tiled_foles/Boats_fish_characters.tmx#Boat1": {
+            "scaleInDock": 1
+        },
+        "C:/Users/cstyl/Downloads/craftpix-net-885927-2d-pixel-fishing-village-pack-dock-interior-boats-npcs/Tiled_foles/Boats_fish_characters.tmx#Boat2": {
+            "scaleInDock": 1,
+            "scaleInEditor": 1
+        },
+        "C:/Users/cstyl/Downloads/craftpix-net-885927-2d-pixel-fishing-village-pack-dock-interior-boats-npcs/Tiled_foles/Boats_fish_characters.tmx#Boy_amazed": {
+            "scaleInDock": 1
+        },
+        "C:/Users/cstyl/Downloads/craftpix-net-885927-2d-pixel-fishing-village-pack-dock-interior-boats-npcs/Tiled_foles/Boats_fish_characters.tmx#Boy_looking": {
+            "scaleInDock": 1
+        },
+        "C:/Users/cstyl/Downloads/craftpix-net-885927-2d-pixel-fishing-village-pack-dock-interior-boats-npcs/Tiled_foles/Boats_fish_characters.tmx#Boy_shadow": {
+            "scaleInDock": 1
+        },
+        "C:/Users/cstyl/Downloads/craftpix-net-885927-2d-pixel-fishing-village-pack-dock-interior-boats-npcs/Tiled_foles/Boats_fish_characters.tmx#Boy_weaves": {
+            "scaleInDock": 1
+        },
+        "C:/Users/cstyl/Downloads/craftpix-net-885927-2d-pixel-fishing-village-pack-dock-interior-boats-npcs/Tiled_foles/Boats_fish_characters.tmx#Cobold_on_floor": {
+            "scaleInDock": 1
+        },
+        "C:/Users/cstyl/Downloads/craftpix-net-885927-2d-pixel-fishing-village-pack-dock-interior-boats-npcs/Tiled_foles/Boats_fish_characters.tmx#Cobold_on_shark": {
+            "scaleInDock": 1
+        },
+        "C:/Users/cstyl/Downloads/craftpix-net-885927-2d-pixel-fishing-village-pack-dock-interior-boats-npcs/Tiled_foles/Boats_fish_characters.tmx#Cobold_shadow": {
+            "scaleInDock": 1
+        },
+        "C:/Users/cstyl/Downloads/craftpix-net-885927-2d-pixel-fishing-village-pack-dock-interior-boats-npcs/Tiled_foles/Boats_fish_characters.tmx#Fish1": {
+            "scaleInDock": 1
+        },
+        "C:/Users/cstyl/Downloads/craftpix-net-885927-2d-pixel-fishing-village-pack-dock-interior-boats-npcs/Tiled_foles/Boats_fish_characters.tmx#Fish3": {
+            "scaleInDock": 1
+        },
+        "C:/Users/cstyl/Downloads/craftpix-net-885927-2d-pixel-fishing-village-pack-dock-interior-boats-npcs/Tiled_foles/Boats_fish_characters.tmx#Fisherman_boat1_idle": {
+            "scaleInDock": 1
+        },
+        "C:/Users/cstyl/Downloads/craftpix-net-885927-2d-pixel-fishing-village-pack-dock-interior-boats-npcs/Tiled_foles/Boats_fish_characters.tmx#Fisherman_boat1_throws": {
+            "scaleInDock": 1
+        },
+        "C:/Users/cstyl/Downloads/craftpix-net-885927-2d-pixel-fishing-village-pack-dock-interior-boats-npcs/Tiled_foles/Boats_fish_characters.tmx#Old_man_idle": {
+            "scaleInDock": 1
+        },
+        "C:/Users/cstyl/Downloads/craftpix-net-885927-2d-pixel-fishing-village-pack-dock-interior-boats-npcs/Tiled_foles/Boats_fish_characters.tmx#Old_man_orders": {
+            "scaleInDock": 1
+        },
+        "C:/Users/cstyl/Downloads/craftpix-net-885927-2d-pixel-fishing-village-pack-dock-interior-boats-npcs/Tiled_foles/Boats_fish_characters.tmx#Old_man_shadow": {
+            "scaleInDock": 1
+        },
+        "C:/Users/cstyl/Downloads/craftpix-net-885927-2d-pixel-fishing-village-pack-dock-interior-boats-npcs/Tiled_foles/Boats_fish_characters.tmx#Seller_gramma": {
+            "scaleInDock": 1
+        },
+        "C:/Users/cstyl/Downloads/craftpix-net-885927-2d-pixel-fishing-village-pack-dock-interior-boats-npcs/Tiled_foles/Boats_fish_characters.tmx#Small_boat_v1_1": {
+            "scaleInDock": 1
+        },
+        "C:/Users/cstyl/Downloads/craftpix-net-885927-2d-pixel-fishing-village-pack-dock-interior-boats-npcs/Tiled_foles/Boats_fish_characters.tmx#Small_boat_v2_1-Sheet": {
+            "scaleInDock": 1
+        },
+        "C:/Users/cstyl/Downloads/craftpix-net-885927-2d-pixel-fishing-village-pack-dock-interior-boats-npcs/Tiled_foles/Fishing_dock.tmx": {
+            "scale": 2,
+            "selectedLayer": 0,
+            "viewCenter": {
+                "x": 234,
+                "y": 82.25
+            }
+        },
+        "C:/Users/cstyl/Downloads/craftpix-net-885927-2d-pixel-fishing-village-pack-dock-interior-boats-npcs/Tiled_foles/Fishing_dock.tmx#Boat1": {
+            "scaleInDock": 1
+        },
+        "C:/Users/cstyl/Downloads/craftpix-net-885927-2d-pixel-fishing-village-pack-dock-interior-boats-npcs/Tiled_foles/Fishing_dock.tmx#Boat2": {
+            "scaleInDock": 1
+        },
+        "C:/Users/cstyl/Downloads/craftpix-net-885927-2d-pixel-fishing-village-pack-dock-interior-boats-npcs/Tiled_foles/Fishing_dock.tmx#Boy_amazed": {
+            "scaleInDock": 1
+        },
+        "C:/Users/cstyl/Downloads/craftpix-net-885927-2d-pixel-fishing-village-pack-dock-interior-boats-npcs/Tiled_foles/Fishing_dock.tmx#Boy_weaves": {
+            "scaleInDock": 1
+        },
+        "C:/Users/cstyl/Downloads/craftpix-net-885927-2d-pixel-fishing-village-pack-dock-interior-boats-npcs/Tiled_foles/Fishing_dock.tmx#Cobold_on_shark": {
+            "scaleInDock": 1
+        },
+        "C:/Users/cstyl/Downloads/craftpix-net-885927-2d-pixel-fishing-village-pack-dock-interior-boats-npcs/Tiled_foles/Fishing_dock.tmx#Exterior_objetcs": {
+            "scaleInDock": 1
+        },
+        "C:/Users/cstyl/Downloads/craftpix-net-885927-2d-pixel-fishing-village-pack-dock-interior-boats-npcs/Tiled_foles/Fishing_dock.tmx#Exterior_tiles": {
+            "scaleInDock": 1
+        },
+        "C:/Users/cstyl/Downloads/craftpix-net-885927-2d-pixel-fishing-village-pack-dock-interior-boats-npcs/Tiled_foles/Fishing_dock.tmx#Fish1": {
+            "scaleInDock": 1
+        },
+        "C:/Users/cstyl/Downloads/craftpix-net-885927-2d-pixel-fishing-village-pack-dock-interior-boats-npcs/Tiled_foles/Fishing_dock.tmx#Fish3": {
+            "scaleInDock": 1
+        },
+        "C:/Users/cstyl/Downloads/craftpix-net-885927-2d-pixel-fishing-village-pack-dock-interior-boats-npcs/Tiled_foles/Fishing_dock.tmx#Fisherman_boat1_throws": {
+            "scaleInDock": 1
+        },
+        "C:/Users/cstyl/Downloads/craftpix-net-885927-2d-pixel-fishing-village-pack-dock-interior-boats-npcs/Tiled_foles/Fishing_dock.tmx#Old_man_idle": {
+            "scaleInDock": 1
+        },
+        "C:/Users/cstyl/Downloads/craftpix-net-885927-2d-pixel-fishing-village-pack-dock-interior-boats-npcs/Tiled_foles/Fishing_dock.tmx#Small_boat_v1_1": {
+            "scaleInDock": 1
+        },
+        "C:/Users/cstyl/Downloads/craftpix-net-885927-2d-pixel-fishing-village-pack-dock-interior-boats-npcs/Tiled_foles/Fishing_dock.tmx#Small_boat_v2_1-Sheet": {
+            "scaleInDock": 1
+        },
+        "C:/Users/cstyl/Downloads/craftpix-net-885927-2d-pixel-fishing-village-pack-dock-interior-boats-npcs/Tiled_foles/Fishing_dock.tmx#Spots": {
+            "scaleInDock": 1
+        },
+        "C:/Users/cstyl/Downloads/craftpix-net-885927-2d-pixel-fishing-village-pack-dock-interior-boats-npcs/Tiled_foles/Fishing_dock.tmx#Water_coasts": {
+            "scaleInDock": 1
+        },
+        "C:/Users/cstyl/Downloads/craftpix-net-885927-2d-pixel-fishing-village-pack-dock-interior-boats-npcs/Tiled_foles/Fishing_dock.tmx#Water_detailization1": {
+            "scaleInDock": 1
+        },
+        "C:/Users/cstyl/Downloads/craftpix-net-885927-2d-pixel-fishing-village-pack-dock-interior-boats-npcs/Tiled_foles/Fishing_dock.tmx#Water_detilazation": {
+            "scaleInDock": 1
+        },
+        "C:/Users/cstyl/Downloads/craftpix-net-885927-2d-pixel-fishing-village-pack-dock-interior-boats-npcs/Tiled_foles/Fishing_dock.tmx#Windows_doors": {
+            "scaleInDock": 1
+        },
+        "C:/Users/cstyl/Downloads/craftpix-net-885927-2d-pixel-fishing-village-pack-dock-interior-boats-npcs/Tiled_foles/Fishing_dock.tmx#piles": {
+            "scaleInDock": 1
+        },
         "C:/Users/cstyl/Downloads/craftpix-net-885927-2d-pixel-fishing-village-pack-dock-interior-boats-npcs/Tiled_foles/Interior.tmx": {
             "scale": 2,
             "selectedLayer": 0,
@@ -1435,14 +1568,14 @@
             "expandedObjectLayers": [
                 17,
                 14,
-                13,
-                16
+                16,
+                13
             ],
             "scale": 0.75,
             "selectedLayer": 21,
             "viewCenter": {
                 "x": 624,
-                "y": 335.3333333333333
+                "y": 507.3333333333333
             }
         },
         "maps/Awakening_Cave.tmx#Details": {
@@ -1487,10 +1620,10 @@
                 10
             ],
             "scale": 1.5,
-            "selectedLayer": 10,
+            "selectedLayer": 3,
             "viewCenter": {
-                "x": 415.99999999999994,
-                "y": 239.66666666666666
+                "x": 328,
+                "y": 235.66666666666666
             }
         },
         "maps/Blacksmith_interior.tmx#Forge_animation": {
@@ -1498,7 +1631,8 @@
             "scaleInEditor": 1
         },
         "maps/Blacksmith_interior.tmx#Interior": {
-            "scaleInDock": 1
+            "scaleInDock": 1,
+            "scaleInEditor": 1
         },
         "maps/Blacksmith_interior.tmx#Light_animation": {
             "scaleInDock": 0.5,
@@ -1510,27 +1644,27 @@
         },
         "maps/Blacksmith_interior.tmx#Walls_interior": {
             "dynamicWrapping": false,
-            "scaleInDock": 0.75
+            "scaleInDock": 0.75,
+            "scaleInEditor": 1
         },
         "maps/Canvas_Village.tmx": {
             "expandedGroupLayers": [
                 50,
-                54,
-                45,
                 31,
-                43
+                45,
+                54
             ],
             "expandedObjectLayers": [
-                12,
+                10,
                 8,
-                4,
-                10
+                12,
+                4
             ],
-            "scale": 1.5,
-            "selectedLayer": 33,
+            "scale": 0.75,
+            "selectedLayer": 38,
             "viewCenter": {
-                "x": 1694,
-                "y": 2893
+                "x": 1196,
+                "y": 2602
             }
         },
         "maps/Canvas_Village.tmx#Archer": {
@@ -1548,8 +1682,12 @@
             "scaleInEditor": 1
         },
         "maps/Canvas_Village.tmx#Boat1": {
-            "scaleInDock": 0.25,
-            "scaleInEditor": 0.75
+            "scaleInDock": 0.5,
+            "scaleInEditor": 1
+        },
+        "maps/Canvas_Village.tmx#Boat2": {
+            "scaleInDock": 0.5,
+            "scaleInEditor": 1
         },
         "maps/Canvas_Village.tmx#Details": {
             "scaleInDock": 0.75,
@@ -1592,7 +1730,7 @@
         },
         "maps/Canvas_Village.tmx#Objects": {
             "scaleInDock": 0.5,
-            "scaleInEditor": 1.5
+            "scaleInEditor": 1
         },
         "maps/Canvas_Village.tmx#Plants": {
             "scaleInDock": 0.75
@@ -1606,7 +1744,7 @@
             "scaleInEditor": 1
         },
         "maps/Canvas_Village.tmx#Trees_rocks": {
-            "scaleInDock": 0.75,
+            "scaleInDock": 0.5,
             "scaleInEditor": 1
         },
         "maps/Canvas_Village.tmx#Walls_street": {
@@ -1617,7 +1755,7 @@
         "maps/Canvas_Village.tmx#Water_coasts": {
             "dynamicWrapping": false,
             "scaleInDock": 0.75,
-            "scaleInEditor": 3
+            "scaleInEditor": 1.5
         },
         "maps/Canvas_Village.tmx#fence": {
             "scaleInDock": 1
@@ -1627,7 +1765,7 @@
             "scaleInEditor": 1.5
         },
         "maps/Canvas_Village.tmx#piles": {
-            "scaleInDock": 0.33,
+            "scaleInDock": 1.5,
             "scaleInEditor": 1
         },
         "maps/Canvas_Village.tmx#walls": {
@@ -1636,22 +1774,106 @@
         "maps/Canvas_Village.tmx#water_detilazation_v2": {
             "scaleInDock": 0.25
         },
+        "maps/Dungeon1.tmx": {
+            "scale": 1.5,
+            "selectedLayer": 0,
+            "viewCenter": {
+                "x": 42,
+                "y": 152.33333333333331
+            }
+        },
+        "maps/Dungeon1.tmx#Objects": {
+            "scaleInDock": 1
+        },
+        "maps/Dungeon1.tmx#Water_coasts_animation": {
+            "scaleInDock": 1
+        },
+        "maps/Dungeon1.tmx#Water_coasts_animation_decorative_cracks": {
+            "scaleInDock": 1
+        },
+        "maps/Dungeon1.tmx#Water_detilazation": {
+            "scaleInDock": 1
+        },
+        "maps/Dungeon1.tmx#cracked_tiles": {
+            "scaleInDock": 1
+        },
+        "maps/Dungeon1.tmx#cracked_tiles_floor": {
+            "scaleInDock": 1
+        },
+        "maps/Dungeon1.tmx#doors_lever_chest_animation": {
+            "scaleInDock": 1
+        },
+        "maps/Dungeon1.tmx#fire_animation": {
+            "scaleInDock": 1
+        },
+        "maps/Dungeon1.tmx#fire_animation2": {
+            "scaleInDock": 1
+        },
+        "maps/Dungeon1.tmx#trap_animation": {
+            "scaleInDock": 1
+        },
+        "maps/Dungeon1.tmx#walls_floor": {
+            "scaleInDock": 1
+        },
         "maps/Fisher_interior.tmx": {
             "expandedObjectLayers": [
-                10
+                10,
+                9
             ],
             "scale": 2,
-            "selectedLayer": 9,
+            "selectedLayer": 11,
             "viewCenter": {
-                "x": 262.5,
-                "y": 238.75
+                "x": 213,
+                "y": 229.25
             }
         },
         "maps/Fisher_interior.tmx#Interior_objects": {
-            "scaleInDock": 0.5
+            "scaleInDock": 0.5,
+            "scaleInEditor": 1
         },
         "maps/Fisher_interior.tmx#Interior_walls_floor": {
-            "scaleInDock": 0.75
+            "scaleInDock": 0.75,
+            "scaleInEditor": 1
+        },
+        "maps/Shattered_Lake.tmx": {
+            "scale": 0.33,
+            "selectedLayer": 0,
+            "viewCenter": {
+                "x": 848.4848484848483,
+                "y": 1153.0303030303028
+            }
+        },
+        "maps/Shattered_Lake.tmx#Grass": {
+            "scaleInDock": 0.5,
+            "scaleInEditor": 2
+        },
+        "maps/Shattered_Lake.tmx#Grass_Water": {
+            "scaleInDock": 1,
+            "scaleInEditor": 1.5
+        },
+        "maps/Shattered_Lake.tmx#Lilis": {
+            "scaleInDock": 1
+        },
+        "maps/Shattered_Lake.tmx#Objects": {
+            "scaleInDock": 0.25
+        },
+        "maps/Shattered_Lake.tmx#Objects2": {
+            "scaleInDock": 0.5
+        },
+        "maps/Shattered_Lake.tmx#Spots": {
+            "scaleInDock": 1
+        },
+        "maps/Shattered_Lake.tmx#Water_coasts": {
+            "scaleInDock": 1
+        },
+        "maps/Shattered_Lake.tmx#duckweed": {
+            "scaleInDock": 1
+        },
+        "maps/Shattered_Lake.tmx#water_detilazation_v2": {
+            "scaleInDock": 1
+        },
+        "maps/Shattered_Lake.tmx#water_lilis": {
+            "scaleInDock": 1
         },
         "maps/harta.tmx": {
             "scale": 0.17842187499999998,
@@ -1662,6 +1884,17 @@
             }
         },
         "maps/harta.tmx#fence": {
+            "scaleInDock": 1
+        },
+        "maps/test.tmx": {
+            "scale": 0.33,
+            "selectedLayer": 0,
+            "viewCenter": {
+                "x": 1584.8484848484848,
+                "y": 1162.1212121212122
+            }
+        },
+        "maps/test.tmx#Grass_sheet": {
             "scaleInDock": 1
         },
         "maps/water_detilazation_v2.tsx": {
@@ -1675,32 +1908,30 @@
         }
     },
     "frame.defaultDuration": 120,
-    "last.imagePath": "C:/Users/cstyl/Documents/Michi-s-adventure/ceva/src/res/tiles/CANVAS VILLAGE/Square Market/Blacksmith",
-    "map.height": 15,
+    "last.imagePath": "C:/Users/cstyl/Documents/Michi-s-adventure/ceva/src/res/tiles/SHATTERED LAKE",
+    "map.height": 80,
     "map.lastUsedFormat": "tmx",
-    "map.width": 20,
+    "map.width": 80,
     "openFiles": [
         "maps/Canvas_Village.tmx",
-        "maps/Blacksmith_interior.tmx",
-        "C:/Users/cstyl/Downloads/craftpix-net-471853-top-down-farm-with-animals-pixel-art-asset-pack (1)/Tiled_files/Farm.tmx",
-        "maps/Fisher_interior.tmx",
+        "maps/Shattered_Lake.tmx",
         "maps/Awakening_Cave.tmx"
     ],
     "project": "MichiAdventure.tiled-project",
-    "property.type": "RenderBucket",
+    "property.type": "int",
     "recentFiles": [
-        "C:/Users/cstyl/Downloads/craftpix-net-587497-pixel-art-market-square-rpg-shop-and-npc-assets-pack/Tiled_files/Market_square.tmx",
-        "C:/Users/cstyl/Downloads/craftpix-net-741016-pixel-blacksmith-house-interior-and-exterior-assets/Tiled_files/Blacksmith_house_exterior.tmx",
-        "maps/Blacksmith_interior.tmx",
-        "C:/Users/cstyl/Downloads/craftpix-net-471853-top-down-farm-with-animals-pixel-art-asset-pack (1)/Tiled_files/Farm.tmx",
-        "maps/Fisher_interior.tmx",
-        "maps/Awakening_Cave.tmx",
         "maps/Canvas_Village.tmx",
-        "C:/Users/cstyl/Downloads/craftpix-net-477438-free-chapel-pixel-art-top-down-asset-pack/Tiled_files/Interior.tmx",
-        "C:/Users/cstyl/Downloads/craftpix-net-189510-grassland-top-down-tileset-pixel-art/Tiled_files/Water_detilazation2.tsx",
-        "C:/Users/cstyl/Downloads/craftpix-net-189510-grassland-top-down-tileset-pixel-art/Tiled_files/Glades.tmx",
-        "C:/Users/cstyl/Downloads/craftpix-net-885927-2d-pixel-fishing-village-pack-dock-interior-boats-npcs/Tiled_foles/Interior.tmx",
-        "C:/Users/cstyl/AppData/Local/Temp/488b104b-026d-4e18-81b4-213a657e8dac_craftpix-net-189510-grassland-top-down-tileset-pixel-art.zip.dac/Tiled_files/Glades.tmx"
+        "maps/Awakening_Cave.tmx",
+        "maps/Shattered_Lake.tmx",
+        "maps/Blacksmith_interior.tmx",
+        "C:/Users/cstyl/Downloads/craftpix-net-624156-swamp-top-down-tileset-pixel-art/Tiled_files/Swamp.tmx",
+        "C:/Users/cstyl/Downloads/craftpix-net-624156-swamp-top-down-tileset-pixel-art/Tiled_files/Water_coasts..tsx",
+        "C:/Users/cstyl/Downloads/craftpix-net-885927-2d-pixel-fishing-village-pack-dock-interior-boats-npcs/Tiled_foles/Fishing_dock.tmx",
+        "C:/Users/cstyl/Downloads/craftpix-net-885927-2d-pixel-fishing-village-pack-dock-interior-boats-npcs/Tiled_foles/Boats_fish_characters.tmx",
+        "maps/Fisher_interior.tmx",
+        "maps/test.tmx",
+        "maps/Dungeon1.tmx",
+        "C:/Users/cstyl/Downloads/craftpix-net-471853-top-down-farm-with-animals-pixel-art-asset-pack (1)/Tiled_files/Farm.tmx"
     ],
     "tileset.embedInMap": true,
     "tileset.lastUsedFormat": "tsx"

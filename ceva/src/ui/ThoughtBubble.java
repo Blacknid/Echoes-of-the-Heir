@@ -14,6 +14,9 @@ import main.GamePanel;
 /**
  * Non-blocking inner monologue / thought system.
  *
+ * PERFORMANCE: THOUGHT_FONT is a static constant — never allocated per frame.
+ * Creating a new Font object every frame causes UI.fmCache unbounded growth.
+ *
  * Unlike NPC dialogue, thoughts:
  *   - Do NOT pause the game
  *   - Do NOT require Enter to dismiss
@@ -34,6 +37,10 @@ import main.GamePanel;
  *     linger   (int)     120        — frames to hold after typing finishes (optional)
  */
 public class ThoughtBubble {
+
+    // Cached font — static so it is created once for the lifetime of the JVM.
+    // Never use `new Font(...)` inside draw(); it grows UI.fmCache by 1 entry/frame.
+    private static final Font THOUGHT_FONT = new Font("Serif", Font.ITALIC, 28);
 
     private final GamePanel gp;
 
@@ -173,8 +180,7 @@ public class ThoughtBubble {
 
         // Font: italic serif for inner monologue feel
         g2.setRenderingHint(RenderingHints.KEY_TEXT_ANTIALIASING, RenderingHints.VALUE_TEXT_ANTIALIAS_ON);
-        Font thoughtFont = new Font("Serif", Font.ITALIC, 28);
-        g2.setFont(thoughtFont);
+        g2.setFont(THOUGHT_FONT);
         FontMetrics fm = g2.getFontMetrics();
 
         int textW = fm.stringWidth(visible);

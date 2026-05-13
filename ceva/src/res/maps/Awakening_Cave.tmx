@@ -4,7 +4,7 @@
   <property name="actTitle" value="Act I: The Awakening Cave"/>
   <property name="actTitleNewGameOnly" type="bool" value="true"/>
   <property name="ambientLight" type="float" value="0.7"/>
-  <property name="music" type="int" value="2"/>
+  <property name="music" type="int" value="1"/>
   <property name="weather" value="CLEAR"/>
   <property name="weatherCycle" type="bool" value="false"/>
  </properties>

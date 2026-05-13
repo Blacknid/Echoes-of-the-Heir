@@ -150,9 +150,13 @@ public class UI {
     private final HashMap<Font, FontMetrics> fmCache = new HashMap<>();
     private FontMetrics cachedFM() {
         Font f = g2.getFont();
+        // Safety cap: if the cache somehow grows large (e.g. Font objects created outside
+        // the cachedFont() path), clear it so it stays bounded. Normal cap is ~20 entries.
+        if (fmCache.size() > 100) fmCache.clear();
         return fmCache.computeIfAbsent(f, k -> g2.getFontMetrics(k));
     }
     private FontMetrics cachedFM(Font font) {
+        if (fmCache.size() > 100) fmCache.clear();
         return fmCache.computeIfAbsent(font, k -> g2.getFontMetrics(k));
     }
     // â”€â”€ CACHED STAT-BAR COLORS (static, no alpha variation) â”€â”€
@@ -1715,9 +1719,9 @@ public class UI {
      * the cache — do not mutate.
      */
     private java.util.List<String> wrapTextCached(String text, Font font, int maxWidth) {
-        if (text == dialogueWrapKeyText
-                && maxWidth == dialogueWrapKeyWidth
-                && font == dialogueWrapKeyFont) {
+        if (maxWidth == dialogueWrapKeyWidth
+                && font == dialogueWrapKeyFont
+                && text != null && text.equals(dialogueWrapKeyText)) {
             return dialogueWrapCache;
         }
         // Recompute and copy into the persistent cache list
@@ -1728,6 +1732,73 @@ public class UI {
         dialogueWrapKeyWidth = maxWidth;
         dialogueWrapKeyFont  = font;
         return dialogueWrapCache;
+    }
+
+    /**
+     * Called from {@link main.GamePanel#update()} at 60 UPS.
+     * Handles all dialogue state mutations: typewriter tick, Enter input, gameState transitions.
+     * Keeping mutations here (not in the draw path) means dialogue speed is always 60 chars/sec
+     * regardless of FPS, and the EDT is never starved by rapid wrapText() calls.
+     */
+    public void updateDialogueState() {
+        if (npc == null) return;
+
+        String[][] dlgSets = npc.ensureDialogues();
+        String fullLine = (npc.dialogueSet < dlgSets.length
+                           && npc.dialogueIndex < dlgSets[npc.dialogueSet].length)
+                           ? dlgSets[npc.dialogueSet][npc.dialogueIndex]
+                           : null;
+        int fullLineLen = (fullLine != null) ? fullLine.length() : 0;
+
+        if (fullLine != null) {
+            // Typewriter: one char per update tick (60 UPS = ~60 chars/sec, FPS-independent).
+            if (charIndex < fullLineLen) {
+                dialogueBuilder.append(fullLine.charAt(charIndex));
+                charIndex++;
+            }
+            // When typing is complete, reuse the original String object so that
+            // wrapTextCached()'s reference-equality fast-path fires on every draw frame.
+            currentDialogue = (charIndex < fullLineLen) ? dialogueBuilder.toString() : fullLine;
+
+            if (gp.keyH.enterPressed) {
+                charIndex = 0;
+                combinedText = "";
+                dialogueBuilder.setLength(0);
+
+                if (gp.gameState == GamePanel.dialogueState || gp.gameState == GamePanel.cutsceneState) {
+                    // Choice confirmation: if choices are showing, apply the selected choice
+                    if (npc.dialogueChoices != null && npc.dialogueChoices.length > 0) {
+                        if ("ending".equals(npc.choiceResultKey)) {
+                            gp.endingChosen = npc.selectedChoice + 1;
+                        }
+                        if (npc.choiceNextSet != null && npc.selectedChoice < npc.choiceNextSet.length) {
+                            npc.dialogueSet = npc.choiceNextSet[npc.selectedChoice];
+                            npc.dialogueIndex = 0;
+                        } else {
+                            npc.dialogueIndex++;
+                        }
+                        npc.dialogueChoices = null;
+                        npc.selectedChoice = 0;
+                    } else {
+                        npc.dialogueIndex++;
+                    }
+                    gp.keyH.enterPressed = false;
+                }
+            }
+        } else {
+            // End of dialogue
+            npc.dialogueIndex = 0;
+            dialogueBuilder.setLength(0);
+            currentDialogue = "";
+
+            if (gp.gameState == GamePanel.dialogueState) {
+                gp.gameState = GamePanel.playState;
+            }
+            if (gp.gameState == GamePanel.cutsceneState) {
+                gp.csManager.scenePhase++;
+                npc = null;
+            }
+        }
     }
 
     public void drawDialogueScreen() {
@@ -1785,8 +1856,8 @@ public class UI {
         }
         int textX = x + portraitOffset;
 
-        // OPTIMIZATION: look up the active dialogue string ONCE per frame instead of 4 times.
-        // Each ensureDialogues() call traverses the dialogue 2D array and may allocate.
+        // All state mutations (typewriter tick, Enter handling, gameState changes) happen in
+        // updateDialogueState() at 60 UPS. drawDialogueScreen() is read-only — it only draws.
         String[][] dlgSets = npc.ensureDialogues();
         String fullLine    = (npc.dialogueSet < dlgSets.length
                               && npc.dialogueIndex < dlgSets[npc.dialogueSet].length)
@@ -1794,61 +1865,9 @@ public class UI {
                               : null;
         int fullLineLen    = (fullLine != null) ? fullLine.length() : 0;
 
-        if ( fullLine != null ) {
-
-            currentDialogue = fullLine;
-
-            // Typewriter: append one character per frame to the StringBuilder, no String
-            // concatenation. Also no toCharArray() — direct charAt() is allocation-free.
-            if ( charIndex < fullLineLen ) {
-                dialogueBuilder.append(fullLine.charAt(charIndex));
-                currentDialogue = dialogueBuilder.toString();
-                charIndex++;
-            }
-
-            if ( gp.keyH.enterPressed ) {
-
-                charIndex = 0;
-                combinedText = "";
-                dialogueBuilder.setLength(0);
-
-                if ( gp.gameState == GamePanel.dialogueState || gp.gameState == GamePanel.cutsceneState ) {
-
-                        // Choice confirmation: if choices are showing, apply the selected choice
-                        if (npc.dialogueChoices != null && npc.dialogueChoices.length > 0) {
-                            // Store result key (e.g. "ending" -> gp.endingChosen)
-                            if ("ending".equals(npc.choiceResultKey)) {
-                                gp.endingChosen = npc.selectedChoice + 1; // 1-based
-                            }
-                            // Jump to the dialogue set mapped to this choice
-                            if (npc.choiceNextSet != null && npc.selectedChoice < npc.choiceNextSet.length) {
-                                npc.dialogueSet = npc.choiceNextSet[npc.selectedChoice];
-                                npc.dialogueIndex = 0;
-                            } else {
-                                npc.dialogueIndex++;
-                            }
-                            npc.dialogueChoices = null; // clear choices after confirming
-                            npc.selectedChoice = 0;
-                        } else {
-                            npc.dialogueIndex++;
-                        }
-                        gp.keyH.enterPressed = false;
-                }
-            }
-        }
-        else { // IF NO TEXT IS IN THE ARRAY
-            npc.dialogueIndex = 0;
-            dialogueBuilder.setLength(0);
-
-            if ( gp.gameState == GamePanel.dialogueState ) {
-                gp.gameState = GamePanel.playState;
-            }
-            if ( gp.gameState == GamePanel.cutsceneState ) {
-                gp.csManager.scenePhase++;
-                npc = null; // prevent dialogue from replaying in later cutscene phases
-                return;
-            }
-        }
+        // End-of-dialogue transitions are already handled in updateDialogueState;
+        // if fullLine is null here the state change is scheduled — skip drawing.
+        if (fullLine == null) return;
 
         // -- DRAW TEXT with shadow (auto word-wrapped, cached per frame) --
         Font dialogueFont = cachedFont(Font.PLAIN, 28F);
