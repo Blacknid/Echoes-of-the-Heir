@@ -47,7 +47,7 @@ public final class UpdateClient {
             "MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEA0000000000000000000000000000000000000000000000000PASTE_REAL_KEY_HERE";
 
     private static final List<String> FALLBACK_HOSTS = List.of(
-            "localhost:5006"
+            "192.168.137.14:5006"
     );
 
     private static final int CONNECT_TIMEOUT_MS = 4000;

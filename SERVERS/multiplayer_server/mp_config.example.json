@@ -4,7 +4,9 @@
   "private_key_path": "server_private_key.pem",
 
   "license_salt": "MichiCloudSalt2026",
-  "license_pepper": "michi-license-pepper-v2",
+  "license_public_key_b64": "REPLACE_WITH_PUBLIC_KEY_FROM_generate_license_keys.py",
+  "licenses_db": "licenses.json",
+  "dev_mode": false,
   "max_players": 8,
   "rate_limit_per_ip_per_minute": 30,
 

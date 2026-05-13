@@ -44,7 +44,6 @@ import javax.crypto.spec.SecretKeySpec;
  */
 public class MultiplayerClient {
 
-    private static final String DEBUG_LICENSE = "DEBUG000-0000";
     private static final String DEBUG_FALLBACK_HOST = "127.0.0.1";
     private static final int DEBUG_FALLBACK_PORT = 7777;
 
@@ -108,10 +107,20 @@ public class MultiplayerClient {
 
         new Thread(() -> {
             try {
-                String license = Main.DEBUG_MODE ? DEBUG_LICENSE : Main.LICENSE_KEY;
+                // Re-verify the on-disk license file right before connecting.
+                // Catches mid-session tampering / file-swap / fp drift.
+                if (Main.LICENSE_KEY != null && !data.LicenseManager.verifyCurrent()) {
+                    Main.LICENSE_KEY = null;
+                    connecting.set(false);
+                    connectionStatus = "License re-verify failed — connection refused.";
+                    System.out.println("[MP Client] License re-verify failed — aborting connect.");
+                    return;
+                }
+
+                String license = Main.LICENSE_KEY;
                 if (license == null || license.isBlank()) {
                     connecting.set(false);
-                    connectionStatus = "No license key. Multiplayer requires a valid license.";
+                    connectionStatus = "No valid license. Multiplayer requires a signed license.";
                     System.out.println("[MP Client] Missing license — aborting connect.");
                     return;
                 }
@@ -275,11 +284,16 @@ public class MultiplayerClient {
             byte[] serverNonce = Base64.getDecoder().decode(okLine.substring(3));
             if (serverNonce.length != 16) return false;
 
-            // Step 3: AUTH (RSA-OAEP) — bundle name+class so server can build PlayerState atomically
+            // Step 3: AUTH (RSA-OAEP) — bundle name+class so server can build PlayerState atomically.
+            // The "debug" field is gone: it was a server-side bypass and a critical hole.
+            // Servers now decide debug-mode policy via their own config.
+            String fp  = data.LicenseManager.getCachedMachineFp();
+            String sig = data.LicenseManager.getCachedSignature();
             String handshakeJson = "{"
                     + "\"license\":\""      + jsonEscape(license)            + "\","
+                    + "\"machine_fp\":\""   + jsonEscape(fp != null ? fp : "")  + "\","
+                    + "\"license_sig\":\""  + jsonEscape(sig != null ? sig : "") + "\","
                     + "\"ts\":"             + (System.currentTimeMillis() / 1000L) + ","
-                    + "\"debug\":"          + Main.DEBUG_MODE                  + ","
                     + "\"client_nonce\":\"" + toHex(clientNonce)              + "\","
                     + "\"server_nonce\":\"" + toHex(serverNonce)              + "\","
                     + "\"name\":\""         + jsonEscape(name)                + "\","

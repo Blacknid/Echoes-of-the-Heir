@@ -88,6 +88,12 @@ public class GamePanel extends JPanel implements Runnable{
     private java.awt.geom.AffineTransform identityTransform;
 
     public boolean fullScreenOn = false;
+
+    // WINDOW CONTROL BUTTONS (drawn on-panel; window is always undecorated)
+    private static final int WCB_SIZE = 18;
+    private static final int WCB_GAP  = 4;
+    private static final int WCB_TOP  = 5;
+    private volatile java.awt.Point wcbHover = null;
     public boolean vSyncOn = true; // V-Sync toggle: sync rendering to monitor refresh rate
 
     // TIMING
@@ -276,13 +282,25 @@ public class GamePanel extends JPanel implements Runnable{
         java.awt.Point[] dragStart = {null};
         addMouseListener(new java.awt.event.MouseAdapter() {
             @Override public void mousePressed(java.awt.event.MouseEvent e) {
+                java.awt.Rectangle[] btns = getWCBRects();
+                if (btns[0].contains(e.getPoint())) { System.exit(0); return; }
+                if (btns[1].contains(e.getPoint())) { applyFullScreenSetting(!fullScreenOn); return; }
+                if (btns[2].contains(e.getPoint())) {
+                    if (Main.window != null) Main.window.setExtendedState(JFrame.ICONIFIED); return;
+                }
                 if (!fullScreenOn) dragStart[0] = e.getLocationOnScreen();
             }
             @Override public void mouseReleased(java.awt.event.MouseEvent e) {
                 dragStart[0] = null;
             }
+            @Override public void mouseExited(java.awt.event.MouseEvent e) {
+                wcbHover = null;
+            }
         });
         addMouseMotionListener(new java.awt.event.MouseMotionAdapter() {
+            @Override public void mouseMoved(java.awt.event.MouseEvent e) {
+                wcbHover = e.getPoint();
+            }
             @Override public void mouseDragged(java.awt.event.MouseEvent e) {
                 if (!fullScreenOn && dragStart[0] != null && Main.window != null) {
                     java.awt.Point cur = e.getLocationOnScreen();
@@ -459,7 +477,12 @@ public class GamePanel extends JPanel implements Runnable{
         // the extended state. No dispose = no OpenGL surface destruction = no black screen.
         if (enableFullScreen) {
             windowedBounds = window.getBounds();  // save for restore
+            java.awt.Dimension screen = Toolkit.getDefaultToolkit().getScreenSize();
             window.setExtendedState(JFrame.MAXIMIZED_BOTH);
+            // Explicitly set bounds after MAXIMIZED_BOTH — on some Windows+OpenGL
+            // configurations the state change alone doesn't trigger a proper geometry
+            // update, leaving the panel at its old size and causing a black frame.
+            window.setBounds(0, 0, screen.width, screen.height);
         } else {
             window.setExtendedState(JFrame.NORMAL);
             if (windowedBounds != null && windowedBounds.width > 0) {
@@ -473,9 +496,99 @@ public class GamePanel extends JPanel implements Runnable{
             }
         }
 
+        window.validate();
         window.toFront();
         requestFocusInWindow();
+
+        // Recreate the hardware back-buffer after the window mode change.
+        // With sun.java2d.opengl=True the CompatibleImage backing texture is tied to
+        // the window's GL surface; resizing the window (especially to full-screen)
+        // invalidates that texture. drawImage then silently draws nothing, producing
+        // a persistent black screen. Creating a fresh CompatibleImage from the
+        // current GraphicsConfiguration gives us a clean, valid surface.
+        // The second invokeLater lets the window settle (validate/repaint cycle)
+        // before we swap the buffers, so we get the correct GC for the new size.
+        SwingUtilities.invokeLater(this::recreateBackBuffer);
     }
+
+    private void recreateBackBuffer() {
+        java.awt.GraphicsConfiguration gc = java.awt.GraphicsEnvironment
+            .getLocalGraphicsEnvironment().getDefaultScreenDevice().getDefaultConfiguration();
+        BufferedImage newScreen = gc.createCompatibleImage(
+            screenWidth, screenHeight, java.awt.Transparency.OPAQUE);
+        Graphics2D newG2 = (Graphics2D) newScreen.getGraphics();
+        newG2.setRenderingHint(java.awt.RenderingHints.KEY_RENDERING,
+            java.awt.RenderingHints.VALUE_RENDER_SPEED);
+        newG2.setRenderingHint(java.awt.RenderingHints.KEY_INTERPOLATION,
+            java.awt.RenderingHints.VALUE_INTERPOLATION_NEAREST_NEIGHBOR);
+        newG2.setRenderingHint(java.awt.RenderingHints.KEY_COLOR_RENDERING,
+            java.awt.RenderingHints.VALUE_COLOR_RENDER_SPEED);
+        java.awt.geom.AffineTransform newIdentity = newG2.getTransform();
+        synchronized (this) {
+            if (g2 != null) g2.dispose();
+            g2 = newG2;
+            tempScreen = newScreen;
+            identityTransform = newIdentity;
+        }
+    }
+
+    private java.awt.Rectangle[] getWCBRects() {
+        int pw = getWidth();
+        int closeX = pw - WCB_GAP - WCB_SIZE;
+        int fullX  = closeX - WCB_GAP - WCB_SIZE;
+        int minX   = fullX  - WCB_GAP - WCB_SIZE;
+        return new java.awt.Rectangle[] {
+            new java.awt.Rectangle(closeX, WCB_TOP, WCB_SIZE, WCB_SIZE),
+            new java.awt.Rectangle(fullX,  WCB_TOP, WCB_SIZE, WCB_SIZE),
+            new java.awt.Rectangle(minX,   WCB_TOP, WCB_SIZE, WCB_SIZE),
+        };
+    }
+
+    private void drawWindowControls(Graphics2D g2d) {
+        java.awt.Rectangle[] rects = getWCBRects();
+        java.awt.Point hover = wcbHover;
+
+        java.awt.RenderingHints savedHints = g2d.getRenderingHints();
+        g2d.setRenderingHint(java.awt.RenderingHints.KEY_ANTIALIASING,
+                java.awt.RenderingHints.VALUE_ANTIALIAS_ON);
+        java.awt.Stroke savedStroke = g2d.getStroke();
+        g2d.setStroke(new java.awt.BasicStroke(1.6f,
+                java.awt.BasicStroke.CAP_ROUND, java.awt.BasicStroke.JOIN_ROUND));
+
+        for (int i = 0; i < 3; i++) {
+            java.awt.Rectangle r = rects[i];
+            boolean hovered = (hover != null && r.contains(hover));
+
+            Color base = (i == 0) ? new Color(160, 45, 45, 210)
+                       : (i == 1) ? new Color(45, 110, 175, 210)
+                                  : new Color(70, 70, 70, 190);
+            g2d.setColor(hovered ? base.brighter() : base);
+            g2d.fillRoundRect(r.x, r.y, r.width, r.height, 5, 5);
+
+            g2d.setColor(new Color(255, 255, 255, 215));
+            int cx = r.x + r.width  / 2;
+            int cy = r.y + r.height / 2;
+            int m  = 4;
+
+            if (i == 0) {
+                g2d.drawLine(cx - m, cy - m, cx + m, cy + m);
+                g2d.drawLine(cx + m, cy - m, cx - m, cy + m);
+            } else if (i == 1) {
+                if (fullScreenOn) {
+                    g2d.drawRect(cx - m + 2, cy - m,     m * 2 - 3, m * 2 - 3);
+                    g2d.drawRect(cx - m,     cy - m + 2, m * 2 - 3, m * 2 - 3);
+                } else {
+                    g2d.drawRect(cx - m, cy - m, m * 2, m * 2);
+                }
+            } else {
+                g2d.drawLine(cx - m, cy + 2, cx + m, cy + 2);
+            }
+        }
+
+        g2d.setStroke(savedStroke);
+        g2d.setRenderingHints(savedHints);
+    }
+
     /**
      * Toggle V-Sync on/off. Affects whether the game syncs to monitor refresh rate or runs uncapped.
      * Note: Enable recommended for smooth gameplay, disable for maximum FPS in benchmarks.
@@ -663,6 +776,7 @@ public class GamePanel extends JPanel implements Runnable{
                 }
             }
         }
+        drawWindowControls((Graphics2D) g);
         Toolkit.getDefaultToolkit().sync();
     }
 

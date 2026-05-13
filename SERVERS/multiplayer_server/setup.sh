@@ -98,7 +98,7 @@ if [ ! -f "${CONFIG_FILE}" ]; then
     cp "${SCRIPT_DIR}/mp_config.example.json" "${CONFIG_FILE}"
     chown "${REAL_USER}":"${REAL_USER}" "${CONFIG_FILE}"
     echo "  [✓] Created ${CONFIG_FILE} from example."
-    echo "  Edit it to set license_salt, license_pepper, max_players, etc."
+    echo "  Edit it to set license_salt, max_players, etc."
 else
     echo "  [✓] Config already exists: ${CONFIG_FILE}"
 fi
