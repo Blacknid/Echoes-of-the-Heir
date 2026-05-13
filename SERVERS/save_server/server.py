@@ -74,6 +74,8 @@ from cryptography.hazmat.primitives.asymmetric import padding as rsa_padding
 from cryptography.hazmat.primitives.ciphers.aead import AESGCM
 from cryptography.hazmat.primitives.kdf.hkdf import HKDF
 
+import license_verify
+
 # ── Defaults / constants ────────────────────────────────────────────────────
 BASE_DIR = Path(__file__).resolve().parent
 CONFIG_PATH = BASE_DIR / "server_config.json"
@@ -93,7 +95,18 @@ DEFAULT_CONFIG = {
     # Crypto identity — the ONLY place these values should be set.
     # Edit server_config.json on the server. Do NOT hardcode in client code.
     "license_salt":   "MichiCloudSalt2026",
-    "license_pepper": "michi-license-pepper-v2",
+    # RSA-2048 public key (DER/SPKI base64) that the installer uses to
+    # sign license.properties. MUST match LicenseManager.PUBLIC_KEY_B64.
+    # If left as the placeholder, signature verification is DISABLED and
+    # the server falls back to registry-only auth (still safer than the
+    # old salt-only check, but you should set this in production).
+    "license_public_key_b64": "REPLACE_WITH_PUBLIC_KEY_FROM_generate_license_keys.py",
+    # Path to the license allow-list (relative to this server's dir).
+    # See licenses.example.json for the schema.
+    "licenses_db": "licenses.json",
+    # Set true ONLY on a dev/localhost instance. Disables license verification
+    # entirely so you can connect without a signed license.properties.
+    "dev_mode": False,
     "rate_limit_per_ip_per_minute": 30,
     "max_concurrent_connections": 200,
     "handshake_timeout_seconds": 10,
@@ -136,6 +149,11 @@ def load_config() -> dict:
 
 # ── RSA private key ────────────────────────────────────────────────────────
 _private_key = None
+
+# ── License-verification globals (populated in serve_forever) ──────────────
+_LICENSE_PUB = None           # cryptography RSAPublicKey or None (placeholder)
+_LICENSE_DB_PATH: Path = BASE_DIR / "licenses.json"
+_LICENSE_REGISTRY: dict = {}
 
 
 def load_private_key(path: Path) -> None:
@@ -237,16 +255,6 @@ def init_db() -> None:
                 status      TEXT    NOT NULL
             )
         """)
-        con.execute("""
-            CREATE TABLE IF NOT EXISTS licenses (
-                license_key  TEXT    PRIMARY KEY,
-                salt_hex     TEXT    NOT NULL,
-                pepper_hex   TEXT    NOT NULL,
-                login_count  INTEGER NOT NULL DEFAULT 0,
-                rotated_at   TEXT    NOT NULL,
-                created_at   TEXT    NOT NULL
-            )
-        """)
         con.commit()
         con.close()
 
@@ -311,71 +319,6 @@ def load_payload(license_key: str) -> Optional[bytes]:
         persist_payload(license_key, data)
         return data
     return None
-
-
-ROTATION_INTERVAL = 5  # rotate salt+pepper every N successful logins
-
-
-def get_or_create_license_record(license_key: str) -> tuple[bytes, bytes, int]:
-    """Return (salt, pepper, login_count) for a license, creating DB row on first use."""
-    now = time.strftime("%Y-%m-%d %H:%M:%S", time.gmtime())
-    with _db_lock:
-        con = sqlite3.connect(str(DB_PATH))
-        con.execute("PRAGMA journal_mode=WAL")
-        row = con.execute(
-            "SELECT salt_hex, pepper_hex, login_count FROM licenses WHERE license_key = ?",
-            (license_key,),
-        ).fetchone()
-        if row is None:
-            salt   = os.urandom(32)
-            pepper = os.urandom(32)
-            con.execute(
-                """
-                INSERT INTO licenses (license_key, salt_hex, pepper_hex, login_count, rotated_at, created_at)
-                VALUES (?, ?, ?, 0, ?, ?)
-                """,
-                (license_key, salt.hex(), pepper.hex(), now, now),
-            )
-            con.commit()
-            login_count = 0
-            logging.info("New license registered: %s", license_key)
-        else:
-            salt        = bytes.fromhex(row[0])
-            pepper      = bytes.fromhex(row[1])
-            login_count = int(row[2])
-        con.close()
-    return salt, pepper, login_count
-
-
-def increment_login_and_maybe_rotate(license_key: str, login_count: int) -> None:
-    """Increment login counter; rotate salt+pepper every ROTATION_INTERVAL logins."""
-    new_count = login_count + 1
-    now = time.strftime("%Y-%m-%d %H:%M:%S", time.gmtime())
-    with _db_lock:
-        con = sqlite3.connect(str(DB_PATH))
-        con.execute("PRAGMA journal_mode=WAL")
-        if new_count % ROTATION_INTERVAL == 0:
-            new_salt   = os.urandom(32)
-            new_pepper = os.urandom(32)
-            con.execute(
-                """
-                UPDATE licenses
-                SET login_count = ?, salt_hex = ?, pepper_hex = ?, rotated_at = ?
-                WHERE license_key = ?
-                """,
-                (new_count, new_salt.hex(), new_pepper.hex(), now, license_key),
-            )
-            logging.info(
-                "Rotated salt/pepper for license %s (login #%d)",
-                license_key, new_count,
-            )
-        else:
-            con.execute(
-                "UPDATE licenses SET login_count = ? WHERE license_key = ?",
-                (new_count, license_key),
-            )
-        con.commit()
-        con.close()
 
 
 def log_event(client_ip: str, license_key: str, status: str) -> None:
@@ -481,8 +424,6 @@ def handle_client(conn: socket.socket, addr: tuple[str, int],
     client_ip = addr[0]
     license_key = ""
     status = "INIT"
-    _lic_login_count: int = -1
-    _auth_ok: bool = False
     try:
         first = recv_line(conn, max_bytes=512)
 
@@ -526,6 +467,8 @@ def handle_client(conn: socket.socket, addr: tuple[str, int],
             return
 
         license_key = str(payload.get("license", ""))[:32]
+        machine_fp  = str(payload.get("machine_fp", ""))[:64]
+        license_sig = str(payload.get("license_sig", ""))[:1024]
         ts = int(payload.get("ts", 0))
         try:
             cn_check = bytes.fromhex(str(payload.get("client_nonce", "")))
@@ -535,9 +478,32 @@ def handle_client(conn: socket.socket, addr: tuple[str, int],
             status = "AUTH_NONCE_FORMAT"
             return
 
+        # Step 1 (cheap): structural format + salt-checksum.
         if not license_is_valid(license_key, cfg["license_salt"]):
             send_line(conn, "AUTH_FAIL")
             status = "AUTH_BAD_LICENSE"
+            return
+
+        # Step 2: RSA signature over "license|machine_fp" must verify
+        # against the installer's public key (unless dev_mode).
+        if not cfg.get("dev_mode", False):
+            pub = _LICENSE_PUB
+            if pub is not None:
+                if not license_verify.verify_license_signature(
+                        pub, license_key, machine_fp, license_sig):
+                    send_line(conn, "AUTH_FAIL")
+                    status = "AUTH_BAD_SIGNATURE"
+                    return
+
+        # Step 3: registry allow-list + TOFU machine-fp pinning.
+        ok, reason = license_verify.authorize(
+            _LICENSE_DB_PATH, _LICENSE_REGISTRY,
+            license_key, machine_fp,
+            dev_mode=cfg.get("dev_mode", False),
+        )
+        if not ok:
+            send_line(conn, "AUTH_FAIL")
+            status = f"AUTH_{reason}"
             return
         if abs(int(time.time()) - ts) > HANDSHAKE_TS_WINDOW:
             send_line(conn, "AUTH_FAIL")
@@ -556,12 +522,9 @@ def handle_client(conn: socket.socket, addr: tuple[str, int],
             status = "AUTH_REPLAY"
             return
 
-        # Per-license crypto material (auto-created on first connect)
-        lic_salt, lic_pepper, login_count = get_or_create_license_record(license_key)
-
         delivery_key = hkdf(
-            secret=license_key.encode("utf-8") + lic_pepper,
-            salt=lic_salt + server_nonce,
+            secret=license_key.encode("utf-8") + b"michi-license-pepper-v2",
+            salt=server_nonce,
             info=b"michi-delivery-v2",
             length=32,
         )
@@ -573,8 +536,6 @@ def handle_client(conn: socket.socket, addr: tuple[str, int],
             aad=b"MichiCloudSession",
         )
         send_line(conn, "AUTH_OK " + base64.b64encode(enc_session).decode("ascii"))
-        _lic_login_count = login_count
-        _auth_ok = True
 
         # ── Encrypted command/response loop ──
         conn.settimeout(cfg["session_timeout_seconds"])
@@ -656,11 +617,6 @@ def handle_client(conn: socket.socket, addr: tuple[str, int],
         status = f"INTERNAL:{exc.__class__.__name__}"
         logging.exception("Unhandled error from %s", client_ip)
     finally:
-        if _auth_ok and _lic_login_count >= 0:
-            try:
-                increment_login_and_maybe_rotate(license_key, _lic_login_count)
-            except Exception:
-                logging.exception("Failed to update login counter for %s", license_key)
         log_event(client_ip, license_key, status)
         try:
             conn.shutdown(socket.SHUT_RDWR)
@@ -691,6 +647,21 @@ def serve_forever() -> None:
         )
         sys.exit(2)
     load_private_key(pk_path)
+
+    # Load the license public key + allow-list registry.
+    global _LICENSE_PUB, _LICENSE_DB_PATH, _LICENSE_REGISTRY
+    _LICENSE_PUB = license_verify.load_public_key(cfg.get("license_public_key_b64", ""))
+    if _LICENSE_PUB is None and not cfg.get("dev_mode", False):
+        logging.warning(
+            "license_public_key_b64 is unset/placeholder — signature verification "
+            "DISABLED. Set it in server_config.json for production."
+        )
+    db_rel = cfg.get("licenses_db", "licenses.json")
+    _LICENSE_DB_PATH = (BASE_DIR / db_rel) if not os.path.isabs(db_rel) else Path(db_rel)
+    _LICENSE_REGISTRY = license_verify.load_registry(_LICENSE_DB_PATH)
+    logging.info("License registry: %s (%d entries)", _LICENSE_DB_PATH, len(_LICENSE_REGISTRY))
+    if cfg.get("dev_mode", False):
+        logging.warning("dev_mode=True — ALL license checks bypassed. Do NOT use in production.")
 
     rate_limiter = IpRateLimiter(cfg["rate_limit_per_ip_per_minute"])
     nonce_cache = NonceCache()

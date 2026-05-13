@@ -22,13 +22,18 @@ public class Main {
             return;
         }
 
-        // Load license from properties file (written by installer)
-        try (java.io.InputStream in = new java.io.FileInputStream("license.properties")) {
-            java.util.Properties props = new java.util.Properties();
-            props.load(in);
-            String key = props.getProperty("license_key");
-            if (key != null && !key.isBlank()) LICENSE_KEY = key.trim();
-        } catch (Exception ignored) { /* no license — cloud saves will be unavailable */ }
+        // Load and verify the signed, machine-bound license.
+        // LicenseManager checks the RSA signature and machine fingerprint.
+        // Returns null silently on any failure — the game always runs.
+        LICENSE_KEY = data.LicenseManager.load();
+
+        // Start the local-verify watchdog: periodically re-validates the
+        // signed license file against its cached state. If the file is
+        // swapped, edited, or its machine fingerprint drifts mid-session,
+        // it nulls LICENSE_KEY so cloud-save / multiplayer abort cleanly.
+        if (LICENSE_KEY != null) {
+            data.LicenseManager.startWatchdog(60);
+        }
 
         // Enable OpenGL Java2D pipeline for smoother rendering.
         // V-Sync on/off is controlled from in-game settings.

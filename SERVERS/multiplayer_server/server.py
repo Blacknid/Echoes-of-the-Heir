@@ -53,10 +53,8 @@ import json
 import logging
 import os
 import signal
-import sqlite3
 import struct
 import sys
-import threading
 import time
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -70,11 +68,12 @@ from cryptography.hazmat.primitives.kdf.hkdf import HKDF
 
 from world import MapCollection, TmxMap
 
+import license_verify
+
 
 # ── Constants & defaults ────────────────────────────────────────────────────
 BASE_DIR = Path(__file__).resolve().parent
 CONFIG_PATH = BASE_DIR / "mp_config.json"
-DB_PATH = BASE_DIR / "mp_licenses.db"
 
 PROTOCOL_TAG = "v2"
 HANDSHAKE_TS_WINDOW = 60
@@ -112,7 +111,15 @@ DEFAULT_CONFIG = {
     # Crypto identity — set these in mp_config.json on the server.
     # They must match the values used when the license keys were generated.
     "license_salt":   "MichiCloudSalt2026",
-    "license_pepper": "michi-license-pepper-v2",
+    # RSA-2048 public key (DER/SPKI base64) that the installer uses to
+    # sign license.properties. MUST match LicenseManager.PUBLIC_KEY_B64.
+    # Placeholder = signature verification disabled (registry-only fallback).
+    "license_public_key_b64": "REPLACE_WITH_PUBLIC_KEY_FROM_generate_license_keys.py",
+    # Path to the license allow-list (relative to this server's dir).
+    "licenses_db": "licenses.json",
+    # Set true ONLY on a dev/localhost instance. Disables license verification
+    # entirely so you can connect without a signed license.properties.
+    "dev_mode": False,
     "max_players": MAX_PLAYERS_DEFAULT,
     "rate_limit_per_ip_per_minute": RATE_LIMIT_PER_IP_PER_MIN,
 
@@ -134,87 +141,6 @@ ALLOWED_NAME = set(
     "ABCDEFGHIJKLMNOPQRSTUVWXYZ"
     "0123456789_-. "
 )
-
-
-# ── Per-license DB (sync; called via run_in_executor from async code) ──────
-_db_lock = threading.Lock()
-ROTATION_INTERVAL = 5
-
-
-def init_mp_db() -> None:
-    with _db_lock:
-        con = sqlite3.connect(str(DB_PATH))
-        con.execute("PRAGMA journal_mode=WAL")
-        con.execute("""
-            CREATE TABLE IF NOT EXISTS licenses (
-                license_key  TEXT    PRIMARY KEY,
-                salt_hex     TEXT    NOT NULL,
-                pepper_hex   TEXT    NOT NULL,
-                login_count  INTEGER NOT NULL DEFAULT 0,
-                rotated_at   TEXT    NOT NULL,
-                created_at   TEXT    NOT NULL
-            )
-        """)
-        con.commit()
-        con.close()
-
-
-def _db_get_or_create(license_key: str) -> tuple[bytes, bytes, int]:
-    now = time.strftime("%Y-%m-%d %H:%M:%S", time.gmtime())
-    with _db_lock:
-        con = sqlite3.connect(str(DB_PATH))
-        con.execute("PRAGMA journal_mode=WAL")
-        row = con.execute(
-            "SELECT salt_hex, pepper_hex, login_count FROM licenses WHERE license_key = ?",
-            (license_key,),
-        ).fetchone()
-        if row is None:
-            salt   = os.urandom(32)
-            pepper = os.urandom(32)
-            con.execute(
-                """
-                INSERT INTO licenses
-                    (license_key, salt_hex, pepper_hex, login_count, rotated_at, created_at)
-                VALUES (?, ?, ?, 0, ?, ?)
-                """,
-                (license_key, salt.hex(), pepper.hex(), now, now),
-            )
-            con.commit()
-            login_count = 0
-            log.info("New MP license registered: %s", license_key)
-        else:
-            salt        = bytes.fromhex(row[0])
-            pepper      = bytes.fromhex(row[1])
-            login_count = int(row[2])
-        con.close()
-    return salt, pepper, login_count
-
-
-def _db_increment_and_rotate(license_key: str, login_count: int) -> None:
-    new_count = login_count + 1
-    now = time.strftime("%Y-%m-%d %H:%M:%S", time.gmtime())
-    with _db_lock:
-        con = sqlite3.connect(str(DB_PATH))
-        con.execute("PRAGMA journal_mode=WAL")
-        if new_count % ROTATION_INTERVAL == 0:
-            new_salt   = os.urandom(32)
-            new_pepper = os.urandom(32)
-            con.execute(
-                """
-                UPDATE licenses
-                SET login_count = ?, salt_hex = ?, pepper_hex = ?, rotated_at = ?
-                WHERE license_key = ?
-                """,
-                (new_count, new_salt.hex(), new_pepper.hex(), now, license_key),
-            )
-            log.info("Rotated MP salt/pepper for %s (login #%d)", license_key, new_count)
-        else:
-            con.execute(
-                "UPDATE licenses SET login_count = ? WHERE license_key = ?",
-                (new_count, license_key),
-            )
-        con.commit()
-        con.close()
 
 
 def load_config() -> dict:
@@ -540,16 +466,42 @@ class GameServer:
             return None
 
         license_key = str(payload.get("license", ""))[:32]
-        debug_auth = bool(payload.get("debug", False))
+        machine_fp  = str(payload.get("machine_fp", ""))[:64]
+        license_sig = str(payload.get("license_sig", ""))[:1024]
         ts = int(payload.get("ts", 0))
         cn_check = bytes.fromhex(str(payload.get("client_nonce", "")) or "")
         sn_check = bytes.fromhex(str(payload.get("server_nonce", "")) or "")
 
-        if not debug_auth and not license_is_valid(license_key, self.cfg["license_salt"]):
-            writer.write(b"AUTH_FAIL\n")
-            await writer.drain()
-            log.info("AUTH bad license from %s", peer)
-            return None
+        # Server-side dev_mode (ONLY localhost dev): bypass all license checks.
+        # The old client-controlled "debug" field is gone — that was a public bypass.
+        dev_mode = bool(self.cfg.get("dev_mode", False))
+
+        if not dev_mode:
+            # Step 1: structural format + salt-checksum.
+            if not license_is_valid(license_key, self.cfg["license_salt"]):
+                writer.write(b"AUTH_FAIL\n")
+                await writer.drain()
+                log.info("AUTH bad license format from %s", peer)
+                return None
+            # Step 2: RSA signature over "license|machine_fp" (if pubkey configured).
+            if self.license_pub is not None:
+                if not license_verify.verify_license_signature(
+                        self.license_pub, license_key, machine_fp, license_sig):
+                    writer.write(b"AUTH_FAIL\n")
+                    await writer.drain()
+                    log.info("AUTH bad signature from %s (license=%s)", peer, license_key)
+                    return None
+            # Step 3: registry allow-list + TOFU machine-fp pinning.
+            ok, reason = license_verify.authorize(
+                self.license_db_path, self.license_registry,
+                license_key, machine_fp, dev_mode=False,
+            )
+            if not ok:
+                writer.write(b"AUTH_FAIL\n")
+                await writer.drain()
+                log.info("AUTH %s from %s (license=%s)", reason, peer, license_key)
+                return None
+
         if abs(int(time.time()) - ts) > HANDSHAKE_TS_WINDOW:
             writer.write(b"AUTH_FAIL\n")
             await writer.drain()
@@ -569,26 +521,14 @@ class GameServer:
             log.info("AUTH replay rejected from %s", peer)
             return None
 
-        if debug_auth:
-            login_count = -1
-            delivery_key = hkdf(
-                secret=license_key.encode("utf-8") + b"michi-license-pepper-v2",
-                salt=server_nonce,
-                info=b"michi-delivery-v2",
-                length=32,
-            )
-            log.warning("DEBUG auth bypass accepted from %s", peer)
-        else:
-            loop = asyncio.get_event_loop()
-            lic_salt, lic_pepper, login_count = await loop.run_in_executor(
-                None, _db_get_or_create, license_key
-            )
-            delivery_key = hkdf(
-                secret=license_key.encode("utf-8") + lic_pepper,
-                salt=lic_salt + server_nonce,
-                info=b"michi-delivery-v2",
-                length=32,
-            )
+        if dev_mode:
+            log.warning("dev_mode auth bypass accepted from %s", peer)
+        delivery_key = hkdf(
+            secret=license_key.encode("utf-8") + b"michi-license-pepper-v2",
+            salt=server_nonce,
+            info=b"michi-delivery-v2",
+            length=32,
+        )
         session_key = os.urandom(32)
         enc_session = AESGCM(delivery_key).encrypt(
             client_nonce[:12], session_key, b"MichiMpSession"
@@ -596,7 +536,7 @@ class GameServer:
         writer.write(b"AUTH_OK " + base64.b64encode(enc_session) + b"\n")
         await writer.drain()
 
-        return session_key, payload, login_count
+        return session_key, payload
 
     # ── Per-client lifecycle ──
     async def handle_client(self, reader: asyncio.StreamReader,
@@ -651,9 +591,7 @@ class GameServer:
                 pass
             return
 
-        session_key, payload, login_count = handshake
-        license_key = str(payload.get("license", ""))[:32]
-        debug_auth = bool(payload.get("debug", False))
+        session_key, payload = handshake
 
         player = PlayerState(player_id=self._allocate_id())
         player.name = sanitize_name(payload.get("name", ""), "Player")
@@ -700,8 +638,6 @@ class GameServer:
             "class": player.player_class,
         }, exclude_id=player.player_id)
 
-        # Main loop — track login for rotation on exit
-        _session_ok = True
         try:
             while self._running:
                 try:
@@ -752,14 +688,6 @@ class GameServer:
         except (ConnectionError, asyncio.CancelledError):
             pass
         finally:
-            if _session_ok and not debug_auth:
-                loop = asyncio.get_event_loop()
-                try:
-                    await loop.run_in_executor(
-                        None, _db_increment_and_rotate, license_key, login_count
-                    )
-                except Exception:
-                    log.exception("Failed to update login counter for %s", license_key)
             if player.player_id in self.clients:
                 del self.clients[player.player_id]
             await client.close()
@@ -1000,9 +928,6 @@ def parse_args() -> argparse.Namespace:
 
 
 async def amain(host: str, port: int, max_players: int, private_key, cfg: dict) -> None:
-    loop = asyncio.get_running_loop()
-    await loop.run_in_executor(None, init_mp_db)
-
     nonce_cache = NonceCache()
     rate_limiter = IpRateLimiter(cfg.get("rate_limit_per_ip_per_minute", RATE_LIMIT_PER_IP_PER_MIN))
 
@@ -1024,12 +949,30 @@ async def amain(host: str, port: int, max_players: int, private_key, cfg: dict) 
         log.warning("active_map not set in mp_config.json — defaulting to '%s'",
                     active_map_id)
 
+    # Load license public key + allow-list registry. Stored on GameServer
+    # so the per-connection handshake can reach them without globals.
+    license_pub = license_verify.load_public_key(cfg.get("license_public_key_b64", ""))
+    if license_pub is None and not cfg.get("dev_mode", False):
+        log.warning(
+            "license_public_key_b64 is unset/placeholder — signature verification "
+            "DISABLED. Set it in mp_config.json for production."
+        )
+    db_rel = cfg.get("licenses_db", "licenses.json")
+    license_db_path = (BASE_DIR / db_rel) if not os.path.isabs(db_rel) else Path(db_rel)
+    license_registry = license_verify.load_registry(license_db_path)
+    log.info("License registry: %s (%d entries)", license_db_path, len(license_registry))
+    if cfg.get("dev_mode", False):
+        log.warning("dev_mode=True — ALL license checks bypassed. Do NOT use in production.")
+
     server = GameServer(
         host=host, port=port, max_players=max_players,
         private_key=private_key, nonce_cache=nonce_cache,
         rate_limiter=rate_limiter, cfg=cfg,
         maps=map_collection, active_map_id=active_map_id,
     )
+    server.license_pub = license_pub
+    server.license_db_path = license_db_path
+    server.license_registry = license_registry
 
     def shutdown_handler():
         log.info("Shutdown signal received...")

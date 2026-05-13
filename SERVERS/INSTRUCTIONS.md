@@ -1,5 +1,25 @@
 #**SERVERS INSTRUCTIONS**
 
+> **NOTE — crypto model update:** The per-license `salt`/`pepper` rotation
+> model previously documented in this file has been removed. The delivery
+> key on both the save server and the multiplayer server is now derived as:
+>
+> ```
+> delivery_key = HKDF(
+>     secret = license_bytes + b"michi-license-pepper-v2",
+>     salt   = server_nonce,
+>     info   = b"michi-delivery-v2",
+>     length = 32,
+> )
+> ```
+>
+> This matches the Java client (`CloudSaveService` / `MultiplayerClient`)
+> exactly, which it did not before. The `licenses` table, the
+> `license_pepper` config field, and the 5-login rotation logic no longer
+> exist. Only `license_salt` is still used (for structural validation of
+> license format). The ASCII diagrams below have not all been updated;
+> treat the server source code as the authoritative reference.
+
 Toate serverele au fost construite pentru a rula pe un sistem de operare linux. Versiunea folosita pentru development a fost Raspberry PI os (ARM64). Acestea functioneaza pentru orice versiune/distributie de linux, nu depinde de arhitectura procesorului. Pentru a rula setup-urile avem nevoie de:
 
 1. Python 3.11 sau mai nou

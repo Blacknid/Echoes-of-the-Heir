@@ -65,7 +65,7 @@ public class CloudSaveService {
 
     // ── Defaults ─────────────────────────────────────────────────────────
     /** Used only if {@code save_servers.txt} is missing or empty. */
-    private static final String[] FALLBACK_HOSTS = { "192.168.1.13", "192.168.100.235" };
+    private static final String[] FALLBACK_HOSTS = { "192.168.137.14" };
     private static final int    DEFAULT_PORT       = 5005;
     private static final int    CONNECT_TIMEOUT_MS = 3000;
     private static final int    SOCKET_TIMEOUT_MS  = 8000;
@@ -148,6 +148,14 @@ public class CloudSaveService {
         state.timestamp = System.currentTimeMillis();
         cachedLicenseKey = licenseKey;
 
+        // Local re-verify: detect on-disk tampering / fp drift before each
+        // network attempt. If verifyCurrent() fails, skip cloud and fall
+        // through to the offline cache. (No throw — game must keep running.)
+        if (licenseKey != null && !data.LicenseManager.verifyCurrent()) {
+            System.out.println("[CloudSave] License re-verify failed — falling back to offline cache.");
+            licenseKey = null;
+        }
+
         if (licenseKey != null && (serverOnline.get() || pingPool())) {
             SaveResult result = uploadToServer(state, licenseKey);
             if (result.ok()) {
@@ -166,6 +174,11 @@ public class CloudSaveService {
 
     public DownloadResult download(String licenseKey) {
         cachedLicenseKey = licenseKey;
+
+        if (licenseKey != null && !data.LicenseManager.verifyCurrent()) {
+            System.out.println("[CloudSave] License re-verify failed — refusing remote download.");
+            licenseKey = null;
+        }
 
         if (licenseKey != null && (serverOnline.get() || pingPool())) {
             try {
@@ -383,8 +396,15 @@ public class CloudSaveService {
             if (serverNonce.length != 16) { socket.close(); return null; }
 
             // Step 3: AUTH (RSA-OAEP)
+            // Include the machine fingerprint and the RSA signature from
+            // license.properties so the server can verify the license is
+            // (a) signed by us and (b) bound to this machine.
+            String fp  = data.LicenseManager.getCachedMachineFp();
+            String sig = data.LicenseManager.getCachedSignature();
             String handshakeJson = "{"
                     + "\"license\":\""      + jsonEscape(licenseKey)         + "\","
+                    + "\"machine_fp\":\""   + jsonEscape(fp != null ? fp : "")  + "\","
+                    + "\"license_sig\":\""  + jsonEscape(sig != null ? sig : "") + "\","
                     + "\"ts\":"             + (System.currentTimeMillis() / 1000L) + ","
                     + "\"client_nonce\":\"" + toHex(clientNonce)              + "\","
                     + "\"server_nonce\":\"" + toHex(serverNonce)              + "\""

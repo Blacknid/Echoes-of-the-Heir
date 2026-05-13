@@ -67,7 +67,7 @@ if [ ! -f "${CONFIG_FILE}" ]; then
     cp "${APP_DIR}/server_config.example.json" "${CONFIG_FILE}"
     chown "${REAL_USER}":"${REAL_USER}" "${CONFIG_FILE}"
     echo "  [✓] Created ${CONFIG_FILE} from example."
-    echo "  Edit it to set license_salt, license_pepper, ports, etc."
+    echo "  Edit it to set license_salt, ports, etc."
 else
     echo "  [✓] Config already exists: ${CONFIG_FILE}"
 fi
