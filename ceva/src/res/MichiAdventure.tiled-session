@@ -1,12 +1,12 @@
 {
-    "activeFile": "maps/Shattered_Lake.tmx",
+    "activeFile": "maps/Tavern_2nd_floor.tmx",
     "expandedProjectPaths": [
     ],
     "file.lastUsedOpenFilter": "All Files (*)",
     "fileStates": {
         "": {
             "scaleInDock": 1,
-            "scaleInEditor": 1.5
+            "scaleInEditor": 1
         },
         "#Interior": {
             "scaleInDock": 0.5
@@ -1567,8 +1567,8 @@
         "maps/Awakening_Cave.tmx": {
             "expandedObjectLayers": [
                 17,
-                14,
                 16,
+                14,
                 13
             ],
             "scale": 0.75,
@@ -1649,22 +1649,22 @@
         },
         "maps/Canvas_Village.tmx": {
             "expandedGroupLayers": [
-                50,
                 31,
-                45,
-                54
+                50,
+                54,
+                45
             ],
             "expandedObjectLayers": [
+                4,
                 10,
-                8,
                 12,
-                4
+                8
             ],
-            "scale": 0.75,
-            "selectedLayer": 38,
+            "scale": 3,
+            "selectedLayer": 41,
             "viewCenter": {
-                "x": 1196,
-                "y": 2602
+                "x": 1193.3333333333333,
+                "y": 1805.5
             }
         },
         "maps/Canvas_Village.tmx#Archer": {
@@ -1839,7 +1839,7 @@
             "scale": 0.33,
             "selectedLayer": 0,
             "viewCenter": {
-                "x": 848.4848484848483,
+                "x": 1130.3030303030303,
                 "y": 1153.0303030303028
             }
         },
@@ -1875,6 +1875,49 @@
         "maps/Shattered_Lake.tmx#water_lilis": {
             "scaleInDock": 1
         },
+        "maps/Tavern_2nd_floor.tmx": {
+            "expandedObjectLayers": [
+                14,
+                15,
+                17
+            ],
+            "scale": 1,
+            "selectedLayer": 1,
+            "viewCenter": {
+                "x": 321,
+                "y": 351.5
+            }
+        },
+        "maps/Tavern_2nd_floor.tmx#Interior_2nd_floor": {
+            "scaleInDock": 1,
+            "scaleInEditor": 1
+        },
+        "maps/Tavern_2nd_floor.tmx#Walls_interior": {
+            "scaleInDock": 0.75,
+            "scaleInEditor": 1
+        },
+        "maps/Tavern_interior.tmx": {
+            "expandedObjectLayers": [
+                18,
+                19
+            ],
+            "scale": 1.5,
+            "selectedLayer": 3,
+            "viewCenter": {
+                "x": 452.66666666666663,
+                "y": 219.66666666666666
+            }
+        },
+        "maps/Tavern_interior.tmx#Interior_1st_floor": {
+            "scaleInDock": 1,
+            "scaleInEditor": 1
+        },
+        "maps/Tavern_interior.tmx#Interior_2nd_floor": {
+            "scaleInDock": 1
+        },
+        "maps/Tavern_interior.tmx#Walls_interior": {
+            "scaleInDock": 1
+        },
         "maps/harta.tmx": {
             "scale": 0.17842187499999998,
             "selectedLayer": 0,
@@ -1908,30 +1951,30 @@
         }
     },
     "frame.defaultDuration": 120,
-    "last.imagePath": "C:/Users/cstyl/Documents/Michi-s-adventure/ceva/src/res/tiles/SHATTERED LAKE",
-    "map.height": 80,
+    "last.imagePath": "C:/Users/cstyl/Documents/Michi-s-adventure/ceva/src/res/tiles/CANVAS VILLAGE/Square Market/Tavern",
+    "map.height": 20,
     "map.lastUsedFormat": "tmx",
-    "map.width": 80,
+    "map.width": 26,
     "openFiles": [
         "maps/Canvas_Village.tmx",
-        "maps/Shattered_Lake.tmx",
-        "maps/Awakening_Cave.tmx"
+        "maps/Tavern_interior.tmx",
+        "maps/Tavern_2nd_floor.tmx"
     ],
     "project": "MichiAdventure.tiled-project",
-    "property.type": "int",
+    "property.type": "bool",
     "recentFiles": [
+        "maps/Tavern_2nd_floor.tmx",
         "maps/Canvas_Village.tmx",
-        "maps/Awakening_Cave.tmx",
+        "maps/Tavern_interior.tmx",
         "maps/Shattered_Lake.tmx",
+        "maps/Awakening_Cave.tmx",
         "maps/Blacksmith_interior.tmx",
         "C:/Users/cstyl/Downloads/craftpix-net-624156-swamp-top-down-tileset-pixel-art/Tiled_files/Swamp.tmx",
         "C:/Users/cstyl/Downloads/craftpix-net-624156-swamp-top-down-tileset-pixel-art/Tiled_files/Water_coasts..tsx",
         "C:/Users/cstyl/Downloads/craftpix-net-885927-2d-pixel-fishing-village-pack-dock-interior-boats-npcs/Tiled_foles/Fishing_dock.tmx",
         "C:/Users/cstyl/Downloads/craftpix-net-885927-2d-pixel-fishing-village-pack-dock-interior-boats-npcs/Tiled_foles/Boats_fish_characters.tmx",
         "maps/Fisher_interior.tmx",
-        "maps/test.tmx",
-        "maps/Dungeon1.tmx",
-        "C:/Users/cstyl/Downloads/craftpix-net-471853-top-down-farm-with-animals-pixel-art-asset-pack (1)/Tiled_files/Farm.tmx"
+        "maps/test.tmx"
     ],
     "tileset.embedInMap": true,
     "tileset.lastUsedFormat": "tsx"
