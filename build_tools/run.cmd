@@ -6,6 +6,7 @@ set ROOT=%~dp0..
 set BIN_DIR=%ROOT%\ceva\bin
 
 echo Starting Michi's Adventure (dev)...
+pushd "%ROOT%"
 java -server ^
   -Xms256m -Xmx512m ^
   -XX:+UseG1GC -XX:MaxGCPauseMillis=16 -XX:+ParallelRefProcEnabled ^

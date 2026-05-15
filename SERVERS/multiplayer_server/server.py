@@ -938,7 +938,7 @@ async def amain(host: str, port: int, max_players: int, private_key, cfg: dict) 
         maps_dir = BASE_DIR / maps_dir
     chunk_size = int(cfg.get("chunk_size_tiles", DEFAULT_CHUNK_SIZE))
     declared_maps = cfg.get("maps", {}) or {}
-    map_collection = await loop.run_in_executor(
+    map_collection = await asyncio.get_event_loop().run_in_executor(
         None, lambda: MapCollection(maps_dir, chunk_size, declared_maps),
     )
     active_map_id = (cfg.get("active_map") or "").lower().strip()
@@ -978,9 +978,10 @@ async def amain(host: str, port: int, max_players: int, private_key, cfg: dict) 
         log.info("Shutdown signal received...")
         asyncio.create_task(server.stop())
 
+    _loop = asyncio.get_event_loop()
     for sig in (signal.SIGINT, signal.SIGTERM):
         try:
-            loop.add_signal_handler(sig, shutdown_handler)
+            _loop.add_signal_handler(sig, shutdown_handler)
         except NotImplementedError:
             signal.signal(sig, lambda s, f: shutdown_handler())
 

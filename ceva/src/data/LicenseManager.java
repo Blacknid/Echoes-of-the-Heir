@@ -42,7 +42,13 @@ public final class LicenseManager {
     // Replace this placeholder with the content of build_tools/license_public.b64
     // (output of build_tools/generate_license_keys.py).
     private static final String PUBLIC_KEY_B64 =
-        "REPLACE_WITH_PUBLIC_KEY_FROM_generate_license_keys.py";
+        "MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAo6f8HJrv9fc0XhaYkDHZ"
+      + "ie+8pqNF6ktoxtw1CSPGK1cG/DJJiKQPQEsk/NaUuwqq7D3CK8ZTD2A2XDwK/+a"
+      + "/B2LvbaSpm8f3v5pkT2DkWTH+QApISJu3T7SkEQA1bJnqVqSClpG0u3dtkd8F2XI"
+      + "viIqT771/I0shSKwQVGL/GRADT38Zvjw3kk1Nc6iEVSga8rEd0fxuI0AJqBErAmtg"
+      + "mTL9cAvb1UMBtGzrFB3dK+Oq68TPVzsHMDSWLQeTSnY4U8V9HpsuB0Jq5xK7RN6Q"
+      + "q7pd/r4NCIKzgLWbhqELKBo0o8I8ddi1SCRz0Zo9J631Wrbg38pZuD5sHLd2oFt8"
+      + "UQIDAQAB";
 
     private static final Path LICENSE_PATH = Paths.get("license.properties");
 
