@@ -417,16 +417,19 @@ public class GamePanel extends JPanel implements Runnable{
     memoryJournal.registerFragment("frag_cave", "Awakening Cave",
         new String[]{"The air was thick with dust and silence.", "He had no memory of how he got here.", "Only a faint glimmer of light in the distance."},
         1, "battle_cave");
+    memoryJournal.registerFragment("frag_familiar_weight", "Familiar Weight",
+        new String[]{"The weight on his back was familiar.", "He had felt it before.", "But where?"},
+        2, "shatter_lake");
     // [TEST] Register sample memory fragments (remove when real fragments are wired)
     memoryJournal.registerFragment("frag_prologue", "The Shattered Throne",
         new String[]{"The crown fell before the war ended.", "No one claimed it.", "No one dared."},
-        2, "prologue");
+        3, "prologue");
     memoryJournal.registerFragment("frag_forest", "Voices in the Ash",
         new String[]{"She heard her name in the smoke.", "She did not turn back."},
-        3, "ashen_woods");
+        4, "ashen_woods");
     memoryJournal.registerFragment("frag_lake", "Shatter Lake",
         new String[]{"The water remembered everything.", "He had stood here before.", "So had she.", "Never together."},
-        4, "shatter_lake");
+        5, "shatter_lake");
 
     // RENDER PIPELINE
     renderPipeline = new RenderPipeline(this);
