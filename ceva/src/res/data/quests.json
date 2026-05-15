@@ -21,13 +21,33 @@
   {
     "id": "meet_hurt_soldier",
     "name": "Meet the Hurt Soldier",
-    "description": "Meet the hurt soldier at his house.",
+    "description": "Meet the soldier at his residence.",
     "target": 1,
     "autoStart": false,
     "rewardCoins": 100,
     "rewardItemId": "",
     "rewardFragmentId": "",
     "chainQuestId": ""
+  },
+  {
+    "id": "potion_trader_quest",
+    "name": "Help the Potion Trader",
+    "description": "The potion trader needs your help to gather ingredients for his potions.",
+    "target": 3,
+    "autoStart": false,
+    "rewardCoins": 50,
+    "rewardItemId": "",
+    "rewardFragmentId": "",
+    "chainQuestId": "",
+    "steps": [
+      { "action": "talk", "npc": "potion_trader", "dialogue": "training",
+        "description": "Talk to the potion trader." },
+      { "action": "go", "map": "awakening_cave", 
+      "description": "Explore the cave rooms for mushrooms." },
+      { "action": "deliver", "npc": "potion_trader", "item": "mushroom_bundle", "consume": true, "count" : 3,
+        "dialogue": "waiting", "failDialogue": "training",
+        "description": "Bring a bundle of mushrooms to the potion trader." }
+    ]
   },
 
 
@@ -93,7 +113,7 @@
     "autoStart": false,
     "rewardCoins": 50,
     "rewardItemId": "potion_of_healing",
-    "rewardFragmentId": "",
+    "rewardFragmentId": "frag_familiar_weight",
     "chainQuestId": "explore_shattered_lake",
     "steps": [
       { "action": "go", "map": "fisher_interior", "description": "Visit the fisher's house." },

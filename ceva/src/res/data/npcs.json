@@ -266,7 +266,7 @@
   },
 
   "drink_trader": {
-    "name": "Drink Trader",
+    "name": "Drink Trader",gdf
     "idleSprite": "/res/NPC/Drinks_Trader",
     "idleRows": 1,
     "spriteAspect": 1.0,
@@ -582,7 +582,7 @@
       }
     ]
   },
-  "potion_trader": {
+  "start_trader": {
     "name": "Potion Trader",
     "idleSprite": "/res/NPC/Potions_Trader",
     "idleRows": 1,
@@ -594,12 +594,13 @@
       "training": [
         "Welcome to the potion shop!",
         "I can teach you how to brew different potions.",
-        "Practice makes perfect, so keep trying!"
+        "But first, you need to gather some ingredients for me.",
+        "Check the cave rooms for herbs and mushrooms."
       ],
       "waiting": [
         "Welcome back, traveler!",
         "I have more potions if you need them.",
-        "Did you find any new ingredients?\nI love trying new recipes!"
+        "Did you find the ingredients I asked for?\nI love brewing new potions!"
       ],
       "thanks": [
         "No way, you brewed a great potion!\nThat's amazing!",
@@ -617,6 +618,17 @@
         "dialogue": "done",
         "stationary": true,
         "requiredQuestComplete": "potion_brewer_quest"
+      },
+      {
+        "id": "waiting",
+        "dialogue": "waiting",
+        "stationary": true,
+        "requiredQuestActive": "potion_brewer_quest"
+       },
+      {
+        "id": "training",
+        "dialogue": "training",
+        "stationary": true
       }
     ]
   },

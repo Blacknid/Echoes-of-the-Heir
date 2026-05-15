@@ -1357,6 +1357,16 @@
     <property name="sortYOffset" type="int" value="96"/>
    </properties>
   </tile>
+  <tile id="14">
+   <properties>
+    <property name="foreground" type="bool" value="true"/>
+   </properties>
+  </tile>
+  <tile id="15">
+   <properties>
+    <property name="foreground" type="bool" value="true"/>
+   </properties>
+  </tile>
   <tile id="17">
    <properties>
     <property name="sortYOffset" type="int" value="128"/>
@@ -10441,7 +10451,7 @@
  </tileset>
  <layer id="33" name="Water" width="100" height="100">
   <properties>
-   <property name="render" propertytype="RenderBucket" value="background"/>
+   <property name="render" value="background"/>
   </properties>
   <data encoding="csv">
 0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
@@ -10548,7 +10558,7 @@
  </layer>
  <layer id="18" name="Ground" width="100" height="100">
   <properties>
-   <property name="render" propertytype="RenderBucket" value="background"/>
+   <property name="render" value="background"/>
   </properties>
   <data encoding="csv">
 120,120,120,120,120,120,120,120,120,120,120,120,120,120,120,120,120,120,120,120,120,120,120,120,120,120,120,120,120,120,120,120,120,120,120,120,120,120,120,120,120,120,120,120,120,120,120,120,120,120,120,120,120,120,120,120,120,120,120,120,120,120,120,120,120,120,120,120,120,120,120,120,120,120,120,120,120,120,120,120,120,120,120,120,120,120,120,120,120,120,120,120,120,120,120,120,120,120,120,120,
@@ -10655,7 +10665,7 @@
  </layer>
  <layer id="22" name="Path Dirt" width="100" height="100">
   <properties>
-   <property name="render" propertytype="RenderBucket" value="background"/>
+   <property name="render" value="background"/>
   </properties>
   <data encoding="csv">
 0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
@@ -10762,7 +10772,7 @@
  </layer>
  <layer id="61" name="Dirt_details" width="100" height="100">
   <properties>
-   <property name="render" propertytype="RenderBucket" value="background"/>
+   <property name="render" value="background"/>
   </properties>
   <data encoding="csv">
 0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
@@ -10869,7 +10879,7 @@
  </layer>
  <layer id="23" name="Path Grass" width="100" height="100">
   <properties>
-   <property name="render" propertytype="RenderBucket" value="background"/>
+   <property name="render" value="background"/>
   </properties>
   <data encoding="csv">
 0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
@@ -10976,7 +10986,7 @@
  </layer>
  <layer id="29" name="Shadows" width="100" height="100">
   <properties>
-   <property name="render" propertytype="RenderBucket" value="background"/>
+   <property name="render" value="background"/>
   </properties>
   <data encoding="csv">
 0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
@@ -11083,7 +11093,7 @@
  </layer>
  <layer id="24" name="Ground_grass" width="100" height="100">
   <properties>
-   <property name="render" propertytype="RenderBucket" value="background"/>
+   <property name="render" value="background"/>
   </properties>
   <data encoding="csv">
 0,0,0,0,0,2425,0,0,0,0,0,0,0,2426,0,0,0,0,0,0,0,0,0,0,2423,0,0,0,0,0,0,0,2359,2360,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,2420,0,0,0,0,0,0,2424,0,0,0,0,0,2422,0,0,0,0,0,0,0,0,0,2384,0,0,0,
@@ -11190,7 +11200,7 @@
  </layer>
  <layer id="58" name="Nature_under" width="100" height="100">
   <properties>
-   <property name="render" propertytype="RenderBucket" value="depth"/>
+   <property name="render" value="depth"/>
   </properties>
   <data encoding="csv">
 0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,10125,10126,10127,10128,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,10116,10117,10118,
@@ -11297,7 +11307,7 @@
  </layer>
  <layer id="28" name="Entrance_Awakening" width="100" height="100">
   <properties>
-   <property name="render" propertytype="RenderBucket" value="depth"/>
+   <property name="render" value="depth"/>
   </properties>
   <data encoding="csv">
 0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
@@ -11405,7 +11415,7 @@
  <group id="45" name="Square">
   <layer id="26" name="Ground_Square" width="100" height="100">
    <properties>
-    <property name="render" propertytype="RenderBucket" value="background"/>
+    <property name="render" value="background"/>
    </properties>
    <data encoding="csv">
 0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
@@ -11512,7 +11522,7 @@
   </layer>
   <layer id="59" name="Details_under" width="100" height="100">
    <properties>
-    <property name="render" propertytype="RenderBucket" value="depth"/>
+    <property name="render" value="depth"/>
    </properties>
    <data encoding="csv">
 0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
@@ -11619,7 +11629,7 @@
   </layer>
   <layer id="47" name="Fences" width="100" height="100">
    <properties>
-    <property name="render" propertytype="RenderBucket" value="depth"/>
+    <property name="render" value="depth"/>
    </properties>
    <data encoding="csv">
 0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
@@ -11726,7 +11736,7 @@
   </layer>
   <layer id="20" name="Walls_Square" width="100" height="100">
    <properties>
-    <property name="render" propertytype="RenderBucket" value="depth"/>
+    <property name="render" value="depth"/>
    </properties>
    <data encoding="csv">
 0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
@@ -11833,7 +11843,7 @@
   </layer>
   <layer id="30" name="Walls_Square2" width="100" height="100">
    <properties>
-    <property name="render" propertytype="RenderBucket" value="depth"/>
+    <property name="render" value="depth"/>
    </properties>
    <data encoding="csv">
 0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
@@ -11941,7 +11951,7 @@
   <group id="50" name="Training">
    <layer id="51" name="Training_Objects" width="100" height="100">
     <properties>
-     <property name="render" propertytype="RenderBucket" value="depth"/>
+     <property name="render" value="depth"/>
     </properties>
     <data encoding="csv">
 0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
@@ -12049,7 +12059,7 @@
   </group>
   <layer id="53" name="Details_over" width="100" height="100">
    <properties>
-    <property name="render" propertytype="RenderBucket" value="depth"/>
+    <property name="render" value="depth"/>
    </properties>
    <data encoding="csv">
 0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
@@ -12156,7 +12166,7 @@
   </layer>
   <layer id="69" name="Details_for_walls" width="100" height="100">
    <properties>
-    <property name="render" propertytype="RenderBucket" value="foreground"/>
+    <property name="render" value="foreground"/>
    </properties>
    <data encoding="csv">
 0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
@@ -12263,7 +12273,7 @@
   </layer>
   <layer id="46" name="Builds" width="100" height="100">
    <properties>
-    <property name="render" propertytype="RenderBucket" value="depth"/>
+    <property name="render" value="depth"/>
    </properties>
    <data encoding="csv">
 0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
@@ -12370,7 +12380,7 @@
   </layer>
   <layer id="52" name="Builds2" width="100" height="100">
    <properties>
-    <property name="render" propertytype="RenderBucket" value="depth"/>
+    <property name="render" value="depth"/>
    </properties>
    <data encoding="csv">
 0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
@@ -12583,7 +12593,7 @@
   </layer>
   <layer id="37" name="Poles_under_Fishing" width="100" height="100">
    <properties>
-    <property name="render" propertytype="RenderBucket" value="background"/>
+    <property name="render" value="background"/>
    </properties>
    <data encoding="csv">
 0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
@@ -12898,7 +12908,7 @@
   </layer>
   <layer id="35" name="Ground_Fishing" width="100" height="100">
    <properties>
-    <property name="render" propertytype="RenderBucket" value="background"/>
+    <property name="render" value="background"/>
    </properties>
    <data encoding="csv">
 0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
@@ -13005,7 +13015,7 @@
   </layer>
   <layer id="39" name="Poles_over_Fishing" width="100" height="100">
    <properties>
-    <property name="render" propertytype="RenderBucket" value="depth"/>
+    <property name="render" value="depth"/>
    </properties>
    <data encoding="csv">
 0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
@@ -13112,7 +13122,7 @@
   </layer>
   <layer id="73" name="Poles_over_boat" width="100" height="100">
    <properties>
-    <property name="render" propertytype="RenderBucket" value="depth"/>
+    <property name="render" value="depth"/>
    </properties>
    <data encoding="csv">
 0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
@@ -13219,7 +13229,7 @@
   </layer>
   <layer id="71" name="Shark" width="100" height="100">
    <properties>
-    <property name="render" propertytype="RenderBucket" value="background"/>
+    <property name="render" value="background"/>
    </properties>
    <data encoding="csv">
 0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
@@ -13326,7 +13336,7 @@
   </layer>
   <layer id="36" name="Details_under" width="100" height="100">
    <properties>
-    <property name="render" propertytype="RenderBucket" value="depth"/>
+    <property name="render" value="depth"/>
    </properties>
    <data encoding="csv">
 0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
@@ -13433,7 +13443,7 @@
   </layer>
   <layer id="57" name="Builds" width="100" height="100">
    <properties>
-    <property name="render" propertytype="RenderBucket" value="depth"/>
+    <property name="render" value="depth"/>
    </properties>
    <data encoding="csv">
 0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
@@ -13540,7 +13550,7 @@
   </layer>
   <layer id="62" name="Details_over" width="100" height="100">
    <properties>
-    <property name="render" propertytype="RenderBucket" value="depth"/>
+    <property name="render" value="depth"/>
    </properties>
    <data encoding="csv">
 0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
@@ -13647,7 +13657,7 @@
   </layer>
   <layer id="63" name="Details_over_2" width="100" height="100">
    <properties>
-    <property name="render" propertytype="RenderBucket" value="depth"/>
+    <property name="render" value="depth"/>
    </properties>
    <data encoding="csv">
 0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
@@ -13754,7 +13764,7 @@
   </layer>
   <layer id="65" name="Fish_over" width="100" height="100">
    <properties>
-    <property name="render" propertytype="RenderBucket" value="depth"/>
+    <property name="render" value="depth"/>
    </properties>
    <data encoding="csv">
 0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
@@ -13863,7 +13873,7 @@
  <group id="54" name="Grand Castel"/>
  <layer id="67" name="Nature_over2" width="100" height="100">
   <properties>
-   <property name="render" propertytype="RenderBucket" value="depth"/>
+   <property name="render" value="depth"/>
   </properties>
   <data encoding="csv">
 0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
@@ -13970,7 +13980,7 @@
  </layer>
  <layer id="25" name="Nature_over" width="100" height="100">
   <properties>
-   <property name="render" propertytype="RenderBucket" value="depth"/>
+   <property name="render" value="depth"/>
   </properties>
   <data encoding="csv">
 0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,2932,2933,2934,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
@@ -14077,7 +14087,7 @@
  </layer>
  <layer id="68" name="Animations_above" width="100" height="100">
   <properties>
-   <property name="render" propertytype="RenderBucket" value="foreground"/>
+   <property name="render" value="foreground"/>
   </properties>
   <data encoding="csv">
 0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
@@ -14184,7 +14194,7 @@
  </layer>
  <objectgroup id="10" name="NPCs">
   <properties>
-   <property name="render" propertytype="RenderBucket" value="depth"/>
+   <property name="render" value="depth"/>
   </properties>
   <object id="161" name="Fruit_trader" type="NPC_Generic" x="1120" y="873.489">
    <properties>

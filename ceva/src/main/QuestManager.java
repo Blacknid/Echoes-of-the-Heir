@@ -5,6 +5,8 @@ import java.awt.Color;
 import java.awt.Font;
 import java.awt.Graphics2D;
 import java.io.BufferedReader;
+import java.io.File;
+import java.io.FileInputStream;
 import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.util.ArrayList;
@@ -118,6 +120,25 @@ public class QuestManager {
     private static void loadRegistry() {
         if (registryLoaded) return;
         registryLoaded = true;
+        // In DEBUG_MODE, read directly from the source folder so edits to
+        // quests.json are picked up immediately without a resource sync step.
+        if (Main.DEBUG_MODE) {
+            File devFile = new File(System.getProperty("user.dir") + "/ceva/src/res/data/quests.json");
+            if (devFile.exists()) {
+                try (InputStream is = new FileInputStream(devFile)) {
+                    BufferedReader br = new BufferedReader(new InputStreamReader(is, "UTF-8"));
+                    StringBuilder sb = new StringBuilder();
+                    String line;
+                    while ((line = br.readLine()) != null) sb.append(line);
+                    parseJsonArray(sb.toString());
+                    System.out.println("[QuestManager] Loaded " + registry.size() + " quest definitions (dev src)");
+                    return;
+                } catch (Exception e) {
+                    System.out.println("[QuestManager] Dev load failed, falling back to classpath: " + e.getMessage());
+                    registry.clear();
+                }
+            }
+        }
         try (InputStream is = QuestManager.class.getResourceAsStream("/res/data/quests.json")) {
             if (is == null) { System.out.println("[QuestManager] quests.json not found"); return; }
             BufferedReader br = new BufferedReader(new InputStreamReader(is, "UTF-8"));
