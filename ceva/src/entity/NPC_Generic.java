@@ -134,10 +134,8 @@ public class NPC_Generic extends Entity {
         // Idle sprite sheet — row order: down / left / right / up
         if (idleSpritePath != null) {
             try {
-                java.io.InputStream is = getClass().getResourceAsStream(idleSpritePath + ".png");
-                if (is != null) {
-                    BufferedImage raw = javax.imageio.ImageIO.read(is);
-                    is.close();
+                BufferedImage raw = util.ResourceCache.loadImageIfPresent(idleSpritePath + ".png");
+                if (raw != null) {
                     int rows = idleRows;
                     int cellH = raw.getHeight() / rows; // cell height
                     int cellW = Math.max(1, Math.round(cellH * spriteAspect));   // cell width (spriteAspect=1 → square, 0.5 → half-wide, 2 → twice as wide)
@@ -247,7 +245,7 @@ public class NPC_Generic extends Entity {
                         if (idleFrames[DIR_RIGHT] == null) idleFrames[DIR_RIGHT] = idleFrames[DIR_DOWN];
                     }
                 }
-            } catch (java.io.IOException | RuntimeException e) {
+            } catch (RuntimeException e) {
                 System.out.println("NPC_Generic: Failed to load idle sprite '" + idleSpritePath + "': " + e.getMessage());
             }
         }

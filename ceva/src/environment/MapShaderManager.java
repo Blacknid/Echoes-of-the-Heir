@@ -77,6 +77,11 @@ public class MapShaderManager {
     private float windX = 0.3f;
     private float windY = -0.1f;
 
+    // Dynamic wind gust system
+    private float windStrength = -2.0f;
+    private float windGustTarget = -2.0f;
+    private int   windGustTimer  = 0;
+
     // ===================== WEATHER SYSTEM =====================
     private static final int MAX_RAIN = 250;
     private float[] rainX, rainY, rainSpeed, rainAlpha, rainLength;
@@ -315,16 +320,24 @@ public class MapShaderManager {
     }
 
     private void resetRaindrop(int i, boolean randomY) {
-        rainX[i] = random.nextFloat() * (gp.screenWidth + 60) - 30;
-        rainY[i] = randomY ? random.nextFloat() * gp.screenHeight : -(random.nextFloat() * 40);
+        // World-space spawn: positions relative to current camera view
+        float camWX = (gp.player != null) ? gp.player.worldX - gp.player.getCamScreenX() : 0f;
+        float camWY = (gp.player != null) ? gp.player.worldY - gp.player.getCamScreenY() : 0f;
+        rainX[i] = camWX + random.nextFloat() * (gp.screenWidth + 120) - 60;
+        rainY[i] = randomY ? camWY + random.nextFloat() * gp.screenHeight
+                           : camWY - random.nextFloat() * 40;
         rainSpeed[i] = 12 + random.nextFloat() * 6;
         rainAlpha[i] = 0.25f + random.nextFloat() * 0.35f;
         rainLength[i] = 8 + random.nextFloat() * 6;
     }
 
     private void resetSnowflake(int i, boolean randomY) {
-        snowX[i] = random.nextFloat() * (gp.screenWidth + 40) - 20;
-        snowY[i] = randomY ? random.nextFloat() * gp.screenHeight : -(random.nextFloat() * 30);
+        // World-space spawn: positions relative to current camera view
+        float camWX = (gp.player != null) ? gp.player.worldX - gp.player.getCamScreenX() : 0f;
+        float camWY = (gp.player != null) ? gp.player.worldY - gp.player.getCamScreenY() : 0f;
+        snowX[i] = camWX + random.nextFloat() * (gp.screenWidth + 80) - 40;
+        snowY[i] = randomY ? camWY + random.nextFloat() * gp.screenHeight
+                           : camWY - random.nextFloat() * 30;
         snowSpeed[i] = 1 + random.nextFloat() * 2;
         snowSize[i] = 2 + random.nextFloat() * 3;
         snowDrift[i] = random.nextFloat() * 6.28f; // random phase
@@ -337,15 +350,32 @@ public class MapShaderManager {
         float intensity = gp.eManager.weatherIntensity;
         if (intensity <= 0.001f) return;
 
+        // Camera top-left in world space — used for screen-space bounds check only
+        float camWX = (gp.player != null) ? gp.player.worldX - gp.player.getCamScreenX() : 0f;
+        float camWY = (gp.player != null) ? gp.player.worldY - gp.player.getCamScreenY() : 0f;
+
         if (ws == EnvironmentManager.WEATHER_RAIN || ws == EnvironmentManager.WEATHER_STORM) {
             int active = (int)(MAX_RAIN * intensity);
             // LOD: reduce particles under low FPS
             if (gp.currentFPS > 0 && gp.currentFPS < 48) active = active / 2;
+
+            // Wind gust: smoothly shift rain angle every 3-7 seconds
+            if (--windGustTimer <= 0) {
+                windGustTarget = -(1.5f + random.nextFloat() * 2.0f); // -1.5 to -3.5 px/frame
+                if (random.nextFloat() < 0.15f) windGustTarget *= -0.4f; // rare rightward gust
+                windGustTimer = 180 + random.nextInt(240);
+            }
+            windStrength += (windGustTarget - windStrength) * 0.025f;
+
             for (int i = 0; i < active; i++) {
+                // Physics entirely in world space
                 rainY[i] += rainSpeed[i];
-                rainX[i] -= 2.0f; // slight diagonal
+                rainX[i] += windStrength;
                 rainX[i] += fastSin(tick * 0.04 + i) * 0.3f;
-                if (rainY[i] > gp.screenHeight + 10) {
+                // Bounds check using derived screen position
+                float sx = rainX[i] - camWX;
+                float sy = rainY[i] - camWY;
+                if (sy > gp.screenHeight + 20 || sx < -80 || sx > gp.screenWidth + 80) {
                     resetRaindrop(i, false);
                 }
             }
@@ -364,9 +394,13 @@ public class MapShaderManager {
             int active = (int)(MAX_SNOW * intensity);
             if (gp.currentFPS > 0 && gp.currentFPS < 48) active = active / 2;
             for (int i = 0; i < active; i++) {
+                // Physics entirely in world space
                 snowY[i] += snowSpeed[i];
                 snowX[i] += fastSin(tick * 0.03 + snowDrift[i]) * 0.8f;
-                if (snowY[i] > gp.screenHeight + 10 || snowX[i] < -20 || snowX[i] > gp.screenWidth + 20) {
+                // Bounds check using derived screen position
+                float sx = snowX[i] - camWX;
+                float sy = snowY[i] - camWY;
+                if (sy > gp.screenHeight + 10 || sx < -40 || sx > gp.screenWidth + 40) {
                     resetSnowflake(i, false);
                 }
             }
@@ -397,9 +431,12 @@ public class MapShaderManager {
             float rainA = Math.min(1f, 0.4f * intensity);
             g2.setComposite(cachedAlpha(rainA));
             g2.setColor(RAIN_DROP_COLOR);
+            // Convert world coords to screen coords for drawing
+            float camWX = (gp.player != null) ? gp.player.worldX - gp.player.getCamScreenX() : 0f;
+            float camWY = (gp.player != null) ? gp.player.worldY - gp.player.getCamScreenY() : 0f;
             for (int i = 0; i < active; i++) {
-                int x1 = (int) rainX[i];
-                int y1 = (int) rainY[i];
+                int x1 = (int)(rainX[i] - camWX);
+                int y1 = (int)(rainY[i] - camWY);
                 g2.drawLine(x1, y1, x1 + 2, y1 - (int) rainLength[i]);
             }
 
@@ -417,9 +454,12 @@ public class MapShaderManager {
             float snowA = Math.min(1f, 0.5f * intensity);
             g2.setComposite(cachedAlpha(snowA));
             g2.setColor(SNOW_FLAKE_COLOR);
+            // Convert world coords to screen coords for drawing
+            float camWXs = (gp.player != null) ? gp.player.worldX - gp.player.getCamScreenX() : 0f;
+            float camWYs = (gp.player != null) ? gp.player.worldY - gp.player.getCamScreenY() : 0f;
             for (int i = 0; i < active; i++) {
                 int sz = (int) snowSize[i];
-                g2.fillOval((int) snowX[i], (int) snowY[i], sz, sz);
+                g2.fillOval((int)(snowX[i] - camWXs), (int)(snowY[i] - camWYs), sz, sz);
             }
 
             // Overlay tint

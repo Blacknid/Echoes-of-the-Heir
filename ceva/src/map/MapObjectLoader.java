@@ -446,7 +446,7 @@ public class MapObjectLoader {
                                     areaH = minThickness;
                                 }
                             }
-                            loadEvent(type, obj, col, row, worldX, worldY, areaW, areaH);
+                            loadEvent(type, obj, col, row, worldX, worldY, areaW, areaH, sf);
                         }
                     }
                 }
@@ -963,7 +963,7 @@ public class MapObjectLoader {
     // ---- Event Types ----------------------------------------------------------
 
     private void loadEvent(String type, Element obj, int col, int row,
-                           int worldX, int worldY, int areaW, int areaH) {
+                           int worldX, int worldY, int areaW, int areaH, double sf) {
         // Default event dimensions: if no area, use one tile
         int ew = (areaW > 0) ? areaW : gp.tileSize;
         int eh = (areaH > 0) ? areaH : gp.tileSize;
@@ -1085,6 +1085,49 @@ public class MapObjectLoader {
                 if (!qId.isEmpty() && !qName.isEmpty() && gp.questManager != null) {
                     gp.questManager.addQuest(qId, qName, qDesc, qTgt);
                     System.out.println("MapObjectLoader: Quest registered '" + qId + "' -> " + qName);
+                }
+            }
+            case "WaterZone" -> {
+                // Check for a polygon child — if present, register the exact polygon shape.
+                // NOTE: worldX/worldY have already been shifted to the bounding-box top-left
+                // by the time loadEvent is called (worldX += minPX*sf). To recover absolute
+                // world coords for each point we use: worldX + (px - minPX)*sf, which requires
+                // a two-pass parse (first to find minPX/minPY, then to build the polygon).
+                NodeList polyNodes = obj.getElementsByTagName("polygon");
+                if (polyNodes.getLength() > 0) {
+                    String pts = ((org.w3c.dom.Element) polyNodes.item(0)).getAttribute("points");
+                    if (pts != null && !pts.isEmpty()) {
+                        String[] tokens = pts.trim().split("\\s+");
+                        double[] rawX = new double[tokens.length];
+                        double[] rawY = new double[tokens.length];
+                        int n = 0;
+                        double minPX = Double.MAX_VALUE, minPY = Double.MAX_VALUE;
+                        for (String pt : tokens) {
+                            String[] xy = pt.split(",");
+                            if (xy.length < 2) continue;
+                            rawX[n] = Double.parseDouble(xy[0]);
+                            rawY[n] = Double.parseDouble(xy[1]);
+                            if (rawX[n] < minPX) minPX = rawX[n];
+                            if (rawY[n] < minPY) minPY = rawY[n];
+                            n++;
+                        }
+                        if (n >= 3) {
+                            int[] xs = new int[n];
+                            int[] ys = new int[n];
+                            for (int k = 0; k < n; k++) {
+                                // worldX is bounding-box top-left: worldX + (px - minPX)*sf
+                                xs[k] = worldX + (int)((rawX[k] - minPX) * sf);
+                                ys[k] = worldY + (int)((rawY[k] - minPY) * sf);
+                            }
+                            gp.eHandler.registerWaterZone(new java.awt.Polygon(xs, ys, n));
+                        } else {
+                            gp.eHandler.registerWaterZone(worldX, worldY, ew, eh);
+                        }
+                    } else {
+                        gp.eHandler.registerWaterZone(worldX, worldY, ew, eh);
+                    }
+                } else {
+                    gp.eHandler.registerWaterZone(worldX, worldY, ew, eh);
                 }
             }
             case "MemoryGate" -> {

@@ -69,6 +69,8 @@ public class Player extends Entity {
     private float camScreenX;
     private float camScreenY;
     private static final float CAM_LERP = 0.15f;
+    public float getCamScreenX() { return camScreenX; }
+    public float getCamScreenY() { return camScreenY; }
     public ArrayList<Entity> inventory = new ArrayList<>();
     public int hasKey = 0;
     public int hasArtefact = 0;
@@ -607,6 +609,13 @@ public class Player extends Entity {
                     moveSpeedX = Math.max(1, moveSpeedX / 2);
                     moveSpeedY = Math.max(1, moveSpeedY / 2);
                 }
+                // Water terrain: wading slows movement to ~60% when inside a WaterZone rectangle
+                if (!dashing && gp.eHandler.isInWaterZone(
+                        worldX + solidArea.x, worldY + solidArea.y,
+                        solidArea.width, solidArea.height)) {
+                    moveSpeedX = Math.max(1, moveSpeedX * 3 / 5);
+                    moveSpeedY = Math.max(1, moveSpeedY * 3 / 5);
+                }
 
                 // --- PER-AXIS COLLISION: check and move each axis independently ---
                 // Horizontal axis
@@ -757,8 +766,16 @@ public class Player extends Entity {
             camScreenX = targetScreenX;
             camScreenY = targetScreenY;
         }
-        camScreenX += (targetScreenX - camScreenX) * CAM_LERP;
-        camScreenY += (targetScreenY - camScreenY) * CAM_LERP;
+        // Soft deadzone: camera only moves when player drifts > 24px from current cam center
+        final float CAM_DEADZONE = 24f;
+        float dxCam = targetScreenX - camScreenX;
+        float dyCam = targetScreenY - camScreenY;
+        if (Math.abs(dxCam) > CAM_DEADZONE) {
+            camScreenX += (dxCam - Math.signum(dxCam) * CAM_DEADZONE) * CAM_LERP;
+        }
+        if (Math.abs(dyCam) > CAM_DEADZONE) {
+            camScreenY += (dyCam - Math.signum(dyCam) * CAM_DEADZONE) * CAM_LERP;
+        }
 
         // Hard-clamp the lerped camera so fast movement (dash/knockback) near a
         // map border can never let the interpolated position drift into void.

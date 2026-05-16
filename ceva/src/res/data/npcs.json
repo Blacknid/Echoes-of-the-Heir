@@ -266,7 +266,7 @@
   },
 
   "drink_trader": {
-    "name": "Drink Trader",gdf
+    "name": "Drink Trader",
     "idleSprite": "/res/NPC/Drinks_Trader",
     "idleRows": 1,
     "spriteAspect": 1.0,
@@ -631,6 +631,73 @@
         "stationary": true
       }
     ]
+  },
+  "knight": {
+    "name": "Knight",
+    "idleSprite": "/res/NPC/Knight",
+    "idleRows": 1,
+    "interactRange": 96,
+    "spriteAspect": 1,
+    "staticNPC": true,
+    "idleAnimSpeed": 12,
+    "depthSortYOffset": 96,
+
+    "dialogues": {
+      "intro": [
+        "Greetings, traveler!",
+        "I am a knight of this realm, sworn to protect the innocent and uphold justice.",
+        "Looking for someone? I can help you with that.",
+        "In the center of the village, there is this elder. He's been here for as long as I can remember, and he's always been useful for finding things. He might have an answer for you if you're looking for one."
+      ],
+      "after_elder": [
+        "I see you spoke with the Elder. He's a good guy.",
+        "He thinks you are worthy of this quest, so I won't question it.",
+        "I have a training quest for you. If you complete it, I'll give you a reward that might help you on your journey.",
+        "The training is simple. Kill 5 of the weak monsters from the Lake. They won't put up much of a fight, but it's a good way to practice your combat skills.",
+        "Come back to me once you've completed the training, and I'll have your reward ready for you!"
+      ],
+      "waiting": [
+        "Welcome back, traveler!",
+        "Have you completed the quest I gave you?",
+        "I am eager to see your progress and help you grow stronger!"
+      ],
+      "thanks": [
+        "Didn't expect anything else, you completed the quest!\nThat's incredible!",
+        "Here, take this as a reward for your dedication.",
+        "I hope it helps you on your adventure!"
+      ],
+      "done": [
+        "In need of more training?\nI have plenty to share!",
+        "Feel free to come back anytime.\nI love helping travelers become stronger!"
+      ]
+    },
+
+    "states": [
+      {
+        "id": "intro",
+        "dialogue": "intro",
+        "stationary": true
+      },
+      {
+        "id": "after_elder",
+        "dialogue": "after_elder",
+        "stationary": true,
+        "requiredQuestComplete": "a_familiar_weight"
+      },
+      {
+        "id": "waiting",
+        "dialogue": "waiting",
+        "stationary": true,
+        "requiredQuestActive": "knight_training_quest"
+      },
+      {
+        "id": "post_quest",
+        "dialogue": "thanks",
+        "stationary": true,
+        "requiredQuestComplete": "knight_training_quest"
+      }
+    ]
+
   },
 
 

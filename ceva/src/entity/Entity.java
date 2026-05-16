@@ -114,12 +114,15 @@ public class Entity {
     // HIT FLASH: white overlay on damage
     public int hitFlashCounter = 0;
     private static final int HIT_FLASH_DURATION = 6;
+    // ATTACK TELEGRAPH: red warning flash when monster is about to strike
+    public int attackWindupFlash = 0;
     // OPTIMIZATION: Pre-allocated Color constants to avoid per-frame allocation
     private static final Color HP_BAR_BG = new Color(35, 35, 35);
     private static final Color HP_BAR_FG = new Color(255, 0, 30);
     private static final Color SPARK_COLOR_1 = new Color(255, 235, 120);
     private static final Color SPARK_COLOR_2 = new Color(255, 200, 80);
     private static final Color COIN_MSG_COLOR = new Color(255, 210, 90);
+    private static final Color SHADOW_COLOR = new Color(0, 0, 0, 60);
     // OPTIMIZATION: Reusable flash image to avoid per-frame BufferedImage allocation
     private BufferedImage hitFlashBuffer;
     private int hitFlashBufferW, hitFlashBufferH;
@@ -939,11 +942,44 @@ public class Entity {
                 dyingAnimation(g2);
             }
                 
+            // DROP SHADOW: oval under entity feet for player/npc/monster
+            if (type == TYPE_PLAYER || type == TYPE_NPC || type == TYPE_MONSTER) {
+                int shadowCX = screenX + solidArea.x + solidArea.width / 2;
+                int shadowCY = screenY + solidArea.y + solidArea.height;
+                int shadowW = (int)(solidArea.width * 0.85);
+                int shadowH = 10;
+                g2.setColor(SHADOW_COLOR);
+                g2.fillOval(shadowCX - shadowW / 2, shadowCY - shadowH / 2, shadowW, shadowH);
+            }
+
             // Safe guard against null images
             if (currentSprite != null) {
                 int drawX = screenX - (drawW - gp.tileSize) / 2;
                 int drawY = screenY - (drawH - gp.tileSize);
                 g2.drawImage(currentSprite, drawX, drawY, drawW, drawH, null);
+            }
+
+            // ATTACK TELEGRAPH: tint sprite red when about to attack
+            if (attackWindupFlash > 0 && currentSprite != null && hitFlashCounter == 0) {
+                float telegraphAlpha = Math.min(0.7f, attackWindupFlash / 20f * 0.7f);
+                int sprW = currentSprite.getWidth();
+                int sprH = currentSprite.getHeight();
+                if (hitFlashBuffer == null || hitFlashBufferW < sprW || hitFlashBufferH < sprH) {
+                    hitFlashBufferW = sprW; hitFlashBufferH = sprH;
+                    hitFlashBuffer = new BufferedImage(sprW, sprH, BufferedImage.TYPE_INT_ARGB);
+                    if (hitFlashG2 != null) hitFlashG2.dispose();
+                    hitFlashG2 = hitFlashBuffer.createGraphics();
+                }
+                java.awt.Graphics2D rg = hitFlashG2;
+                rg.setComposite(AlphaComposite.Clear);
+                rg.fillRect(0, 0, hitFlashBufferW, hitFlashBufferH);
+                rg.setComposite(AlphaComposite.SrcOver);
+                rg.drawImage(currentSprite, 0, 0, null);
+                rg.setComposite(AlphaComposite.getInstance(AlphaComposite.SRC_ATOP, telegraphAlpha));
+                rg.setColor(new Color(255, 60, 60));
+                rg.fillRect(0, 0, sprW, sprH);
+                g2.drawImage(hitFlashBuffer, screenX, screenY, gp.tileSize, gp.tileSize, null);
+                attackWindupFlash--;
             }
 
             // HIT FLASH: tint sprite white when recently damaged

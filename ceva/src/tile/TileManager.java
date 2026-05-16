@@ -476,6 +476,10 @@ public class TileManager {
     }
 
     public void loadTilesets(String mapPath) {
+        // Free all cached scaled tile images from the previous map before loading the new one.
+        // Without this, the static cache accumulates hundreds of MB and causes OutOfMemoryError
+        // when entering a large map (e.g. Canvas Village) after a smaller one.
+        tilesetFrameCache.clear();
         tilesets.clear();
         gidToAnimation.clear();
         hasAnimatedTiles = false;

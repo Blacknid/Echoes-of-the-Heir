@@ -14369,7 +14369,7 @@
   <object id="138" name="Shattered Lake" type="MemoryGate" x="3168" y="1536" width="32" height="128" rotation="90">
    <properties>
     <property name="requiredFragments" type="int" value="1"/>
-    <property name="spawnId" value=""/>
+    <property name="spawnId" value="Coming_from_canvas"/>
     <property name="targetMap" value="shattered_lake"/>
    </properties>
   </object>

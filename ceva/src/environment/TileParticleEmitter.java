@@ -5,6 +5,7 @@ import java.awt.Color;
 import java.awt.Composite;
 import java.awt.Graphics2D;
 import java.util.Random;
+
 import main.GamePanel;
 
 /**
@@ -24,6 +25,7 @@ public class TileParticleEmitter {
     public enum ParticleType {
         FOOTSTEP_GRASS,
         FOOTSTEP_STONE,
+        FOOTSTEP_WATER,
         LEAF_FALL
     }
 
@@ -59,6 +61,9 @@ public class TileParticleEmitter {
     );
     private final ParticlePreset stonePreset = new ParticlePreset(
         STONE_COLORS, 1, 2, 14, 21, 0.06f, 1.2f, 0.8f, -0.30f
+    );
+    private final ParticlePreset waterPreset = new ParticlePreset(
+        WATER_COLORS, 1, 2, 10, 18, 0.10f, 1.6f, 1.4f, -0.55f
     );
     private final ParticlePreset leafPreset = new ParticlePreset(
         LEAF_COLORS, 2, 4, 80, 140, 0.012f, 0.6f, 0.3f, 0.15f
@@ -119,6 +124,7 @@ public class TileParticleEmitter {
         return switch (tileType) {
             case TILE_GRASS -> ParticleType.FOOTSTEP_GRASS;
             case TILE_STONE -> ParticleType.FOOTSTEP_STONE;
+            case TILE_WATER -> ParticleType.FOOTSTEP_WATER;
             default -> null;
         };
     }
@@ -191,6 +197,7 @@ public class TileParticleEmitter {
         return switch (type) {
             case FOOTSTEP_GRASS -> grassPreset;
             case FOOTSTEP_STONE -> stonePreset;
+            case FOOTSTEP_WATER -> waterPreset;
             case LEAF_FALL -> leafPreset;
         };
     }
@@ -448,6 +455,13 @@ public class TileParticleEmitter {
         new Color(140, 135, 130),  // darker grey
         new Color(180, 175, 165),  // light grey
         new Color(120, 115, 110),  // dark stone
+    };
+
+    private static final Color[] WATER_COLORS = {
+        new Color(110, 190, 230, 220),  // pale sky blue
+        new Color(160, 215, 245, 200),  // light blue
+        new Color(220, 240, 255, 180),  // near-white spray
+        new Color( 80, 170, 220, 210),  // deeper blue
     };
 
     private static final Color[] LEAF_COLORS = {
