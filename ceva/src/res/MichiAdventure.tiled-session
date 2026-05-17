@@ -614,11 +614,11 @@
             "expandedGroupLayers": [
                 43
             ],
-            "scale": 1,
+            "scale": 1.5,
             "selectedLayer": 21,
             "viewCenter": {
-                "x": -145,
-                "y": 128
+                "x": -208.66666666666663,
+                "y": -26.333333333333314
             }
         },
         "C:/Users/cstyl/Downloads/craftpix-net-471853-top-down-farm-with-animals-pixel-art-asset-pack (1)/Tiled_files/Farm.tmx#Chicken_animation": {
@@ -1647,21 +1647,21 @@
         "maps/Canvas_Village.tmx": {
             "expandedGroupLayers": [
                 45,
-                50,
                 54,
-                31
+                31,
+                50
             ],
             "expandedObjectLayers": [
-                10,
                 12,
                 8,
+                10,
                 4
             ],
-            "scale": 1,
-            "selectedLayer": 43,
+            "scale": 3,
+            "selectedLayer": 41,
             "viewCenter": {
-                "x": 2931,
-                "y": 1635.5
+                "x": 2150,
+                "y": 1850.1666666666665
             }
         },
         "maps/Canvas_Village.tmx#Archer": {
@@ -1834,13 +1834,14 @@
         },
         "maps/Shattered_Lake.tmx": {
             "expandedObjectLayers": [
-                24
+                24,
+                23
             ],
-            "scale": 1.5,
-            "selectedLayer": 11,
+            "scale": 1,
+            "selectedLayer": 14,
             "viewCenter": {
-                "x": 736,
-                "y": 1321
+                "x": 2063,
+                "y": 1815.5
             }
         },
         "maps/Shattered_Lake.tmx#Grass": {
@@ -1852,10 +1853,11 @@
             "scaleInEditor": 1.5
         },
         "maps/Shattered_Lake.tmx#Lilis": {
-            "scaleInDock": 0.75
+            "scaleInDock": 0.75,
+            "scaleInEditor": 1
         },
         "maps/Shattered_Lake.tmx#Objects": {
-            "scaleInDock": 0.5
+            "scaleInDock": 0.33
         },
         "maps/Shattered_Lake.tmx#Objects2": {
             "scaleInDock": 0.33,
@@ -1868,10 +1870,16 @@
             "scaleInDock": 1
         },
         "maps/Shattered_Lake.tmx#duckweed": {
-            "scaleInDock": 1
+            "scaleInDock": 0.75,
+            "scaleInEditor": 0.75
+        },
+        "maps/Shattered_Lake.tmx#sprites_animated": {
+            "scaleInDock": 0.33,
+            "scaleInEditor": 1
         },
         "maps/Shattered_Lake.tmx#water_detilazation_v2": {
-            "scaleInDock": 1
+            "scaleInDock": 1,
+            "scaleInEditor": 1
         },
         "maps/Shattered_Lake.tmx#water_lilis": {
             "scaleInDock": 1
@@ -1905,8 +1913,8 @@
             "scale": 2,
             "selectedLayer": 7,
             "viewCenter": {
-                "x": 389,
-                "y": 387.25
+                "x": 530.5,
+                "y": 320
             }
         },
         "maps/Tavern_interior.tmx#Interior_1st_floor": {
@@ -1954,7 +1962,7 @@
         }
     },
     "frame.defaultDuration": 120,
-    "last.imagePath": "C:/Users/cstyl/Documents/Michi-s-adventure/ceva/src/res/tiles/CANVAS VILLAGE/Square Market/Tavern",
+    "last.imagePath": "C:/Users/cstyl/Documents/Michi-s-adventure/ceva/src/res/tiles/CANVAS VILLAGE/Fishing Dock",
     "map.height": 20,
     "map.lastUsedFormat": "tmx",
     "map.width": 26,
@@ -1965,20 +1973,20 @@
         "maps/Shattered_Lake.tmx"
     ],
     "project": "MichiAdventure.tiled-project",
-    "property.type": "bool",
+    "property.type": "int",
     "recentFiles": [
+        "C:/Users/cstyl/Downloads/craftpix-net-471853-top-down-farm-with-animals-pixel-art-asset-pack (1)/Tiled_files/Farm.tmx",
+        "C:/Users/cstyl/Downloads/craftpix-net-624156-swamp-top-down-tileset-pixel-art/Tiled_files/Swamp.tmx",
         "maps/Shattered_Lake.tmx",
         "maps/Awakening_Cave.tmx",
         "maps/Tavern_interior.tmx",
         "maps/Canvas_Village.tmx",
-        "C:/Users/cstyl/Downloads/craftpix-net-624156-swamp-top-down-tileset-pixel-art/Tiled_files/Swamp.tmx",
         "C:/Users/cstyl/Downloads/craftpix-net-666104-tavern-top-down-pixel-rpg-asset-pack/Tiled_files/Tavern_interior_1nd_floor.tmx",
         "C:/Users/cstyl/Downloads/craftpix-net-666104-tavern-top-down-pixel-rpg-asset-pack/Tiled_files/Characters.tmx",
         "maps/Tavern_2nd_floor.tmx",
         "maps/Blacksmith_interior.tmx",
         "C:/Users/cstyl/Downloads/craftpix-net-624156-swamp-top-down-tileset-pixel-art/Tiled_files/Water_coasts..tsx",
-        "C:/Users/cstyl/Downloads/craftpix-net-885927-2d-pixel-fishing-village-pack-dock-interior-boats-npcs/Tiled_foles/Fishing_dock.tmx",
-        "C:/Users/cstyl/Downloads/craftpix-net-885927-2d-pixel-fishing-village-pack-dock-interior-boats-npcs/Tiled_foles/Boats_fish_characters.tmx"
+        "C:/Users/cstyl/Downloads/craftpix-net-885927-2d-pixel-fishing-village-pack-dock-interior-boats-npcs/Tiled_foles/Fishing_dock.tmx"
     ],
     "tileset.embedInMap": true,
     "tileset.lastUsedFormat": "tsx"
