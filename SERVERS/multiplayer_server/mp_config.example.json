@@ -10,7 +10,8 @@
   "rate_limit_per_ip_per_minute": 30,
 
   "maps_dir": "maps",
-  "active_map": "harta",
+  "_comment_active_map": "REQUIRED: Set this to the map ID you want to host (e.g., 'awakening_cave'). Must match a .tmx file in maps_dir.",
+  "active_map": null,
   "chunk_size_tiles": 32,
   "max_chunks_per_tick": 4,
 
