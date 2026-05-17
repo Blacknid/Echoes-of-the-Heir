@@ -54,14 +54,11 @@ if %ERRORLEVEL% NEQ 0 (echo [FAIL] License key generation failed. Install Python
 if not exist "%PUBKEY_FILE%"  (echo [FAIL] Missing %PUBKEY_FILE%  & pause & exit /b 1)
 if not exist "%PRIVKEY_FILE%" (echo [FAIL] Missing %PRIVKEY_FILE% & pause & exit /b 1)
 
-:: Inject public key into LicenseManager.java (idempotent)
-powershell -NoProfile -Command ^
-  "$pub = (Get-Content -Raw -LiteralPath '%PUBKEY_FILE%').Trim();" ^
-  "$src = Get-Content -Raw -LiteralPath '%LM_FILE%';" ^
-  "$new = $src -replace 'REPLACE_WITH_PUBLIC_KEY_FROM_generate_license_keys\.py', $pub;" ^
-  "if ($new -ne $src) { [IO.File]::WriteAllText('%LM_FILE%', $new, [Text.Encoding]::UTF8); Write-Host '  [OK] Public key injected into LicenseManager.java' }" ^
-  "else { Write-Host '  [OK] Public key already present in LicenseManager.java' }"
-if %ERRORLEVEL% NEQ 0 (echo [FAIL] Public key injection failed. & pause & exit /b 1)
+:: Inject public key into LicenseManager.java AND both server configs.
+:: sync_keys.py is the single source of truth — never edit the embedded
+:: key by hand. It is idempotent.
+python "%SCRIPT_DIR%sync_keys.py"
+if %ERRORLEVEL% NEQ 0 (echo [FAIL] sync_keys.py failed. & pause & exit /b 1)
 
 :: Write private key into a temp .iss include file read by setup_init.iss at compile time.
 :: This avoids all CMD quoting issues — the XML never touches the command line.

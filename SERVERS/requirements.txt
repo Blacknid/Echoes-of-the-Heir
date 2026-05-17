@@ -1,0 +1,2 @@
+# Shared by save_server, multiplayer_server, patch_server.
+cryptography>=42,<46

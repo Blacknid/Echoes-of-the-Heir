@@ -103,12 +103,24 @@ def authorize(registry_path: Path,
     """
     Decide whether (license_key, machine_fp) is authorised.
 
-    Policy:
+    Policy (checked in order):
       * dev_mode=True             -> always accept (use ONLY on dev/localhost).
       * license_key not in regs   -> reject (HARD allow-list).
+      * entry.revoked == True     -> reject (kill-switched leak).
+      * entry.expires < now()     -> reject (expired key).
       * stored fp is None         -> accept; TOFU-pin this fp; persist.
       * stored fp == incoming fp  -> accept.
       * stored fp != incoming fp  -> reject (license was copied).
+
+    Entry schema (all optional except defaults set by issue_license.py):
+        {
+          "machine_fp": null | "<16 hex>",   # null = TOFU on first connect,
+                                             # set  = pre-bound (no TOFU)
+          "first_seen": null | "<ISO ts>",
+          "note":       "<free text>",
+          "expires":    "<ISO ts>",          # optional UTC expiry
+          "revoked":    true                 # optional kill-switch
+        }
     """
     if dev_mode:
         return True, "DEV_MODE"
@@ -120,9 +132,26 @@ def authorize(registry_path: Path,
     if entry is None:
         return False, "UNREGISTERED"
 
+    # Revocation — kill-switch wins over everything else.
+    if entry.get("revoked") is True:
+        return False, "REVOKED"
+
+    # Optional expiry (ISO-8601 UTC). Tolerate parse errors as "no expiry".
+    expires = entry.get("expires")
+    if isinstance(expires, str) and expires:
+        try:
+            exp_dt = datetime.fromisoformat(expires)
+            if exp_dt.tzinfo is None:
+                exp_dt = exp_dt.replace(tzinfo=timezone.utc)
+            if datetime.now(timezone.utc) > exp_dt:
+                return False, "EXPIRED"
+        except ValueError:
+            pass  # malformed expiry → treat as none
+
     pinned = entry.get("machine_fp")
     if pinned is None:
-        # TOFU pin
+        # TOFU pin — first connect wins. To avoid the race, issue the key
+        # with --machine-fp pre-set instead of relying on TOFU.
         with _lock:
             entry["machine_fp"] = machine_fp
             entry["first_seen"] = datetime.now(timezone.utc).isoformat(timespec="seconds")

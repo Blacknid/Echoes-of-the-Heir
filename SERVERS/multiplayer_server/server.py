@@ -108,9 +108,6 @@ DEFAULT_CONFIG = {
     "host": None,
     "port": None,
     "private_key_path": DEFAULT_PRIVATE_KEY,
-    # Crypto identity — set these in mp_config.json on the server.
-    # They must match the values used when the license keys were generated.
-    "license_salt":   "MichiCloudSalt2026",
     # RSA-2048 public key (DER/SPKI base64) that the installer uses to
     # sign license.properties. MUST match LicenseManager.PUBLIC_KEY_B64.
     # Placeholder = signature verification disabled (registry-only fallback).
@@ -170,16 +167,12 @@ log = logging.getLogger("michi-mp")
 
 
 # ── Helpers ────────────────────────────────────────────────────────────────
-def license_is_valid(license_key: str, salt: str) -> bool:
-    if not isinstance(license_key, str) or len(license_key) != 13 or license_key[8] != "-":
-        return False
-    prefix, suffix = license_key[:8], license_key[9:]
-    if not prefix.isalnum() or not suffix.isalnum() or len(suffix) != 4:
-        return False
-    expected = hashlib.sha256(
-        f"{prefix}{salt}".encode("utf-8")
-    ).hexdigest()[:4].upper()
-    return hmac.compare_digest(expected, suffix.upper())
+# Cheap structural pre-filter — real trust comes from RSA signature +
+# registry allow-list. Accepts any printable alphanumeric/dash token.
+_LICENSE_KEY_RE = __import__("re").compile(r"^[A-Z0-9][A-Z0-9\-]{3,63}$")
+
+def license_is_well_formed(license_key: str) -> bool:
+    return isinstance(license_key, str) and bool(_LICENSE_KEY_RE.match(license_key))
 
 
 def hkdf(secret: bytes, salt: bytes, info: bytes, length: int = 32) -> bytes:
@@ -477,8 +470,8 @@ class GameServer:
         dev_mode = bool(self.cfg.get("dev_mode", False))
 
         if not dev_mode:
-            # Step 1: structural format + salt-checksum.
-            if not license_is_valid(license_key, self.cfg["license_salt"]):
+            # Step 1: structural sanity check (RSA + registry do the real work).
+            if not license_is_well_formed(license_key):
                 writer.write(b"AUTH_FAIL\n")
                 await writer.drain()
                 log.info("AUTH bad license format from %s", peer)

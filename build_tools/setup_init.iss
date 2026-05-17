@@ -82,12 +82,14 @@ begin
   Lines[2]  := 'if ([string]::IsNullOrEmpty($guid)) { $guid = ($env:COMPUTERNAME + $env:USERNAME) }';
   Lines[3]  := '$fp = [System.BitConverter]::ToString([System.Security.Cryptography.SHA256]::Create().ComputeHash([System.Text.Encoding]::UTF8.GetBytes($guid)), 0, 8).Replace(''-'', '''').ToLower()';
 
-  // Lines 4-9 — generate license key (XXXXXXXX-YYYY with SHA-256 check digit)
+  // Lines 4-9 — generate random license key (XXXXXXXX-YYYY, all random base32)
+  // The dashes are purely cosmetic — the RSA signature is what makes the key
+  // trustworthy. The server registry is what makes the key authorized.
   Lines[4]  := '$chars = ''ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789''';
   Lines[5]  := '$rng = [System.Security.Cryptography.RandomNumberGenerator]::Create()';
-  Lines[6]  := '$bytes = New-Object byte[] 8; $rng.GetBytes($bytes)';
-  Lines[7]  := '$prefix = -join (0..7 | ForEach-Object { $chars[$bytes[$_] % 36] })';
-  Lines[8]  := '$suffix = [System.BitConverter]::ToString([System.Security.Cryptography.SHA256]::Create().ComputeHash([System.Text.Encoding]::UTF8.GetBytes($prefix + ''MichiCloudSalt2026'')), 0, 2).Replace(''-'', '''')';
+  Lines[6]  := '$bytes = New-Object byte[] 12; $rng.GetBytes($bytes)';
+  Lines[7]  := '$prefix = -join (0..7  | ForEach-Object { $chars[$bytes[$_] % 36] })';
+  Lines[8]  := '$suffix = -join (8..11 | ForEach-Object { $chars[$bytes[$_] % 36] })';
   Lines[9]  := '$key = "$prefix-$suffix"';
 
   // Lines 10-15 — RSA-sign "key|fp" using .NET RSACryptoServiceProvider

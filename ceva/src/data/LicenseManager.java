@@ -42,15 +42,31 @@ public final class LicenseManager {
     // Replace this placeholder with the content of build_tools/license_public.b64
     // (output of build_tools/generate_license_keys.py).
     private static final String PUBLIC_KEY_B64 =
-        "MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAo6f8HJrv9fc0XhaYkDHZ"
-      + "ie+8pqNF6ktoxtw1CSPGK1cG/DJJiKQPQEsk/NaUuwqq7D3CK8ZTD2A2XDwK/+a"
-      + "/B2LvbaSpm8f3v5pkT2DkWTH+QApISJu3T7SkEQA1bJnqVqSClpG0u3dtkd8F2XI"
-      + "viIqT771/I0shSKwQVGL/GRADT38Zvjw3kk1Nc6iEVSga8rEd0fxuI0AJqBErAmtg"
-      + "mTL9cAvb1UMBtGzrFB3dK+Oq68TPVzsHMDSWLQeTSnY4U8V9HpsuB0Jq5xK7RN6Q"
-      + "q7pd/r4NCIKzgLWbhqELKBo0o8I8ddi1SCRz0Zo9J631Wrbg38pZuD5sHLd2oFt8"
-      + "UQIDAQAB";
+        "MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAo6f8HJrv9fc0XhaYkDHZ" + 
+      "ie+8pqNF6ktoxtw1CSPGK1cG/DJJiKQPQEsk/NaUuwqq7D3CK8ZTD2A2XDwK/+a/" + 
+      "B2LvbaSpm8f3v5pkT2DkWTH+QApISJu3T7SkEQA1bJnqVqSClpG0u3dtkd8F2XIv" + 
+      "iIqT771/I0shSKwQVGL/GRADT38Zvjw3kk1Nc6iEVSga8rEd0fxuI0AJqBErAmtg" + 
+      "mTL9cAvb1UMBtGzrFB3dK+Oq68TPVzsHMDSWLQeTSnY4U8V9HpsuB0Jq5xK7RN6Q" + 
+      "q7pd/r4NCIKzgLWbhqELKBo0o8I8ddi1SCRz0Zo9J631Wrbg38pZuD5sHLd2oFt8" + 
+      "UQIDAQAB";
 
-    private static final Path LICENSE_PATH = Paths.get("license.properties");
+    /**
+     * Resolved against the directory containing the running JAR (or the
+     * working directory in a dev classpath run), so the game finds its
+     * license regardless of where it was launched from.
+     */
+    private static final Path LICENSE_PATH = resolveLicensePath();
+
+    private static Path resolveLicensePath() {
+        try {
+            java.net.URL u = LicenseManager.class.getProtectionDomain()
+                    .getCodeSource().getLocation();
+            Path codeLoc = Paths.get(u.toURI());
+            Path base = Files.isDirectory(codeLoc) ? codeLoc : codeLoc.getParent();
+            if (base != null) return base.resolve("license.properties");
+        } catch (Exception ignored) {}
+        return Paths.get("license.properties");
+    }
 
     // ── Cached state pinned at load() time. Used by verifyCurrent() to
     //    detect tampering / swap / fp drift without doing the slow
@@ -202,13 +218,10 @@ public final class LicenseManager {
                     return;
                 }
                 if (!verifyCurrent()) {
-                    try {
-                        // Best-effort: nuke the in-memory key.
-                        Class<?> mainCls = Class.forName("main.Main");
-                        java.lang.reflect.Field f = mainCls.getDeclaredField("LICENSE_KEY");
-                        f.setAccessible(true);
-                        f.set(null, null);
-                    } catch (Throwable ignored) {}
+                    // Clean accessor — no reflection, no surprise NoSuchFieldException
+                    // if Main is ever refactored.
+                    try { main.Main.invalidateLicense(); }
+                    catch (Throwable ignored) {}
                     return;     // stop polling once tripped
                 }
             }

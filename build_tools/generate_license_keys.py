@@ -71,7 +71,7 @@ def main():
     )
     pub_b64 = base64.b64encode(pub_der).decode()
 
-    # ── Private key: PKCS#8 DER base64 (for LicenseGenerator.java dev signing) ──
+    # ── Private key: PKCS#8 DER base64 (for generate_dev_license.py) ──
     priv_pkcs8_der = key.private_bytes(
         encoding=serialization.Encoding.DER,
         format=serialization.PrivateFormat.PKCS8,
@@ -108,8 +108,9 @@ def main():
     print("   Replace REPLACE_WITH_YOUR_PRIVATE_KEY_XML with the single line")
     print("   found in license_private.xml  (no newlines — it's already one line)")
     print()
-    print("3. For DEV signing (LicenseGenerator.java), use license_private_pkcs8.b64:")
-    print(f"   java data.LicenseGenerator license.properties MichiCloudSalt2026 {priv_pkcs8_path}")
+    print("3. For DEV signing, run:")
+    print(f"   python build_tools/generate_dev_license.py")
+    print(f"   (Reads {priv_pkcs8_path} automatically.)")
     print()
     print("4. Keep all private key files SECRET — add to .gitignore:")
     print("   license_private.xml")
