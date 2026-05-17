@@ -61,6 +61,24 @@ public final class ResourceCache {
         if (cached != null) {
             return cached;
         }
+
+        // Dev mode: read directly from source folder so new images are visible
+        // immediately without a sync step. This takes priority over the
+        // missing-image cache so that newly added sprites are always found.
+        if (devSourceDir != null) {
+            java.io.File devFile = new java.io.File(devSourceDir, path);
+            if (devFile.exists()) {
+                try {
+                    BufferedImage image = ImageIO.read(devFile);
+                    if (image != null) {
+                        imageCache.put(path, image);
+                        missingImageCache.remove(path);
+                        return image;
+                    }
+                } catch (IOException ignored) {}
+            }
+        }
+
         if (missingImageCache.contains(path)) {
             return null;
         }

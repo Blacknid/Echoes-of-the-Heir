@@ -434,11 +434,14 @@ public class GamePanel extends JPanel implements Runnable{
     // RENDER PIPELINE
     renderPipeline = new RenderPipeline(this);
 
-    // OPTIMIZATION: Hardware-compatible back buffer — stored in VRAM when possible
-    java.awt.GraphicsConfiguration gc = java.awt.GraphicsEnvironment
-        .getLocalGraphicsEnvironment().getDefaultScreenDevice().getDefaultConfiguration();
-    tempScreen = gc.createCompatibleImage(screenWidth, screenHeight, java.awt.Transparency.OPAQUE);
-    g2 = (Graphics2D) tempScreen.getGraphics();
+    // Back buffer: plain BufferedImage in system RAM.
+    // CompatibleImage (VRAM/OpenGL texture) is invalidated whenever the Java2D OpenGL
+    // driver recreates its context on a window resize (e.g. fullscreen toggle), causing
+    // drawImage to silently draw nothing. A BufferedImage is never tied to the GL context;
+    // the game loop renders into it in software, and Java2D uploads it to the screen each
+    // frame via OpenGL texture-upload — that one-way copy always works.
+    tempScreen = new BufferedImage(screenWidth, screenHeight, BufferedImage.TYPE_INT_RGB);
+    g2 = tempScreen.createGraphics();
     
     // OPTIMIZATION: Set rendering hints once at setup instead of per-frame
     g2.setRenderingHint(java.awt.RenderingHints.KEY_RENDERING, java.awt.RenderingHints.VALUE_RENDER_SPEED);
@@ -483,18 +486,30 @@ public class GamePanel extends JPanel implements Runnable{
         JFrame window = Main.window;
         if (window == null) return;
 
-        // The window is always undecorated (set in Main.java before first setVisible).
-        // This means we never need dispose() to change decoration — we just toggle
-        // the extended state. No dispose = no OpenGL surface destruction = no black screen.
+        // Use GraphicsDevice.setFullScreenWindow() — the only Java API that correctly
+        // handles the OpenGL surface transition during a fullscreen toggle.
+        // Manual setBounds() on an already-visible window causes the GL surface to be
+        // destroyed and re-created; the surface stays invalid for an indeterminate time
+        // afterward, so every paint call (including fillRect) silently draws nothing,
+        // leaving the window fully transparent. setFullScreenWindow() avoids this by
+        // letting the OS and the Java2D GL pipeline coordinate the transition.
+        java.awt.GraphicsDevice gd = window.getGraphicsConfiguration().getDevice();
+
         if (enableFullScreen) {
-            windowedBounds = window.getBounds();  // save for restore
-            java.awt.Dimension screen = Toolkit.getDefaultToolkit().getScreenSize();
-            window.setExtendedState(JFrame.MAXIMIZED_BOTH);
-            // Explicitly set bounds after MAXIMIZED_BOTH — on some Windows+OpenGL
-            // configurations the state change alone doesn't trigger a proper geometry
-            // update, leaving the panel at its old size and causing a black frame.
-            window.setBounds(0, 0, screen.width, screen.height);
+            windowedBounds = window.getBounds();
+            if (gd.isFullScreenSupported()) {
+                gd.setFullScreenWindow(window);
+            } else {
+                // Fallback on systems without exclusive fullscreen support:
+                // cover the current screen using its own coordinate space.
+                java.awt.Rectangle sb = gd.getDefaultConfiguration().getBounds();
+                window.setExtendedState(JFrame.NORMAL);
+                window.setBounds(sb.x, sb.y, sb.width, sb.height);
+            }
         } else {
+            if (gd.getFullScreenWindow() == window) {
+                gd.setFullScreenWindow(null);
+            }
             window.setExtendedState(JFrame.NORMAL);
             if (windowedBounds != null && windowedBounds.width > 0) {
                 window.setBounds(windowedBounds);
@@ -508,26 +523,15 @@ public class GamePanel extends JPanel implements Runnable{
         }
 
         window.validate();
+        window.repaint();
         window.toFront();
         requestFocusInWindow();
-
-        // Recreate the hardware back-buffer after the window mode change.
-        // With sun.java2d.opengl=True the CompatibleImage backing texture is tied to
-        // the window's GL surface; resizing the window (especially to full-screen)
-        // invalidates that texture. drawImage then silently draws nothing, producing
-        // a persistent black screen. Creating a fresh CompatibleImage from the
-        // current GraphicsConfiguration gives us a clean, valid surface.
-        // The second invokeLater lets the window settle (validate/repaint cycle)
-        // before we swap the buffers, so we get the correct GC for the new size.
-        SwingUtilities.invokeLater(this::recreateBackBuffer);
     }
 
+    /** Recreates the back buffer (e.g. if screen resolution changes at runtime). */
     private void recreateBackBuffer() {
-        java.awt.GraphicsConfiguration gc = java.awt.GraphicsEnvironment
-            .getLocalGraphicsEnvironment().getDefaultScreenDevice().getDefaultConfiguration();
-        BufferedImage newScreen = gc.createCompatibleImage(
-            screenWidth, screenHeight, java.awt.Transparency.OPAQUE);
-        Graphics2D newG2 = (Graphics2D) newScreen.getGraphics();
+        BufferedImage newScreen = new BufferedImage(screenWidth, screenHeight, BufferedImage.TYPE_INT_RGB);
+        Graphics2D newG2 = newScreen.createGraphics();
         newG2.setRenderingHint(java.awt.RenderingHints.KEY_RENDERING,
             java.awt.RenderingHints.VALUE_RENDER_SPEED);
         newG2.setRenderingHint(java.awt.RenderingHints.KEY_INTERPOLATION,

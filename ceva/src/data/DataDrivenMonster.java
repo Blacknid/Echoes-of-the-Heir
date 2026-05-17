@@ -123,6 +123,8 @@ public class DataDrivenMonster extends Entity {
                 int absDx = Math.abs(getCenterX() - gp.player.getCenterX());
                 int absDy = Math.abs(getCenterY() - gp.player.getCenterY());
                 if (absDx < closeDist && absDy < closeDist) {
+                    // Telegraph: monster is in melee range, flash red as warning
+                    if (attackWindupFlash < 15) attackWindupFlash = 15;
                     directChase(goalCol, goalRow);
                 } else {
                     searchPath(goalCol, goalRow);
@@ -179,6 +181,10 @@ public class DataDrivenMonster extends Entity {
     }
 
     private void tryShoot() {
+        // Telegraph: flash red in the 20 frames leading up to a ranged shot
+        if (shootCooldown <= 20 && shootCooldown > 0) {
+            attackWindupFlash = 20 - shootCooldown;
+        }
         if (shootCooldown <= 0 && projectile != null) {
             Projectile p = gp.projectilePool.get();
             p.name = projectile.name;

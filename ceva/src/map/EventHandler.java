@@ -59,6 +59,9 @@ public class EventHandler {
     final List<PixelEvent<ThoughtData>>      thoughtTriggers   = new ArrayList<>();
     final List<PixelEvent<FragmentTriggerData>> fragmentTriggers  = new ArrayList<>();
 
+    // ---- Water zones (rectangle or polygon areas that slow the player) ------
+    final List<java.awt.Shape> waterZones = new ArrayList<>();
+
     // ---- Spawn zones ---------------------------------------------------------
     final List<SpawnZoneData> spawnZones = new ArrayList<>();
     private final Random spawnRnd = new Random();
@@ -201,6 +204,7 @@ public class EventHandler {
         thoughtTriggers.clear();
         fragmentTriggers.clear();
         namedSpawnPoints.clear();
+        waterZones.clear();
         spawnZones.clear();
         canTouchEvent = true;
         previousEventX = gp.player.worldX;
@@ -213,6 +217,23 @@ public class EventHandler {
 
     // ---- Pixel-precise registration methods ----------------------------------
     // All event hitboxes use exact world-space coordinates (wx, wy, w, h).
+
+    public void registerWaterZone(int wx, int wy, int w, int h) {
+        waterZones.add(new java.awt.Rectangle(wx, wy, Math.max(1, w), Math.max(1, h)));
+    }
+
+    public void registerWaterZone(java.awt.Shape shape) {
+        waterZones.add(shape);
+    }
+
+    public boolean isInWaterZone(int x, int y, int w, int h) {
+        java.awt.geom.Rectangle2D playerRect = new java.awt.geom.Rectangle2D.Float(
+            x, y, Math.max(1, w), Math.max(1, h));
+        for (java.awt.Shape zone : waterZones) {
+            if (zone.intersects(playerRect)) return true;
+        }
+        return false;
+    }
 
     public void registerMapTransition(int wx, int wy, int w, int h,
                                       String mapId, int spawnCol, int spawnRow, String spawnId) {
@@ -790,6 +811,23 @@ public class EventHandler {
         // Memory gates — deep blue
         drawEventLayer(g2, memoryGates,      playerWorldX, playerWorldY, pScreenX, pScreenY,
                        new Color( 60,  80, 255), "MEM");
+
+        // Water zones — light blue filled + outline (supports both rectangles and polygons)
+        int camOffX = pScreenX - playerWorldX;
+        int camOffY = pScreenY - playerWorldY;
+        java.awt.geom.AffineTransform savedTx = g2.getTransform();
+        g2.translate(camOffX, camOffY);
+        g2.setComposite(AlphaComposite.getInstance(AlphaComposite.SRC_OVER, 0.25f));
+        g2.setColor(new Color(80, 160, 255));
+        for (java.awt.Shape wz : waterZones) g2.fill(wz);
+        g2.setComposite(AlphaComposite.getInstance(AlphaComposite.SRC_OVER, 0.75f));
+        g2.setColor(new Color(80, 160, 255));
+        for (java.awt.Shape wz : waterZones) {
+            g2.draw(wz);
+            java.awt.Rectangle b = wz.getBounds();
+            g2.drawString("WATER", b.x + 3, b.y + 13);
+        }
+        g2.setTransform(savedTx);
 
         // Spawn zones (have custom world-space bounds, not tile-grid keys)
         g2.setColor(new Color(255, 160, 0));
