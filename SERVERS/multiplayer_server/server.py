@@ -441,8 +441,18 @@ class GameServer:
             writer.write(b"AUTH_FAIL\n")
             await writer.drain()
             return None
+        # Format: "AUTH <enc_b64> <machine_fp> <sig_b64>"
+        # machine_fp and sig are outside the OAEP envelope (plaintext is fine —
+        # sig is already in license.properties on the client machine).
+        auth_parts = text.split(" ")
+        if len(auth_parts) != 4:
+            writer.write(b"AUTH_FAIL\n")
+            await writer.drain()
+            return None
+        machine_fp  = auth_parts[2][:64]
+        license_sig = auth_parts[3][:512]
         try:
-            enc = base64.b64decode(text[5:], validate=True)
+            enc = base64.b64decode(auth_parts[1], validate=True)
             plaintext = self.private_key.decrypt(
                 enc,
                 rsa_padding.OAEP(
@@ -459,8 +469,6 @@ class GameServer:
             return None
 
         license_key = str(payload.get("license", ""))[:32]
-        machine_fp  = str(payload.get("machine_fp", ""))[:64]
-        license_sig = str(payload.get("license_sig", ""))[:1024]
         ts = int(payload.get("ts", 0))
         cn_check = bytes.fromhex(str(payload.get("client_nonce", "")) or "")
         sn_check = bytes.fromhex(str(payload.get("server_nonce", "")) or "")

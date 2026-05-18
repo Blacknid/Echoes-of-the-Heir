@@ -450,7 +450,13 @@ def handle_client(conn: socket.socket, addr: tuple[str, int],
             auth = recv_line(conn, max_bytes=4096)
             if not auth.startswith("AUTH "):
                 raise ValueError("missing AUTH")
-            enc = base64.b64decode(auth[5:], validate=True)
+            # Format: "AUTH <enc_b64> <machine_fp> <sig_b64>"
+            auth_parts = auth.split(" ")
+            if len(auth_parts) != 4:
+                raise ValueError("bad AUTH format")
+            enc = base64.b64decode(auth_parts[1], validate=True)
+            machine_fp  = auth_parts[2][:64]
+            license_sig = auth_parts[3][:512]
             plaintext = rsa_oaep_decrypt(enc)
             payload = json.loads(plaintext.decode("utf-8"))
         except Exception as exc:
@@ -459,8 +465,6 @@ def handle_client(conn: socket.socket, addr: tuple[str, int],
             return
 
         license_key = str(payload.get("license", ""))[:32]
-        machine_fp  = str(payload.get("machine_fp", ""))[:64]
-        license_sig = str(payload.get("license_sig", ""))[:1024]
         ts = int(payload.get("ts", 0))
         try:
             cn_check = bytes.fromhex(str(payload.get("client_nonce", "")))

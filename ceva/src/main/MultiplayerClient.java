@@ -274,15 +274,14 @@ public class MultiplayerClient {
             byte[] serverNonce = Base64.getDecoder().decode(okLine.substring(3));
             if (serverNonce.length != 16) return false;
 
-            // Step 3: AUTH (RSA-OAEP) — bundle name+class so server can build PlayerState atomically.
-            // The "debug" field is gone: it was a server-side bypass and a critical hole.
-            // Servers now decide debug-mode policy via their own config.
+            // Step 3: AUTH (RSA-OAEP) — keep the encrypted payload small (< 190 bytes for RSA-2048).
+            // machine_fp and license_sig are sent as plaintext tokens after the ciphertext on the
+            // same line: "AUTH <enc_b64> <machine_fp> <sig_b64>"
+            // This is safe: license_sig is already stored in license.properties on disk.
             String fp  = data.LicenseManager.getCachedMachineFp();
             String sig = data.LicenseManager.getCachedSignature();
             String handshakeJson = "{"
                     + "\"license\":\""      + jsonEscape(license)            + "\","
-                    + "\"machine_fp\":\""   + jsonEscape(fp != null ? fp : "")  + "\","
-                    + "\"license_sig\":\""  + jsonEscape(sig != null ? sig : "") + "\","
                     + "\"ts\":"             + (System.currentTimeMillis() / 1000L) + ","
                     + "\"client_nonce\":\"" + toHex(clientNonce)              + "\","
                     + "\"server_nonce\":\"" + toHex(serverNonce)              + "\","
@@ -290,7 +289,9 @@ public class MultiplayerClient {
                     + "\"class\":\""        + jsonEscape(cls)                 + "\""
                     + "}";
             byte[] enc = rsaOaepEncrypt(handshakeJson.getBytes(StandardCharsets.UTF_8));
-            sendLine("AUTH " + Base64.getEncoder().encodeToString(enc));
+            sendLine("AUTH " + Base64.getEncoder().encodeToString(enc)
+                    + " " + (fp  != null ? fp  : "")
+                    + " " + (sig != null ? sig : ""));
 
             // Step 4: AUTH_OK + encrypted session key
             String authLine = readLine();

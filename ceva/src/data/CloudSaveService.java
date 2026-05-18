@@ -395,23 +395,23 @@ public class CloudSaveService {
             byte[] serverNonce = Base64.getDecoder().decode(okLine.substring(3));
             if (serverNonce.length != 16) { socket.close(); return null; }
 
-            // Step 3: AUTH (RSA-OAEP)
-            // Include the machine fingerprint and the RSA signature from
-            // license.properties so the server can verify the license is
-            // (a) signed by us and (b) bound to this machine.
+            // Step 3: AUTH (RSA-OAEP) — keep the encrypted payload small (< 190 bytes for RSA-2048).
+            // machine_fp and license_sig are sent as plaintext tokens after the ciphertext on the
+            // same line: "AUTH <enc_b64> <machine_fp> <sig_b64>"
+            // This is safe: license_sig is already stored in license.properties on disk.
             String fp  = data.LicenseManager.getCachedMachineFp();
             String sig = data.LicenseManager.getCachedSignature();
             String handshakeJson = "{"
                     + "\"license\":\""      + jsonEscape(licenseKey)         + "\","
-                    + "\"machine_fp\":\""   + jsonEscape(fp != null ? fp : "")  + "\","
-                    + "\"license_sig\":\""  + jsonEscape(sig != null ? sig : "") + "\","
                     + "\"ts\":"             + (System.currentTimeMillis() / 1000L) + ","
                     + "\"client_nonce\":\"" + toHex(clientNonce)              + "\","
                     + "\"server_nonce\":\"" + toHex(serverNonce)              + "\""
                     + "}";
 
             byte[] enc = rsaOaepEncrypt(handshakeJson.getBytes(StandardCharsets.UTF_8));
-            w.write("AUTH " + Base64.getEncoder().encodeToString(enc));
+            w.write("AUTH " + Base64.getEncoder().encodeToString(enc)
+                    + " " + (fp  != null ? fp  : "")
+                    + " " + (sig != null ? sig : ""));
             w.newLine();
             w.flush();
 
