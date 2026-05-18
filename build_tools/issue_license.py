@@ -20,11 +20,13 @@ Optional fields:
   --revoke           Issue a row with revoked=true (kill-switch for an
                      existing key that leaked).
 
-Usage:
+Usage (can be run from any directory):
     python build_tools/issue_license.py \\
         --note "alice@example.com" \\
         --registry SERVERS/save_server/licenses.json \\
         --registry SERVERS/multiplayer_server/licenses.json
+
+Paths are resolved relative to the repository root automatically.
 
 After running, scp/rsync each updated `licenses.json` to its corresponding
 server (or commit + pull if you keep them in git on the Pis).
@@ -42,6 +44,22 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 CHARSET = string.ascii_uppercase + string.digits
+
+# Resolve registry paths relative to repo root (where this script is located)
+SCRIPT_DIR = Path(__file__).resolve().parent
+REPO_ROOT = SCRIPT_DIR.parent
+
+
+def resolve_registry_path(path_str: str) -> Path:
+    """Resolve path relative to repo root if not absolute."""
+    p = Path(path_str)
+    if p.is_absolute():
+        return p
+    # Try repo root first, then CWD as fallback
+    repo_path = REPO_ROOT / p
+    if repo_path.exists() or not (Path.cwd() / p).exists():
+        return repo_path
+    return Path.cwd() / p
 
 
 def generate_license_key() -> str:
@@ -150,7 +168,8 @@ def main() -> None:
         return
 
     for r in args.registry:
-        append_to_registry(Path(r), license_key, entry)
+        reg_path = resolve_registry_path(r)
+        append_to_registry(reg_path, license_key, entry)
 
     print()
     print("Next steps:")

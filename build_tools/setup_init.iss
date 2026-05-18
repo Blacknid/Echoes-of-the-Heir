@@ -41,7 +41,7 @@ Filename: "{app}\MichisAdventure.exe"; WorkingDir: "{app}"; Description: "{cm:La
 
 [UninstallDelete]
 ; Clean up generated license and local save files on uninstall
-Type: files; Name: "{app}\license.properties"
+Type: files; Name: "{app}\app\license.properties"
 Type: files; Name: "{app}\local_save.dat"
 Type: files; Name: "{app}\local_aes.key"
 
@@ -100,9 +100,10 @@ begin
   Lines[14] := '$sig = $rsa.SignData($dataBytes, $sha)';
   Lines[15] := '$sigB64 = [Convert]::ToBase64String($sig)';
 
-  // Lines 16-17 — write license.properties
-  Lines[16] := '$out = "license_key=$key`r`nmachine_fp=$fp`r`nsignature=$sigB64"';
-  Lines[17] := '[System.IO.File]::WriteAllText("' + AppDir + '\license.properties", $out, [System.Text.Encoding]::ASCII)';
+  // Lines 16-17 — write license.properties field-by-field to avoid any embedded
+  // newline inside the base64 signature value (which would break Java Properties.load).
+  Lines[16] := '$licPath = "' + AppDir + '\app\license.properties"';
+  Lines[17] := '[System.IO.File]::WriteAllLines($licPath, @("license_key=$key", "machine_fp=$fp", "signature=$sigB64"), [System.Text.Encoding]::ASCII)';
 
   SaveStringsToFile(ScriptPath, Lines, False);
 
