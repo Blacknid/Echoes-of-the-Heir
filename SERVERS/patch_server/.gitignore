@@ -1,8 +1,0 @@
-# Patch server private state — never commit any of this.
-patch_private_key.pem
-patch_public_key.b64
-patch_config.json
-manifest.json
-patches/
-*.log
-__pycache__/
