@@ -33,5 +33,10 @@
     "first_seen": null,
     "machine_fp": "d3527df7cc0f7335",
     "note": "installed license from setup - updated to current machine"
+  },
+  "KJ6LAE1I-QM60": {
+    "first_seen": null,
+    "machine_fp": "d3527df7cc0f7335",
+    "note": "reinstall 2026-05-18 after machine fp fix"
   }
 }

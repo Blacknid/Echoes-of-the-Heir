@@ -107,16 +107,6 @@ public class MultiplayerClient {
 
         new Thread(() -> {
             try {
-                // Re-verify the on-disk license file right before connecting.
-                // Catches mid-session tampering / file-swap / fp drift.
-                if (Main.LICENSE_KEY != null && !data.LicenseManager.verifyCurrent()) {
-                    Main.LICENSE_KEY = null;
-                    connecting.set(false);
-                    connectionStatus = "License re-verify failed — connection refused.";
-                    System.out.println("[MP Client] License re-verify failed — aborting connect.");
-                    return;
-                }
-
                 String license = Main.LICENSE_KEY;
                 if (license == null || license.isBlank()) {
                     connecting.set(false);

@@ -167,8 +167,8 @@ log = logging.getLogger("michi-mp")
 
 
 # ── Helpers ────────────────────────────────────────────────────────────────
-# Cheap structural pre-filter — real trust comes from RSA signature +
-# registry allow-list. Accepts any printable alphanumeric/dash token.
+# Cheap structural pre-filter — real trust comes from RSA signature.
+# Accepts any printable alphanumeric/dash token.
 _LICENSE_KEY_RE = __import__("re").compile(r"^[A-Z0-9][A-Z0-9\-]{3,63}$")
 
 def license_is_well_formed(license_key: str) -> bool:
@@ -484,16 +484,6 @@ class GameServer:
                     await writer.drain()
                     log.info("AUTH bad signature from %s (license=%s)", peer, license_key)
                     return None
-            # Step 3: registry allow-list + TOFU machine-fp pinning.
-            ok, reason = license_verify.authorize(
-                self.license_db_path, self.license_registry,
-                license_key, machine_fp, dev_mode=False,
-            )
-            if not ok:
-                writer.write(b"AUTH_FAIL\n")
-                await writer.drain()
-                log.info("AUTH %s from %s (license=%s)", reason, peer, license_key)
-                return None
 
         if abs(int(time.time()) - ts) > HANDSHAKE_TS_WINDOW:
             writer.write(b"AUTH_FAIL\n")
@@ -942,18 +932,14 @@ async def amain(host: str, port: int, max_players: int, private_key, cfg: dict) 
         log.warning("active_map not set in mp_config.json — defaulting to '%s'",
                     active_map_id)
 
-    # Load license public key + allow-list registry. Stored on GameServer
-    # so the per-connection handshake can reach them without globals.
+    # Load license public key. Stored on GameServer so the per-connection
+    # handshake can reach it. No allow-list — RSA signature is the sole trust.
     license_pub = license_verify.load_public_key(cfg.get("license_public_key_b64", ""))
     if license_pub is None and not cfg.get("dev_mode", False):
         log.warning(
             "license_public_key_b64 is unset/placeholder — signature verification "
             "DISABLED. Set it in mp_config.json for production."
         )
-    db_rel = cfg.get("licenses_db", "licenses.json")
-    license_db_path = (BASE_DIR / db_rel) if not os.path.isabs(db_rel) else Path(db_rel)
-    license_registry = license_verify.load_registry(license_db_path)
-    log.info("License registry: %s (%d entries)", license_db_path, len(license_registry))
     if cfg.get("dev_mode", False):
         log.warning("dev_mode=True — ALL license checks bypassed. Do NOT use in production.")
 
@@ -964,8 +950,6 @@ async def amain(host: str, port: int, max_players: int, private_key, cfg: dict) 
         maps=map_collection, active_map_id=active_map_id,
     )
     server.license_pub = license_pub
-    server.license_db_path = license_db_path
-    server.license_registry = license_registry
 
     def shutdown_handler():
         log.info("Shutdown signal received...")
