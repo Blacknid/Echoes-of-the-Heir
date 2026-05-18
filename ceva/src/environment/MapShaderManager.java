@@ -83,7 +83,7 @@ public class MapShaderManager {
     private int   windGustTimer  = 0;
 
     // ===================== WEATHER SYSTEM =====================
-    private static final int MAX_RAIN = 250;
+    private static final int MAX_RAIN = 160;
     private float[] rainX, rainY, rainSpeed, rainAlpha, rainLength;
 
     private static final int MAX_SNOW = 120;
@@ -356,8 +356,9 @@ public class MapShaderManager {
 
         if (ws == EnvironmentManager.WEATHER_RAIN || ws == EnvironmentManager.WEATHER_STORM) {
             int active = (int)(MAX_RAIN * intensity);
-            // LOD: reduce particles under low FPS
-            if (gp.currentFPS > 0 && gp.currentFPS < 48) active = active / 2;
+            // 3-tier LOD: full / half / quarter based on FPS
+            if (gp.currentFPS > 0 && gp.currentFPS < 30) active = active / 4;
+            else if (gp.currentFPS > 0 && gp.currentFPS < 45) active = active / 2;
 
             // Wind gust: smoothly shift rain angle every 3-7 seconds
             if (--windGustTimer <= 0) {
@@ -366,12 +367,13 @@ public class MapShaderManager {
                 windGustTimer = 180 + random.nextInt(240);
             }
             windStrength += (windGustTarget - windStrength) * 0.025f;
+            // Single batch sway offset computed once per tick (replaces per-drop fastSin)
+            float batchSway = fastSin(tick * 0.04) * 0.3f;
 
             for (int i = 0; i < active; i++) {
                 // Physics entirely in world space
                 rainY[i] += rainSpeed[i];
-                rainX[i] += windStrength;
-                rainX[i] += fastSin(tick * 0.04 + i) * 0.3f;
+                rainX[i] += windStrength + batchSway;
                 // Bounds check using derived screen position
                 float sx = rainX[i] - camWX;
                 float sy = rainY[i] - camWY;
@@ -392,7 +394,8 @@ public class MapShaderManager {
 
         if (ws == EnvironmentManager.WEATHER_SNOW) {
             int active = (int)(MAX_SNOW * intensity);
-            if (gp.currentFPS > 0 && gp.currentFPS < 48) active = active / 2;
+            if (gp.currentFPS > 0 && gp.currentFPS < 30) active = active / 4;
+            else if (gp.currentFPS > 0 && gp.currentFPS < 45) active = active / 2;
             for (int i = 0; i < active; i++) {
                 // Physics entirely in world space
                 snowY[i] += snowSpeed[i];
@@ -426,7 +429,8 @@ public class MapShaderManager {
         if (ws == EnvironmentManager.WEATHER_RAIN || ws == EnvironmentManager.WEATHER_STORM) {
             // Rain drops as diagonal lines
             int active = (int)(MAX_RAIN * intensity);
-            if (gp.currentFPS > 0 && gp.currentFPS < 48) active = active / 2;
+            if (gp.currentFPS > 0 && gp.currentFPS < 30) active = active / 4;
+            else if (gp.currentFPS > 0 && gp.currentFPS < 45) active = active / 2;
             // Set composite + color ONCE before the loop — was 250 setComposite calls, now 1
             float rainA = Math.min(1f, 0.4f * intensity);
             g2.setComposite(cachedAlpha(rainA));
@@ -449,7 +453,8 @@ public class MapShaderManager {
 
         if (ws == EnvironmentManager.WEATHER_SNOW) {
             int active = (int)(MAX_SNOW * intensity);
-            if (gp.currentFPS > 0 && gp.currentFPS < 48) active = active / 2;
+            if (gp.currentFPS > 0 && gp.currentFPS < 30) active = active / 4;
+            else if (gp.currentFPS > 0 && gp.currentFPS < 45) active = active / 2;
             // Set composite + color ONCE before the loop — was 120 setComposite calls, now 1
             float snowA = Math.min(1f, 0.5f * intensity);
             g2.setComposite(cachedAlpha(snowA));

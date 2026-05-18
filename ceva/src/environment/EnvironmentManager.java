@@ -192,7 +192,13 @@ public class EnvironmentManager {
         }
         float effectiveAlpha = Math.min(0.95f, filterAlpha + weatherDarkness);
 
-        if (dayState != day || effectiveAlpha > 0) {
+        if (effectiveAlpha > 0.02f) {
+            // Adaptive downscale: reduce overlay resolution further under heavy load
+            if (lightning.lightDownscale < 4 && gp.currentFPS > 0 && gp.currentFPS < 30) {
+                lightning.lightDownscale = 4;
+            } else if (lightning.lightDownscale > 2 && (gp.currentFPS <= 0 || gp.currentFPS >= 45)) {
+                lightning.lightDownscale = 2;
+            }
             lightning.draw(g2, effectiveAlpha);
         }
     }

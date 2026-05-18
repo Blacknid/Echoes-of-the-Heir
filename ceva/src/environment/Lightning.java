@@ -10,7 +10,6 @@ import java.awt.geom.Path2D;
 import java.awt.geom.Point2D;
 import java.awt.image.BufferedImage;
 import java.awt.image.DataBufferInt;
-import java.awt.RenderingHints;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashMap;
@@ -134,18 +133,25 @@ public class Lightning {
         lightMaskG2s.clear();
         dstOutLightCache.clear();
         squareDstOutLightCache.clear();
+        // Force overlay to redraw on the next frame after a map change
+        overlayDirty    = true;
+        lastDarkArgb    = Integer.MIN_VALUE;
+        lastPlayerSXov  = Integer.MIN_VALUE;
+        lastPlayerSYov  = Integer.MIN_VALUE;
     }
 
     // ===================== PRIVATE HELPERS =====================
 
-    private void ensureOverlay(int w, int h) {
-        if (darknessOverlay != null && overlayWidth == w && overlayHeight == h) return;
+    private boolean ensureOverlay(int w, int h) {
+        if (darknessOverlay != null && overlayWidth == w && overlayHeight == h) return false;
         if (overlayG2 != null) { overlayG2.dispose(); overlayG2 = null; }
         darknessOverlay = new BufferedImage(w, h, BufferedImage.TYPE_INT_ARGB);
         darknessPixels  = ((DataBufferInt) darknessOverlay.getRaster().getDataBuffer()).getData();
         overlayWidth    = w;
         overlayHeight   = h;
         overlayG2       = darknessOverlay.createGraphics();
+        overlayDirty    = true;
+        return true;
     }
 
     private BufferedImage ensureLightMaskImage(int rad) {
@@ -799,6 +805,14 @@ public class Lightning {
     private final long[]  reusableTorchR2  = new long[MAX_LIGHTS];
     private final float[] reusableTorchInvR = new float[MAX_LIGHTS];
 
+    // OPTIMIZATION: Overlay dirty tracking — skip Arrays.fill + light redraw when nothing changed.
+    // Saves the most expensive work on static scenes (e.g. Shattered Lake standing still).
+    private int   lastDarkArgb      = Integer.MIN_VALUE;
+    private int   lastPlayerSXov    = Integer.MIN_VALUE;
+    private int   lastPlayerSYov    = Integer.MIN_VALUE;
+    private int   lastLightDs       = -1;
+    private boolean overlayDirty    = true;
+
     // ===================== MAIN DRAW =====================
     public void draw(Graphics2D g2, float currentMaxDarkness) {
         int screenWidth  = gp.screenWidth;
@@ -850,68 +864,85 @@ public class Lightning {
         int overlayH    = Math.max(1, screenHeight / ds);
         float polyScale = 1.0f / ds;
 
-        ensureOverlay(overlayW, overlayH);
+        boolean overlayResized = ensureOverlay(overlayW, overlayH);
 
         int darkArgb = ((int)(currentMaxDarkness * 255 + 0.5f)) << 24;
-        Arrays.fill(darknessPixels, darkArgb);
 
-        if (isLow) {
-            // ========= LOW: tile-based overlay from tileLightLevel (shadows via raycasting) =========
-            renderLowModeOverlay(currentMaxDarkness, playerWorldX, playerWorldY,
-                                 playerScreenX, playerScreenY, ds);
-        } else {
-            // ========= MEDIUM / HIGH: radial-gradient overlay =========
-            Graphics2D og = overlayG2;
+        int playerSXov = (playerScreenX + gp.tileSize / 2) / ds;
+        int playerSYov = (playerScreenY + gp.tileSize / 2) / ds;
 
-            int playerSXov = (playerScreenX + gp.tileSize / 2) / ds;
-            int playerSYov = (playerScreenY + gp.tileSize / 2) / ds;
-            int lightPxOv  = lightPxWorld / ds;
+        // Invalidate overlay when darkness level, player position, downscale, or overlay size changed
+        if (overlayResized || darkArgb != lastDarkArgb
+                || playerSXov != lastPlayerSXov || playerSYov != lastPlayerSYov
+                || ds != lastLightDs || torchShadowCacheDirty) {
+            overlayDirty = true;
+        }
 
-            // Polygon shadows only for HIGH (tiles can be half-lit at shadow edges)
-            boolean usePolyShadows = (gp.config.graphicsQuality == Config.GRAPHICS_HIGH);
+        if (overlayDirty) {
+            lastDarkArgb   = darkArgb;
+            lastPlayerSXov = playerSXov;
+            lastPlayerSYov = playerSYov;
+            lastLightDs    = ds;
+            overlayDirty   = false;
 
-            // ========= PLAYER LIGHT =========
-            if (usePolyShadows) {
-                reusableOccluders.clear();
-                reusableWorldRect.setBounds(
-                        playerLightCX - lightPxWorld, playerLightCY - lightPxWorld,
-                        lightPxWorld * 2, lightPxWorld * 2);
-                buildSolidTileOccluders(reusableWorldRect, reusableOccluders);
-                playerShadowPolys = computeShadowPolysWorld(
-                        playerLightCX, playerLightCY, lightPxWorld, reusableOccluders);
-            }
+            Arrays.fill(darknessPixels, darkArgb);
 
-            drawLight(og, playerSXov, playerSYov, lightPxOv,
-                      usePolyShadows ? playerShadowPolys : null, polyScale);
+            if (isLow) {
+                // ========= LOW: tile-based overlay from tileLightLevel (shadows via raycasting) =========
+                renderLowModeOverlay(currentMaxDarkness, playerWorldX, playerWorldY,
+                                     playerScreenX, playerScreenY, ds);
+            } else {
+                // ========= MEDIUM / HIGH: radial-gradient overlay =========
+                Graphics2D og = overlayG2;
 
-            // ========= TORCH LIGHTS =========
-            for (int i = 0; i < gp.obj.length; i++) {
-                if (gp.obj[i] == null || !gp.obj[i].lightSource || gp.obj[i].lightRadius <= 0) continue;
+                int lightPxOv  = lightPxWorld / ds;
 
-                int tRadWorld = gp.obj[i].lightRadius * gp.tileSize;
-                int tRadOv    = tRadWorld / ds;
-                int tx = (gp.obj[i].worldX - playerWorldX + playerScreenX + gp.tileSize / 2) / ds;
-                int ty = (gp.obj[i].worldY - playerWorldY + playerScreenY + gp.tileSize / 2) / ds;
+                // Polygon shadows only for HIGH (tiles can be half-lit at shadow edges)
+                boolean usePolyShadows = (gp.config.graphicsQuality == Config.GRAPHICS_HIGH);
 
-                if (tx + tRadOv < 0 || tx - tRadOv > overlayW
-                        || ty + tRadOv < 0 || ty - tRadOv > overlayH) continue;
-
+                // ========= PLAYER LIGHT =========
                 if (usePolyShadows) {
-                    if (torchShadowCacheDirty || !torchShadowPolys.containsKey(i)) {
-                        int twx = gp.obj[i].worldX + gp.tileSize / 2;
-                        int twy = gp.obj[i].worldY + gp.tileSize / 2;
-                        reusableOccluders.clear();
-                        reusableWorldRect.setBounds(twx - tRadWorld, twy - tRadWorld,
-                                                    tRadWorld * 2, tRadWorld * 2);
-                        buildSolidTileOccluders(reusableWorldRect, reusableOccluders);
-                        torchShadowPolys.put(i, computeShadowPolysWorld(twx, twy, tRadWorld, reusableOccluders));
-                    }
+                    reusableOccluders.clear();
+                    reusableWorldRect.setBounds(
+                            playerLightCX - lightPxWorld, playerLightCY - lightPxWorld,
+                            lightPxWorld * 2, lightPxWorld * 2);
+                    buildSolidTileOccluders(reusableWorldRect, reusableOccluders);
+                    playerShadowPolys = computeShadowPolysWorld(
+                            playerLightCX, playerLightCY, lightPxWorld, reusableOccluders);
                 }
 
-                drawLight(og, tx, ty, tRadOv,
-                          usePolyShadows ? torchShadowPolys.get(i) : null, polyScale);
+                drawLight(og, playerSXov, playerSYov, lightPxOv,
+                          usePolyShadows ? playerShadowPolys : null, polyScale);
+
+                // ========= TORCH LIGHTS =========
+                for (int i = 0; i < gp.obj.length; i++) {
+                    if (gp.obj[i] == null || !gp.obj[i].lightSource || gp.obj[i].lightRadius <= 0) continue;
+
+                    int tRadWorld = gp.obj[i].lightRadius * gp.tileSize;
+                    int tRadOv    = tRadWorld / ds;
+                    int tx = (gp.obj[i].worldX - playerWorldX + playerScreenX + gp.tileSize / 2) / ds;
+                    int ty = (gp.obj[i].worldY - playerWorldY + playerScreenY + gp.tileSize / 2) / ds;
+
+                    if (tx + tRadOv < 0 || tx - tRadOv > overlayW
+                            || ty + tRadOv < 0 || ty - tRadOv > overlayH) continue;
+
+                    if (usePolyShadows) {
+                        if (torchShadowCacheDirty || !torchShadowPolys.containsKey(i)) {
+                            int twx = gp.obj[i].worldX + gp.tileSize / 2;
+                            int twy = gp.obj[i].worldY + gp.tileSize / 2;
+                            reusableOccluders.clear();
+                            reusableWorldRect.setBounds(twx - tRadWorld, twy - tRadWorld,
+                                                        tRadWorld * 2, tRadWorld * 2);
+                            buildSolidTileOccluders(reusableWorldRect, reusableOccluders);
+                            torchShadowPolys.put(i, computeShadowPolysWorld(twx, twy, tRadWorld, reusableOccluders));
+                        }
+                    }
+
+                    drawLight(og, tx, ty, tRadOv,
+                              usePolyShadows ? torchShadowPolys.get(i) : null, polyScale);
+                }
+                if (usePolyShadows) torchShadowCacheDirty = false;
             }
-            if (usePolyShadows) torchShadowCacheDirty = false;
         }
 
         // Blit darkness overlay — scale up to full screen when downscaling is active

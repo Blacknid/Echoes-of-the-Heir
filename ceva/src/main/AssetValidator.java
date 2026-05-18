@@ -17,7 +17,7 @@ public class AssetValidator {
         "/res/player/Player_walking-sheet.png",
         "/res/player/Player_idle-sheet.png",
         // Maps
-        "/res/maps/harta.tmx",
+        "/res/maps/Canvas_Village.tmx",
         // Sounds (theme music + essential SFX)
         "/res/sound/Michiduta Theme.wav",
         "/res/sound/GameOver.wav",

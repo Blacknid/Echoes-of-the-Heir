@@ -42,9 +42,31 @@ public final class LicenseManager {
     // Replace this placeholder with the content of build_tools/license_public.b64
     // (output of build_tools/generate_license_keys.py).
     private static final String PUBLIC_KEY_B64 =
-        "REPLACE_WITH_PUBLIC_KEY_FROM_generate_license_keys.py";
+        "MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEA+fKgLpa8kluHVEryc7//" + 
+      "SsrLfy+Q5Q7YXRFApBwTBJ4ur81ScoTy8LZjvGE6L+OB1YD/dAHLs2/jyH/3e2CJ" + 
+      "30mdjpwq8S4l4t1iIQj9t3aJj6eEedRf6Rbjsovx6099tgGidyPg4yrCXBZ7CrrL" + 
+      "+MNEw9FnAnFulUrI/hv2zfakBJmaMh4CfL5uZBRXKUb1RRbbPYExqrPd9DNKDDnI" + 
+      "f4m2+Y640+dfB7ZMJpbrieRwh1sJzQsQGom3cAx2Wv5RtUQSAJVWmoBFDWbhephK" + 
+      "WPg816PKHaOeGs5zlaRA4s6DJ+Oq6rnMa471fDaSZetIceXttxxRhPyDwoYDOB6g" + 
+      "0wIDAQAB";
 
-    private static final Path LICENSE_PATH = Paths.get("license.properties");
+    /**
+     * Resolved against the directory containing the running JAR (or the
+     * working directory in a dev classpath run), so the game finds its
+     * license regardless of where it was launched from.
+     */
+    private static final Path LICENSE_PATH = resolveLicensePath();
+
+    private static Path resolveLicensePath() {
+        try {
+            java.net.URL u = LicenseManager.class.getProtectionDomain()
+                    .getCodeSource().getLocation();
+            Path codeLoc = Paths.get(u.toURI());
+            Path base = Files.isDirectory(codeLoc) ? codeLoc : codeLoc.getParent();
+            if (base != null) return base.resolve("license.properties");
+        } catch (Exception ignored) {}
+        return Paths.get("license.properties");
+    }
 
     // ── Cached state pinned at load() time. Used by verifyCurrent() to
     //    detect tampering / swap / fp drift without doing the slow
@@ -77,7 +99,10 @@ public final class LicenseManager {
 
             String key = props.getProperty("license_key", "").trim();
             String fp  = props.getProperty("machine_fp",  "").trim();
-            String sig = props.getProperty("signature",   "").trim();
+            // Strip ALL whitespace from the signature (guards against installers that
+            // accidentally embed \r\n inside the base64 value, which Properties.load
+            // would otherwise silently truncate).
+            String sig = props.getProperty("signature",   "").replaceAll("\\s", "");
 
             if (key.isEmpty() || fp.isEmpty() || sig.isEmpty()) {
                 System.out.println("[License] Incomplete license file.");
@@ -196,13 +221,10 @@ public final class LicenseManager {
                     return;
                 }
                 if (!verifyCurrent()) {
-                    try {
-                        // Best-effort: nuke the in-memory key.
-                        Class<?> mainCls = Class.forName("main.Main");
-                        java.lang.reflect.Field f = mainCls.getDeclaredField("LICENSE_KEY");
-                        f.setAccessible(true);
-                        f.set(null, null);
-                    } catch (Throwable ignored) {}
+                    // Clean accessor — no reflection, no surprise NoSuchFieldException
+                    // if Main is ever refactored.
+                    try { main.Main.invalidateLicense(); }
+                    catch (Throwable ignored) {}
                     return;     // stop polling once tripped
                 }
             }

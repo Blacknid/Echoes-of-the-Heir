@@ -42,12 +42,18 @@ import javax.swing.JOptionPane;
  */
 public final class UpdateClient {
 
-    /** Replace with the contents of {@code patch_public_key.b64}. */
     public static final String PATCH_PUBLIC_KEY_B64 =
-            "MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEA0000000000000000000000000000000000000000000000000PASTE_REAL_KEY_HERE";
+            "MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAo0suPLBkFYhT3IrAL1bU"
+          + "mf77A7uQfoVga1CKvE6SPOQYnH05xxXKpnUwEu616fRjPi99n9vTFxPZkYUbNxnv"
+          + "2MIprCUxjl0wEe2q/a7/qFp7o/cdCpt6iWsUTOlMZ77plrEtetbEj+IalqSSF20C"
+          + "7042rkTyrL9LxfISXiStFuxhnDfX/Na2cSEgOKQNUCCa52jvCDw+m2xziVmMEs8N"
+          + "/m/7Sc+PUYYsGVcHsDerkMeSfumfcd8E3RK7Ip/IRkd1fxjlw6h+UlqAzssFPlYq"
+          + "fQXQjNE11pteAASgyluRNu7rqbsfHitvkZk2KQ91hJ642VRyf2IIfSezvwDOee5ST"
+          + "QIDAQAB";
 
     private static final List<String> FALLBACK_HOSTS = List.of(
-            "192.168.137.14:5006"
+            "192.168.137.14:5006",
+            "192.168.137.126:5006"
     );
 
     private static final int CONNECT_TIMEOUT_MS = 4000;

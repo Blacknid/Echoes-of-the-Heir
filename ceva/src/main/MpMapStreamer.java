@@ -65,6 +65,11 @@ public class MpMapStreamer {
     public volatile int spawnCol;
     public volatile int spawnRow;
 
+    // Per-player authoritative spawn from the welcome packet.
+    // -1 means no override — fall back to the TMX default spawn.
+    public volatile int welcomeSpawnX = -1;
+    public volatile int welcomeSpawnY = -1;
+
     /** {@code layerIdx -> layer name}. Server-authoritative ordering. */
     private final List<String> layerNamesByIdx = new ArrayList<>();
 
@@ -109,6 +114,8 @@ public class MpMapStreamer {
         layerNamesByIdx.clear();
         tileLayerIndex.clear();
         mapId = "";
+        welcomeSpawnX = -1;
+        welcomeSpawnY = -1;
     }
 
     // =====================================================================
@@ -156,7 +163,8 @@ public class MpMapStreamer {
             // builds are populated with zeros (since the skeleton has empty
             // CSV blocks) which matches our "nothing loaded yet" state.
             gp.mapManager.changeMap(mapId, spawnCol, spawnRow);
-            // Snap player to authoritative spawn.
+            // Snap player to TMX default spawn for now; finishWorldLoad() will
+            // override with the per-player welcomeSpawn once all chunks arrive.
             gp.player.worldX = spawnCol * gp.tileSize;
             gp.player.worldY = spawnRow * gp.tileSize;
 
@@ -256,6 +264,16 @@ public class MpMapStreamer {
             gp.cChecker.updateCollisionRectsCache();
             if (gp.minimap != null) gp.minimap.bakeTerrainImage();
             gp.tileM.rebuildReflectiveTilePositions();
+            // Apply the per-player authoritative spawn from the welcome packet now
+            // that the world is fully loaded. This overrides the generic TMX default
+            // spawn that was set in applyWorldInfo(), so the player lands at the
+            // correct server-assigned position.
+            if (welcomeSpawnX >= 0 && welcomeSpawnY >= 0) {
+                gp.player.worldX = welcomeSpawnX;
+                gp.player.worldY = welcomeSpawnY;
+                System.out.println("[MpMapStreamer] Player spawned at welcome pos: "
+                        + welcomeSpawnX + ", " + welcomeSpawnY);
+            }
             client.sendWorldReady();
             System.out.println("[MpMapStreamer] World fully loaded: " + mapId);
         } catch (Exception e) {

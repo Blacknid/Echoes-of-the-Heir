@@ -1300,7 +1300,7 @@ public class TileManager {
         int cameraWorldY = gp.player.worldY - gp.player.screenY;
 
         // Compute visible tile range
-        int extraMargin = tileSize * 3; // load a few extra tiles off-screen to prevent pop-in when moving
+        int extraMargin = tileSize * 2; // load a few extra tiles off-screen to prevent pop-in when moving
         int minCol = Math.max(0, (cameraWorldX - extraMargin) / tileSize);
         int maxCol = Math.min(gp.maxWorldCol - 1, (cameraWorldX + gp.screenWidth  + extraMargin) / tileSize);
         int minRow = Math.max(0, (cameraWorldY - extraMargin) / tileSize);

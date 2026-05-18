@@ -15,10 +15,13 @@
 >
 > This matches the Java client (`CloudSaveService` / `MultiplayerClient`)
 > exactly, which it did not before. The `licenses` table, the
-> `license_pepper` config field, and the 5-login rotation logic no longer
-> exist. Only `license_salt` is still used (for structural validation of
-> license format). The ASCII diagrams below have not all been updated;
-> treat the server source code as the authoritative reference.
+> `license_pepper` config field, the `license_salt` field, and the 5-login
+> rotation logic no longer exist. Trust now comes exclusively from:
+>   1. RSA-2048 signature on `license.properties` (installer-bound)
+>   2. Machine fingerprint binding (SHA-256(MachineGuid)[:8 bytes])
+>   3. Server-side `licenses.json` allow-list (pre-bound or TOFU)
+> The ASCII diagrams below have not all been updated; treat the server
+> source code as the authoritative reference.
 
 Toate serverele au fost construite pentru a rula pe un sistem de operare linux. Versiunea folosita pentru development a fost Raspberry PI os (ARM64). Acestea functioneaza pentru orice versiune/distributie de linux, nu depinde de arhitectura procesorului. Pentru a rula setup-urile avem nevoie de:
 

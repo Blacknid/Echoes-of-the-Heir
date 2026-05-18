@@ -13,6 +13,18 @@ config.txt
 build/*
 output/*
 *.patch
-save.dat
-config.txt
 /.vscode/*
+/deploy
+
+# Build artifacts
+jpackage_tmp/
+crash_log.txt
+*.log
+
+# Server runtime files
+SERVERS/save_server/saves.db
+SERVERS/save_server/server.log
+SERVERS/multiplayer_server/*.db
+
+
+

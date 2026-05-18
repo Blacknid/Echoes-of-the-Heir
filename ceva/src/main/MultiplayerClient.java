@@ -435,11 +435,12 @@ public class MultiplayerClient {
                 connectionStatus = "Connected (ID: " + localId + ")";
                 int sx = extractInt(json, "spawn_x", -1);
                 int sy = extractInt(json, "spawn_y", -1);
-                if (sx >= 0 && sy >= 0) {
-                    gp.player.worldX = sx;
-                    gp.player.worldY = sy;
-                }
-                System.out.println("[MP Client] Welcome! Local ID = " + localId);
+                // Store the authoritative spawn; finishWorldLoad() applies it AFTER
+                // all chunks arrive so applyWorldInfo() cannot overwrite it.
+                mapStreamer.welcomeSpawnX = sx;
+                mapStreamer.welcomeSpawnY = sy;
+                System.out.println("[MP Client] Welcome! Local ID = " + localId
+                        + "  spawn=(" + sx + "," + sy + ")");
                 parsePlayerList(json);
             }
             case "world_info" -> handleWorldInfo(json);

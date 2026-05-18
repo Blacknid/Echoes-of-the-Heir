@@ -92,14 +92,10 @@ DEFAULT_CONFIG = {
     "host": "0.0.0.0",
     "port": 5005,
     "private_key_path": "server_private_key.pem",
-    # Crypto identity — the ONLY place these values should be set.
-    # Edit server_config.json on the server. Do NOT hardcode in client code.
-    "license_salt":   "MichiCloudSalt2026",
     # RSA-2048 public key (DER/SPKI base64) that the installer uses to
     # sign license.properties. MUST match LicenseManager.PUBLIC_KEY_B64.
     # If left as the placeholder, signature verification is DISABLED and
-    # the server falls back to registry-only auth (still safer than the
-    # old salt-only check, but you should set this in production).
+    # the server falls back to registry-only auth — never deploy that way.
     "license_public_key_b64": "REPLACE_WITH_PUBLIC_KEY_FROM_generate_license_keys.py",
     # Path to the license allow-list (relative to this server's dir).
     # See licenses.example.json for the schema.
@@ -175,17 +171,15 @@ def rsa_oaep_decrypt(ct: bytes) -> bytes:
     )
 
 
-# ── License validation ─────────────────────────────────────────────────────
-def license_is_valid(license_key: str, salt: str) -> bool:
-    if not isinstance(license_key, str) or len(license_key) != 13 or license_key[8] != "-":
-        return False
-    prefix, suffix = license_key[:8], license_key[9:]
-    if not prefix.isalnum() or not suffix.isalnum() or len(suffix) != 4:
-        return False
-    expected = hashlib.sha256(
-        f"{prefix}{salt}".encode("utf-8")
-    ).hexdigest()[:4].upper()
-    return hmac.compare_digest(expected, suffix.upper())
+# ── License structural sanity check ────────────────────────────────────────
+# Cheap pre-filter: reject obvious garbage before doing RSA work. The real
+# trust is the RSA signature + registry allow-list — this is just to bail
+# out fast on absurd input. Accept anything that looks like a printable,
+# reasonably-sized alphanumeric / dash token.
+_LICENSE_KEY_RE = __import__("re").compile(r"^[A-Z0-9][A-Z0-9\-]{3,63}$")
+
+def license_is_well_formed(license_key: str) -> bool:
+    return isinstance(license_key, str) and bool(_LICENSE_KEY_RE.match(license_key))
 
 
 # ── Per-IP rate limiter (sliding window, in-memory) ────────────────────────
@@ -478,8 +472,9 @@ def handle_client(conn: socket.socket, addr: tuple[str, int],
             status = "AUTH_NONCE_FORMAT"
             return
 
-        # Step 1 (cheap): structural format + salt-checksum.
-        if not license_is_valid(license_key, cfg["license_salt"]):
+        # Step 1 (cheap): structural sanity check. Real trust comes from
+        # the RSA signature (Step 2) and the registry allow-list (Step 3).
+        if not license_is_well_formed(license_key):
             send_line(conn, "AUTH_FAIL")
             status = "AUTH_BAD_LICENSE"
             return
