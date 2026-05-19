@@ -210,7 +210,7 @@ public class KeyHandler implements KeyListener {
     private void startGame() {
         gp.gameState = GamePanel.playState;
         // Apply music and weather from the TMX map's properties
-        String path = gp.mapManager.mapRegistry.getOrDefault(gp.mapManager.currentMapId, "/res/maps/harta.tmx");
+        String path = gp.mapManager.mapRegistry.getOrDefault(gp.mapManager.currentMapId, "/res/maps/Canvas_Village.tmx");
         gp.mapObjectLoader.loadMapProperties(path);
     }
 

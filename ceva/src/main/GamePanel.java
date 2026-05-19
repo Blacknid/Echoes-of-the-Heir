@@ -1421,8 +1421,7 @@ public class GamePanel extends JPanel implements Runnable{
      * Renders a simple colored rectangle with nametag.
      * Uses the local player's sprite frames when available.
      */
-    @SuppressWarnings("unused")
-    private void drawRemotePlayers(Graphics2D g2) {
+    public void drawRemotePlayers(Graphics2D g2) {
         for (var entry : mpClient.remotePlayers.entrySet()) {
             MultiplayerClient.RemotePlayerState rp = entry.getValue();
             int screenPosX = rp.worldX - player.worldX + player.screenX;

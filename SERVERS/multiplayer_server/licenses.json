@@ -9,6 +9,16 @@
     "machine_fp": null,
     "note": ""
   },
+  "GUZPDW3R-JI3J": {
+    "first_seen": null,
+    "machine_fp": null,
+    "note": "First customer"
+  },
+  "HOAL8C2R-72SU": {
+    "first_seen": null,
+    "machine_fp": "d3527df7cc0f7335",
+    "note": "test machine build 2026-05-17"
+  },
   "MICHI001-2DF3": {
     "first_seen": null,
     "machine_fp": null,
@@ -18,5 +28,15 @@
     "first_seen": null,
     "machine_fp": null,
     "note": "dev machine license generated 2026-05-15"
+  },
+  "XF3M2YVT-N6L2": {
+    "first_seen": null,
+    "machine_fp": "d3527df7cc0f7335",
+    "note": "installed license from setup - updated to current machine"
+  },
+  "KJ6LAE1I-QM60": {
+    "first_seen": null,
+    "machine_fp": "d3527df7cc0f7335",
+    "note": "reinstall 2026-05-18 after machine fp fix"
   }
 }

@@ -28,7 +28,7 @@ public class MapManager {
     public Map<String, String> mapRegistry = new HashMap<>();
 
     // Track which map is currently active (matches a key in mapRegistry)
-    public String currentMapId = "harta";
+    public String currentMapId = "awakening_cave";
 
     // TRANSITION
     public String nextMapId;
@@ -36,7 +36,7 @@ public class MapManager {
     public int nextRow;
 
     // ENTRY POINT TRACKING
-    public String previousMapId = "harta";
+    public String previousMapId = "awakening_cave";
     public int previousTriggerCol = 24;
     public int previousTriggerRow = 15;
 

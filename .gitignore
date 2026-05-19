@@ -26,9 +26,5 @@ SERVERS/save_server/saves.db
 SERVERS/save_server/server.log
 SERVERS/multiplayer_server/*.db
 
-# License and key files (keep examples only)
-license.properties
-*_private_key.pem
-!*.example.json
-!*.example.txt
+
 

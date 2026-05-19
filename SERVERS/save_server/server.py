@@ -148,8 +148,6 @@ _private_key = None
 
 # ── License-verification globals (populated in serve_forever) ──────────────
 _LICENSE_PUB = None           # cryptography RSAPublicKey or None (placeholder)
-_LICENSE_DB_PATH: Path = BASE_DIR / "licenses.json"
-_LICENSE_REGISTRY: dict = {}
 
 
 def load_private_key(path: Path) -> None:
@@ -452,7 +450,13 @@ def handle_client(conn: socket.socket, addr: tuple[str, int],
             auth = recv_line(conn, max_bytes=4096)
             if not auth.startswith("AUTH "):
                 raise ValueError("missing AUTH")
-            enc = base64.b64decode(auth[5:], validate=True)
+            # Format: "AUTH <enc_b64> <machine_fp> <sig_b64>"
+            auth_parts = auth.split(" ")
+            if len(auth_parts) != 4:
+                raise ValueError("bad AUTH format")
+            enc = base64.b64decode(auth_parts[1], validate=True)
+            machine_fp  = auth_parts[2][:64]
+            license_sig = auth_parts[3][:512]
             plaintext = rsa_oaep_decrypt(enc)
             payload = json.loads(plaintext.decode("utf-8"))
         except Exception as exc:
@@ -461,8 +465,6 @@ def handle_client(conn: socket.socket, addr: tuple[str, int],
             return
 
         license_key = str(payload.get("license", ""))[:32]
-        machine_fp  = str(payload.get("machine_fp", ""))[:64]
-        license_sig = str(payload.get("license_sig", ""))[:1024]
         ts = int(payload.get("ts", 0))
         try:
             cn_check = bytes.fromhex(str(payload.get("client_nonce", "")))
@@ -473,7 +475,7 @@ def handle_client(conn: socket.socket, addr: tuple[str, int],
             return
 
         # Step 1 (cheap): structural sanity check. Real trust comes from
-        # the RSA signature (Step 2) and the registry allow-list (Step 3).
+        # the RSA signature (Step 2).
         if not license_is_well_formed(license_key):
             send_line(conn, "AUTH_FAIL")
             status = "AUTH_BAD_LICENSE"
@@ -490,16 +492,6 @@ def handle_client(conn: socket.socket, addr: tuple[str, int],
                     status = "AUTH_BAD_SIGNATURE"
                     return
 
-        # Step 3: registry allow-list + TOFU machine-fp pinning.
-        ok, reason = license_verify.authorize(
-            _LICENSE_DB_PATH, _LICENSE_REGISTRY,
-            license_key, machine_fp,
-            dev_mode=cfg.get("dev_mode", False),
-        )
-        if not ok:
-            send_line(conn, "AUTH_FAIL")
-            status = f"AUTH_{reason}"
-            return
         if abs(int(time.time()) - ts) > HANDSHAKE_TS_WINDOW:
             send_line(conn, "AUTH_FAIL")
             status = "AUTH_TS_WINDOW"
@@ -643,18 +635,14 @@ def serve_forever() -> None:
         sys.exit(2)
     load_private_key(pk_path)
 
-    # Load the license public key + allow-list registry.
-    global _LICENSE_PUB, _LICENSE_DB_PATH, _LICENSE_REGISTRY
+    # Load the license public key. No allow-list — RSA signature is the sole trust.
+    global _LICENSE_PUB
     _LICENSE_PUB = license_verify.load_public_key(cfg.get("license_public_key_b64", ""))
     if _LICENSE_PUB is None and not cfg.get("dev_mode", False):
         logging.warning(
             "license_public_key_b64 is unset/placeholder — signature verification "
             "DISABLED. Set it in server_config.json for production."
         )
-    db_rel = cfg.get("licenses_db", "licenses.json")
-    _LICENSE_DB_PATH = (BASE_DIR / db_rel) if not os.path.isabs(db_rel) else Path(db_rel)
-    _LICENSE_REGISTRY = license_verify.load_registry(_LICENSE_DB_PATH)
-    logging.info("License registry: %s (%d entries)", _LICENSE_DB_PATH, len(_LICENSE_REGISTRY))
     if cfg.get("dev_mode", False):
         logging.warning("dev_mode=True — ALL license checks bypassed. Do NOT use in production.")
 

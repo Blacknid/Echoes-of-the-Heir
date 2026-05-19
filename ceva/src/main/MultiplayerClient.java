@@ -107,16 +107,6 @@ public class MultiplayerClient {
 
         new Thread(() -> {
             try {
-                // Re-verify the on-disk license file right before connecting.
-                // Catches mid-session tampering / file-swap / fp drift.
-                if (Main.LICENSE_KEY != null && !data.LicenseManager.verifyCurrent()) {
-                    Main.LICENSE_KEY = null;
-                    connecting.set(false);
-                    connectionStatus = "License re-verify failed — connection refused.";
-                    System.out.println("[MP Client] License re-verify failed — aborting connect.");
-                    return;
-                }
-
                 String license = Main.LICENSE_KEY;
                 if (license == null || license.isBlank()) {
                     connecting.set(false);
@@ -284,15 +274,14 @@ public class MultiplayerClient {
             byte[] serverNonce = Base64.getDecoder().decode(okLine.substring(3));
             if (serverNonce.length != 16) return false;
 
-            // Step 3: AUTH (RSA-OAEP) — bundle name+class so server can build PlayerState atomically.
-            // The "debug" field is gone: it was a server-side bypass and a critical hole.
-            // Servers now decide debug-mode policy via their own config.
+            // Step 3: AUTH (RSA-OAEP) — keep the encrypted payload small (< 190 bytes for RSA-2048).
+            // machine_fp and license_sig are sent as plaintext tokens after the ciphertext on the
+            // same line: "AUTH <enc_b64> <machine_fp> <sig_b64>"
+            // This is safe: license_sig is already stored in license.properties on disk.
             String fp  = data.LicenseManager.getCachedMachineFp();
             String sig = data.LicenseManager.getCachedSignature();
             String handshakeJson = "{"
                     + "\"license\":\""      + jsonEscape(license)            + "\","
-                    + "\"machine_fp\":\""   + jsonEscape(fp != null ? fp : "")  + "\","
-                    + "\"license_sig\":\""  + jsonEscape(sig != null ? sig : "") + "\","
                     + "\"ts\":"             + (System.currentTimeMillis() / 1000L) + ","
                     + "\"client_nonce\":\"" + toHex(clientNonce)              + "\","
                     + "\"server_nonce\":\"" + toHex(serverNonce)              + "\","
@@ -300,7 +289,9 @@ public class MultiplayerClient {
                     + "\"class\":\""        + jsonEscape(cls)                 + "\""
                     + "}";
             byte[] enc = rsaOaepEncrypt(handshakeJson.getBytes(StandardCharsets.UTF_8));
-            sendLine("AUTH " + Base64.getEncoder().encodeToString(enc));
+            sendLine("AUTH " + Base64.getEncoder().encodeToString(enc)
+                    + " " + (fp  != null ? fp  : "")
+                    + " " + (sig != null ? sig : ""));
 
             // Step 4: AUTH_OK + encrypted session key
             String authLine = readLine();
@@ -435,11 +426,12 @@ public class MultiplayerClient {
                 connectionStatus = "Connected (ID: " + localId + ")";
                 int sx = extractInt(json, "spawn_x", -1);
                 int sy = extractInt(json, "spawn_y", -1);
-                if (sx >= 0 && sy >= 0) {
-                    gp.player.worldX = sx;
-                    gp.player.worldY = sy;
-                }
-                System.out.println("[MP Client] Welcome! Local ID = " + localId);
+                // Store the authoritative spawn; finishWorldLoad() applies it AFTER
+                // all chunks arrive so applyWorldInfo() cannot overwrite it.
+                mapStreamer.welcomeSpawnX = sx;
+                mapStreamer.welcomeSpawnY = sy;
+                System.out.println("[MP Client] Welcome! Local ID = " + localId
+                        + "  spawn=(" + sx + "," + sy + ")");
                 parsePlayerList(json);
             }
             case "world_info" -> handleWorldInfo(json);
