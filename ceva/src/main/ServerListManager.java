@@ -1,6 +1,11 @@
 package main;
 
-import java.io.*;
+import java.io.BufferedReader;
+import java.io.BufferedWriter;
+import java.io.File;
+import java.io.FileReader;
+import java.io.FileWriter;
+import java.io.IOException;
 import java.util.ArrayList;
 
 /**
@@ -12,7 +17,7 @@ public class ServerListManager {
     private static final String FILE_PATH = "servers.txt";
     private final ArrayList<String[]> servers = new ArrayList<>();
 
-    public ServerListManager() {Holl
+    public ServerListManager() {
         load();
     }
 

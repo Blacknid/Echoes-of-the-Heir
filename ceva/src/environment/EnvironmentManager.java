@@ -19,38 +19,34 @@ public class EnvironmentManager {
     public int dayCounter = 0;
 
     /**
-     * When >= 0, overrides the day/night cycle darkness.
-     * Set from Tiled map 'ambientLight' property. Reset to -1 to re-enable the cycle.
+     * Dacă >= 0, suprascrie întunericul ciclului zi/noapte.
+     * Setat din proprietatea Tiled 'ambientLight'. Resetează la -1 pentru a reactiva ciclul.
      */
     public float pinnedFilterAlpha = -1f;
     
-    public final int dayDuration = 10800;      // 3 minutes, time * 60 (FPS) = total frames for day/night cycle
-    public final int transitionDuration = 3600; // 2 minute transition (3600 frames at 60 FPS)
+    public final int dayDuration = 10800;      // 3 minute — timp * 60 (FPS) = cadre totale pentru ciclul zi/noapte
+    public final int transitionDuration = 3600; // tranzitie 2 minute (3600 cadre la 60 FPS)
 
-    // ADD THIS LINE HERE:
-    // This calculates exactly how much to fade per frame
-    float transitionSpeed = 0.95f / transitionDuration; 
-
-    // ==================== WEATHER SYSTEM ====================
+    float transitionSpeed = 0.95f / transitionDuration;
     public static final int WEATHER_CLEAR = 0;
     public static final int WEATHER_RAIN  = 1;
     public static final int WEATHER_STORM = 2;
     public static final int WEATHER_SNOW  = 3;
 
     public int weatherState = WEATHER_CLEAR;
-    private int weatherTarget = WEATHER_CLEAR; // For smooth transitions
-    public float weatherIntensity = 1f;        // 0→1 smooth fade
-    private static final float WEATHER_FADE_SPEED = 0.008f; // ~2 sec to full
-    /** When >= 0 the weather is pinned by Tiled and the auto-cycle is suppressed. */
+    private int weatherTarget = WEATHER_CLEAR;
+    public float weatherIntensity = 1f;
+    private static final float WEATHER_FADE_SPEED = 0.008f; // ~2 secunde pana la intensitate maxima
+    /** Dacă >= 0, vremea este fixată din Tiled și ciclul automat este dezactivat. */
     public int pinnedWeather = -1;
 
-    /** When false, both day/night and auto-weather cycling are disabled for this map. */
+    /** Dacă false, ciclul zi/noapte și cel meteo sunt dezactivate pe această hartă. */
     public boolean weatherCycleEnabled = true;
 
-    // Auto-weather cycle
+    // Ciclu meteo automat
     private int weatherTimer = 0;
-    private static final int WEATHER_CYCLE_MIN = 3600;  // 1 min
-    private static final int WEATHER_CYCLE_MAX = 7200;  // 2 min
+    private static final int WEATHER_CYCLE_MIN = 3600;  // 1 minut
+    private static final int WEATHER_CYCLE_MAX = 7200;  // 2 minute
     private int nextWeatherChange;
 
     public EnvironmentManager(GamePanel gp) {
@@ -62,15 +58,10 @@ public class EnvironmentManager {
         lightning = new Lightning(gp);
     }
 
-    /** Get the player light radius (in tiles). */
     public int getPlayerLightRadius() {
         return lightning != null ? lightning.playerLightRadius : 7;
     }
 
-    /**
-     * Set the player light radius (in tiles). Clamped to [1, 30].
-     * The new mask is generated automatically on next draw.
-     */
     public void setPlayerLightRadius(int radiusTiles) {
         if (lightning != null) {
             lightning.playerLightRadius = Math.max(1, Math.min(30, radiusTiles));
@@ -78,7 +69,6 @@ public class EnvironmentManager {
     }
 
     public void update() {
-        // Day/night cycle — skip when ambient light is pinned OR weatherCycle is disabled
         if (pinnedFilterAlpha >= 0f) {
             filterAlpha = pinnedFilterAlpha;
         } else if (weatherCycleEnabled) {
@@ -112,7 +102,6 @@ public class EnvironmentManager {
             }
         }
 
-        // Weather intensity fade (always runs so transitions finish smoothly)
         if (weatherTarget != WEATHER_CLEAR) {
             weatherState = weatherTarget;
             if (weatherIntensity < 1f) {
@@ -127,7 +116,6 @@ public class EnvironmentManager {
             }
         }
 
-        // Auto-weather cycle — suppressed when pinned or cycling disabled
         if (pinnedWeather < 0 && weatherCycleEnabled) {
             weatherTimer++;
             if (weatherTimer >= nextWeatherChange) {
@@ -145,7 +133,6 @@ public class EnvironmentManager {
         }
     }
 
-    /** Set weather with smooth transition. */
     public void setWeather(int type) {
         if (type == WEATHER_CLEAR) {
             weatherTarget = WEATHER_CLEAR;
@@ -155,8 +142,8 @@ public class EnvironmentManager {
     }
 
     /**
-     * Set weather by name string (from Tiled map properties).
-     * Accepted values: "CLEAR", "RAIN", "STORM", "SNOW" (case-insensitive).
+     * Setează vremea după un sir de caractere (din proprietatile hartii Tiled).
+     * Valori acceptate: "CLEAR", "RAIN", "STORM", "SNOW" (insensibil la majuscule).
      */
     public void setWeatherByName(String name) {
         switch (name.trim().toUpperCase()) {
@@ -168,8 +155,8 @@ public class EnvironmentManager {
     }
 
     /**
-     * Jump directly to a time-of-day state set from Tiled map properties.
-     * 0 = day, 1 = dusk, 2 = night, 3 = dawn
+     * Sare direct la o stare de timp a zilei, setata din proprietatile hartii Tiled.
+     * 0 = zi, 1 = asfintit, 2 = noapte, 3 = zori
      */
     public void setTimeOfDay(int state) {
         dayState = Math.max(day, Math.min(dawn, state));
@@ -183,7 +170,6 @@ public class EnvironmentManager {
     }
 
     public void draw(Graphics2D g2) {
-        // Darken the sky during rain/storm for atmosphere
         float weatherDarkness = 0f;
         if (weatherState == WEATHER_RAIN) {
             weatherDarkness = 0.35f * weatherIntensity;
@@ -193,7 +179,7 @@ public class EnvironmentManager {
         float effectiveAlpha = Math.min(0.95f, filterAlpha + weatherDarkness);
 
         if (effectiveAlpha > 0.02f) {
-            // Adaptive downscale: reduce overlay resolution further under heavy load
+            // Downscale adaptiv: reduce rezolutia overlay-ului sub sarcina mare
             if (lightning.lightDownscale < 4 && gp.currentFPS > 0 && gp.currentFPS < 30) {
                 lightning.lightDownscale = 4;
             } else if (lightning.lightDownscale > 2 && (gp.currentFPS <= 0 || gp.currentFPS >= 45)) {

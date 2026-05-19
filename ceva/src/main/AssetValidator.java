@@ -13,25 +13,18 @@ public class AssetValidator {
 
     // Critical resources that the game cannot function without
     private static final String[] CRITICAL_ASSETS = {
-        // Player sprites
         "/res/player/Player_walking-sheet.png",
         "/res/player/Player_idle-sheet.png",
-        // Maps
         "/res/maps/Canvas_Village.tmx",
-        // Sounds (theme music + essential SFX)
         "/res/sound/Michiduta Theme.wav",
         "/res/sound/GameOver.wav",
-        // Objects
         "/res/objects/sword_normal.png",
         "/res/objects/shield_wood.png",
         "/res/objects/Key.png",
         "/res/objects/Heart.png",
         "/res/objects/Potion.png",
-        // Monster sprites
         "/res/monster/Monster_walking-sheet.png",
-        // Tiles
         "/res/tiles/tiles.png",
-        // Data files
         "/res/data/skilltree.json",
         "/res/build.properties",
     };

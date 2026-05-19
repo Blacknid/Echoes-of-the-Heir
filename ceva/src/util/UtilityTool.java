@@ -9,7 +9,6 @@ import java.awt.image.BufferedImage;
 
 public final class UtilityTool {
 
-    // Cached graphics config for hardware-compatible image creation
     private static final GraphicsConfiguration GC =
         GraphicsEnvironment.getLocalGraphicsEnvironment()
             .getDefaultScreenDevice().getDefaultConfiguration();

@@ -23,7 +23,6 @@ public class Lightning {
     GamePanel gp;
     public int dayState;
 
-    // ===================== DARKNESS OVERLAY =====================
     // Rendered at screenW/lightDownscale × screenH/lightDownscale for performance;
     // scaled back to full screen on blit. lightDownscale=1 → full res.
     private BufferedImage darknessOverlay;
@@ -40,10 +39,8 @@ public class Lightning {
      */
     public int lightDownscale = 2;
 
-    // ===================== PLAYER LIGHT =====================
     public int playerLightRadius = 3;
 
-    // ===================== COLORED LIGHT REGISTRY =====================
     private static final int MAX_LIGHTS = 20;
     public int[]   lightWX        = new int[MAX_LIGHTS];
     public int[]   lightWY        = new int[MAX_LIGHTS];
@@ -52,7 +49,6 @@ public class Lightning {
     public float[] lightIntensity = new float[MAX_LIGHTS];
     public int lightCount = 0;
 
-    // ===================== IMAGE CACHES =====================
     private final HashMap<Integer, BufferedImage> dstOutLightCache = new HashMap<>();
     private final HashMap<Integer, BufferedImage> squareDstOutLightCache = new HashMap<>();
     private final HashMap<Long,    BufferedImage> gradientCache    = new HashMap<>();
@@ -60,7 +56,6 @@ public class Lightning {
     private final HashMap<Integer, Graphics2D>    lightMaskG2s     = new HashMap<>();
     // lightMaskPixels removed: mask is now cleared via AlphaComposite.Src (GPU-side, no DataBuffer write)
 
-    // ===================== SHADOW GEOMETRY CACHE =====================
     // Torch polys: computed once per map load (torches never move).
     // Player polys: recomputed every frame (sub-5µs, eliminates threshold-snap saccading).
     // Format: float[8] = {nearS.x, nearS.y, nearE.x, nearE.y, farE.x, farE.y, farS.x, farS.y}
@@ -72,7 +67,6 @@ public class Lightning {
     // Player shadow polys are recomputed every frame: the math is <5 µs and avoids the
     // saccadating "snap" that caching at a fixed pixel threshold causes.
 
-    // ===================== REUSABLE OBJECTS (zero per-frame allocation) =====================
     private final Path2D.Double        reusableShadowPath = new Path2D.Double();
     private final ArrayList<Rectangle> reusableOccluders  = new ArrayList<>(128);
     // Pre-allocated pool for buildSolidTileOccluders — avoids per-frame Rectangle allocation.
@@ -82,7 +76,6 @@ public class Lightning {
     private int solidTilePoolUsed = 0;
     private final Rectangle            reusableWorldRect  = new Rectangle();
 
-    // ===================== TILE-SHADOW OCCLUDER SCRATCH =====================
     private final ArrayList<Rectangle> tileShadowOccluders = new ArrayList<>(32);
     private final Rectangle            reusableLightBounds = new Rectangle();
 
@@ -104,10 +97,8 @@ public class Lightning {
         return alphaCache[idx];
     }
 
-    // ===================== CONSTRUCTOR =====================
     public Lightning(GamePanel gp2) { this.gp = gp2; }
 
-    // ===================== COLORED LIGHT API =====================
     public void clearLights() { lightCount = 0; }
 
     public void addLight(int worldX, int worldY, int radiusPx, Color color, float intensity) {

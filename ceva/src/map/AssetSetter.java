@@ -11,17 +11,14 @@ public class AssetSetter {
         this.gp = gp;
     }
 
-    // ========== INTERACTIVE TILES ==========
     public void setInteractiveTile() {
         for (int i = 0; i < gp.iTile.length; i++) gp.iTile[i] = null;
     }
 
-    // ========== EVENTS / MAP TRANSITIONS ==========
     public void setEvents() {
         // Events are now loaded from TMX via loadEventsFromTMX()
     }
 
-    // ========== OBJECTS ==========
     public void setObject() {
         for (int i = 0; i < gp.obj.length; i++) gp.obj[i] = null;
 
@@ -41,17 +38,13 @@ public class AssetSetter {
         ((OBJ_Door)gp.obj[0]).setDestination(gp.mapManager.previousMapId, returnCol, returnRow + 2, false);
     }
 
-    // ========== NPCs ==========
     public void setNPC() {
         for (int i = 0; i < gp.npc.length; i++) gp.npc[i] = null;
     }
 
-    // ========== MONSTERS ==========
     public void setMonster() {
         for (int i = 0; i < gp.monster.length; i++) gp.monster[i] = null;
     }
-
-    // ── TMX loading delegates ──
 
     /** Load objects, monsters, NPCs, and interactive tiles from TMX for the current map. */
     public void loadEntitiesFromTMX() {

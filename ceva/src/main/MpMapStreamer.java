@@ -53,7 +53,6 @@ public class MpMapStreamer {
     private final GamePanel gp;
     private final MultiplayerClient client;
 
-    // ── World metadata (set on world_info) ────────────────────────────────
     public volatile String mapId = "";
     public volatile int worldTilesWide;
     public volatile int worldTilesHigh;
@@ -73,7 +72,6 @@ public class MpMapStreamer {
     /** {@code layerIdx -> layer name}. Server-authoritative ordering. */
     private final List<String> layerNamesByIdx = new ArrayList<>();
 
-    // ── Streaming state ──────────────────────────────────────────────────
     private final AtomicBoolean skeletonLoaded   = new AtomicBoolean(false);
     private final AtomicBoolean worldReady       = new AtomicBoolean(false);
     private final AtomicInteger chunksReceived   = new AtomicInteger(0);

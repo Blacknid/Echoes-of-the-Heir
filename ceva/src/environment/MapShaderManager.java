@@ -18,10 +18,8 @@ public class MapShaderManager {
 
     GamePanel gp;
 
-    // --- Animation tick (advanced each update) ---
     public long tick = 0;
 
-    // ===================== WATER SHIMMER =====================
     public static final int SHIMMER_LEVELS = 36;
     public Color[] waterShimmerColors;
 
@@ -59,41 +57,33 @@ public class MapShaderManager {
         return SIN_TABLE[idx];
     }
 
-    // ===================== VIGNETTE =====================
     private BufferedImage vignetteImage;
     private float vignetteStrength = 0.45f;
 
-    // ===================== COLOR GRADING =====================
     private Color warmOverlay;
 
-    // ===================== SEPIA MODE (Memory Flashback) =====================
     public boolean sepiaMode = false;
     private static final Color SEPIA_TINT = new Color(112, 66, 20, 50);
 
-    // ===================== AMBIENT PARTICLES =====================
     private static final int PARTICLE_COUNT = 35;
     private float[] pX, pY, pVX, pVY, pAlpha, pSize, pAlphaDir;
     private Random random = new Random();
     private float windX = 0.3f;
     private float windY = -0.1f;
 
-    // Dynamic wind gust system
     private float windStrength = -2.0f;
     private float windGustTarget = -2.0f;
     private int   windGustTimer  = 0;
 
-    // ===================== WEATHER SYSTEM =====================
     private static final int MAX_RAIN = 160;
     private float[] rainX, rainY, rainSpeed, rainAlpha, rainLength;
 
     private static final int MAX_SNOW = 120;
     private float[] snowX, snowY, snowSpeed, snowSize, snowDrift, snowAlpha;
 
-    // Storm lightning flash
     private int stormFlashTimer = 0;
     private int nextFlashIn = 0;
 
-    // Weather overlay tint colors
     private static final Color RAIN_TINT  = new Color(40, 80, 160, 12);
     private static final Color STORM_TINT = new Color(30, 60, 140, 18);
     private static final Color SNOW_TINT  = new Color(180, 210, 240, 8);
@@ -111,10 +101,6 @@ public class MapShaderManager {
         initWeather();
         warmOverlay = new Color(255, 220, 160, 7);
     }
-
-    // =====================================================================
-    //  WATER SHIMMER
-    // =====================================================================
 
     private void initWaterShimmer() {
         waterShimmerColors = new Color[SHIMMER_LEVELS];
@@ -137,10 +123,6 @@ public class MapShaderManager {
         int idx = (int) ((phase * 0.5f + 0.5f) * (SHIMMER_LEVELS - 1));
         return Math.max(0, Math.min(SHIMMER_LEVELS - 1, idx));
     }
-
-    // =====================================================================
-    //  AMBIENT PARTICLES  (dust motes / pollen drifting in sunlight)
-    // =====================================================================
 
     private void initParticles() {
         pX = new float[PARTICLE_COUNT];
@@ -231,10 +213,6 @@ public class MapShaderManager {
         g2.setComposite(original);*/
     }
 
-    // =====================================================================
-    //  VIGNETTE  (darkened screen edges for cinematic feel)
-    // =====================================================================
-
     private void createVignette() {
         int w = gp.screenWidth;
         int h = gp.screenHeight;
@@ -267,10 +245,6 @@ public class MapShaderManager {
         }
     }
 
-    // =====================================================================
-    //  COLOR GRADING  (subtle warm tint during daytime)
-    // =====================================================================
-
     public void drawColorGrading(Graphics2D g2) {
         if (sepiaMode) {
             // Desaturated sepia overlay for memory flashback sequences
@@ -285,20 +259,12 @@ public class MapShaderManager {
         }
     }
 
-    // =====================================================================
-    //  UPDATE  (call once per game tick from GamePanel.update())
-    // =====================================================================
-
     public void update() {
         tick++;
         // NOTE: updateParticles() removed — drawAmbientParticles() is disabled,
         // so particle computation was wasted CPU every frame.
         updateWeather();
     }
-
-    // =====================================================================
-    //  WEATHER SYSTEM
-    // =====================================================================
 
     private void initWeather() {
         rainX = new float[MAX_RAIN];

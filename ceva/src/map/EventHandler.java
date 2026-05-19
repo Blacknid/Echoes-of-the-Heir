@@ -42,11 +42,8 @@ public class EventHandler {
     int previousEventX, previousEventY;
     boolean canTouchEvent = true;
 
-    // ---- Named spawn points --------------------------------------------------
     public final Map<String, int[]>  namedSpawnPoints = new HashMap<>();
 
-    // ---- Pixel-precise event lists -------------------------------------------
-    // Each event stores an exact world-space Rectangle hitbox from Tiled.
     final List<PixelEvent<MapTransition>>    mapTransitions    = new ArrayList<>();
     final List<PixelEvent<int[]>>            healingPools      = new ArrayList<>();
     final List<PixelEvent<DamageTrapData>>   damageTraps       = new ArrayList<>();
@@ -59,18 +56,13 @@ public class EventHandler {
     final List<PixelEvent<ThoughtData>>      thoughtTriggers   = new ArrayList<>();
     final List<PixelEvent<FragmentTriggerData>> fragmentTriggers  = new ArrayList<>();
 
-    // ---- Water zones (rectangle or polygon areas that slow the player) ------
     final List<java.awt.Shape> waterZones = new ArrayList<>();
 
-    // ---- Spawn zones ---------------------------------------------------------
     final List<SpawnZoneData> spawnZones = new ArrayList<>();
     private final Random spawnRnd = new Random();
 
-    // ENTRY POINT TRACKING
     public int lastTriggerCol = 0;
     public int lastTriggerRow = 0;
-
-    // ---- Inner record types --------------------------------------------------
 
     static class MapTransition {
         String mapId; int spawnCol, spawnRow; String spawnId;
@@ -181,15 +173,11 @@ public class EventHandler {
         }
     }
 
-    // ---- Constructor ---------------------------------------------------------
-
     public EventHandler(GamePanel gp) {
         this.gp = gp;
         eventMaster = new Entity(gp);
         eventMaster.ensureDialogues()[0][0] = "You've restored your health and mana at the Campfire.";
     }
-
-    // ---- Reset (called on every map change) ----------------------------------
 
     public void reset() {
         mapTransitions.clear();
@@ -212,11 +200,6 @@ public class EventHandler {
         // Clear MobSpawner zones — they are re-registered per map from Tiled
         gp.mobSpawner.clearZones();
     }
-
-    // ---- Registration methods ------------------------------------------------
-
-    // ---- Pixel-precise registration methods ----------------------------------
-    // All event hitboxes use exact world-space coordinates (wx, wy, w, h).
 
     public void registerWaterZone(int wx, int wy, int w, int h) {
         waterZones.add(new java.awt.Rectangle(wx, wy, Math.max(1, w), Math.max(1, h)));
@@ -446,8 +429,6 @@ public class EventHandler {
         }
         return false;
     }
-
-    // ---- Per-frame event check -----------------------------------------------
 
     // Reusable rectangle for player's world-space solid area
     private final java.awt.Rectangle playerRect = new java.awt.Rectangle();

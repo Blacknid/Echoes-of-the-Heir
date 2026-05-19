@@ -95,7 +95,6 @@ public class DataDrivenMonster extends Entity {
         }
     }
 
-    // ---------- Melee Chase AI ----------
     private void setActionMelee() {
         if (fleeing) {
             fleeCounter++;
@@ -139,7 +138,6 @@ public class DataDrivenMonster extends Entity {
         }
     }
 
-    // ---------- Ranged Archer AI ----------
     private void setActionRanged() {
         if (shootCooldown > 0) shootCooldown--;
 
@@ -238,7 +236,6 @@ public class DataDrivenMonster extends Entity {
         }
     }
 
-    // ---------- Stationary Trap AI ----------
     // Never moves. Faces the player. rootOnContactDuration handles the grab via Entity.checkCollision().
     private void setActionStationaryTrap() {
         speed  = 0;
@@ -246,7 +243,6 @@ public class DataDrivenMonster extends Entity {
         faceTowardPlayer();
     }
 
-    // ---------- Pack Hunter AI ----------
     // Chases the player when a pack-mate is nearby; flees when alone.
     private void setActionPackHunter() {
         if (fleeing) {
@@ -281,7 +277,6 @@ public class DataDrivenMonster extends Entity {
         }
     }
 
-    // ---------- Phasing Ranged AI ----------
     // Behaves like ranged_archer but the phasing cycle (toggling invincibility) is driven by Entity.update().
     // The AI just needs to handle standard ranged combat — phasing is transparent to the AI.
     private void setActionPhasingRanged() {

@@ -18,7 +18,6 @@ public class CutsceneManager {
     public int sceneNum;
     public int scenePhase;
 
-    // OPTIMIZATION: Font cache to avoid deriveFont() per frame
     private final java.util.HashMap<Float, Font> fontCache = new java.util.HashMap<>();
 
     // Cached cutscene fonts — one per distinct pixel size used in scenes (42, 48, 52, 36).
@@ -28,7 +27,6 @@ public class CutsceneManager {
         return cutsceneFontCache.computeIfAbsent(size, s -> new Font("Segoe UI", Font.ITALIC, s));
     }
 
-    // Scene Number
     public final int NA = 0;
     public final int awakening = 1;
     public final int ending = 2;
@@ -58,10 +56,14 @@ public class CutsceneManager {
                 + "Avram Dennis-Sebastian / Lupu Mirabela\n"
                 + "\n\n\n"
                 + "Written by\n"
-                + "Lupu Cristian\n"
+                + "Lupu Cristian / Ciuca Andrei-Corneliu / Lupu Iulian-Nicolae\n"
                 + "\n\n\n"
                 + "Music by\n"
                 + "Lupu Stefan\n"
+                + "\n\n\n"
+                + "Special Thanks to\n"
+                + "Our friends for their support and encouragement, our regards to them\n"
+                + "Drila Luca , Mihai Andrei , Radu Iulian , Rusu Andrei , Ciobanu Andrei , Munteanu Andrei , Dinu Andrei\n"
                 + "\n\n\n\n\n\n"
                 + "Sources from\n"
                 + "Youtube helper : RyiSnow\n"
@@ -79,7 +81,6 @@ public class CutsceneManager {
 
         }
     }
-    // ── AWAKENING CUTSCENE ──────────────────────────────────────────────
     // White screen → "..." → "Where... am I?" → world fades in →
     // camera pans to player → player appears → play state
     public void scene_awakening() {
@@ -286,7 +287,6 @@ public class CutsceneManager {
         }
     }
 
-    // ── AWAKENING DRAWING HELPERS ────────────────────────────────────────
 
     private void drawWhiteBackground(float a) {
         float clamped = Math.max(0f, Math.min(1f, a));
@@ -313,14 +313,12 @@ public class CutsceneManager {
     private void drawOverlayText(String fullText, float yFraction, float fontSize) {
         String visible = fullText.substring(0, Math.min(typewriterIndex, fullText.length()));
         g2.setRenderingHint(RenderingHints.KEY_TEXT_ANTIALIASING, RenderingHints.VALUE_TEXT_ANTIALIAS_LCD_HRGB);
-        // Dark semi-transparent bar behind text
         int barH = 60;
         int barY = (int) (gp.screenHeight * yFraction) - 35;
         g2.setComposite(AlphaComposite.getInstance(AlphaComposite.SRC_OVER, 0.5f));
         g2.setColor(Color.black);
         g2.fillRect(0, barY, gp.screenWidth, barH);
         g2.setComposite(AlphaComposite.getInstance(AlphaComposite.SRC_OVER, 1f));
-        // Text
         g2.setFont(getCutsceneFont((int) fontSize));
         g2.setColor(new Color(240, 230, 210));
         FontMetrics fmOverlay = g2.getFontMetrics();
@@ -344,7 +342,6 @@ public class CutsceneManager {
         }
         if ( scenePhase == 1 ) {
 
-            // DISPLAY DIALOGUES
         }
         if ( scenePhase == 2 ) {
 
@@ -362,7 +359,6 @@ public class CutsceneManager {
         }
         if ( scenePhase == 4 ) {
 
-            // THE SCREEN GETS DARKER
             alpha += 0.005f;
             if ( alpha > 1f ) {
                 alpha = 1f;
