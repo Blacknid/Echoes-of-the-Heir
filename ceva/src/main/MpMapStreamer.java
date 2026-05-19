@@ -127,7 +127,14 @@ public class MpMapStreamer {
      * before any chunk packets arrive.
      */
     public void applyWorldInfo(WorldInfo info) {
+        // Preserve the per-player spawn assigned in the welcome packet.
+        // reset() clears welcomeSpawnX/Y, but welcome always arrives BEFORE
+        // world_info on the same TCP stream, so we must protect these values.
+        int savedWelcomeSpawnX = welcomeSpawnX;
+        int savedWelcomeSpawnY = welcomeSpawnY;
         reset();
+        welcomeSpawnX = savedWelcomeSpawnX;
+        welcomeSpawnY = savedWelcomeSpawnY;
 
         this.mapId         = info.mapId;
         this.worldTilesWide = info.width;
@@ -269,10 +276,13 @@ public class MpMapStreamer {
             // spawn that was set in applyWorldInfo(), so the player lands at the
             // correct server-assigned position.
             if (welcomeSpawnX >= 0 && welcomeSpawnY >= 0) {
-                gp.player.worldX = welcomeSpawnX;
-                gp.player.worldY = welcomeSpawnY;
+                // welcomeSpawnX/Y are in server pixel coords (32px/tile).
+                // The client renders with gp.tileSize (64px/tile), so scale up.
+                int scale = tileWidthPx > 0 ? gp.tileSize / tileWidthPx : 1;
+                gp.player.worldX = welcomeSpawnX * scale;
+                gp.player.worldY = welcomeSpawnY * scale;
                 System.out.println("[MpMapStreamer] Player spawned at welcome pos: "
-                        + welcomeSpawnX + ", " + welcomeSpawnY);
+                        + gp.player.worldX + ", " + gp.player.worldY);
             }
             client.sendWorldReady();
             System.out.println("[MpMapStreamer] World fully loaded: " + mapId);

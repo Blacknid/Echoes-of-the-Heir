@@ -207,9 +207,15 @@ public class MultiplayerClient {
     private void sendPlayerState() {
         try {
             var p = gp.player;
+            // Server uses originalTileSize (32px) coordinates; client uses scaled
+            // tileSize (64px at scale=2). Divide before sending so the server's
+            // collision / anti-teleport logic works in the correct pixel space.
+            int coordScale = gp.tileSize / gp.originalTileSize;
+            int sx = p.worldX / coordScale;
+            int sy = p.worldY / coordScale;
             String msg = "{\"type\":\"move\","
-                    + "\"x\":"        + p.worldX  + ","
-                    + "\"y\":"        + p.worldY  + ","
+                    + "\"x\":"        + sx          + ","
+                    + "\"y\":"        + sy          + ","
                     + "\"dir\":"      + p.direction + ","
                     + "\"sprite\":"   + p.spriteNum + ","
                     + "\"attacking\":" + p.attacking + ","
@@ -437,8 +443,9 @@ public class MultiplayerClient {
             case "world_info" -> handleWorldInfo(json);
             case "chunk"      -> handleChunk(json);
             case "pos_correction" -> {
-                int cx = extractInt(json, "x", gp.player.worldX);
-                int cy = extractInt(json, "y", gp.player.worldY);
+                int coordScale = gp.tileSize / gp.originalTileSize;
+                int cx = extractInt(json, "x", gp.player.worldX / coordScale) * coordScale;
+                int cy = extractInt(json, "y", gp.player.worldY / coordScale) * coordScale;
                 String reason = extractString(json, "reason");
                 mapStreamer.applyPositionCorrection(cx, cy, reason);
             }
@@ -455,9 +462,12 @@ public class MultiplayerClient {
                 String name = extractString(json, "name");
                 String cls  = extractString(json, "class");
                 if (id >= 0 && id != localId) {
-                    RemotePlayerState rp = new RemotePlayerState();
+                    RemotePlayerState rp = remotePlayers.getOrDefault(id, new RemotePlayerState());
                     rp.name        = name != null ? name : "Player";
                     rp.playerClass = cls  != null ? cls  : "Fighter";
+                    int coordScale = gp.tileSize / gp.originalTileSize;
+                    rp.worldX = extractInt(json, "x", 0) * coordScale;
+                    rp.worldY = extractInt(json, "y", 0) * coordScale;
                     remotePlayers.put(id, rp);
                     gp.ui.addMessage(rp.name + " joined!", new java.awt.Color(100, 220, 100));
                 }
@@ -473,15 +483,19 @@ public class MultiplayerClient {
                 int id = extractInt(json, "id", -1);
                 if (id >= 0 && id != localId) {
                     RemotePlayerState rp = remotePlayers.get(id);
-                    if (rp != null) {
-                        rp.worldX     = extractInt(json, "x",       rp.worldX);
-                        rp.worldY     = extractInt(json, "y",       rp.worldY);
-                        rp.direction  = extractInt(json, "dir",     rp.direction);
-                        rp.spriteNum  = extractInt(json, "sprite",  rp.spriteNum);
-                        rp.attacking  = extractBool(json, "attacking");
-                        rp.life       = extractInt(json, "life",    rp.life);
-                        rp.maxLife    = extractInt(json, "maxLife", rp.maxLife);
+                    if (rp == null) {
+                        // player_update arrived before player_join — create on the fly
+                        rp = new RemotePlayerState();
+                        remotePlayers.put(id, rp);
                     }
+                    int coordScale = gp.tileSize / gp.originalTileSize;
+                    rp.worldX     = extractInt(json, "x",       0) * coordScale;
+                    rp.worldY     = extractInt(json, "y",       0) * coordScale;
+                    rp.direction  = extractInt(json, "dir",     rp.direction);
+                    rp.spriteNum  = extractInt(json, "sprite",  rp.spriteNum);
+                    rp.attacking  = extractBool(json, "attacking");
+                    rp.life       = extractInt(json, "life",    rp.life);
+                    rp.maxLife    = extractInt(json, "maxLife", rp.maxLife);
                 }
             }
             case "server_full" -> {
@@ -652,8 +666,9 @@ public class MultiplayerClient {
                 if (rp.name == null) rp.name = "Player";
                 rp.playerClass = extractString(wrapped, "class");
                 if (rp.playerClass == null) rp.playerClass = "Fighter";
-                rp.worldX    = extractInt(wrapped, "x", 0);
-                rp.worldY    = extractInt(wrapped, "y", 0);
+                int coordScale = gp.tileSize / gp.originalTileSize;
+                rp.worldX    = extractInt(wrapped, "x", 0) * coordScale;
+                rp.worldY    = extractInt(wrapped, "y", 0) * coordScale;
                 rp.direction = extractInt(wrapped, "dir", 0);
                 remotePlayers.put(id, rp);
             }
