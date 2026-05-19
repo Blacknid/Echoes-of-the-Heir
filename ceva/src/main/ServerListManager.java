@@ -12,7 +12,7 @@ public class ServerListManager {
     private static final String FILE_PATH = "servers.txt";
     private final ArrayList<String[]> servers = new ArrayList<>();
 
-    public ServerListManager() {
+    public ServerListManager() {Holl
         load();
     }
 
