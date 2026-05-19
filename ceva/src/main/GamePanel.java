@@ -486,33 +486,23 @@ public class GamePanel extends JPanel implements Runnable{
         JFrame window = Main.window;
         if (window == null) return;
 
-        // Use GraphicsDevice.setFullScreenWindow() — the only Java API that correctly
-        // handles the OpenGL surface transition during a fullscreen toggle.
-        // Manual setBounds() on an already-visible window causes the GL surface to be
-        // destroyed and re-created; the surface stays invalid for an indeterminate time
-        // afterward, so every paint call (including fillRect) silently draws nothing,
-        // leaving the window fully transparent. setFullScreenWindow() avoids this by
-        // letting the OS and the Java2D GL pipeline coordinate the transition.
+        // Software-rendering path (sun.java2d.opengl is OFF), so window-geometry
+        // changes no longer destroy the rendering surface. Plain setBounds is
+        // therefore the simplest and most reliable approach across drivers.
         java.awt.GraphicsDevice gd = window.getGraphicsConfiguration().getDevice();
+        // Defensive: ensure no lingering exclusive-fullscreen mode from a prior build.
+        if (gd.getFullScreenWindow() == window) {
+            gd.setFullScreenWindow(null);
+        }
 
         if (enableFullScreen) {
-            windowedBounds = window.getBounds();
-            if (gd.isFullScreenSupported()) {
-                gd.setFullScreenWindow(window);
-            } else {
-                // Fallback on systems without exclusive fullscreen support:
-                // cover the current screen using its own coordinate space.
-                // NOTE: No setExtendedState(NORMAL) before setBounds — that would trigger
-                // two geometry changes in a row, invalidating the OpenGL surface twice and
-                // causing a persistent black screen on drivers where isFullScreenSupported()
-                // returns false.
-                java.awt.Rectangle sb = gd.getDefaultConfiguration().getBounds();
-                window.setBounds(sb.x, sb.y, sb.width, sb.height);
+            if (windowedBounds == null || windowedBounds.width <= 0) {
+                windowedBounds = window.getBounds();
             }
+            java.awt.Rectangle sb = gd.getDefaultConfiguration().getBounds();
+            window.setExtendedState(JFrame.NORMAL);
+            window.setBounds(sb.x, sb.y, sb.width, sb.height);
         } else {
-            if (gd.getFullScreenWindow() == window) {
-                gd.setFullScreenWindow(null);
-            }
             window.setExtendedState(JFrame.NORMAL);
             if (windowedBounds != null && windowedBounds.width > 0) {
                 window.setBounds(windowedBounds);
@@ -527,26 +517,8 @@ public class GamePanel extends JPanel implements Runnable{
 
         window.toFront();
         requestFocusInWindow();
-        // With sun.java2d.opengl=True, any setBounds()/setExtendedState() on an
-        // already-visible window can invalidate the Java2D GL surface. Schedule
-        // several repaints over ~500ms to give the pipeline time to recreate it.
-        scheduleGLRecovery();
-    }
-
-    /** Fires repeated validate+repaint calls so the Java2D OpenGL surface can
-     *  reinitialise after a window geometry change (fullscreen toggle). */
-    private void scheduleGLRecovery() {
-        JFrame win = Main.window;
-        if (win == null) return;
-        javax.swing.Timer t = new javax.swing.Timer(80, null);
-        final int[] count = {0};
-        t.addActionListener(ev -> {
-            win.validate();
-            win.repaint();
-            if (++count[0] >= 6) ((javax.swing.Timer) ev.getSource()).stop();
-        });
-        t.setInitialDelay(50);
-        t.start();
+        window.validate();
+        window.repaint();
     }
 
     /** Recreates the back buffer (e.g. if screen resolution changes at runtime). */
