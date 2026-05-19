@@ -1,8 +1,8 @@
-fullscreen=Off
+fullscreen=On
 musicVolume=0
 seVolume=1
 vsync=On
 fpsTarget=60
 graphicsQuality=1
-windowX=140
-windowY=46
+windowX=152
+windowY=42

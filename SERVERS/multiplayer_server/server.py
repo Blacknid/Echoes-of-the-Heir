@@ -621,12 +621,15 @@ class GameServer:
         #    typically a few KB; chunks follow on demand.
         client.send_json(self.world.info_message())
 
-        # Notify others
+        # Notify others — include current position so joining clients can
+        # render the new player immediately without waiting for the first tick.
         self.broadcast_json({
             "type": "player_join",
             "id": player.player_id,
             "name": player.name,
             "class": player.player_class,
+            "x": player.x,
+            "y": player.y,
         }, exclude_id=player.player_id)
 
         try:
