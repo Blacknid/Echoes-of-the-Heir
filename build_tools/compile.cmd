@@ -136,7 +136,7 @@ jpackage ^
     --type app-image ^
     --dest "%JPACKAGE_DIR%" ^
   --app-version %VERSION% ^
-  --java-options "-XX:+UseG1GC -XX:MaxGCPauseMillis=5 -Dsun.java2d.opengl=True -Dsun.java2d.accthreshold=0"
+  --java-options "-XX:+UseG1GC -XX:MaxGCPauseMillis=5 -Dsun.java2d.accthreshold=0"
 if %ERRORLEVEL% NEQ 0 (echo [WARN] jpackage failed — JAR still available in deploy/.)
 
 if exist "%JPACKAGE_DIR%\%APP_NAME%\%APP_NAME%.exe" (

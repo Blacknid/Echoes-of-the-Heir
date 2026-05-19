@@ -215,8 +215,17 @@ public class KeyHandler implements KeyListener {
     }
 
     private void startNewGame() {
-        // Clear per-run state so act titles show again on the fresh run
+        // Wipe all leftover world / player / map state from any previous run.
+        // Without this, choosing NEW GAME after an End-Game-to-title (or after a
+        // LOAD) keeps the old inventory, opened chests, story flags, etc.
         gp.mapManager.shownActTitles.clear();
+        gp.openedGates.clear();
+        gp.boss1Defeated = gp.boss2Defeated = gp.boss3Defeated = gp.boss4Defeated = false;
+        gp.storyAct = 0;
+        gp.endingChosen = 0;
+        if (gp.memoryJournal != null) gp.memoryJournal.reset();
+        if (gp.questManager != null) gp.questManager.clearQuests();
+        gp.resetGame(true);
         // Enter cutscene state — the Awakening scene handles the rest
         gp.gameState = GamePanel.cutsceneState;
         gp.csManager.sceneNum = gp.csManager.awakening;
@@ -694,8 +703,8 @@ public class KeyHandler implements KeyListener {
         if (code == KeyEvent.VK_ENTER) enterPressed = true;
 
         int maxCommandNum = switch (gp.ui.subState) {
-            case 0 -> 8;
-            case 3 -> 1;
+            case 0 -> 9;
+            case 3 -> 2;
             default -> 0;
         };
 
@@ -860,7 +869,7 @@ public class KeyHandler implements KeyListener {
             if (menuRight) { gp.player.skillTree.moveSelection(0, +1); gp.playSE(SFX.MENU_CURSOR); }
         }
         else if (state == GamePanel.optionsState) {
-            int maxCmd = switch (gp.ui.subState) { case 0 -> 8; case 3 -> 1; default -> 0; };
+            int maxCmd = switch (gp.ui.subState) { case 0 -> 9; case 3 -> 2; default -> 0; };
             if (menuUp)   gp.ui.commandNum = (gp.ui.commandNum - 1 + maxCmd + 1) % (maxCmd + 1);
             if (menuDown) gp.ui.commandNum = (gp.ui.commandNum + 1) % (maxCmd + 1);
             if (menuLeft)  adjustOptionsVolume(-1);

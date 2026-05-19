@@ -78,7 +78,11 @@ begin
   Lines[0]  := '$xmlKey = ''{#MICHI_PRIVKEY}''';
 
   // Lines 1-3 — machine fingerprint: SHA-256(MachineGuid)[:8 bytes] as 16 hex chars
-  Lines[1]  := 'try { $guid = (Get-ItemProperty ''HKLM:\SOFTWARE\Microsoft\Cryptography'' -ErrorAction Stop).MachineGuid } catch { $guid = """" }';
+  // Use reg.exe /reg:64 so the SYSTEM account (which runs the installer's PowerShell
+  // under WOW64) reads the 64-bit registry hive — identical to what LicenseManager.java
+  // sees when the game runs as the normal user. Without /reg:64 Get-ItemProperty returns
+  // empty for SYSTEM, causing the fallback to COMPUTERNAME+USERNAME which mismatches.
+  Lines[1]  := 'try { $ro = (reg query "HKLM\SOFTWARE\Microsoft\Cryptography" /v MachineGuid /reg:64 2>$null) | Where-Object { $_ -match "MachineGuid" }; $guid = if ($ro) { ($ro -split "\s+")[-1] } else { "" } } catch { $guid = "" }';
   Lines[2]  := 'if ([string]::IsNullOrEmpty($guid)) { $guid = ($env:COMPUTERNAME + $env:USERNAME) }';
   Lines[3]  := '$fp = [System.BitConverter]::ToString([System.Security.Cryptography.SHA256]::Create().ComputeHash([System.Text.Encoding]::UTF8.GetBytes($guid)), 0, 8).Replace(''-'', '''').ToLower()';
 

@@ -340,7 +340,7 @@ public class MapManager {
         gp.deathSoundPlayed = false;
 
         if (restart) {
-            currentMapId = "Awakening Cave";
+            currentMapId = "awakening_cave";
             String path = mapRegistry.getOrDefault(currentMapId, "/res/maps/Awakening_Cave.tmx");
             gp.tileM.mapLayers.clear();
             gp.tileM.loadMapFromTMX(path);

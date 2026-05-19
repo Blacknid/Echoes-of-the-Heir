@@ -5,7 +5,7 @@
 #   patch_server        tcp/5006   game updates (signed patches)
 #   multiplayer_server  tcp/7777   real-time MP
 #
-# Mutable state (saves.db, logs, licenses.json, manifest.json, patches/)
+# Mutable state (saves.db, logs, manifest.json, patches/)
 # is bind-mounted from the host so it survives `docker compose down` and
 # can be edited without rebuilding the image.
 #
@@ -34,9 +34,8 @@ services:
     ports:
       - "5005:5005"
     volumes:
-      # Config + license registry (live-editable, no rebuild needed)
+      # Config (live-editable, no rebuild needed)
       - ./save_server/server_config.json:/srv/save_server/server_config.json:ro
-      - ./save_server/licenses.json:/srv/save_server/licenses.json
       - ./save_server/server_private_key.pem:/srv/save_server/server_private_key.pem:ro
       # Persistent state
       - ./save_server/saves:/srv/save_server/saves
@@ -85,7 +84,6 @@ services:
       - "7777:7777"
     volumes:
       - ./multiplayer_server/mp_config.json:/srv/multiplayer_server/mp_config.json:ro
-      - ./multiplayer_server/licenses.json:/srv/multiplayer_server/licenses.json
       - ./multiplayer_server/server_private_key.pem:/srv/multiplayer_server/server_private_key.pem:ro
       - ./multiplayer_server/maps:/srv/multiplayer_server/maps:ro
     healthcheck:

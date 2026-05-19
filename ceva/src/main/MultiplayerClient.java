@@ -107,16 +107,6 @@ public class MultiplayerClient {
 
         new Thread(() -> {
             try {
-                // Re-verify the on-disk license file right before connecting.
-                // Catches mid-session tampering / file-swap / fp drift.
-                if (Main.LICENSE_KEY != null && !data.LicenseManager.verifyCurrent()) {
-                    Main.LICENSE_KEY = null;
-                    connecting.set(false);
-                    connectionStatus = "License re-verify failed — connection refused.";
-                    System.out.println("[MP Client] License re-verify failed — aborting connect.");
-                    return;
-                }
-
                 String license = Main.LICENSE_KEY;
                 if (license == null || license.isBlank()) {
                     connecting.set(false);
@@ -217,9 +207,15 @@ public class MultiplayerClient {
     private void sendPlayerState() {
         try {
             var p = gp.player;
+            // Server uses originalTileSize (32px) coordinates; client uses scaled
+            // tileSize (64px at scale=2). Divide before sending so the server's
+            // collision / anti-teleport logic works in the correct pixel space.
+            int coordScale = gp.tileSize / gp.originalTileSize;
+            int sx = p.worldX / coordScale;
+            int sy = p.worldY / coordScale;
             String msg = "{\"type\":\"move\","
-                    + "\"x\":"        + p.worldX  + ","
-                    + "\"y\":"        + p.worldY  + ","
+                    + "\"x\":"        + sx          + ","
+                    + "\"y\":"        + sy          + ","
                     + "\"dir\":"      + p.direction + ","
                     + "\"sprite\":"   + p.spriteNum + ","
                     + "\"attacking\":" + p.attacking + ","
@@ -284,15 +280,14 @@ public class MultiplayerClient {
             byte[] serverNonce = Base64.getDecoder().decode(okLine.substring(3));
             if (serverNonce.length != 16) return false;
 
-            // Step 3: AUTH (RSA-OAEP) — bundle name+class so server can build PlayerState atomically.
-            // The "debug" field is gone: it was a server-side bypass and a critical hole.
-            // Servers now decide debug-mode policy via their own config.
+            // Step 3: AUTH (RSA-OAEP) — keep the encrypted payload small (< 190 bytes for RSA-2048).
+            // machine_fp and license_sig are sent as plaintext tokens after the ciphertext on the
+            // same line: "AUTH <enc_b64> <machine_fp> <sig_b64>"
+            // This is safe: license_sig is already stored in license.properties on disk.
             String fp  = data.LicenseManager.getCachedMachineFp();
             String sig = data.LicenseManager.getCachedSignature();
             String handshakeJson = "{"
                     + "\"license\":\""      + jsonEscape(license)            + "\","
-                    + "\"machine_fp\":\""   + jsonEscape(fp != null ? fp : "")  + "\","
-                    + "\"license_sig\":\""  + jsonEscape(sig != null ? sig : "") + "\","
                     + "\"ts\":"             + (System.currentTimeMillis() / 1000L) + ","
                     + "\"client_nonce\":\"" + toHex(clientNonce)              + "\","
                     + "\"server_nonce\":\"" + toHex(serverNonce)              + "\","
@@ -300,7 +295,9 @@ public class MultiplayerClient {
                     + "\"class\":\""        + jsonEscape(cls)                 + "\""
                     + "}";
             byte[] enc = rsaOaepEncrypt(handshakeJson.getBytes(StandardCharsets.UTF_8));
-            sendLine("AUTH " + Base64.getEncoder().encodeToString(enc));
+            sendLine("AUTH " + Base64.getEncoder().encodeToString(enc)
+                    + " " + (fp  != null ? fp  : "")
+                    + " " + (sig != null ? sig : ""));
 
             // Step 4: AUTH_OK + encrypted session key
             String authLine = readLine();
@@ -446,8 +443,9 @@ public class MultiplayerClient {
             case "world_info" -> handleWorldInfo(json);
             case "chunk"      -> handleChunk(json);
             case "pos_correction" -> {
-                int cx = extractInt(json, "x", gp.player.worldX);
-                int cy = extractInt(json, "y", gp.player.worldY);
+                int coordScale = gp.tileSize / gp.originalTileSize;
+                int cx = extractInt(json, "x", gp.player.worldX / coordScale) * coordScale;
+                int cy = extractInt(json, "y", gp.player.worldY / coordScale) * coordScale;
                 String reason = extractString(json, "reason");
                 mapStreamer.applyPositionCorrection(cx, cy, reason);
             }
@@ -464,9 +462,12 @@ public class MultiplayerClient {
                 String name = extractString(json, "name");
                 String cls  = extractString(json, "class");
                 if (id >= 0 && id != localId) {
-                    RemotePlayerState rp = new RemotePlayerState();
+                    RemotePlayerState rp = remotePlayers.getOrDefault(id, new RemotePlayerState());
                     rp.name        = name != null ? name : "Player";
                     rp.playerClass = cls  != null ? cls  : "Fighter";
+                    int coordScale = gp.tileSize / gp.originalTileSize;
+                    rp.worldX = extractInt(json, "x", 0) * coordScale;
+                    rp.worldY = extractInt(json, "y", 0) * coordScale;
                     remotePlayers.put(id, rp);
                     gp.ui.addMessage(rp.name + " joined!", new java.awt.Color(100, 220, 100));
                 }
@@ -482,15 +483,19 @@ public class MultiplayerClient {
                 int id = extractInt(json, "id", -1);
                 if (id >= 0 && id != localId) {
                     RemotePlayerState rp = remotePlayers.get(id);
-                    if (rp != null) {
-                        rp.worldX     = extractInt(json, "x",       rp.worldX);
-                        rp.worldY     = extractInt(json, "y",       rp.worldY);
-                        rp.direction  = extractInt(json, "dir",     rp.direction);
-                        rp.spriteNum  = extractInt(json, "sprite",  rp.spriteNum);
-                        rp.attacking  = extractBool(json, "attacking");
-                        rp.life       = extractInt(json, "life",    rp.life);
-                        rp.maxLife    = extractInt(json, "maxLife", rp.maxLife);
+                    if (rp == null) {
+                        // player_update arrived before player_join — create on the fly
+                        rp = new RemotePlayerState();
+                        remotePlayers.put(id, rp);
                     }
+                    int coordScale = gp.tileSize / gp.originalTileSize;
+                    rp.worldX     = extractInt(json, "x",       0) * coordScale;
+                    rp.worldY     = extractInt(json, "y",       0) * coordScale;
+                    rp.direction  = extractInt(json, "dir",     rp.direction);
+                    rp.spriteNum  = extractInt(json, "sprite",  rp.spriteNum);
+                    rp.attacking  = extractBool(json, "attacking");
+                    rp.life       = extractInt(json, "life",    rp.life);
+                    rp.maxLife    = extractInt(json, "maxLife", rp.maxLife);
                 }
             }
             case "server_full" -> {
@@ -661,8 +666,9 @@ public class MultiplayerClient {
                 if (rp.name == null) rp.name = "Player";
                 rp.playerClass = extractString(wrapped, "class");
                 if (rp.playerClass == null) rp.playerClass = "Fighter";
-                rp.worldX    = extractInt(wrapped, "x", 0);
-                rp.worldY    = extractInt(wrapped, "y", 0);
+                int coordScale = gp.tileSize / gp.originalTileSize;
+                rp.worldX    = extractInt(wrapped, "x", 0) * coordScale;
+                rp.worldY    = extractInt(wrapped, "y", 0) * coordScale;
                 rp.direction = extractInt(wrapped, "dir", 0);
                 remotePlayers.put(id, rp);
             }

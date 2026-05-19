@@ -269,6 +269,8 @@ public class SaveLoad {
             // LOCATION
             sb.append("player.worldX=").append(gp.player.worldX).append('\n');
             sb.append("player.worldY=").append(gp.player.worldY).append('\n');
+            sb.append("player.direction=").append(gp.player.direction).append('\n');
+            sb.append("mapID=").append(gp.mapManager.currentMapId == null ? "" : gp.mapManager.currentMapId).append('\n');
 
             // EQUIPMENT SLOTS
             sb.append("player.weaponSlot=").append(gp.player.getCurrentWeaponSlot()).append('\n');
@@ -391,6 +393,16 @@ public class SaveLoad {
                 if (eq > 0) map.put(line.substring(0, eq).trim(), line.substring(eq + 1).trim());
             }
 
+            // MAP RELOAD — load the saved map's TMX + entities BEFORE applying
+            // saved state on top, otherwise the world tiles/collisions/NPCs/events
+            // are still those of whatever map was loaded at startup (awakening_cave).
+            // That mismatch is what caused: player teleported to wrong spot, drawn
+            // under tiles, and unable to move more than a couple of tiles.
+            String savedMapId = map.getOrDefault("mapID", "").trim();
+            int savedWorldX = Integer.parseInt(map.getOrDefault("player.worldX", "0"));
+            int savedWorldY = Integer.parseInt(map.getOrDefault("player.worldY", "0"));
+            reloadSavedMap(savedMapId, savedWorldX, savedWorldY);
+
             // PLAYER STATS
             gp.player.level        = Integer.parseInt(map.getOrDefault("player.level",        "1"));
             gp.player.maxLife      = Integer.parseInt(map.getOrDefault("player.maxLife",      "6"));
@@ -406,6 +418,9 @@ public class SaveLoad {
             // LOCATION
             gp.player.worldX = Integer.parseInt(map.getOrDefault("player.worldX", "0"));
             gp.player.worldY = Integer.parseInt(map.getOrDefault("player.worldY", "0"));
+            try {
+                gp.player.direction = Integer.parseInt(map.getOrDefault("player.direction", "2"));
+            } catch (NumberFormatException ignored) { /* legacy save */ }
 
             // INVENTORY
             gp.player.inventory.clear();
@@ -505,9 +520,43 @@ public class SaveLoad {
         }
     }
 
+    /**
+     * Reload the TMX, collision, events, and base entities for the saved map
+     * BEFORE the rest of the save state is layered on top. Without this the
+     * world still shows the startup map (awakening_cave) while player coords
+     * reference a different map, producing the "stuck under tiles / can only
+     * move a few tiles" bug.
+     */
+    private void reloadSavedMap(String savedMapId, int savedWorldX, int savedWorldY) {
+        if (gp.mapManager == null) return;
+
+        // Pick a valid target map id (fall back to current if save id is missing/unknown).
+        String targetId = (savedMapId != null && !savedMapId.isBlank()
+                            && gp.mapManager.mapRegistry.containsKey(savedMapId))
+                ? savedMapId
+                : gp.mapManager.currentMapId;
+
+        int tile = gp.tileSize;
+        int spawnCol = tile > 0 ? Math.max(0, savedWorldX / tile) : 0;
+        int spawnRow = tile > 0 ? Math.max(0, savedWorldY / tile) : 0;
+
+        // Do not let stale cached entities from this run's previous map visits
+        // resurrect on the loaded map.
+        gp.mapManager.clearSavedMapEntities(targetId);
+        // Clear any pending spawnId from a previous transition so it doesn't override us.
+        gp.mapManager.nextSpawnId = "";
+
+        gp.mapManager.changeMap(targetId, spawnCol, spawnRow);
+    }
+
     private void applyGameState(GameState state) {
 
         if (state == null) return;
+
+        // MAP RELOAD — must happen before applying obj[]/player state, see
+        // reloadSavedMap() doc. Uses the saved coords as the spawn point so
+        // changeMap doesn't snap the player to the map's default spawn.
+        reloadSavedMap(state.mapID, state.playerX, state.playerY);
 
         // PLAYER STATS
         gp.player.level = Math.max(1, state.level);
@@ -521,13 +570,10 @@ public class SaveLoad {
         gp.player.nextLevelExp = Math.max(1, state.nextLevelExp);
         gp.player.coin = Math.max(0, state.coin);
 
-        // LOCATION
+        // LOCATION — override changeMap's spawn position with exact saved coords.
         gp.player.worldX = state.playerX;
         gp.player.worldY = state.playerY;
-        if (state.mapID != null && !state.mapID.isBlank() && gp.mapManager != null
-                && gp.mapManager.mapRegistry.containsKey(state.mapID)) {
-            gp.mapManager.currentMapId = state.mapID;
-        }
+        gp.player.direction = state.direction;
 
         // SKILLS
         gp.player.skillPoints = Math.max(0, state.skillPoints);

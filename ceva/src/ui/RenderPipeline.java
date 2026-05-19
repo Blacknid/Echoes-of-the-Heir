@@ -197,6 +197,11 @@ public class RenderPipeline {
         }
         g2.setComposite(savedComp);
 
+        // REMOTE PLAYERS (multiplayer)
+        if (gp.mpClient != null && gp.mpClient.isConnected()) {
+            gp.drawRemotePlayers(g2);
+        }
+
         // FOREGROUND TILES
         gp.tileM.drawForeground(g2);
 

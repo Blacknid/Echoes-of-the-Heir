@@ -4,7 +4,7 @@
   <property name="actTitle" value="Act I: The Awakening Cave"/>
   <property name="actTitleNewGameOnly" type="bool" value="true"/>
   <property name="ambientLight" type="float" value="0.7"/>
-  <property name="music" type="int" value="1"/>
+  <property name="music" type="int" value="0"/>
   <property name="weather" value="CLEAR"/>
   <property name="weatherCycle" type="bool" value="false"/>
  </properties>
@@ -3949,7 +3949,7 @@
  <layer id="1" name="Ground" width="40" height="30">
   <properties>
    <property name="background" type="bool" value="true"/>
-   <property name="render" propertytype="RenderBucket" value="background"/>
+   <property name="render" value="background"/>
   </properties>
   <data encoding="csv">
 59,59,59,59,59,59,59,59,59,59,59,59,59,59,59,59,59,59,59,59,59,59,59,59,59,59,59,59,59,59,59,59,59,59,59,59,59,59,59,59,
@@ -3986,7 +3986,7 @@
  </layer>
  <layer id="18" name="Ground_water" width="40" height="30">
   <properties>
-   <property name="render" propertytype="RenderBucket" value="background"/>
+   <property name="render" value="background"/>
   </properties>
   <data encoding="csv">
 0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
@@ -4023,7 +4023,7 @@
  </layer>
  <layer id="19" name="Walls_water" width="40" height="30">
   <properties>
-   <property name="render" propertytype="RenderBucket" value="background"/>
+   <property name="render" value="background"/>
   </properties>
   <data encoding="csv">
 0,0,0,0,0,0,0,0,4036,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
@@ -4060,7 +4060,7 @@
  </layer>
  <layer id="4" name="Ground_details" width="40" height="30">
   <properties>
-   <property name="render" propertytype="RenderBucket" value="depth"/>
+   <property name="render" value="depth"/>
   </properties>
   <data encoding="csv">
 1458,0,0,0,0,0,0,0,0,1390,1391,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1256,0,0,0,0,0,
@@ -4097,7 +4097,7 @@
  </layer>
  <layer id="23" name="Entrance_Canvas" width="40" height="30">
   <properties>
-   <property name="render" propertytype="RenderBucket" value="background"/>
+   <property name="render" value="background"/>
   </properties>
   <data encoding="csv">
 0,0,0,0,0,0,0,0,0,0,0,8187,8188,8188,8188,8188,8188,8188,8188,8188,8188,8188,8189,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
@@ -4134,7 +4134,7 @@
  </layer>
  <layer id="5" name="Spawn" width="40" height="30">
   <properties>
-   <property name="render" propertytype="RenderBucket" value="background"/>
+   <property name="render" value="background"/>
   </properties>
   <data encoding="csv">
 0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,8202,8203,8203,8204,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
@@ -4171,7 +4171,7 @@
  </layer>
  <layer id="22" name="Plants_under" width="40" height="30">
   <properties>
-   <property name="render" propertytype="RenderBucket" value="depth"/>
+   <property name="render" value="depth"/>
   </properties>
   <data encoding="csv">
 0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
@@ -4209,7 +4209,7 @@
  <layer id="3" name="Walls" width="40" height="30">
   <properties>
    <property name="depthSort" type="bool" value="true"/>
-   <property name="render" propertytype="RenderBucket" value="depth"/>
+   <property name="render" value="depth"/>
   </properties>
   <data encoding="csv">
 0,0,0,310,311,2147484034,2147483930,0,0,0,0,0,8387,8388,8389,0,0,0,0,8387,8388,8389,0,0,0,1129,1130,0,0,0,0,0,0,0,0,379,1122,1123,1124,377,
@@ -4246,7 +4246,7 @@
  </layer>
  <layer id="21" name="Walls_vertically" width="40" height="30">
   <properties>
-   <property name="render" propertytype="RenderBucket" value="depth"/>
+   <property name="render" value="depth"/>
   </properties>
   <data encoding="csv">
 0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
@@ -4283,7 +4283,7 @@
  </layer>
  <layer id="10" name="Effects_walls" width="40" height="30">
   <properties>
-   <property name="render" propertytype="RenderBucket" value="depth"/>
+   <property name="render" value="depth"/>
   </properties>
   <data encoding="csv">
 0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
@@ -4320,7 +4320,7 @@
  </layer>
  <layer id="7" name="Plants_over" width="40" height="30">
   <properties>
-   <property name="render" propertytype="RenderBucket" value="depth"/>
+   <property name="render" value="depth"/>
   </properties>
   <data encoding="csv">
 1379,1380,1381,1382,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
@@ -4357,7 +4357,7 @@
  </layer>
  <layer id="8" name="Ceilling" width="40" height="30">
   <properties>
-   <property name="render" propertytype="RenderBucket" value="depth"/>
+   <property name="render" value="depth"/>
   </properties>
   <data encoding="csv">
 0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1196,1102,1228,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
@@ -4394,7 +4394,7 @@
  </layer>
  <layer id="6" name="Walls_details" width="40" height="30">
   <properties>
-   <property name="render" propertytype="RenderBucket" value="depth"/>
+   <property name="render" value="depth"/>
   </properties>
   <data encoding="csv">
 0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
@@ -4431,7 +4431,7 @@
  </layer>
  <layer id="20" name="Objects_2" width="40" height="30">
   <properties>
-   <property name="render" propertytype="RenderBucket" value="depth"/>
+   <property name="render" value="depth"/>
   </properties>
   <data encoding="csv">
 0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
@@ -4468,7 +4468,7 @@
  </layer>
  <layer id="11" name="Objects" width="40" height="30">
   <properties>
-   <property name="render" propertytype="RenderBucket" value="depth"/>
+   <property name="render" value="depth"/>
   </properties>
   <data encoding="csv">
 0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
@@ -4505,7 +4505,7 @@
  </layer>
  <layer id="12" name="Whisps" width="40" height="30">
   <properties>
-   <property name="render" propertytype="RenderBucket" value="depth"/>
+   <property name="render" value="depth"/>
   </properties>
   <data encoding="csv">
 0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
@@ -4542,7 +4542,7 @@
  </layer>
  <layer id="9" name="Effects" width="40" height="30">
   <properties>
-   <property name="render" propertytype="RenderBucket" value="foreground"/>
+   <property name="render" value="foreground"/>
   </properties>
   <data encoding="csv">
 0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
