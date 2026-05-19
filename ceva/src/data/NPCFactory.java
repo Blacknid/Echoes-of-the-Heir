@@ -49,6 +49,31 @@ public class NPCFactory {
     private static final HashMap<String, NPCDef> npcDefs = new HashMap<>();
     private static boolean loaded = false;
 
+    /** Clears the cached definitions so the next call to loadDefinitions() re-reads the JSON.
+     *  Also auto-syncs src/res/data/npcs.json → bin/res/data/npcs.json when running from
+     *  the file system (debug mode), so pressing R picks up edits without a manual sync step. */
+    public static void invalidateCache() {
+        try {
+            java.net.URL url = NPCFactory.class.getResource("/res/data/npcs.json");
+            if (url != null && "file".equals(url.getProtocol())) {
+                java.io.File binFile = new java.io.File(url.toURI());
+                java.io.File srcFile = new java.io.File(
+                    binFile.getAbsolutePath().replace(
+                        java.io.File.separator + "bin" + java.io.File.separator,
+                        java.io.File.separator + "src" + java.io.File.separator));
+                if (srcFile.exists()) {
+                    java.nio.file.Files.copy(srcFile.toPath(), binFile.toPath(),
+                        java.nio.file.StandardCopyOption.REPLACE_EXISTING);
+                    System.out.println("[NPCFactory] Synced npcs.json from src");
+                }
+            }
+        } catch (Exception e) {
+            System.out.println("[NPCFactory] Sync warning: " + e.getMessage());
+        }
+        npcDefs.clear();
+        loaded = false;
+    }
+
     /** Load NPC definitions from JSON resource. Call once at startup. */
     public static void loadDefinitions() {
         if (loaded) return;
@@ -111,7 +136,6 @@ public class NPCFactory {
         npc.spawnCol = col;
         npc.spawnRow = row;
 
-        // Basic properties
         if (def.props.containsKey("name")) npc.name = def.props.get("name");
         if (def.props.containsKey("speed")) npc.speed = intVal(def.props, "speed", 1);
         if (def.props.containsKey("walkFrameCount")) npc.walkFrameCount = intVal(def.props, "walkFrameCount", 6);
@@ -132,11 +156,9 @@ public class NPCFactory {
         String portrait = def.props.get("portrait");
         if (portrait != null && !portrait.isBlank()) npc.portraitPath = portrait;
 
-        // Walk & idle sprites
         if (def.props.containsKey("sprite")) npc.spritePath = def.props.get("sprite");
         if (def.props.containsKey("idleSprite")) npc.idleSpritePath = def.props.get("idleSprite");
 
-        // Load activity animations
         for (Map.Entry<String, ActivityDef> entry : def.activities.entrySet()) {
             String actName = entry.getKey();
             ActivityDef act = entry.getValue();
@@ -212,7 +234,6 @@ public class NPCFactory {
                 int setIdx;
                 try { setIdx = Integer.parseInt(key); }
                 catch (NumberFormatException e) { setIdx = nextNamedIdx++; }
-                // Build name map for named dialogue resolution
                 if (npc.dialogueNameMap == null) npc.dialogueNameMap = new java.util.HashMap<>();
                 npc.dialogueNameMap.put(key, setIdx);
                 ArrayList<String> lines = entry.getValue();
@@ -225,7 +246,6 @@ public class NPCFactory {
             }
         }
 
-        // Activity states
         for (StateDef sd : def.states) {
             NPC_Generic.NPCActivityState state = new NPC_Generic.NPCActivityState();
             state.id = sd.id;
@@ -248,10 +268,11 @@ public class NPCFactory {
             state.requiredBoss = sd.requiredBoss;
             state.requiredStoryAct = sd.requiredStoryAct;
             state.requiredLevel = sd.requiredLevel;
+            state.npcNotMet = sd.npcNotMet;
+            state.marksNpcMet = sd.marksNpcMet;
             npc.activityStates.add(state);
         }
 
-        // Idle animation speed
         int animSpeed = intVal(def.props, "idleAnimSpeed", -1);
         if (animSpeed > 0) npc.idleAnimationInterval = animSpeed;
 
@@ -262,8 +283,6 @@ public class NPCFactory {
         npc.syncQuestDrivenNpcState();
         return npc;
     }
-
-    // ── Data classes ──
 
     private static class NPCDef {
         Map<String, String> props = new HashMap<>();
@@ -294,9 +313,9 @@ public class NPCFactory {
         int requiredBoss = -1;
         int requiredStoryAct = -1;
         int requiredLevel = -1;
+        String npcNotMet = null;
+        boolean marksNpcMet = false;
     }
-
-    // ── JSON parsing (same lightweight approach as MonsterFactory) ──
 
     private static void parseJsonArray(String json) {
         npcDefs.clear();
@@ -400,7 +419,6 @@ public class NPCFactory {
             String actJson = json.substring(braceStart + 1, braceEnd);
             ActivityDef act = new ActivityDef();
 
-            // Extract frames array
             int framesIdx = actJson.indexOf("\"frames\"");
             if (framesIdx >= 0) {
                 int bStart = actJson.indexOf('[', framesIdx);
@@ -451,7 +469,6 @@ public class NPCFactory {
 
             String arrJson = json.substring(bracketStart + 1, bracketEnd);
             ArrayList<String> lines = new ArrayList<>();
-            // Parse string array
             int j = 0;
             while (j < arrJson.length()) {
                 int qStart = arrJson.indexOf('"', j);
@@ -517,13 +534,13 @@ public class NPCFactory {
             sd.requiredBoss = intVal(stProps, "requiredBoss", -1);
             sd.requiredStoryAct = intVal(stProps, "requiredStoryAct", -1);
             sd.requiredLevel = intVal(stProps, "requiredLevel", -1);
+            sd.npcNotMet = stProps.get("npcNotMet");
+            sd.marksNpcMet = boolVal(stProps, "marksNpcMet", false);
 
             def.states.add(sd);
             i = braceEnd + 1;
         }
     }
-
-    // ── Utility parsing methods ──
 
     private static void parseKeyValues(String text, Map<String, String> map) {
         int i = 0;

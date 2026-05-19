@@ -38,7 +38,6 @@ import java.util.Properties;
  */
 public final class LicenseManager {
 
-    // ── Embedded RSA-2048 public key (DER/SPKI, base64) ─────────────────────
     // Replace this placeholder with the content of build_tools/license_public.b64
     // (output of build_tools/generate_license_keys.py).
     private static final String PUBLIC_KEY_B64 =
@@ -79,10 +78,6 @@ public final class LicenseManager {
     private static volatile boolean tampered = false;
 
     private LicenseManager() {}
-
-    // =========================================================================
-    //  PUBLIC API
-    // =========================================================================
 
     /**
      * Read license.properties, verify machine fingerprint and RSA signature.
@@ -233,10 +228,6 @@ public final class LicenseManager {
         t.start();
     }
 
-    // =========================================================================
-    //  CRYPTO
-    // =========================================================================
-
     /** Verify RSA-2048 PKCS#1v15 SHA-256 signature over "key|fp". */
     static boolean verify(String key, String fp, String sigB64) {
         try {
@@ -252,10 +243,6 @@ public final class LicenseManager {
             return false;
         }
     }
-
-    // =========================================================================
-    //  MACHINE FINGERPRINT
-    // =========================================================================
 
     /**
      * Derive a stable 16-char hex fingerprint for this machine.

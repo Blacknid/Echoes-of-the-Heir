@@ -3,6 +3,7 @@ package tile;
 import java.awt.Color;
 import java.awt.Graphics2D;
 import java.awt.image.BufferedImage;
+
 import entity.Entity;
 import main.GamePanel;
 
@@ -43,16 +44,12 @@ public class IT_Pot extends interactiveTile {
         Graphics2D g = img.createGraphics();
 
         int s = size;
-        // Pot body
         g.setColor(new Color(160, 100, 60));
         g.fillOval(s / 6, s / 3, s * 2 / 3, s / 2);
-        // Pot rim
         g.setColor(new Color(140, 85, 50));
         g.fillRect(s / 4, s / 4, s / 2, s / 8);
-        // Highlight
         g.setColor(new Color(190, 140, 90));
         g.fillOval(s / 4, s * 2 / 5, s / 6, s / 5);
-        // Shadow base
         g.setColor(new Color(0, 0, 0, 40));
         g.fillOval(s / 6, s * 3 / 4, s * 2 / 3, s / 6);
 

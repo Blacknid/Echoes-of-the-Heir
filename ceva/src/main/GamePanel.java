@@ -45,10 +45,7 @@ import util.ResourceCache;
 
 public class GamePanel extends JPanel implements Runnable{
 
-    // SCREEN SETTINGS
-
-    // Tile sizing is centralized in Config to support runtime scaling and
-    // a single authoritative source for original/native tile size and scale.
+    // Tile sizing is centralized in Config to support runtime scaling.
     public final int originalTileSize = Config.originalTileSize; // 32 x 32 pixel (native)
     public final double scale = Config.scale;
 
@@ -64,10 +61,8 @@ public class GamePanel extends JPanel implements Runnable{
     /** UI vertical scale factor: how much bigger the screen is than the 768-high reference. */
     public float uiSfH() { return screenHeight / (float) Config.UI_BASE_H; }
 
-    // DEBUG
     public boolean HitBoxes = false;
     public boolean drawPath = false;
-    // Debug panel (F9)
     public boolean debugMenuOpen = false;
     // Pending debug reload — set from EDT, consumed by the game-loop thread at the start of update()
     private volatile boolean pendingReloadAll     = false;
@@ -78,13 +73,11 @@ public class GamePanel extends JPanel implements Runnable{
     public java.util.List<String> debugMapList = new java.util.ArrayList<>();
     public int debugMapSelectedIndex = 0;
 
-    // WORLD SETTINGS
     public final int maxWorldCol = 100;
     public final int maxWorldRow = 100;
     public final int worldWidth = tileSize * maxWorldCol;
     public final int worldHeight = tileSize * maxWorldRow;
     
-    // FOR FULLSCREEN
     Rectangle windowedBounds;
     BufferedImage tempScreen;
     Graphics2D g2;
@@ -94,22 +87,19 @@ public class GamePanel extends JPanel implements Runnable{
 
     public boolean fullScreenOn = false;
 
-    // WINDOW CONTROL BUTTONS (drawn on-panel; window is always undecorated)
     private static final int WCB_SIZE = 18;
     private static final int WCB_GAP  = 4;
     private static final int WCB_TOP  = 5;
     private volatile java.awt.Point wcbHover = null;
-    public boolean vSyncOn = true; // V-Sync toggle: sync rendering to monitor refresh rate
+    public boolean vSyncOn = true;
 
-    // TIMING
     private static final int TARGET_UPS = 60; // Fixed simulation rate (game speed)
     int FPS = 60;  // Render target FPS (independent from game speed)
     public int currentFPS = 0;
-    public int maxFPS = 0;      // Session peak FPS
+    public int maxFPS = 0;
     int monitorRefreshRate = 60; // Detected at startup
-    private int tickCounter = 0; // Monotonic update tick for throttling
+    private int tickCounter = 0;
 
-    // SYSTEM
     public TileManager tileM = new TileManager(this);
     public KeyHandler keyH = new KeyHandler(this);
     public AudioManager audio = new AudioManager();
@@ -128,11 +118,9 @@ public class GamePanel extends JPanel implements Runnable{
     public MobSpawner mobSpawner;
     public SaveLoad saveLoad = new SaveLoad(this);
 
-    // PRE-ALLOCATED COLORS (avoid per-frame allocation)
     private static final java.awt.Color PLAYER_GLOW_COLOR = new java.awt.Color(255, 240, 220);
     private static final java.awt.Color DEFAULT_TORCH_COLOR = new java.awt.Color(255, 170, 60);
 
-    // PRE-ALLOCATED DEBUG OVERLAY OBJECTS (avoid per-frame allocation)
     private static final java.awt.Font DEBUG_FONT = new java.awt.Font("Consolas", java.awt.Font.PLAIN, 13);
     private static final java.awt.Color DEBUG_BG_COLOR = new java.awt.Color(0, 0, 0, 160);
     private static final java.awt.Color DEBUG_FPS_GREEN = new java.awt.Color(80, 255, 80);
@@ -162,26 +150,20 @@ public class GamePanel extends JPanel implements Runnable{
     private static final int DEBUG_ROW_TARGET_MAP = 11;
     private static final int DEBUG_ROW_TELEPORT_TARGET = 12;
     private static final int DEBUG_MENU_ROWS = 13;
-    private java.awt.Font mpNametagFont; // lazily derived
+    private java.awt.Font mpNametagFont;
 
 
-    // WORLD MAP (full-screen overlay, no corner HUD)
     public Minimap minimap;
 
-    // RENDER PIPELINE (extracted from GamePanel)
     public RenderPipeline renderPipeline;
 
-    // QUEST SYSTEM
     public QuestManager questManager;
 
-    // MEMORY SYSTEM
     public data.MemoryJournal memoryJournal;
     public environment.MemoryFlashback memoryFlashback;
 
-    // THOUGHT BUBBLE (non-blocking inner monologue)
     public ThoughtBubble thoughts;
 
-    // STORY PROGRESS
     public boolean boss1Defeated;
     public boolean boss2Defeated;
     public boolean boss3Defeated;
@@ -189,64 +171,46 @@ public class GamePanel extends JPanel implements Runnable{
     public int storyAct;       // 0=tutorial, 1=shatterLake, 2=ashenWoods, 3=citadel, 4=gallery, 5=frame
     public int endingChosen;   // 0=none, 1=confront, 2=sacrifice, 3=forgive
 
-    // PERMANENTLY OPENED GATES (LevelGates with permanentOpen=true that the player has passed through)
     public java.util.Set<String> openedGates = new java.util.HashSet<>();
+    public java.util.Set<String> metNPCs      = new java.util.HashSet<>();
 
-    // MAP MANAGEMENT (extracted from GamePanel)
     public MapManager mapManager;
 
-    // GLOBAL HIT-STOP: freezes all entities for impactful hits
     public int globalHitstopTimer = 0;
 
-    // CAMERA LOCK: for cutscenes that detach the camera from the player
     public boolean cameraLocked  = false;
     public int     cameraWorldX  = 0;   // world X to center on when locked
     public int     cameraWorldY  = 0;   // world Y to center on when locked
 
-    /** Returns the world X the camera is currently tracking. */
     public int getCamWorldX() { return cameraLocked ? cameraWorldX : player.worldX; }
-    /** Returns the world Y the camera is currently tracking. */
     public int getCamWorldY() { return cameraLocked ? cameraWorldY : player.worldY; }
-    /** Returns the screen X offset for world-to-screen projection. Always matches player.screenX. */
     public int getCamScreenX() { return player.screenX; }
-    /** Returns the screen Y offset for world-to-screen projection. Always matches player.screenY. */
     public int getCamScreenY() { return player.screenY; }
-    /**
-     * Lock the camera to a world position (tile coordinates).
-     * Use for cutscenes, boss intros, etc. Call unlockCamera() to restore.
-     */
     public void lockCamera(int tileCol, int tileRow) {
         cameraWorldX = tileCol * tileSize;
         cameraWorldY = tileRow * tileSize;
         cameraLocked = true;
     }
-    /** Restore the camera to follow the player. */
     public void unlockCamera() { cameraLocked = false; }
 
-    // DAMAGE NUMBERS
     public ObjectPool<entity.DamageNumber> damageNumberPool;
     public java.util.ArrayList<entity.DamageNumber> damageNumbers = new java.util.ArrayList<>();
     public Thread gameThread;
 
-    //ENTITY AND OBJECT
     public Player player = new Player(this,keyH);
     public Entity obj[] = new Entity[100];
     public Entity npc[] = new Entity[10];
     public Entity monster[] = new Entity[20];
-    public interactiveTile iTile[] = new interactiveTile[30]; // expanded for breakable pots
+    public interactiveTile iTile[] = new interactiveTile[30];
     public ArrayList<Entity> projectilesList = new ArrayList<>();
     public ArrayList<Entity> particleList = new ArrayList<>();
-    // OPTIMIZATION: Object pools for reusable projectiles and particles
     public ObjectPool<Projectile> projectilePool;
     public ObjectPool<Particle> particlePool;
 
-    // INTERACTION PROMPT: set by Player when near an interactable obstacle
     public Entity nearbyInteractable;
-    /** When true, player movement and actions are temporarily blocked (e.g. door animation). */
     public boolean inputLocked = false;
 
     // GAME STATE — integer constants kept for backward compatibility
-    // New code should use GameState enum where possible.
     public int gameState;
     public static final int titleState = 0;
     public static final int playState = 1;
@@ -262,13 +226,13 @@ public class GamePanel extends JPanel implements Runnable{
     public static final int multiplayerPlayState = 11;
     public static final int journalState = 12;
 
-    // MULTIPLAYER
-    public MultiplayerClient mpClient;
-    public ServerListManager serverList;
-    public boolean multiplayerMode = false;
     public boolean teleportation = false;
     public boolean bootsUnlocked = false;
     public boolean deathSoundPlayed = false;
+
+    public MultiplayerClient mpClient;
+    public ServerListManager serverList;
+    public boolean multiplayerMode = false;
 
     // BACKWARD-COMPATIBLE DELEGATION: Map fields now live in MapManager.
     // These accessors keep old code compiling while we migrate callers.
@@ -323,13 +287,10 @@ public class GamePanel extends JPanel implements Runnable{
 
     public void setupGame() {
 
-    // Validate critical assets
     new AssetValidator().validate();
 
-    // Initialize map manager
     mapManager = new MapManager(this);
 
-    // Auto-discover all maps from /res/maps/ directory
     mapManager.discoverMaps();
 
     if (!mapManager.loadingGame) {
@@ -346,15 +307,12 @@ public class GamePanel extends JPanel implements Runnable{
         aSetter.loadEntitiesFromTMX();
     }
     aSetter.loadEventsFromTMX();
-    // Apply the TMX-defined spawn point now that events are loaded
     if (!mapManager.loadingGame) {
         player.setDefaultPositions();
-        // Load map-level properties (music, weather, dialogueTrigger, etc.) for the initial map
         String initialPath = mapManager.mapRegistry.getOrDefault(mapManager.currentMapId, "");
         if (!initialPath.isEmpty()) {
             mapObjectLoader.loadMapProperties(initialPath);
         }
-        // Show spawn message if the map defines one
         if (!mapManager.pendingDialogueTrigger.isEmpty()) {
             ui.addMessage(mapManager.pendingDialogueTrigger, new java.awt.Color(255, 240, 180), mapManager.pendingDialogueTriggerDuration);
             mapManager.pendingDialogueTrigger = "";
@@ -364,53 +322,41 @@ public class GamePanel extends JPanel implements Runnable{
     thoughts = new ThoughtBubble(this);
     gameState = titleState;
 
-    // MULTIPLAYER: initialize client and server list
     mpClient = new MultiplayerClient(this);
     serverList = new ServerListManager();
 
-    // OPTIMIZATION: Initialize collision cache
     cChecker.updateCollisionRectsCache();
 
-    // OPTIMIZATION: Initialize object pools for projectiles and particles
-    // Pool config: initial size = 20, expand by 10 when empty
     projectilePool = new ObjectPool<>(
         () -> new Projectile(this),
-        20,  // initial pool size
-        10   // expand size
+        20,
+        10
     );
     
-    // Pool config: initial size = 40 (particles created 4 at a time), expand by 20
     particlePool = new ObjectPool<>(
         () -> new Particle(this, null, null, 0, 0, 0, 0, 0),
-        40,  // initial pool size
-        20   // expand size
+        40,
+        20
     );
 
-    // DETECT MONITOR REFRESH RATE + APPLY USER V-SYNC SETTING
     detectAndSetRefreshRate();
     setVSync(vSyncOn);
 
-    // SHADER EFFECTS: Initialize map shader manager (water shimmer, particles, vignette, color grading)
     mapShader = new MapShaderManager(this);
     mapShader.setup();
 
-    // TILE PARTICLES: footstep dust/grass/stone particles when entities move
     tileParticleEmitter = new environment.TileParticleEmitter(this);
 
-    // DAMAGE NUMBERS: pooled floating text
     damageNumberPool = new ObjectPool<>(
         () -> new entity.DamageNumber(this),
         15, 10
     );
 
-    // WORLD MAP: create and bake initial terrain
     minimap = new Minimap(this);
     minimap.bakeTerrainImage();
 
-    // QUEST SYSTEM
     questManager = new QuestManager(this);
 
-    // MEMORY SYSTEM
     memoryJournal = new data.MemoryJournal();
     memoryFlashback = new environment.MemoryFlashback(this);
 
@@ -431,7 +377,6 @@ public class GamePanel extends JPanel implements Runnable{
         new String[]{"The water remembered everything.", "He had stood here before.", "So had she.", "Never together."},
         5, "shatter_lake");
 
-    // RENDER PIPELINE
     renderPipeline = new RenderPipeline(this);
 
     // Back buffer: plain BufferedImage in system RAM.
@@ -443,19 +388,14 @@ public class GamePanel extends JPanel implements Runnable{
     tempScreen = new BufferedImage(screenWidth, screenHeight, BufferedImage.TYPE_INT_RGB);
     g2 = tempScreen.createGraphics();
     
-    // OPTIMIZATION: Set rendering hints once at setup instead of per-frame
     g2.setRenderingHint(java.awt.RenderingHints.KEY_RENDERING, java.awt.RenderingHints.VALUE_RENDER_SPEED);
     g2.setRenderingHint(java.awt.RenderingHints.KEY_INTERPOLATION, java.awt.RenderingHints.VALUE_INTERPOLATION_NEAREST_NEIGHBOR);
     g2.setRenderingHint(java.awt.RenderingHints.KEY_COLOR_RENDERING, java.awt.RenderingHints.VALUE_COLOR_RENDER_SPEED);
 
     // Save the clean identity transform so we can reset to it at the start of every frame
     identityTransform = g2.getTransform();
-
-    // Startup fullscreen is applied in Main.java (invokeAndWait) before this method
-    // runs, so no action needed here.
     }
 
-    // --- MAP MANAGEMENT DELEGATION (methods now in MapManager) ---
     public void registerMap(String id, String tmxPath) { mapManager.registerMap(id, tmxPath); }
     public void startTransition(String mapId, int spawnCol, int spawnRow) { mapManager.startTransition(mapId, spawnCol, spawnRow); }
     public void changeMap() { mapManager.changeMap(); }
@@ -597,10 +537,6 @@ public class GamePanel extends JPanel implements Runnable{
         g2d.setRenderingHints(savedHints);
     }
 
-    /**
-     * Toggle V-Sync on/off. Affects whether the game syncs to monitor refresh rate or runs uncapped.
-     * Note: Enable recommended for smooth gameplay, disable for maximum FPS in benchmarks.
-     */
     public void setVSync(boolean enabled) {
         vSyncOn = enabled;
         if (enabled) {
@@ -609,38 +545,28 @@ public class GamePanel extends JPanel implements Runnable{
             System.out.println("[V-SYNC] Enabled - Game synced to monitor refresh rate (" + monitorRefreshRate + " Hz)");
         } else {
             System.setProperty("sun.java2d.vsync", "False");
-            FPS = 0; // Uncapped — render as fast as possible
+            FPS = 0;
             System.out.println("[V-SYNC] Disabled - Render target UNCAPPED");
         }
-        applyFpsTarget(config.fpsTarget); // override cap if performance mode is active
+        applyFpsTarget(config.fpsTarget);
     }
 
-    /**
-     * Apply an explicit FPS cap (30 = performance mode, 60 = normal, 0 = use vSync/uncapped).
-     * Takes priority over V-Sync when non-zero and lower than monitor rate.
-     */
     public void applyFpsTarget(int target) {
         config.fpsTarget = target;
         if (target > 0) {
             FPS = target;
             System.out.println("[FPS] Cap set to " + target + " FPS");
         } else {
-            // 0 means defer to vSync setting
             FPS = vSyncOn ? monitorRefreshRate : 0;
         }
     }
 
-    /**
-     * Detect the primary monitor's refresh rate and adjust game FPS to match.
-     * This eliminates screen tearing by syncing game updates to the monitor's vertical refresh.
-     */
     private void detectAndSetRefreshRate() {
         try {
             GraphicsEnvironment ge = GraphicsEnvironment.getLocalGraphicsEnvironment();
             GraphicsDevice[] gd = ge.getScreenDevices();
             if (gd.length > 0) {
                 int refreshRate = gd[0].getDisplayMode().getRefreshRate();
-                // Only use detected rate if it's reasonable (60-300 Hz typical range)
                 if (refreshRate >= 30 && refreshRate <= 300) {
                     monitorRefreshRate = refreshRate;
                     System.out.println("[DISPLAY] Monitor detected: " + refreshRate + " Hz");
@@ -702,7 +628,6 @@ public class GamePanel extends JPanel implements Runnable{
                 updateDelta--;
             }
 
-            // Render: uncapped mode renders every loop iteration, capped mode uses delta
             if (uncapped || renderDelta >= 1) {
                 synchronized (this) {
                     drawToTempScreen();
@@ -722,7 +647,6 @@ public class GamePanel extends JPanel implements Runnable{
                 timer = 0;
             }
 
-            // Smart sleep: only when capped and there's enough headroom
             if (!uncapped) {
                 long now = System.nanoTime();
                 long nextFrame = lastTime + (long) drawInterval;
@@ -738,7 +662,6 @@ public class GamePanel extends JPanel implements Runnable{
                     Thread.onSpinWait();
                 }
             } else {
-                // Uncapped: yield briefly to prevent 100% CPU core usage
                 Thread.onSpinWait();
             }
 
@@ -749,7 +672,6 @@ public class GamePanel extends JPanel implements Runnable{
     protected void paintComponent(Graphics g) {
         int panelW = getWidth();
         int panelH = getHeight();
-        // Guard: panel not yet laid out (happens during window initialization/dispose cycle)
         if (panelW <= 0 || panelH <= 0) return;
 
         synchronized (this) {
@@ -761,23 +683,19 @@ public class GamePanel extends JPanel implements Runnable{
             g2d.fillRect(0, 0, panelW, panelH);
 
             if (tempScreen != null) {
-                // Aspect-ratio-correct scale: largest uniform scale that fits the game
-                // resolution inside the panel without distorting square pixels.
                 float scaleX = (float) panelW / screenWidth;
                 float scaleY = (float) panelH / screenHeight;
                 float scale  = Math.min(scaleX, scaleY);
 
                 int dstW = (int)(screenWidth  * scale);
                 int dstH = (int)(screenHeight * scale);
-                int dstX = (panelW - dstW) / 2;  // center horizontally
-                int dstY = (panelH - dstH) / 2;  // center vertically
+                int dstX = (panelW - dstW) / 2;
+                int dstY = (panelH - dstH) / 2;
 
                 g2d.setRenderingHint(java.awt.RenderingHints.KEY_INTERPOLATION,
                         java.awt.RenderingHints.VALUE_INTERPOLATION_NEAREST_NEIGHBOR);
                 g2d.drawImage(tempScreen, dstX, dstY, dstW, dstH, null);
 
-                // Subtle 1px accent border — frames the game image intentionally
-                // against the bars so it looks designed, not accidental.
                 if (dstX > 0 || dstY > 0) {
                     g2d.setColor(new java.awt.Color(55, 45, 35, 110));
                     g2d.drawRect(dstX, dstY, dstW - 1, dstH - 1);
@@ -803,7 +721,6 @@ public class GamePanel extends JPanel implements Runnable{
         if (pendingReloadMonsters) { pendingReloadMonsters = false; doReloadMonsters(); }
         if (pendingReloadObjects)  { pendingReloadObjects  = false; doReloadObjects(); }
 
-        // MEMORY FLASHBACK: update even during other states (it's an overlay)
         if (memoryFlashback != null && memoryFlashback.isActive()) {
             memoryFlashback.update();
             if (memoryFlashback.getState() == environment.MemoryFlashback.DONE) {
@@ -815,7 +732,6 @@ public class GamePanel extends JPanel implements Runnable{
         // THOUGHT BUBBLE: ticks during play and cutscene states
         if (thoughts != null) thoughts.update();
 
-        // INPUT COOLDOWNS & MENU KEY-REPEAT: must tick every frame regardless of state
         keyH.update();
 
         // UI ANIMATION TICK: always advance at the fixed 60 Hz update rate,
@@ -823,7 +739,6 @@ public class GamePanel extends JPanel implements Runnable{
         // or slow down on weak ones.
         ui.updateAnimations();
 
-        // ANIMATIONS DURING DIALOGUE: keep player and NPC animations playing while talking
         if (gameState == dialogueState) {
             player.tickAnimations();
             for (int i = 0; i < npc.length; i++) {
@@ -841,14 +756,11 @@ public class GamePanel extends JPanel implements Runnable{
         }
 
         if(gameState == playState) {
-            // Refresh viewport cache once per frame
             vpCacheValid = false;
             updateViewportCache();
 
-            // GLOBAL HIT-STOP: freeze entities but keep visual feedback running
             if (globalHitstopTimer > 0) {
                 globalHitstopTimer--;
-                // Still update visual-only systems during freeze
                 for (int i = particleList.size() - 1; i >= 0; i--) {
                     Entity particle = particleList.get(i);
                     if (particle != null) {
@@ -867,15 +779,12 @@ public class GamePanel extends JPanel implements Runnable{
                 return; // skip all entity/world logic
             }
 
-            // PLAYER
             player.update();
-            // DOOR ANIMATIONS: only tick doors that are actively opening
             for (int i = 0; i < obj.length; i++) {
                 if (obj[i] instanceof object.OBJ_Door door && door.doorOpening) {
                     door.update();
                 }
             }
-            // NPC
             for ( int i = 0 ; i < npc.length; i++ ) {
                 if ( npc[i] != null ) {
                     if (isEntityInViewport(npc[i], tileSize * 2)) {
@@ -883,11 +792,9 @@ public class GamePanel extends JPanel implements Runnable{
                     }
                 }
             }
-            // MONSTER
             for ( int i = 0 ; i < monster.length ; i++ ) {
                 if ( monster[i] != null ) {
                     if ( monster[i].alive && !monster[i].dying ) {
-                        // OPTIMIZATION: Only update monsters that are in or near viewport
                         if (isEntityInViewport(monster[i], tileSize * 2)) {
                             monster[i].update();
                         } else if (isEntityInViewport(monster[i], tileSize * 6)
@@ -897,7 +804,6 @@ public class GamePanel extends JPanel implements Runnable{
                         }
                     }
                     if ( !monster[i].alive ) {
-                        // Boss death: trigger story progression
                         if (monster[i] instanceof entity.BossMonster bm) {
                             bm.onDeath();
                         }
@@ -905,7 +811,6 @@ public class GamePanel extends JPanel implements Runnable{
                     }
                 }
             }
-            // OPTIMIZATION: Use backwards iteration to safely remove while iterating
             for ( int i = projectilesList.size() - 1 ; i >= 0 ; i-- ) {
                 Entity proj = projectilesList.get(i);
                 if (proj != null) {
@@ -913,12 +818,10 @@ public class GamePanel extends JPanel implements Runnable{
                         proj.update();
                     } else {
                         projectilesList.remove(i);
-                        // OPTIMIZATION: Return projectile to pool for reuse
                         projectilePool.release((Projectile) proj);
                     }
                 }
             }
-            // OPTIMIZATION: Use backwards iteration to safely remove while iterating
             for ( int i = particleList.size() - 1 ; i >= 0 ; i-- ) {
                 Entity particle = particleList.get(i);
                 if (particle != null) {
@@ -926,7 +829,6 @@ public class GamePanel extends JPanel implements Runnable{
                         particle.update();
                     } else {
                         particleList.remove(i);
-                        // OPTIMIZATION: Return particle to pool for reuse (skip non-poolable entities like BossSwingEffect)
                         if (particle instanceof Particle) {
                             particlePool.release((Particle) particle);
                         }
@@ -943,17 +845,13 @@ public class GamePanel extends JPanel implements Runnable{
             eManager.update();
             mobSpawner.update();
             eHandler.updateSpawnZones();
-            // ANIMATED TILES: advance tile animation frames
             tileM.update();
 
-            // COLORED LIGHTS: Register dynamic light sources each frame
             if (eManager.lightning != null) {
                 eManager.lightning.clearLights();
-                // Player warm glow
                 eManager.lightning.addLight(
                     player.worldX + tileSize / 2, player.worldY + tileSize / 2,
                     tileSize * 4, PLAYER_GLOW_COLOR, 0.25f);
-                // Torch objects: warm orange with subtle flicker
                 float flickerBase = System.nanoTime() * 0.000000003f;
                 for (int i = 0; i < obj.length; i++) {
                     if (obj[i] != null && obj[i].lightSource && obj[i].lightRadius > 0) {
@@ -966,20 +864,16 @@ public class GamePanel extends JPanel implements Runnable{
                 }
             }
 
-            // SHADER EFFECTS: advance animation tick & ambient particles
             if (mapShader != null) {
                 mapShader.update();
             }
 
-            // TILE PARTICLES: update footstep particles
             if (tileParticleEmitter != null) {
                 tileParticleEmitter.update();
             }
 
-            // SCREEN SHAKE
             screenShake.update();
 
-            // DAMAGE NUMBERS
             for (int i = damageNumbers.size() - 1; i >= 0; i--) {
                 entity.DamageNumber dn = damageNumbers.get(i);
                 if (dn.alive) {
@@ -990,7 +884,6 @@ public class GamePanel extends JPanel implements Runnable{
                 }
             }
         }
-            // MULTIPLAYER: send position data to server
             if (multiplayerMode && mpClient != null && mpClient.isConnected()) {
                 mpClient.update();
             }
@@ -1031,14 +924,6 @@ public class GamePanel extends JPanel implements Runnable{
             }
     }
 
-    /**
-     * OPTIMIZATION: Check if an entity is within viewport range (with margin buffer).
-     * Only entities on or near the screen need their update() called. 
-     * @param entity The entity to check
-     * @param margin Extra distance beyond screen boundaries to include (for smooth transitions)
-     * @return true if the entity should be updated
-     */
-    // OPTIMIZATION: Cache viewport bounds per frame instead of recalculating per entity
     private int vpMinX, vpMaxX, vpMinY, vpMaxY;
     private boolean vpCacheValid = false;
 
@@ -1084,7 +969,6 @@ public class GamePanel extends JPanel implements Runnable{
         final int lines = 9 + (tileParticleEmitter != null ? 1 : 0);
         final int boxW = 230, boxH = lines * lineHeight + padY * 2;
 
-        // Semi-transparent background panel
         g2.setColor(DEBUG_BG_COLOR);
         g2.fillRoundRect(x - padX, y - lineHeight - padY, boxW, boxH, 8, 8);
 
@@ -1093,7 +977,6 @@ public class GamePanel extends JPanel implements Runnable{
         final String frameTimeStr = String.format("%.2f", 1000.0 / safeFPS);
         final String minFrameTimeStr = maxFPS > 0 ? String.format("%.2f", 1000.0 / maxFPS) : "--";
 
-        // FPS line — colour-coded: green >= target, yellow >= half, red below
         if (currentFPS >= FPS)                   g2.setColor(DEBUG_FPS_GREEN);
         else if (currentFPS >= FPS / 2)          g2.setColor(DEBUG_FPS_YELLOW);
         else                                     g2.setColor(DEBUG_FPS_RED);
@@ -1236,6 +1119,7 @@ public class GamePanel extends JPanel implements Runnable{
     // ── Actual reload implementations — MUST be called from the game-loop thread ──
     private void doReloadAll() {
         if (mapManager == null) return;
+        data.NPCFactory.invalidateCache();
         String mapId = mapManager.currentMapId;
         String path = mapManager.mapRegistry.getOrDefault(mapId, mapId);
         ResourceCache.invalidateXml(path);
@@ -1269,6 +1153,7 @@ public class GamePanel extends JPanel implements Runnable{
 
     private void doReloadNPCs() {
         if (mapManager == null) return;
+        data.NPCFactory.invalidateCache();
         mapManager.clearSavedMapEntities(mapManager.currentMapId);
         for (int i = 0; i < npc.length; i++) npc[i] = null;
         aSetter.setNPC();

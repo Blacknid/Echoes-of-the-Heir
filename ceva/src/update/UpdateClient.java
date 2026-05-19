@@ -99,7 +99,6 @@ public final class UpdateClient {
         return true;
     }
 
-    // ─────────────────────────────────────────────────────────────────────
     private static boolean handleUpdate(String reply, String currentVersion, HostPort target) {
         // Format: UPDATE <to_version> <size_bytes> <sha256_hex> <sig_b64>
         String[] parts = reply.split(" ");
@@ -185,7 +184,6 @@ public final class UpdateClient {
         }
     }
 
-    // ─────────────────────────────────────────────────────────────────────
     private static void spawnUpdater(Path patchFile, String toVersion) throws IOException {
         Path gameJar = locateRunningJar();
         if (gameJar == null) {
@@ -235,7 +233,6 @@ public final class UpdateClient {
         return System.getProperty("os.name", "").toLowerCase().contains("win");
     }
 
-    // ─────────────────────────────────────────────────────────────────────
     /** Reads version from /res/build.properties inside the running JAR.
      *  Falls back to 0.0.0 if not present. The build.properties file is
      *  auto-incremented by compile.cmd on every build. */
@@ -270,7 +267,6 @@ public final class UpdateClient {
         return out;
     }
 
-    // ─────────────────────────────────────────────────────────────────────
     private static byte[] signaturePayload(byte[] sha, String fromVersion, String toVersion) {
         byte[] from = fromVersion.getBytes(StandardCharsets.US_ASCII);
         byte[] to   = toVersion.getBytes(StandardCharsets.US_ASCII);
@@ -305,7 +301,6 @@ public final class UpdateClient {
         return sb.toString();
     }
 
-    // ─────────────────────────────────────────────────────────────────────
     private static void writeLine(Socket s, String line) throws IOException {
         OutputStream os = s.getOutputStream();
         os.write((line + "\n").getBytes(StandardCharsets.UTF_8));
@@ -318,7 +313,6 @@ public final class UpdateClient {
         return br.readLine();
     }
 
-    // ─────────────────────────────────────────────────────────────────────
     private static final class HostPort {
         final String host;
         final int port;

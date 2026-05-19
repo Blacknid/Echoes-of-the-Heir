@@ -49,6 +49,26 @@
         "description": "Bring a bundle of mushrooms to the potion trader." }
     ]
   },
+  {
+    "id": "potion_brewer_quest",
+    "name": "The Magic Brewer",
+    "description": "The Magic Trader needs cave mushrooms to brew a special potion.",
+    "target": 3,
+    "autoStart": false,
+    "rewardCoins": 75,
+    "rewardItemId": "canvas_guard",
+    "rewardFragmentId": "",
+    "chainQuestId": "",
+    "steps": [
+      { "action": "talk", "npc": "magic_trader", "dialogue": "training",
+        "description": "Talk to the Magic Trader." },
+      { "action": "go", "map": "awakening_cave",
+        "description": "Explore the cave rooms for mushrooms." },
+      { "action": "deliver", "npc": "magic_trader", "item": "mushroom_bundle", "consume": true, "count": 3,
+        "dialogue": "thanks", "failDialogue": "waiting",
+        "description": "Bring 3 mushroom bundles to the Magic Trader." }
+    ]
+  },
 
 
 

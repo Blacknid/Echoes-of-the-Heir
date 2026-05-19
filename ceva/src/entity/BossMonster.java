@@ -32,7 +32,6 @@ public class BossMonster extends Entity {
         this.phase2Threshold = phase2Threshold;
         this.phase2SpeedBoost = phase2SpeedBoost;
 
-        // Copy identity from inner monster
         copyFromInner();
     }
 
@@ -63,7 +62,6 @@ public class BossMonster extends Entity {
 
     @Override
     public void setAction() {
-        // Delegate AI to inner monster
         innerMonster.worldX = this.worldX;
         innerMonster.worldY = this.worldY;
         innerMonster.direction = this.direction;
@@ -75,7 +73,6 @@ public class BossMonster extends Entity {
 
         innerMonster.setAction();
 
-        // Copy decisions back
         this.direction = innerMonster.direction;
         this.onPath = innerMonster.onPath;
         this.fleeing = innerMonster.fleeing;
@@ -88,7 +85,6 @@ public class BossMonster extends Entity {
         innerMonster.life = this.life;
         innerMonster.damageReaction();
 
-        // Phase transition check
         if (phase == 1 && life <= maxLife * phase2Threshold) {
             phase = 2;
             speed = defaultSpeed + phase2SpeedBoost;
@@ -110,14 +106,12 @@ public class BossMonster extends Entity {
             case 3 -> gp.boss3Defeated = true;
             case 4 -> gp.boss4Defeated = true;
         }
-        // Advance story act based on how many bosses are down
         int count = 0;
         if (gp.boss1Defeated) count++;
         if (gp.boss2Defeated) count++;
         if (gp.boss3Defeated) count++;
         if (gp.boss4Defeated) count++;
         gp.storyAct = Math.max(gp.storyAct, count);
-        // Advance the linked quest step
         if (!onDeathQuestId.isEmpty()) gp.questManager.progress(onDeathQuestId, 1);
     }
 

@@ -19,18 +19,15 @@ public class MobSpawner {
     GamePanel gp;
     private final Random random = new Random();
 
-    // Spawn timing
     private int spawnTimer = 0;
     private static final int SPAWN_INTERVAL_DAY   = 600;  // 10 seconds at 60 FPS
     private static final int SPAWN_INTERVAL_NIGHT = 360;  // 6 seconds (more frequent at night)
 
-    // Limits
     private static final int MAX_PLACEMENT_ATTEMPTS = 30;  // tries before giving up
 
     /** Rectangles (world-pixel) registered from MobSpawnerZone objects in Tiled. */
     public final ArrayList<Rectangle> spawnZones = new ArrayList<>();
 
-    // Reusable rectangle for collision checks
     private final Rectangle spawnRect = new Rectangle();
 
     public MobSpawner(GamePanel gp) {

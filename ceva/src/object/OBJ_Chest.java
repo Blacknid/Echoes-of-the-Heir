@@ -14,7 +14,6 @@ public class OBJ_Chest extends Entity {
     public String requiredItem = "";
     public boolean consumeItem = false;
 
-    // Opening animation state
     private boolean opening = false;
     private int openAnimFrame = 0;
     private int openAnimCounter = 0;
@@ -77,7 +76,6 @@ public class OBJ_Chest extends Entity {
             return;
         }
 
-        // Check item requirement
         if (!requiredItem.isEmpty()) {
             int idx = gp.player.searchItemInInventory(requiredItem);
             if (idx == 999) {
@@ -85,13 +83,11 @@ public class OBJ_Chest extends Entity {
                 startDialogue(this, 3);
                 return;
             }
-            // Consume the item if configured
             if (consumeItem && idx < gp.player.inventory.size()) {
                 gp.player.inventory.remove(idx);
             }
         }
 
-        // Start the opening animation
         gp.playSE(SFX.DOOR);
         opening = true;
         openAnimFrame = 0;
@@ -126,7 +122,6 @@ public class OBJ_Chest extends Entity {
             worldY + gp.tileSize > gp.player.worldY - gp.player.screenY &&
             worldY - gp.tileSize < gp.player.worldY + gp.player.screenY) {
 
-            // Drive opening animation
             if (opening) {
                 openAnimCounter++;
                 if (openAnimCounter >= OPEN_ANIM_SPEED) {

@@ -188,6 +188,7 @@
     "staticNPC": true,
     "idleDirection": 2,
     "idleAnimSpeed": 12,
+    "interactRange": 64,
     "portrait": "/res/NPC/portraits/soldier.png",
 
     "dialogues": {
@@ -230,7 +231,7 @@
     "staticNPC": true,
     "idleDirection": 1,
     "idleAnimSpeed": 12,
-    "interactRange": 192,
+    "interactRange": 250,
     "depthSortYOffset": 128,
 
     "dialogues": {
@@ -273,14 +274,16 @@
     "staticNPC": true,
     "idleDirection": 1,
     "idleAnimSpeed": 12,
-    "interactRange": 192,
+    "interactRange": 64,
     "depthSortYOffset": 128,
 
     "dialogues": {
       "intro": [
-        "Thirsty? I have the best drinks in the castle!",
-        "I have water, juice, and soda.",
-        "Care for some?\nThey might help you on your journey."
+        "Wait..., I don't remember your face. Are you new here? I don't think I've seen you around before.",
+        "Well, welcome to the castle! I have the best drinks here, so if you need anything, just let me know!",
+        "Maybe you should talk to the Elder. He's been here for a long time and knows a lot about this place. He might be able to point you in the right direction if you're looking for something specific.",
+        "He usually stands in the center of the village, so you can't miss him!",
+        "Anyway, if you need any drinks, just let me know. I have a wide variety of them, so I'm sure I can find something that suits your taste!"
       ],
       "waiting": [
         "Welcome back, traveler!",
@@ -300,6 +303,11 @@
 
     "states": [
       {
+        "id": "default",
+        "dialogue": "intro",
+        "stationary": true
+      },
+      {
         "id": "post_quest",
         "dialogue": "done",
         "stationary": true,
@@ -314,7 +322,8 @@
       {
         "id": "intro",
         "dialogue": "intro",
-        "stationary": true
+        "stationary": true,
+        "npcNotMet": "drink_trader"
       }
     ]
   },
@@ -363,6 +372,7 @@
     "idleRows": 1,
     "staticNPC": true,
     "idleAnimSpeed": 12,
+    "interactRange": 64,
 
     "dialogues": {
       "training": [
@@ -485,6 +495,7 @@
     "staticNPC": true,
     "idleRows": 1,
     "idleDirection": 0,
+    "interactRange": 64,
     "idleAnimSpeed": 12,
 
     "dialogues": {
@@ -523,7 +534,7 @@
     "idleSprite": "/res/NPC/Fisher_Trader",
     "idleRows": 1,
     "spriteAspect": 0.5,
-    "interactRange": 96,
+    "interactRange": 128,
     "staticNPC": true,
     "idleAnimSpeed": 12,
 
@@ -582,11 +593,12 @@
       }
     ]
   },
-  "start_trader": {
-    "name": "Potion Trader",
-    "idleSprite": "/res/NPC/Potions_Trader",
+  "magic_trader": {
+    "name": "Magic Trader",
+    "idleSprite": "/res/NPC/Magic_Trader",
     "idleRows": 1,
     "spriteAspect": 1,
+    "interactRange": 64,
     "staticNPC": true,
     "idleAnimSpeed": 12,
 
@@ -709,6 +721,7 @@
     "idleRows": 1,
     "idleDirection": 0,
     "staticNPC": true,
+    "interactRange": 64,
     "idleAnimSpeed": 12,
 
     "dialogues": {

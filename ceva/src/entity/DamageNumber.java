@@ -74,11 +74,9 @@ public class DamageNumber extends Entity implements Poolable {
         Font font = critical ? FONT_CRIT : FONT_DAMAGE;
         g2.setFont(font);
 
-        // Shadow
         g2.setColor(new Color(0, 0, 0, (int)(alpha * 180)));
         g2.drawString(text, screenX + 1, screenY + 1);
 
-        // Text
         g2.setColor(new Color(color.getRed(), color.getGreen(), color.getBlue(), (int)(alpha * 255)));
         g2.drawString(text, screenX, screenY);
 

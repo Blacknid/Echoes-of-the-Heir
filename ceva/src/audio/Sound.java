@@ -55,7 +55,6 @@ public class Sound {
             int slot = clipRobin[i];
             clipRobin[i] = (slot + 1) % POOL;
 
-            // Reuse cached clip if available
             if (clipPool[i][slot] != null && clipPool[i][slot].isOpen()) {
                 clip = clipPool[i][slot];
                 clip.stop();

@@ -12,7 +12,6 @@ public class PathFinder {
 
     GamePanel gp;
     Node[][] nodes;
-    // OPTIMIZATION: PriorityQueue for O(log n) best-node selection instead of O(n) linear scan
     PriorityQueue<Node> openQueue = new PriorityQueue<>(64, Comparator.comparingInt((Node n) -> n.fCost).thenComparingInt(n -> n.gCost));
     public ArrayList<Node> pathList = new ArrayList<>();
 
@@ -20,15 +19,13 @@ public class PathFinder {
     boolean goalReached;
     int step;
 
-    // OPTIMIZATION: Reusable Rectangle to avoid per-node allocation in collision checks
     private final Rectangle futureHitbox = new Rectangle();
     private final Rectangle tempHitbox = new Rectangle();
 
-    // OPTIMIZATION: Track only nodes modified this search so resetNodes() is O(visited)
+    // Track only nodes modified this search so resetNodes() is O(visited)
     // instead of O(maxWorldCol × maxWorldRow). Typical search visits <200 nodes vs 10000+.
     private final ArrayList<Node> touchedNodes = new ArrayList<>(256);
 
-    // Cached search parameters for lazy collision checks during A* expansion
     private Entity searchEntity;
     private boolean searchChasingPlayer;
 
@@ -47,7 +44,6 @@ public class PathFinder {
     }
 
     public void resetNodes() {
-        // OPTIMIZATION: reset only nodes touched by the previous search
         for (int i = 0, n = touchedNodes.size(); i < n; i++) {
             Node node = touchedNodes.get(i);
             node.open = false;
@@ -91,13 +87,11 @@ public class PathFinder {
         goalNode = nodes[goalCol][goalRow];
         currentNode = startNode;
 
-        // Cache search parameters — used lazily when openNode() expands a neighbour
         this.searchEntity = entity;
         int playerTileCol = gp.player.getTileCol();
         int playerTileRow = gp.player.getTileRow();
         this.searchChasingPlayer = (goalCol == playerTileCol && goalRow == playerTileRow);
 
-        // Initialize start node (start/goal are explicitly non-solid)
         startNode.gCost = 0;
         startNode.hCost = Math.abs(startCol - goalCol) + Math.abs(startRow - goalRow);
         startNode.fCost = startNode.hCost;
@@ -125,12 +119,10 @@ public class PathFinder {
                 hitboxHeight
         );
 
-        // Check collision shapes via spatial grid (O(k) instead of O(n))
         if (gp.cChecker.rectHitsCollision(futureHitbox)) {
             return true;
         }
 
-        // Check player as obstacle ONLY if not chasing the player
         if (!chasingPlayer) {
             tempHitbox.setBounds(
                     gp.player.worldX + gp.player.solidArea.x,
@@ -143,7 +135,6 @@ public class PathFinder {
             }
         }
 
-        // Check obstacle entities
         for (int i = 0; i < gp.obj.length; i++) {
             Entity obj = gp.obj[i];
             if (obj != null && obj.collision && obj.type == Entity.TYPE_OBSTACLE) {
@@ -163,7 +154,6 @@ public class PathFinder {
     }
 
     public void calculateCost(Node node) {
-        // Manhattan distance
         int dxStart = Math.abs(node.col - startNode.col);
         int dyStart = Math.abs(node.row - startNode.row);
         node.gCost = dxStart + dyStart;
@@ -191,7 +181,6 @@ public class PathFinder {
 
             if (openQueue.isEmpty()) break;
 
-            // OPTIMIZATION: O(log n) poll instead of O(n) linear scan
             currentNode = openQueue.poll();
 
             if (currentNode == goalNode) {
@@ -206,8 +195,6 @@ public class PathFinder {
     private void openNode(Node node) {
         if (node.open || node.checked) return;
 
-        // OPTIMIZATION: lazy collision check — only compute for nodes A* actually visits,
-        // instead of every node in a bounding box like the old setNodes() did.
         if (!node.collisionChecked) {
             node.solid = isCollisionForEntityAtNode(
                     node.col, node.row, searchEntity, searchChasingPlayer);
@@ -220,7 +207,6 @@ public class PathFinder {
         node.parent = currentNode;
         node.gCost = currentNode.gCost + 1;
 
-        // OPTIMIZATION: lazy h-cost — compute once per node per search
         if (!node.hCostValid) {
             int dxGoal = Math.abs(node.col - goalNode.col);
             int dyGoal = Math.abs(node.row - goalNode.row);
@@ -234,13 +220,11 @@ public class PathFinder {
     }
 
     private void trackPath() {
-        // OPTIMIZATION: build in reverse then swap, instead of O(n²) add(0, ...)
         Node current = goalNode;
         while (current != startNode && current != null) {
             pathList.add(current);
             current = current.parent;
         }
-        // Reverse in place — O(n) instead of O(n²)
         int lo = 0, hi = pathList.size() - 1;
         while (lo < hi) {
             Node tmp = pathList.get(lo);

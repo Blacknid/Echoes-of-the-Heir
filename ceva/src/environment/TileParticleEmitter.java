@@ -15,13 +15,11 @@ import main.GamePanel;
  */
 public class TileParticleEmitter {
 
-    // ─── Tile type constants (returned by TileManager.getTileType) ───
     public static final int TILE_NONE  = 0;
     public static final int TILE_GRASS = 1;
     public static final int TILE_STONE = 2;
     public static final int TILE_WATER = 3;
 
-    // ─── Generic particle API types ───
     public enum ParticleType {
         FOOTSTEP_GRASS,
         FOOTSTEP_STONE,
@@ -29,7 +27,6 @@ public class TileParticleEmitter {
         LEAF_FALL
     }
 
-    // ─── Pool ───
     private static final int MAX_PARTICLES = 200;
     private final FP[] particles = new FP[MAX_PARTICLES];
     private final int[] activeIndices = new int[MAX_PARTICLES];
@@ -38,21 +35,17 @@ public class TileParticleEmitter {
     private final int[] freeStack = new int[MAX_PARTICLES];
     private int freeTop = -1;
 
-    // ─── Y-sorted merge-draw support ───
     private final int[] sortedIndices = new int[MAX_PARTICLES];
     private int sortedCount = 0;
 
-    // ─── Cached alpha composites ───
     private static final int ALPHA_LEVELS = 32;
     private final AlphaComposite[] alphaCompositeCache = new AlphaComposite[ALPHA_LEVELS + 1];
 
     private final GamePanel gp;
     private final Random rng = new Random();
 
-    // ─── Emit throttle (frames between spawns per entity) ───
     private static final int EMIT_INTERVAL = 6;
 
-    // ─── Adaptive LOD ───
     private static final int LOD_MED_FPS = 52;
     private static final int LOD_LOW_FPS = 42;
 
@@ -69,7 +62,6 @@ public class TileParticleEmitter {
         LEAF_COLORS, 2, 4, 80, 140, 0.012f, 0.6f, 0.3f, 0.15f
     );
 
-    // ─── Ambient tree leaf spawning ───
     private int leafSpawnTimer = 0;
     private static final int LEAF_SPAWN_INTERVAL = 8; // frames between leaf spawn attempts
 
@@ -86,11 +78,6 @@ public class TileParticleEmitter {
         }
         freeTop = MAX_PARTICLES - 1;
     }
-
-    // ═══════════════════════════════════════════════════════════
-    //  EMIT — call when an entity moves on a tile
-    //  Returns the internal throttle so callers can skip repeat calls.
-    // ═══════════════════════════════════════════════════════════
 
     /**
      * Emit footstep particles. direction uses Entity.DIR_DOWN/LEFT/RIGHT/UP constants.
@@ -245,10 +232,6 @@ public class TileParticleEmitter {
         freeStack[++freeTop] = particleIndex;
     }
 
-    // ═══════════════════════════════════════════════════════════
-    //  UPDATE
-    // ═══════════════════════════════════════════════════════════
-
     public void update() {
         for (int i = activeCount - 1; i >= 0; i--) {
             int particleIndex = activeIndices[i];
@@ -321,10 +304,6 @@ public class TileParticleEmitter {
         }
     }
 
-    // ═══════════════════════════════════════════════════════════
-    //  DRAW  (legacy — draws all particles in one flat pass)
-    // ═══════════════════════════════════════════════════════════
-
     public void draw(Graphics2D g2) {
         Composite originalComp = g2.getComposite();
 
@@ -334,10 +313,6 @@ public class TileParticleEmitter {
 
         g2.setComposite(originalComp);
     }
-
-    // ═══════════════════════════════════════════════════════════
-    //  Y-SORTED MERGE-DRAW  (interleave with entity render list)
-    // ═══════════════════════════════════════════════════════════
 
     /**
      * Collect alive particles, sort by sortY. Call once per frame before merge-drawing.
@@ -352,7 +327,6 @@ public class TileParticleEmitter {
      * @return number of sorted active particles
      */
     public int prepareSortedIndices() {
-        // 1. Compact: drop dead particles, keep survivors in their previous order
         int write = 0;
         for (int read = 0; read < sortedCount; read++) {
             int idx = sortedIndices[read];
@@ -364,7 +338,6 @@ public class TileParticleEmitter {
         }
         sortedCount = write;
 
-        // 2. Append particles that aren't in the sorted list yet (newly spawned / reused slots)
         for (int i = 0; i < activeCount; i++) {
             int idx = activeIndices[i];
             if (!particles[idx].inSortedList) {
@@ -373,7 +346,6 @@ public class TileParticleEmitter {
             }
         }
 
-        // 3. Insertion sort — O(n) on the near-sorted list from last frame
         for (int i = 1; i < sortedCount; i++) {
             int key = sortedIndices[i];
             float keyY = particles[key].sortY;
@@ -426,10 +398,6 @@ public class TileParticleEmitter {
         return alphaCompositeCache[bucket];
     }
 
-    // ═══════════════════════════════════════════════════════════
-    //  EMIT INTERVAL helper — entities track their own counter
-    // ═══════════════════════════════════════════════════════════
-
     public int getEmitInterval() {
         return EMIT_INTERVAL;
     }
@@ -437,10 +405,6 @@ public class TileParticleEmitter {
     public int getActiveCount() {
         return activeCount;
     }
-
-    // ═══════════════════════════════════════════════════════════
-    //  COLOR PALETTES
-    // ═══════════════════════════════════════════════════════════
 
     private static final Color[] GRASS_COLORS = {
         new Color( 76, 153,  0),   // dark green
@@ -472,10 +436,6 @@ public class TileParticleEmitter {
         new Color(170, 120, 20),   // orange-brown
         new Color(140, 100, 30),   // autumn brown
     };
-
-    // ═══════════════════════════════════════════════════════════
-    //  Inner particle struct  (Footstep Particle)
-    // ═══════════════════════════════════════════════════════════
 
     private static class FP {
         boolean alive;

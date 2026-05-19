@@ -43,9 +43,6 @@ public class SaveLoad {
         return cloudSaveService.isServerOnline();
     }
 
-    // =========================
-    // CRYPTO HELPERS
-    // =========================
     private byte[] encrypt(String plaintext) throws GeneralSecurityException {
         byte[] iv = new byte[16];
         new SecureRandom().nextBytes(iv);
@@ -72,9 +69,6 @@ public class SaveLoad {
         return new String(cipher.doFinal(enc), StandardCharsets.UTF_8);
     }
 
-    // =========================
-    // OBJECT FACTORY
-    // =========================
     public Entity getObject(String name) {
 
         if (name == null || name.equals("NA")) return null;
@@ -131,13 +125,9 @@ public class SaveLoad {
         return value.replace("\\n", "\n").replace("\\\\", "\\");
     }
 
-    // =========================
-    // SAVE
-    // =========================
     public void save() {
         saveToDisk();
 
-        // Cloud save (best-effort)
         try {
             GameState gs = buildGameState();
             CloudSaveService.SaveResult result =
@@ -151,21 +141,16 @@ public class SaveLoad {
         }
     }
 
-    // =========================
-    // GAME STATE BUILDER
-    // =========================
     private GameState buildGameState() {
 
         GameState gs = new GameState();
 
-        // Position
         gs.playerX = gp.player.worldX;
         gs.playerY = gp.player.worldY;
         gs.playerZ = 0;
         gs.direction = gp.player.direction;
         gs.mapID = gp.mapManager.currentMapId;
 
-        // Stats
         gs.level = gp.player.level;
         gs.maxHealth = gp.player.maxLife;
         gs.health = gp.player.life;
@@ -177,7 +162,6 @@ public class SaveLoad {
         gs.nextLevelExp = gp.player.nextLevelExp;
         gs.coin = gp.player.coin;
 
-        // Skills
         gs.skillPoints = gp.player.skillPoints;
         gs.dashUnlocked = gp.player.dashUnlocked;
         gs.shockwaveUnlocked = gp.player.shockwaveUnlocked;
@@ -185,7 +169,6 @@ public class SaveLoad {
         gs.frostNovaUnlocked = gp.player.frostNovaUnlocked;
         gs.overdriveUnlocked = gp.player.overdriveUnlocked;
 
-        // Inventory
         for (Entity e : gp.player.inventory) {
             gs.itemNames.add(serializeEntityId(e));
             gs.itemAmounts.add(e.amount);
@@ -205,7 +188,6 @@ public class SaveLoad {
             }
         }
 
-        // Objects on map (chests, doors, etc.)
         int size = gp.obj.length;
         gs.mapObjectNames   = new String[size];
         gs.mapObjectWorldX  = new int[size];
@@ -226,24 +208,21 @@ public class SaveLoad {
             gs.mapObjectLootName[i] = gp.obj[i].loot != null ? serializeEntityId(gp.obj[i].loot) : "NA";
         }
 
-        // MEMORY FRAGMENTS
         if (gp.memoryJournal != null) {
             gs.collectedFragmentIds = new java.util.ArrayList<>(gp.memoryJournal.getCollectedIds());
             gs.totalFragmentsCollected = gp.memoryJournal.getCount();
         }
 
-        // BOSS PROGRESS
         gs.boss1Defeated = gp.boss1Defeated;
         gs.boss2Defeated = gp.boss2Defeated;
         gs.boss3Defeated = gp.boss3Defeated;
         gs.boss4Defeated = gp.boss4Defeated;
 
-        // STORY PROGRESS
         gs.storyAct = gp.storyAct;
         gs.endingChosen = gp.endingChosen;
 
-        // PERMANENTLY OPENED GATES
         gs.openedGates = new java.util.ArrayList<>(gp.openedGates);
+        gs.metNPCs    = new java.util.ArrayList<>(gp.metNPCs);
 
         gs.timestamp = System.currentTimeMillis();
         return gs;
@@ -254,7 +233,6 @@ public class SaveLoad {
         try {
             StringBuilder sb = new StringBuilder();
 
-            // PLAYER STATS
             sb.append("player.level=").append(gp.player.level).append('\n');
             sb.append("player.maxLife=").append(gp.player.maxLife).append('\n');
             sb.append("player.life=").append(gp.player.life).append('\n');
@@ -266,17 +244,14 @@ public class SaveLoad {
             sb.append("player.nextLevelExp=").append(gp.player.nextLevelExp).append('\n');
             sb.append("player.coin=").append(gp.player.coin).append('\n');
 
-            // LOCATION
             sb.append("player.worldX=").append(gp.player.worldX).append('\n');
             sb.append("player.worldY=").append(gp.player.worldY).append('\n');
             sb.append("player.direction=").append(gp.player.direction).append('\n');
             sb.append("mapID=").append(gp.mapManager.currentMapId == null ? "" : gp.mapManager.currentMapId).append('\n');
 
-            // EQUIPMENT SLOTS
             sb.append("player.weaponSlot=").append(gp.player.getCurrentWeaponSlot()).append('\n');
             sb.append("player.shieldSlot=").append(gp.player.getCurrentShieldSlot()).append('\n');
 
-            // INVENTORY
             sb.append("inventory.size=").append(gp.player.inventory.size()).append('\n');
             for (int i = 0; i < gp.player.inventory.size(); i++) {
                 sb.append("inventory.").append(i).append(".name=").append(serializeEntityId(gp.player.inventory.get(i))).append('\n');
@@ -298,7 +273,6 @@ public class SaveLoad {
                 }
             }
 
-            // OBJECTS ON MAP
             int size = gp.obj.length;
             sb.append("obj.size=").append(size).append('\n');
             for (int i = 0; i < size; i++) {
@@ -314,7 +288,6 @@ public class SaveLoad {
                 sb.append("obj.").append(i).append(".loot=").append(lootName).append('\n');
             }
 
-            // MEMORY FRAGMENTS
             if (gp.memoryJournal != null) {
                 java.util.List<String> ids = gp.memoryJournal.getCollectedIds();
                 sb.append("fragments.size=").append(ids.size()).append('\n');
@@ -325,21 +298,23 @@ public class SaveLoad {
                 sb.append("fragments.size=0\n");
             }
 
-            // BOSS PROGRESS
             sb.append("boss1Defeated=").append(gp.boss1Defeated).append('\n');
             sb.append("boss2Defeated=").append(gp.boss2Defeated).append('\n');
             sb.append("boss3Defeated=").append(gp.boss3Defeated).append('\n');
             sb.append("boss4Defeated=").append(gp.boss4Defeated).append('\n');
 
-            // STORY PROGRESS
             sb.append("storyAct=").append(gp.storyAct).append('\n');
             sb.append("endingChosen=").append(gp.endingChosen).append('\n');
 
-            // PERMANENTLY OPENED GATES
             java.util.List<String> gatesList = new java.util.ArrayList<>(gp.openedGates);
             sb.append("openedGates.size=").append(gatesList.size()).append('\n');
             for (int i = 0; i < gatesList.size(); i++) {
                 sb.append("openedGates.").append(i).append('=').append(gatesList.get(i)).append('\n');
+            }
+            java.util.List<String> metList = new java.util.ArrayList<>(gp.metNPCs);
+            sb.append("metNPCs.size=").append(metList.size()).append('\n');
+            for (int i = 0; i < metList.size(); i++) {
+                sb.append("metNPCs.").append(i).append('=').append(metList.get(i)).append('\n');
             }
 
             byte[] encrypted = encrypt(sb.toString());
@@ -353,12 +328,8 @@ public class SaveLoad {
         }
     }
 
-    // =========================
-    // LOAD
-    // =========================
     public void load() {
 
-        // Cloud-first load path: if server has a save, apply it and refresh local cache.
         try {
             CloudSaveService.DownloadResult result = cloudSaveService.download(Main.LICENSE_KEY);
             if (result.ok() && result.json() != null && !result.json().isBlank()) {
@@ -403,7 +374,6 @@ public class SaveLoad {
             int savedWorldY = Integer.parseInt(map.getOrDefault("player.worldY", "0"));
             reloadSavedMap(savedMapId, savedWorldX, savedWorldY);
 
-            // PLAYER STATS
             gp.player.level        = Integer.parseInt(map.getOrDefault("player.level",        "1"));
             gp.player.maxLife      = Integer.parseInt(map.getOrDefault("player.maxLife",      "6"));
             gp.player.life         = Integer.parseInt(map.getOrDefault("player.life",         "6"));
@@ -415,14 +385,12 @@ public class SaveLoad {
             gp.player.nextLevelExp = Integer.parseInt(map.getOrDefault("player.nextLevelExp", "5"));
             gp.player.coin         = Integer.parseInt(map.getOrDefault("player.coin",         "0"));
 
-            // LOCATION
             gp.player.worldX = Integer.parseInt(map.getOrDefault("player.worldX", "0"));
             gp.player.worldY = Integer.parseInt(map.getOrDefault("player.worldY", "0"));
             try {
                 gp.player.direction = Integer.parseInt(map.getOrDefault("player.direction", "2"));
             } catch (NumberFormatException ignored) { /* legacy save */ }
 
-            // INVENTORY
             gp.player.inventory.clear();
             int invSize = Integer.parseInt(map.getOrDefault("inventory.size", "0"));
             for (int i = 0; i < invSize; i++) {
@@ -449,7 +417,6 @@ public class SaveLoad {
                 }
             }
 
-            // CURRENT EQUIPMENT
             int weaponSlot = Integer.parseInt(map.getOrDefault("player.weaponSlot", "0"));
             int shieldSlot = Integer.parseInt(map.getOrDefault("player.shieldSlot", "1"));
             if (weaponSlot < gp.player.inventory.size()) gp.player.currentWeapon = gp.player.inventory.get(weaponSlot);
@@ -459,7 +426,6 @@ public class SaveLoad {
             gp.player.getDefense();
             gp.player.getPlayerAttackImages();
 
-            // OBJECTS ON MAP
             int objSize = Integer.parseInt(map.getOrDefault("obj.size", "0"));
             for (int i = 0; i < Math.min(objSize, gp.obj.length); i++) {
                 String name = map.get("obj." + i + ".name");
@@ -485,7 +451,6 @@ public class SaveLoad {
                 }
             }
 
-            // MEMORY FRAGMENTS
             if (gp.memoryJournal != null) {
                 int fragSize = Integer.parseInt(map.getOrDefault("fragments.size", "0"));
                 for (int i = 0; i < fragSize; i++) {
@@ -496,22 +461,25 @@ public class SaveLoad {
                 }
             }
 
-            // BOSS PROGRESS
             gp.boss1Defeated = Boolean.parseBoolean(map.getOrDefault("boss1Defeated", "false"));
             gp.boss2Defeated = Boolean.parseBoolean(map.getOrDefault("boss2Defeated", "false"));
             gp.boss3Defeated = Boolean.parseBoolean(map.getOrDefault("boss3Defeated", "false"));
             gp.boss4Defeated = Boolean.parseBoolean(map.getOrDefault("boss4Defeated", "false"));
 
-            // STORY PROGRESS
             gp.storyAct = Integer.parseInt(map.getOrDefault("storyAct", "0"));
             gp.endingChosen = Integer.parseInt(map.getOrDefault("endingChosen", "0"));
 
-            // PERMANENTLY OPENED GATES
             int gatesSize = Integer.parseInt(map.getOrDefault("openedGates.size", "0"));
             gp.openedGates.clear();
             for (int i = 0; i < gatesSize; i++) {
                 String gid = map.get("openedGates." + i);
                 if (gid != null && !gid.isBlank()) gp.openedGates.add(gid);
+            }
+            int metSize = Integer.parseInt(map.getOrDefault("metNPCs.size", "0"));
+            gp.metNPCs.clear();
+            for (int i = 0; i < metSize; i++) {
+                String mid = map.get("metNPCs." + i);
+                if (mid != null && !mid.isBlank()) gp.metNPCs.add(mid);
             }
 
         } catch (java.io.IOException | java.security.GeneralSecurityException | RuntimeException e) {
@@ -530,7 +498,6 @@ public class SaveLoad {
     private void reloadSavedMap(String savedMapId, int savedWorldX, int savedWorldY) {
         if (gp.mapManager == null) return;
 
-        // Pick a valid target map id (fall back to current if save id is missing/unknown).
         String targetId = (savedMapId != null && !savedMapId.isBlank()
                             && gp.mapManager.mapRegistry.containsKey(savedMapId))
                 ? savedMapId
@@ -540,10 +507,7 @@ public class SaveLoad {
         int spawnCol = tile > 0 ? Math.max(0, savedWorldX / tile) : 0;
         int spawnRow = tile > 0 ? Math.max(0, savedWorldY / tile) : 0;
 
-        // Do not let stale cached entities from this run's previous map visits
-        // resurrect on the loaded map.
         gp.mapManager.clearSavedMapEntities(targetId);
-        // Clear any pending spawnId from a previous transition so it doesn't override us.
         gp.mapManager.nextSpawnId = "";
 
         gp.mapManager.changeMap(targetId, spawnCol, spawnRow);
@@ -575,7 +539,6 @@ public class SaveLoad {
         gp.player.worldY = state.playerY;
         gp.player.direction = state.direction;
 
-        // SKILLS
         gp.player.skillPoints = Math.max(0, state.skillPoints);
         gp.player.dashUnlocked = state.dashUnlocked;
         gp.player.shockwaveUnlocked = state.shockwaveUnlocked;
@@ -583,7 +546,6 @@ public class SaveLoad {
         gp.player.frostNovaUnlocked = state.frostNovaUnlocked;
         gp.player.overdriveUnlocked = state.overdriveUnlocked;
 
-        // INVENTORY
         gp.player.inventory.clear();
         int invSize = Math.min(state.itemNames.size(), state.itemAmounts.size());
         for (int i = 0; i < invSize; i++) {
@@ -616,7 +578,6 @@ public class SaveLoad {
             }
         }
 
-        // CURRENT EQUIPMENT
         if (!gp.player.inventory.isEmpty()) {
             int weaponSlot = Math.max(0, Math.min(state.currentWeaponSlot, gp.player.inventory.size() - 1));
             int shieldSlot = Math.max(0, Math.min(state.currentShieldSlot, gp.player.inventory.size() - 1));
@@ -628,7 +589,6 @@ public class SaveLoad {
         gp.player.getDefense();
         gp.player.getPlayerAttackImages();
 
-        // OBJECTS ON MAP
         for (int i = 0; i < gp.obj.length; i++) {
             String name = getAt(state.mapObjectNames, i, "NA");
             if (name == null || name.equals("NA")) {
@@ -654,7 +614,6 @@ public class SaveLoad {
             }
         }
 
-        // MEMORY FRAGMENTS
         if (gp.memoryJournal != null && state.collectedFragmentIds != null) {
             for (String fid : state.collectedFragmentIds) {
                 if (fid != null && !fid.isBlank()) {
@@ -663,20 +622,21 @@ public class SaveLoad {
             }
         }
 
-        // BOSS PROGRESS
         gp.boss1Defeated = state.boss1Defeated;
         gp.boss2Defeated = state.boss2Defeated;
         gp.boss3Defeated = state.boss3Defeated;
         gp.boss4Defeated = state.boss4Defeated;
 
-        // STORY PROGRESS
         gp.storyAct = state.storyAct;
         gp.endingChosen = state.endingChosen;
 
-        // PERMANENTLY OPENED GATES
         if (state.openedGates != null) {
             gp.openedGates.clear();
             gp.openedGates.addAll(state.openedGates);
+        }
+        if (state.metNPCs != null) {
+            gp.metNPCs.clear();
+            gp.metNPCs.addAll(state.metNPCs);
         }
     }
 

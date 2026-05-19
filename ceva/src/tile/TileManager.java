@@ -31,13 +31,12 @@ public class TileManager {
 
     GamePanel gp;
 
-    // ---- Tiled GID flip-flag bitmasks (high 3 bits of a 32-bit GID) ----
+    // Tiled GID flip-flag bitmasks (high 3 bits of a 32-bit GID)
     public static final long GID_FLIP_H  = 0x80000000L; // bit 31
     public static final long GID_FLIP_V  = 0x40000000L; // bit 30
     public static final long GID_FLIP_D  = 0x20000000L; // bit 29 (anti-diagonal / transpose)
     public static final long GID_FLIP_ALL = GID_FLIP_H | GID_FLIP_V | GID_FLIP_D;
 
-    // ---- Animated tile support ----
     /** Per-tileset-local-id animation descriptor. */
     public static class TileAnimation {
         public int[] frameLocalIds;   // local tile ids (0-based within tileset)
@@ -51,7 +50,6 @@ public class TileManager {
     /** Whether any animated tile is registered (skip animation tick when false). */
     private boolean hasAnimatedTiles = false;
 
-    // ---- Image layer support ----
     public static class ImageLayerData {
         public BufferedImage image;
         public float worldX, worldY;       // offset from Tiled (already scaled)
@@ -65,33 +63,25 @@ public class TileManager {
     /** Ordered list of image layers (parsed alongside tile layers, drawn behind background tiles). */
     public ArrayList<ImageLayerData> imageLayers = new ArrayList<>();
 
-    // ---- Layer opacity / tint ----
     /** Per-layer opacity (1.0 = fully opaque). Same indexing as mapLayers. */
     public ArrayList<Float>  layerOpacity = new ArrayList<>();
     /** Per-layer tint color (null = none). Same indexing as mapLayers. */
     public ArrayList<Color> layerTint   = new ArrayList<>();
 
-    // Tile scaling is centralized in Config to support runtime scaling and
-    // a single authoritative source for original/native tile size and scale.
     public final int originalTileSize = Config.originalTileSize;
     public final double scale = Config.scale;
     public final int tileSize = Config.tileSize;
 
-    // Per-map TMX tile size (updated when loading a map; used for scaling)
     int mapTileSize = Config.originalTileSize;
-    // Actual map dimensions in tiles (read from TMX <map width/height>)
     public int currentMapCols = 100;
     public int currentMapRows = 100;
-    // Pixel offset for infinite maps (after shifting chunks to start at 0,0)
     int mapOffsetPixelsX = 0;
     int mapOffsetPixelsY = 0;
-    // Background color for void areas outside the map (parsed from TMX backgroundcolor)
     public Color mapBackgroundColor = new Color(20, 18, 22);
 
-    // ── OPTIMIZATION: AlphaComposite cache — eliminates ~880 allocations/frame ──
+    // AlphaComposite cache — eliminates ~880 allocations/frame
     private static final HashMap<Float, AlphaComposite> alphaCompositeCache = new HashMap<>();
     static {
-        // Pre-populate common alpha values
         alphaCompositeCache.put(1f, AlphaComposite.SrcOver);
     }
     private static AlphaComposite cachedAlpha(float alpha) {
@@ -345,7 +335,6 @@ public class TileManager {
         }
     }
 
-    // --- Configurable collision settings ---
     // Objectgroup layer names whose rectangles provide collision (default: "Collision")
     public HashSet<String> collisionObjectLayers = new HashSet<>();
     // Tile layer names where all non-empty tiles block movement (default: none)
@@ -407,7 +396,6 @@ public class TileManager {
         }
     }
 
-    // ---------------- Load tilesets ----------------
     public void addTileset(String path, int firstGID, int tileWidth, int tileHeight, int tileCount, int columns, String name, int renderOrder, boolean depthSort, boolean foreground) {
         try {
             int safeColumns = Math.max(1, columns);
@@ -565,7 +553,6 @@ public class TileManager {
         }
     }
 
-    // ---------------- Get tile type for a world position ----------------
     /**
      * Returns the tile type constant for the given tile column/row.
      * Checks all layers top-down and returns the first non-empty GID's type.
@@ -586,7 +573,6 @@ public class TileManager {
         return 0;
     }
 
-    // ---------------- Get tile by GID ----------------
     public Tile getTileByGID(int gid) {
         if (gid == 0) return null;
         for (int i = tilesets.size() - 1; i >= 0; i--) {
@@ -603,7 +589,6 @@ public class TileManager {
     // used when we only need the clean tile index (lookup). Flip flags are extracted separately.
     private static final long GID_MASK = 0x1FFFFFFFL;
 
-    // ---------------- Load tile layers ----------------
     public void loadMapFromTMX(String path) {
         try {
             loadTilesets(path);
@@ -977,7 +962,6 @@ public class TileManager {
         return new Color(r, g, b, a);
     }
 
-    // ---------------- Load Collision Layer ----------------
     public void loadCollisionLayer(String path) {
         try {
             Document doc = parseXmlResource(path);
@@ -1442,11 +1426,6 @@ public class TileManager {
                     boolean isTileBackground = (gidToBackground != null && gid < gidToBackground.length && gidToBackground[gid]);
                     boolean isTileDepth      = (gidToDepthSort  != null && gid < gidToDepthSort.length  && gidToDepthSort[gid]);
 
-                    // Classification priority:
-                    // 1. Per-tile explicit properties always override the layer bucket.
-                    //    foreground > background > depthSort (per-tile)
-                    // 2. If no per-tile override, use the layer bucket.
-                    // 3. Default → background.
                     if (isTileForeground) {
                         foregroundVisibleTiles.add(visibleTile);
                     } else if (isTileBackground) {
@@ -1471,7 +1450,6 @@ public class TileManager {
         foregroundVisibleTiles.sort(backgroundTileComparator);
     }
 
-    // ---- Tile draw helper: handles flip transforms, layer opacity, and tint ----
     private void drawTile(Graphics2D g2, VisibleTileDraw vt) {
         // Apply layer opacity composite
         Composite origComposite = null;
@@ -1910,7 +1888,6 @@ public class TileManager {
                     if (ds != null) ts.tiles[tileId].depthSort = Boolean.parseBoolean(ds.trim());
                 }
 
-                // ---- Parse <animation> block ----
                 NodeList animNodes = tileEl.getElementsByTagName("animation");
                 if (animNodes.getLength() > 0) {
                     Element animEl = (Element) animNodes.item(0);

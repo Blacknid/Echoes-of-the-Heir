@@ -18,7 +18,6 @@ import main.GamePanel;
  */
 public class MemoryFlashback {
 
-    // ── States ──
     public static final int INACTIVE     = 0;
     public static final int FADE_TO_WHITE = 1;
     public static final int SEPIA_TEXT    = 2;
@@ -34,12 +33,10 @@ public class MemoryFlashback {
     private int charIndex = 0;       // typewriter position
     private int textTimer = 0;       // ticks since text phase started
 
-    // Content
     private MemoryFragment fragment;
     private String displayTitle = "";
     private String[] displayLines;
 
-    // Visual constants
     private static final Color SEPIA_OVERLAY = new Color(112, 66, 20, 100);
     private static final Color WHITE = new Color(255, 255, 255);
     private static final Color TEXT_COLOR = new Color(240, 230, 210);
@@ -93,7 +90,6 @@ public class MemoryFlashback {
 
             case SEPIA_TEXT:
                 textTimer++;
-                // Advance typewriter
                 int totalChars = getTotalTextChars();
                 charIndex = Math.min(totalChars, textTimer * TYPEWRITER_SPEED);
                 if (timer >= TEXT_HOLD_TICKS) {
@@ -121,7 +117,6 @@ public class MemoryFlashback {
 
         switch (state) {
             case FADE_TO_WHITE:
-                // White wash over everything
                 g2.setComposite(AlphaComposite.getInstance(AlphaComposite.SRC_OVER, alpha));
                 g2.setColor(WHITE);
                 g2.fillRect(0, 0, w, h);
@@ -129,7 +124,6 @@ public class MemoryFlashback {
                 break;
 
             case SEPIA_TEXT:
-                // Full white background + sepia tint
                 g2.setColor(WHITE);
                 g2.fillRect(0, 0, w, h);
                 g2.setComposite(AlphaComposite.getInstance(AlphaComposite.SRC_OVER, 0.6f));
@@ -137,21 +131,17 @@ public class MemoryFlashback {
                 g2.fillRect(0, 0, w, h);
                 g2.setComposite(AlphaComposite.getInstance(AlphaComposite.SRC_OVER, 1f));
 
-                // Draw title
                 g2.setRenderingHint(RenderingHints.KEY_TEXT_ANTIALIASING, RenderingHints.VALUE_TEXT_ANTIALIAS_ON);
                 g2.setFont(TITLE_FONT);
                 FontMetrics fmTitle = g2.getFontMetrics();
                 int titleW = fmTitle.stringWidth(displayTitle);
                 int titleX = (w - titleW) / 2;
                 int titleY = h / 3;
-                // Shadow
                 g2.setColor(TEXT_SHADOW);
                 g2.drawString(displayTitle, titleX + 2, titleY + 2);
-                // Main
                 g2.setColor(TITLE_COLOR);
                 g2.drawString(displayTitle, titleX, titleY);
 
-                // Draw text lines with typewriter effect
                 g2.setFont(TEXT_FONT);
                 FontMetrics fm = g2.getFontMetrics();
                 int lineH = fm.getHeight() + 4;
@@ -176,7 +166,6 @@ public class MemoryFlashback {
                 break;
 
             case FADE_BACK:
-                // Fade out the sepia screen
                 g2.setComposite(AlphaComposite.getInstance(AlphaComposite.SRC_OVER, alpha));
                 g2.setColor(WHITE);
                 g2.fillRect(0, 0, w, h);

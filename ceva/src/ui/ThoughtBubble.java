@@ -44,10 +44,8 @@ public class ThoughtBubble {
 
     private final GamePanel gp;
 
-    // ── Queued thoughts ─────────────────────────────────────────────────
     private final ArrayDeque<Thought> queue = new ArrayDeque<>();
 
-    // ── Active thought state ────────────────────────────────────────────
     private Thought active;
     private int   charIndex;        // how many chars are visible
     private int   typeCounter;      // frame counter for typewriter tick
@@ -55,7 +53,7 @@ public class ThoughtBubble {
     private int   delayCounter;     // frames to wait before starting
     private float fadeAlpha = 1f;   // for fade-out
 
-    // ── Tuning ──────────────────────────────────────────────────────────
+
     private static final int   TYPE_SPEED      = 3;    // frames per character
     private static final int   DEFAULT_LINGER  = 120;  // ~2 seconds at 60 UPS
     private static final int   FADE_DURATION   = 40;   // frames to fade out
@@ -81,7 +79,6 @@ public class ThoughtBubble {
         this.gp = gp;
     }
 
-    // ── Public API ──────────────────────────────────────────────────────
 
     /** Queue an inner thought with default linger and no delay. */
     public void show(String text) {
@@ -110,10 +107,7 @@ public class ThoughtBubble {
         active = null;
     }
 
-    // ── Update (call from GamePanel.update, runs every tick) ────────────
-
     public void update() {
-        // If nothing active, try to pull from queue
         if (active == null) {
             if (queue.isEmpty()) return;
             active        = queue.poll();
@@ -125,13 +119,11 @@ public class ThoughtBubble {
             return; // start next frame
         }
 
-        // Wait for delay
         if (delayCounter > 0) {
             delayCounter--;
             return;
         }
 
-        // Typewriter phase
         if (charIndex < active.text.length()) {
             typeCounter++;
             if (typeCounter >= TYPE_SPEED) {
@@ -142,7 +134,6 @@ public class ThoughtBubble {
                     charIndex++;
                 }
                 // Pause slightly on '.' ',' '!' '?' '—' for natural rhythm
-                // Applied ONCE per character reveal (inside the advancement block)
                 if (charIndex > 0 && charIndex < active.text.length()) {
                     char prev = active.text.charAt(charIndex - 1);
                     if (prev == '.' || prev == '!' || prev == '?') {
@@ -155,21 +146,16 @@ public class ThoughtBubble {
             return;
         }
 
-        // Linger phase
         if (lingerCounter > 0) {
             lingerCounter--;
-            // Start fading during the last FADE_DURATION frames
             if (lingerCounter < FADE_DURATION) {
                 fadeAlpha = (float) lingerCounter / FADE_DURATION;
             }
             return;
         }
 
-        // Done
         active = null;
     }
-
-    // ── Draw (call from UI.draw, during playState / cutsceneState) ──────
 
     public void draw(Graphics2D g2) {
         if (active == null || delayCounter > 0) return;

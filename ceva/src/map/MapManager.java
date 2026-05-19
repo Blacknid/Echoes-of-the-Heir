@@ -30,17 +30,14 @@ public class MapManager {
     // Track which map is currently active (matches a key in mapRegistry)
     public String currentMapId = "awakening_cave";
 
-    // TRANSITION
     public String nextMapId;
     public int nextCol;
     public int nextRow;
 
-    // ENTRY POINT TRACKING
     public String previousMapId = "awakening_cave";
     public int previousTriggerCol = 24;
     public int previousTriggerRow = 15;
 
-    // DOOR ENTRY TRACKING
     public int doorEntryCol = -1;
     public int doorEntryRow = -1;
 
@@ -70,7 +67,6 @@ public class MapManager {
 
     public boolean loadingGame = false;
 
-    // MAP ENTITY STORAGE: Preserve entity states when switching between maps
     private final Map<String, Entity[]> savedObjects = new HashMap<>();
     private final Map<String, Entity[]> savedNPCs = new HashMap<>();
     private final Map<String, Entity[]> savedMonsters = new HashMap<>();

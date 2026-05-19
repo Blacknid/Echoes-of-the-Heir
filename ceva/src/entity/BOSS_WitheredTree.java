@@ -1,4 +1,4 @@
-package entity;
+﻿package entity;
 
 import java.awt.AlphaComposite;
 import java.awt.BasicStroke;
@@ -26,7 +26,6 @@ import main.GamePanel;
  */
 public class BOSS_WitheredTree extends Entity {
 
-    // OPTIMIZATION: Pre-allocated fonts/strokes/colors for boss HP bar (avoid per-frame allocation)
     private static final Font BOSS_NAME_FONT = new Font("SansSerif", Font.BOLD, 16);
     private static final Font BOSS_PHASE_FONT = new Font("SansSerif", Font.ITALIC, 12);
     private static final BasicStroke BOSS_BAR_STROKE = new BasicStroke(2f);
@@ -47,7 +46,6 @@ public class BOSS_WitheredTree extends Entity {
 
     private int currentPhase = 0;
 
-    // ── Attack type enum ─────────────────────────────────────────────────
     private static final int ATK_MELEE       = 0;
     private static final int ATK_STOMP       = 1;
     private static final int ATK_ROOT        = 2;
@@ -56,7 +54,6 @@ public class BOSS_WitheredTree extends Entity {
     private static final int ATK_TRIPLE_BOLT = 5;
     private static final int ATK_THORN_RING  = 6;
 
-    // ── Leaf Bolt ranged attack ──────────────────────────────────────────
     private BufferedImage[][] leafBoltFrames; // [direction][frame]
     private static final int LEAF_BOLT_SPEED = 4;
     private static final int LEAF_BOLT_LIFE  = 120; // frames before disappearing
@@ -65,7 +62,6 @@ public class BOSS_WitheredTree extends Entity {
     private int leafBoltCooldown = 0;
     private static final int LEAF_BOLT_COOLDOWN = 40;
 
-    // Attack state
     private boolean bossAttacking = false;
     private int attackFrameCounter = 0;
     private int attackFrameIndex = 0;
@@ -74,7 +70,6 @@ public class BOSS_WitheredTree extends Entity {
     private boolean attackHitApplied = false;
     private int consecutiveMelees = 0; // track melee count for combo variety
 
-    // ── Stomp AOE state ──────────────────────────────────────────────────
     private boolean stompActive = false;
     private int stompTimer = 0;
     private float stompRingRadius = 0;
@@ -85,7 +80,6 @@ public class BOSS_WitheredTree extends Entity {
     private boolean stompDamageApplied = false;
     private int stompTelegraphTimer = 0;
 
-    // ── Root Barrage state (Phase 2+) ────────────────────────────────────
     private boolean rootBarrageActive = false;
     private int rootBarrageTimer = 0;
     private int rootBarrageWave = 0;
@@ -96,7 +90,6 @@ public class BOSS_WitheredTree extends Entity {
     private int[] rootEruptTimer = new int[ROOT_WAVE_COUNT];
     private boolean[] rootErupted = new boolean[ROOT_WAVE_COUNT];
 
-    // ── Whirlwind Fury state (Phase 3) ───────────────────────────────────
     private boolean whirlwindActive = false;
     private int whirlwindTimer = 0;
 
@@ -104,7 +97,6 @@ public class BOSS_WitheredTree extends Entity {
     private static final int WHIRLWIND_HIT_INTERVAL = 15;
     private float whirlwindAngle = 0;
 
-    // ── Thorn Ring (Phase 3) ─────────────────────────────────────────────
     private boolean thornRingActive = false;
     private int thornRingTimer = 0;
     private static final int THORN_RING_WINDUP    = 24; // frames of telegraph before firing
@@ -114,21 +106,17 @@ public class BOSS_WitheredTree extends Entity {
     private static final int THORN_RING_BOLT_LIFE  = 100;
     private boolean thornRingFired = false;
 
-    // ── Boss intro ───────────────────────────────────────────────────────
     private boolean introPlayed = false;
     private int introTimer = 0;
     private static final int INTRO_DURATION = 80;
 
-    // ── Enrage state (≤15% HP) ───────────────────────────────────────────
     private boolean enraged = false;
     private static final float ENRAGE_THRESHOLD = 0.15f;
 
-    // Hurt flash
     private boolean isHurt = false;
     private int hurtTimer = 0;
     private static final int HURT_DURATION = 20;
 
-    // Idle animation
     private int idleFrameCounter = 0;
     private int idleFrameIndex = 0;
     private boolean isMoving = false;
@@ -138,7 +126,6 @@ public class BOSS_WitheredTree extends Entity {
     // Boss render scale: 6× the player tile size
     private static final int BOSS_SCALE = 6;
 
-    // Per-phase tuning
     private static final int[]   ATTACK_COOLDOWNS = {90, 60, 28};
     private static final int[]   PHASE_ATTACK     = {6, 9, 15};
     private static final int[]   PHASE_SPEED      = {1, 2, 3};
@@ -153,18 +140,15 @@ public class BOSS_WitheredTree extends Entity {
 
     private static final Random rng = new Random();
 
-    // ── Phase transition drama ───────────────────────────────────────────
     private boolean phaseTransitioning = false;
     private int phaseTransitionTimer = 0;
     private static final int PHASE_TRANSITION_DURATION = 50;
     private int pendingPhase = -1;
 
-    // ── HP bar damage flash ──────────────────────────────────────────────
     private float displayedHpRatio = 1f;
     private float targetHpRatio = 1f;
     private int hpFlashTimer = 0;
 
-    // ── Phase subtitles ──────────────────────────────────────────────────
     private static final String[] PHASE_NAMES = {
         "The Guardian",
         "Wrath Awakened",
@@ -173,7 +157,6 @@ public class BOSS_WitheredTree extends Entity {
     private int phaseNameAlpha = 0;
     private int phaseNameTimer = 0;
 
-    // ── Colors ───────────────────────────────────────────────────────────
     private static final Color HP_BG        = new Color(35, 35, 35);
     private static final Color PHASE_GREEN  = new Color(50, 180, 50);
     private static final Color PHASE_YELLOW = new Color(220, 180, 30);
@@ -228,7 +211,6 @@ public class BOSS_WitheredTree extends Entity {
         applyPhase(0);
     }
 
-    // ────────── Sprite loading ──────────
 
     private void loadAllPhaseSprites() {
         String[] prefixes = {"Ent1", "Ent2", "Ent3"};
@@ -277,7 +259,6 @@ public class BOSS_WitheredTree extends Entity {
         attack       = PHASE_ATTACK[phase];
     }
 
-    // ────────── Phase transitions ──────────
 
     private void checkPhaseTransition() {
         float hpPct = (float) life / maxLife;
@@ -358,7 +339,6 @@ public class BOSS_WitheredTree extends Entity {
         attackFrameCounter = 0;
     }
 
-    // ────────── AI: Attack Selection ──────────
 
     private int chooseAttack(double dist) {
         // Phase 3: can use all attacks including whirlwind + leaf bolt + thorn ring
@@ -517,7 +497,6 @@ public class BOSS_WitheredTree extends Entity {
         faceBossTowardPlayer();
     }
 
-    // ────────── Update ──────────
 
     @Override
     public void update() {
@@ -691,7 +670,6 @@ public class BOSS_WitheredTree extends Entity {
         if (hitFlashCounter > 0) hitFlashCounter--;
     }
 
-    // ────────── Attack logic ──────────
 
     private void updateAttack() {
         attackFrameCounter++;
@@ -737,7 +715,6 @@ public class BOSS_WitheredTree extends Entity {
         }
     }
 
-    // ────────── Stomp Attack ──────────
 
     private void startStomp() {
         faceBossTowardPlayer();
@@ -843,7 +820,6 @@ public class BOSS_WitheredTree extends Entity {
         }
     }
 
-    // ────────── Root Barrage (Phase 2+) ──────────
 
     private void startRootBarrage() {
         faceBossTowardPlayer();
@@ -931,7 +907,6 @@ public class BOSS_WitheredTree extends Entity {
         }
     }
 
-    // ────────── Whirlwind Fury (Phase 3) ──────────
 
     private void startWhirlwind() {
         faceBossTowardPlayer();
@@ -1005,7 +980,6 @@ public class BOSS_WitheredTree extends Entity {
         }
     }
 
-    // ────────── Thorn Ring (Phase 3) ──────────
 
     private void startThornRing() {
         faceBossTowardPlayer();
@@ -1101,7 +1075,6 @@ public class BOSS_WitheredTree extends Entity {
         }
     }
 
-    // ────────── Leaf Bolt (ranged) ──────────
 
     private void fireLeafBolt() {
         faceBossTowardPlayer();
@@ -1223,7 +1196,6 @@ public class BOSS_WitheredTree extends Entity {
         }
     }
 
-    // ────────── Damage reaction ──────────
 
     @Override
     public void damageReaction() {
@@ -1233,7 +1205,6 @@ public class BOSS_WitheredTree extends Entity {
         actionLockCounter = 0;
     }
 
-    // ────────── Particles ──────────
 
     @Override
     public Color getParticleColor() { return LEAF_PARTICLE; }
@@ -1246,7 +1217,6 @@ public class BOSS_WitheredTree extends Entity {
     @Override
     public int getParticleStyle()   { return Particle.STYLE_HIT; }
 
-    // ────────── Collision (no contact damage) ──────────
 
     /**
      * Override collision check to prevent the boss from dealing contact damage.
@@ -1273,7 +1243,6 @@ public class BOSS_WitheredTree extends Entity {
         return getCenterY();
     }
 
-    // ────────── Draw ──────────
 
     @Override
     public void draw(Graphics2D g2) {
@@ -1447,7 +1416,6 @@ public class BOSS_WitheredTree extends Entity {
         changeAlpha(g2, 1f);
     }
 
-    // ────────── Epic Death Sequence ──────────
 
     private void drawDeathSequence(Graphics2D g2, int screenX, int screenY, int drawSize) {
         int drawW;
@@ -1657,7 +1625,6 @@ public class BOSS_WitheredTree extends Entity {
         if (hpBarCounter > 600) { hpBarCounter = 0; hpBarOn = false; }
     }
 
-    // ────────── Helpers ──────────
 
     private static BufferedImage safeFrame(BufferedImage[][] frames, int dir, int frame) {
         if (frames != null && dir >= 0 && dir < frames.length

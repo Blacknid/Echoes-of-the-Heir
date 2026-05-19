@@ -79,11 +79,9 @@ public class ItemFactory {
     private static Entity buildItem(GamePanel gp, Map<String, String> def) {
         Entity item = new Entity(gp);
 
-        // Type
         String typeName = def.getOrDefault("type", "pickupOnly");
         item.type = TYPE_MAP.getOrDefault(typeName, 7);
 
-        // Basic properties
         item.itemId = def.get("id");
         item.name = def.getOrDefault("name", "Item");
         item.description = def.getOrDefault("description", "");
@@ -93,7 +91,6 @@ public class ItemFactory {
         item.knockBackPower = intVal(def, "knockBackPower", 0);
         item.useCost = intVal(def, "useCost", 0);
 
-        // Attack area (for weapons)
         int aw = intVal(def, "attackAreaW", 0);
         int ah = intVal(def, "attackAreaH", 0);
         if (aw > 0 && ah > 0) {
@@ -101,7 +98,6 @@ public class ItemFactory {
             item.attackArea.height = ah;
         }
 
-        // Solid area
         item.solidArea.x = intVal(def, "solidArea.x", 16);
         item.solidArea.y = intVal(def, "solidArea.y", 16);
         item.solidArea.width = intVal(def, "solidArea.w", 32);
@@ -109,16 +105,13 @@ public class ItemFactory {
         item.solidAreaDefaultX = item.solidArea.x;
         item.solidAreaDefaultY = item.solidArea.y;
 
-        // Collision
         item.collision = "true".equals(def.get("collision"));
 
-        // Light
         if ("true".equals(def.get("lightSource"))) {
             item.lightSource = true;
             item.lightRadius = intVal(def, "lightRadius", 6);
         }
 
-        // Sprite
         String sprite = def.get("sprite");
         if (sprite != null) {
             item.down1 = item.setup(sprite, gp.tileSize, gp.tileSize);

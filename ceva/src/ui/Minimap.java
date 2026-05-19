@@ -25,18 +25,12 @@ public class Minimap {
 
     private final GamePanel gp;
 
-    // -----------------------------------------------------------------------
-    // Geometry
-    // -----------------------------------------------------------------------
     private static final int   MINIMAP_RADIUS    = 68;
     private static final int   BORDER_WIDTH      = 6;
     private static final int   MARGIN            = 18;
     private static final float ALPHA             = 0.90f;
     private static final float FULL_MAP_BG_ALPHA = 0.82f;
 
-    // -----------------------------------------------------------------------
-    // GID ranges — legacy fallback for maps without tileset name heuristics
-    // -----------------------------------------------------------------------
     private static final int GID_GRASS_MIN  = 1;
     private static final int GID_GRASS_MAX  = 12;
     private static final int GID_STRUCT_MIN = 13;
@@ -52,9 +46,6 @@ public class Minimap {
     private static final int FLOWER_GID_3    = 10;
     private static final int PLAIN_GRASS_GID = 1;
 
-    // -----------------------------------------------------------------------
-    // DST biome palette  (dark, earthy, desaturated)
-    // -----------------------------------------------------------------------
     private static final Color COL_BG      = new Color(12,  10,   7);
     private static final Color COL_GRASS   = new Color(74, 100,  36);
     private static final Color COL_GRASS2  = new Color(58,  80,  26);
@@ -63,7 +54,6 @@ public class Minimap {
     private static final Color COL_TREE    = new Color(20,  38,  12);
     private static final Color COL_STRUCT  = new Color(85,  68,  45);
 
-    // Entity dot colours
     private static final Color PLAYER_COLOR  = new Color(255, 240, 180);
     private static final Color MONSTER_COLOR = new Color(200,  50,  40);
     private static final Color NPC_COLOR     = new Color( 80, 185,  80);
@@ -75,7 +65,6 @@ public class Minimap {
     private static final java.awt.Font MAP_HINT_FONT  = new java.awt.Font("Georgia", java.awt.Font.PLAIN, 11);
     private static final Color VIEWPORT_COLOR= new Color(255, 255, 255, 80);
 
-    // OPTIMIZATION: Pre-allocated border strokes and colors (avoid per-frame allocation)
     private static final BasicStroke BORDER_OUTER_STROKE = new BasicStroke(BORDER_WIDTH + 3 + 4); // large mode
     private static final BasicStroke BORDER_MID_STROKE   = new BasicStroke(BORDER_WIDTH + 4);
     private static final BasicStroke BORDER_INNER_STROKE = new BasicStroke(1.8f);
@@ -87,12 +76,8 @@ public class Minimap {
     private static final Color BORDER_INNER_COLOR    = new Color(140, 108, 55, 210);
     private static final Color BORDER_HIGHLIGHT_COLOR= new Color(85, 68, 36, 110);
 
-    // OPTIMIZATION: Cached vignette overlay images keyed by radius
     private final HashMap<Integer, BufferedImage> vignetteCache = new HashMap<>();
 
-    // -----------------------------------------------------------------------
-    // Bake detail
-    // -----------------------------------------------------------------------
     private static final int BAKE_PIXELS_PER_TILE = 4;
 
     private BufferedImage terrainImage;
@@ -162,16 +147,13 @@ public class Minimap {
         return worldMapOpen;
     }
 
-    // -----------------------------------------------------------------------
     // Full world map overlay
-    // -----------------------------------------------------------------------
 
     public void drawWorldMap(Graphics2D g2) {
         if (!worldMapOpen || terrainImage == null) return;
 
         java.awt.Composite savedComp = g2.getComposite();
 
-        // Dark backdrop
         g2.setComposite(AlphaComposite.getInstance(AlphaComposite.SRC_OVER, FULL_MAP_BG_ALPHA));
         g2.setColor(COL_BG);
         g2.fillRect(0, 0, gp.screenWidth, gp.screenHeight);
@@ -183,7 +165,6 @@ public class Minimap {
 
         drawCircularMap(g2, cx, cy, mapRadius, true);
 
-        // Caption
         g2.setComposite(AlphaComposite.getInstance(AlphaComposite.SRC_OVER, 0.72f));
         int labelY = cy + mapRadius + BORDER_WIDTH + 26;
         g2.setColor(new Color(195, 168, 100));
@@ -200,12 +181,9 @@ public class Minimap {
         g2.setComposite(savedComp);
     }
 
-    // -----------------------------------------------------------------------
     // Shared circular renderer  (used by both HUD and world map)
-    // -----------------------------------------------------------------------
 
     private void drawCircularMap(Graphics2D g2, int cx, int cy, int radius, boolean largeMode) {
-        // Save Graphics2D state
         Shape           savedClip   = g2.getClip();
         java.awt.Stroke savedStroke = g2.getStroke();
         Object savedInterp = g2.getRenderingHint(RenderingHints.KEY_INTERPOLATION);
@@ -215,22 +193,18 @@ public class Minimap {
         g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
         g2.setRenderingHint(RenderingHints.KEY_RENDERING,    RenderingHints.VALUE_RENDER_QUALITY);
 
-        // 1. Solid dark base disc
         g2.setColor(COL_BG);
         g2.fillOval(cx - radius, cy - radius, radius * 2, radius * 2);
 
-        // 2. Clip to circle, draw scaled terrain
         Ellipse2D circle = new Ellipse2D.Float(cx - radius, cy - radius, radius * 2, radius * 2);
         g2.setClip(circle);
         g2.setRenderingHint(RenderingHints.KEY_INTERPOLATION, RenderingHints.VALUE_INTERPOLATION_BILINEAR);
         g2.drawImage(terrainImage, cx - radius, cy - radius, radius * 2, radius * 2, null);
 
-        // 3. Entity dots (clipped inside the circle)
         float scaleX = (float)(radius * 2) / gp.tileM.currentMapCols;
         float scaleY = (float)(radius * 2) / gp.tileM.currentMapRows;
         drawEntities(g2, cx - radius, cy - radius, scaleX, scaleY, largeMode);
 
-        // 4. Radial vignette: transparent centre → dark rim (cached to avoid RadialGradientPaint per frame)
         BufferedImage vig = vignetteCache.get(radius);
         if (vig == null) {
             int diam = radius * 2;
@@ -245,45 +219,35 @@ public class Minimap {
         }
         g2.drawImage(vig, cx - radius, cy - radius, null);
 
-        // Restore clip before drawing border
         g2.setClip(savedClip);
 
-        // 5. Ornate ring border (DST wood-frame style: dark outer / earthy brown / amber inner rim)
         int bw = largeMode ? BORDER_WIDTH + 4 : BORDER_WIDTH;
 
-        // Outer dark body
         g2.setStroke(largeMode ? BORDER_OUTER_STROKE : BORDER_OUTER_STROKE_SM);
         g2.setColor(BORDER_OUTER_COLOR);
         g2.drawOval(cx - radius - bw / 2, cy - radius - bw / 2,
                     radius * 2 + bw, radius * 2 + bw);
 
-        // Mid earthy-brown layer
         g2.setStroke(largeMode ? BORDER_MID_STROKE : BORDER_MID_STROKE_SM);
         g2.setColor(BORDER_MID_COLOR);
         g2.drawOval(cx - radius - bw / 2, cy - radius - bw / 2,
                     radius * 2 + bw, radius * 2 + bw);
 
-        // Bright amber inner rim
         g2.setStroke(BORDER_INNER_STROKE);
         g2.setColor(BORDER_INNER_COLOR);
         g2.drawOval(cx - radius + 1, cy - radius + 1, radius * 2 - 2, radius * 2 - 2);
 
-        // Faint outer highlight
         g2.setStroke(BORDER_HIGHLIGHT_STROKE);
         g2.setColor(BORDER_HIGHLIGHT_COLOR);
         g2.drawOval(cx - radius - bw, cy - radius - bw,
                     radius * 2 + bw * 2, radius * 2 + bw * 2);
 
-        // Restore state
         g2.setStroke(savedStroke);
         if (savedInterp != null) g2.setRenderingHint(RenderingHints.KEY_INTERPOLATION, savedInterp);
         if (savedRender != null) g2.setRenderingHint(RenderingHints.KEY_RENDERING,     savedRender);
         if (savedAA     != null) g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING,  savedAA);
     }
 
-    // -----------------------------------------------------------------------
-    // Entities
-    // -----------------------------------------------------------------------
 
     private void drawEntities(Graphics2D g2, int originX, int originY,
                               float scaleX, float scaleY, boolean largeMode) {
@@ -323,7 +287,6 @@ public class Minimap {
             }
         }
 
-        // Player: soft glow halo + bright cream core dot
         int px = originX + (int)((gp.player.worldX / (float)gp.tileSize) * scaleX);
         int py = originY + (int)((gp.player.worldY / (float)gp.tileSize) * scaleY);
         g2.setColor(new Color(255, 235, 130, 55));
@@ -331,7 +294,6 @@ public class Minimap {
         g2.setColor(PLAYER_COLOR);
         g2.fillOval(px - playerSize / 2, py - playerSize / 2, playerSize, playerSize);
 
-        // Viewport rectangle
         java.awt.Composite prevComp = g2.getComposite();
         g2.setComposite(AlphaComposite.getInstance(AlphaComposite.SRC_OVER, largeMode ? 0.40f : 0.22f));
         g2.setColor(VIEWPORT_COLOR);
