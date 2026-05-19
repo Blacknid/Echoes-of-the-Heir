@@ -2916,14 +2916,14 @@ public class UI {
             textY += 36;
         }
 
-        // YES / NO buttons
+        // SAVE & QUIT / QUIT / NO buttons
         g2.setFont(cachedFont(Font.PLAIN, 26F));
-        String[] opts = { "Yes", "No" };
-        int btnY = frameY + gp.tileSize * 6;
-        for (int i = 0; i < 2; i++) {
+        String[] opts = { "Save & Quit", "Quit", "No" };
+        int btnY = frameY + gp.tileSize * 5 + 20;
+        for (int i = 0; i < opts.length; i++) {
             int bw = (int) cachedFM().getStringBounds(opts[i], g2).getWidth();
             int bx = frameX + fw / 2 - bw / 2;
-            int by = btnY + i * 52;
+            int by = btnY + i * 48;
             boolean sel = (commandNum == i);
             if (sel) {
                 g2.setColor(OPT_SEL_BG);
@@ -2936,15 +2936,28 @@ public class UI {
             g2.drawString(opts[i], bx, by);
         }
 
-        if ( commandNum == 0 && gp.keyH.enterPressed ) {
-            subState = 0;
-            titleScreenState = 0;
-            gp.stopMusic();
-            gp.gameState = GamePanel.titleState;
-        }
-        if ( commandNum == 1 && gp.keyH.enterPressed ) {
-            subState = 0;
-            commandNum = 5;
+        if (gp.keyH.enterPressed) {
+            if (commandNum == 0) {
+                // Save & Quit: persist game then return to title
+                gp.saveLoad.save();
+                addMessage("Game saved.", Color.WHITE);
+                subState = 0;
+                titleScreenState = 0;
+                gp.stopMusic();
+                gp.resetGame(true);
+                gp.gameState = GamePanel.titleState;
+            } else if (commandNum == 1) {
+                // Quit without saving
+                subState = 0;
+                titleScreenState = 0;
+                gp.stopMusic();
+                gp.resetGame(true);
+                gp.gameState = GamePanel.titleState;
+            } else if (commandNum == 2) {
+                // Cancel — back to options menu
+                subState = 0;
+                commandNum = 7; // End Game row
+            }
         }
     }
     public void drawTransition(Graphics2D g2) {

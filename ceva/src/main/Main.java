@@ -45,16 +45,13 @@ public class Main {
             data.LicenseManager.startWatchdog(60);
         }
 
-        // Enable OpenGL Java2D pipeline for smoother rendering.
-        // V-Sync on/off is controlled from in-game settings.
-        System.setProperty("sun.java2d.opengl", "True");
-        // Force immediate hardware acceleration (skip default warmup)
+        // NOTE: sun.java2d.opengl is deliberately NOT enabled. The Java2D OpenGL
+        // pipeline destroys/recreates its surface on every window-geometry change,
+        // which produced a permanent black screen whenever the user toggled
+        // fullscreen at runtime. Software rendering of a 1280x720 BufferedImage
+        // back-buffer is plenty fast for this game and avoids the surface-loss bug.
         System.setProperty("sun.java2d.accthreshold", "0");
-        // Enable managed image caching — allows BufferedImages to be cached in VRAM
-        System.setProperty("sun.java2d.managedimages", "true");
-        // Reduce the number of software-rendered copies before promoting to VRAM
         System.setProperty("sun.java2d.translaccel", "true");
-        // Disable Marlin anti-aliasing sub-pixel rendering for faster shape fills
         System.setProperty("sun.java2d.renderer.useSimpleStroke", "true");
 
         // Dev mode: let ResourceCache read .tmx/.tsx files directly from src/res
@@ -81,13 +78,11 @@ public class Main {
         window.pack();
 
         if (gamePanel.fullScreenOn) {
-            // Pre-size the window to the full screen BEFORE setVisible so the OpenGL
-            // rendering surface initialises at the correct resolution on the very first
-            // paint. Resizing an already-visible OpenGL surface often destroys the
-            // hardware context on Windows drivers, causing the black screen.
-            java.awt.Dimension screen = java.awt.Toolkit.getDefaultToolkit().getScreenSize();
-            window.setLocation(0, 0);
-            window.setSize(screen.width, screen.height);
+            // Pre-size the window to the full screen BEFORE setVisible so the panel
+            // is laid out at the right resolution on the very first paint. With the
+            // OpenGL pipeline disabled (see top of main), plain setBounds is safe.
+            java.awt.Rectangle sb = window.getGraphicsConfiguration().getBounds();
+            window.setBounds(sb.x, sb.y, sb.width, sb.height);
         } else {
             if (gamePanel.config.windowX >= 0 && gamePanel.config.windowY >= 0) {
                 window.setLocation(gamePanel.config.windowX, gamePanel.config.windowY);
@@ -97,12 +92,6 @@ public class Main {
         }
 
         window.setVisible(true);
-
-        // Tell the OS the window is maximised AFTER it is already the right size.
-        // No geometry change happens here — only the OS window-manager state updates.
-        if (gamePanel.fullScreenOn) {
-            window.setExtendedState(JFrame.MAXIMIZED_BOTH);
-        }
 
         gamePanel.setupGame();
         gamePanel.startGameThread();
