@@ -617,8 +617,12 @@ class GameServer:
         player.player_class = "".join(c for c in cls_raw if c.isalnum()) or "Fighter"
         player.map_id = self.active_map_id
 
-        # Spawn arbitrar din TMX
+        # Spawn arbitrar din TMX — validated against collision so the player
+        # never appears inside a wall or object hitbox.
         spawn_col, spawn_row = self.world.default_spawn
+        hb_w = int(self.cfg.get("player_hitbox_w", DEFAULT_HITBOX_W))
+        hb_h = int(self.cfg.get("player_hitbox_h", DEFAULT_HITBOX_H))
+        spawn_col, spawn_row = self.world.safe_spawn(spawn_col, spawn_row, hb_w, hb_h)
         player.x = spawn_col * self.world.tilewidth
         player.y = spawn_row * self.world.tileheight
         player.last_valid_x = player.x

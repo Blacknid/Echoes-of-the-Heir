@@ -418,6 +418,48 @@ class TmxMap:
         )
         return all(self.is_walkable(sx, sy) for sx, sy in samples)
 
+    # ── Public API: safe spawn ────────────────────────────────────────────
+    def safe_spawn(self, col: int, row: int,
+                   hb_w: int = 24, hb_h: int = 24) -> tuple[int, int]:
+        """Return a collision-free (col, row) near (col, row).
+
+        Uses the same hitbox geometry as the server's move validator so that
+        the chosen tile is guaranteed not to trigger an immediate correction.
+        Searches in expanding square rings up to 20 tiles from the candidate.
+        """
+        hb_off_x = (self.tilewidth - hb_w) // 2
+        hb_off_y = self.tileheight - hb_h
+
+        def _clear(c: int, r: int) -> bool:
+            if c < 0 or r < 0 or c >= self.width or r >= self.height:
+                return False
+            bx = c * self.tilewidth + hb_off_x
+            by = r * self.tileheight + hb_off_y
+            return self.is_box_walkable(bx, by, hb_w, hb_h)
+
+        if _clear(col, row):
+            return col, row
+
+        for radius in range(1, 21):
+            for dc in range(-radius, radius + 1):
+                for dr in range(-radius, radius + 1):
+                    if abs(dc) != radius and abs(dr) != radius:
+                        continue  # only the outermost ring
+                    if _clear(col + dc, row + dr):
+                        log.warning(
+                            "Spawn (%d, %d) is inside collision; "
+                            "relocated to (%d, %d)",
+                            col, row, col + dc, row + dr,
+                        )
+                        return col + dc, row + dr
+
+        log.error(
+            "No collision-free spawn found within 20 tiles of (%d, %d); "
+            "using original position",
+            col, row,
+        )
+        return col, row
+
     # ── Public API: trigger detection ─────────────────────────────────────
     def find_triggers(self, prev_x: float, prev_y: float,
                       new_x: float, new_y: float,
