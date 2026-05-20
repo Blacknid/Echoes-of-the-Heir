@@ -1,6 +1,7 @@
 package ui;
 
 import java.awt.AlphaComposite;
+import java.awt.BasicStroke;
 import java.awt.Color;
 import java.awt.Font;
 import java.awt.FontMetrics;
@@ -9,7 +10,6 @@ import java.awt.RenderingHints;
 
 import audio.SFX;
 import main.GamePanel;
-import object.OBJ_Gem;
 
 public class CutsceneManager {
 
@@ -18,24 +18,40 @@ public class CutsceneManager {
     public int sceneNum;
     public int scenePhase;
 
-    // OPTIMIZATION: Font cache to avoid deriveFont() per frame
+    private Font pixelFont;
     private final java.util.HashMap<Float, Font> fontCache = new java.util.HashMap<>();
 
-    // Cached cutscene fonts — one per distinct pixel size used in scenes (42, 48, 52, 36).
-    // Keyed by int size to avoid Float boxing equality issues.
+    // Cached cutscene fonts — one per distinct pixel size used in scenes.
     private final java.util.HashMap<Integer, Font> cutsceneFontCache = new java.util.HashMap<>();
     private Font getCutsceneFont(int size) {
-        return cutsceneFontCache.computeIfAbsent(size, s -> new Font("Segoe UI", Font.ITALIC, s));
+        return cutsceneFontCache.computeIfAbsent(size, s -> pixelFont.deriveFont(Font.ITALIC, s));
     }
 
-    // Scene Number
     public final int NA = 0;
     public final int awakening = 1;
     public final int ending = 2;
-    int counter = 0;
+    public int counter = 0;
     float alpha = 0f;
     int y;
     String endCredit;
+
+    // Ending scene rain effect (screen-space particles)
+    private static final int RAIN_COUNT = 120;
+    private final float[] rX     = new float[RAIN_COUNT];
+    private final float[] rY     = new float[RAIN_COUNT];
+    private final float[] rSpeed = new float[RAIN_COUNT];
+    private final float[] rLen   = new float[RAIN_COUNT];
+    private boolean rainInitialized = false;
+    private final java.util.Random rng = new java.util.Random();
+
+    // Section header names for gold-coloured credit titles
+    private static final java.util.Set<String> CREDIT_HEADERS = new java.util.HashSet<>(
+        java.util.Arrays.asList(
+            "Directed by", "Programmed by", "Designed by",
+            "Written by", "Music by", "Special Thanks to",
+            "Sources from", "Thank you for playing!"
+        )
+    );
 
     // Awakening cutscene fields
     private int typewriterIndex = 0;
@@ -48,9 +64,19 @@ public class CutsceneManager {
     public CutsceneManager ( GamePanel gp ) {
         this.gp = gp;
 
-        endCredit = "Directed by\n" 
+        try {
+            pixelFont = Font.createFont(Font.TRUETYPE_FONT,
+                    getClass().getResourceAsStream("/res/fonts/Pixeloid Sans.ttf"));
+            java.awt.GraphicsEnvironment.getLocalGraphicsEnvironment().registerFont(pixelFont);
+        } catch (Exception e) {
+            pixelFont = new Font("Segoe UI", Font.PLAIN, 12);
+        }
+
+        endCredit = "Thank you for playing!\n"
+                + "\n\n\n\n"
+                + "Directed by\n"
                 + "Ciuca Andrei-Corneliu / Lupu Iulian-Nicolae\n"
-                + "\n\n\n\n\n\n\n\n\n\n\n\n"
+                + "\n\n\n"
                 + "Programmed by\n"
                 + "Ciuca Andrei-Corneliu / Lupu Iulian-Nicolae\n"
                 + "\n\n\n"
@@ -58,11 +84,16 @@ public class CutsceneManager {
                 + "Avram Dennis-Sebastian / Lupu Mirabela\n"
                 + "\n\n\n"
                 + "Written by\n"
-                + "Lupu Cristian\n"
+                + "Lupu Cristian / Ciuca Andrei-Corneliu / Lupu Iulian-Nicolae\n"
                 + "\n\n\n"
                 + "Music by\n"
                 + "Lupu Stefan\n"
-                + "\n\n\n\n\n\n"
+                + "\n\n\n"
+                + "Special Thanks to\n"
+                + "Our friends for their support and encouragement\n"
+                + "Drila Luca , Mihai Andrei , Radu Iulian , Rusu Andrei\n"
+                + "Ciobanu Andrei , Munteanu Andrei , Dinu Andrei\n"
+                + "\n\n\n"
                 + "Sources from\n"
                 + "Youtube helper : RyiSnow\n"
                 + "Sites : Pixabay.com , CraftPix.net";
@@ -79,7 +110,6 @@ public class CutsceneManager {
 
         }
     }
-    // ── AWAKENING CUTSCENE ──────────────────────────────────────────────
     // White screen → "..." → "Where... am I?" → world fades in →
     // camera pans to player → player appears → play state
     public void scene_awakening() {
@@ -286,7 +316,6 @@ public class CutsceneManager {
         }
     }
 
-    // ── AWAKENING DRAWING HELPERS ────────────────────────────────────────
 
     private void drawWhiteBackground(float a) {
         float clamped = Math.max(0f, Math.min(1f, a));
@@ -313,14 +342,12 @@ public class CutsceneManager {
     private void drawOverlayText(String fullText, float yFraction, float fontSize) {
         String visible = fullText.substring(0, Math.min(typewriterIndex, fullText.length()));
         g2.setRenderingHint(RenderingHints.KEY_TEXT_ANTIALIASING, RenderingHints.VALUE_TEXT_ANTIALIAS_LCD_HRGB);
-        // Dark semi-transparent bar behind text
         int barH = 60;
         int barY = (int) (gp.screenHeight * yFraction) - 35;
         g2.setComposite(AlphaComposite.getInstance(AlphaComposite.SRC_OVER, 0.5f));
         g2.setColor(Color.black);
         g2.fillRect(0, barY, gp.screenWidth, barH);
         g2.setComposite(AlphaComposite.getInstance(AlphaComposite.SRC_OVER, 1f));
-        // Text
         g2.setFont(getCutsceneFont((int) fontSize));
         g2.setColor(new Color(240, 230, 210));
         FontMetrics fmOverlay = g2.getFontMetrics();
@@ -332,19 +359,18 @@ public class CutsceneManager {
 
     public void scene_ending() {
 
+        gp.eManager.setWeatherByName("CLEAR");
         if ( scenePhase == 0 ) {
 
             gp.stopMusic();
-            // Keep the current gem dialogue source if it was already set by pickup.
-            // Fallback only if cutscene was started without an NPC context.
-            if (gp.ui.npc == null) {
-                gp.ui.npc = new OBJ_Gem(gp);
-            }
+            gp.ui.npc = null;
+            gp.eManager.pinnedFilterAlpha = 0.0f;
+            gp.eManager.setWeatherByName("RAIN");
             scenePhase++;
         }
         if ( scenePhase == 1 ) {
 
-            // DISPLAY DIALOGUES
+            scenePhase++;
         }
         if ( scenePhase == 2 ) {
 
@@ -362,12 +388,12 @@ public class CutsceneManager {
         }
         if ( scenePhase == 4 ) {
 
-            // THE SCREEN GETS DARKER
             alpha += 0.005f;
             if ( alpha > 1f ) {
                 alpha = 1f;
             }
             drawBlackBackground(alpha);
+            if (alpha > 0.2f) updateAndDrawRain(alpha);
 
             if ( alpha == 1f ) {
                 alpha = 0;
@@ -377,13 +403,14 @@ public class CutsceneManager {
         if ( scenePhase == 5 ) {
 
             drawBlackBackground(1f);
+            updateAndDrawRain(1f);
 
             alpha += 0.005f;
             if ( alpha > 1f ) {
                 alpha = 1f;
             }
 
-            String text = "After a long way, \nour Spirit found the Dark Heart \nand reached a new power! \n[TO BE CONTINUED]";
+            String text = "After a long way, \nour Spirit found the Unknown Memory \nand reached a new power! \n[TO BE CONTINUED]";
             drawString(alpha, 38f, 200, text, 70);
 
             if ( counterReached(600) ) {
@@ -394,8 +421,9 @@ public class CutsceneManager {
         if ( scenePhase == 6 ) {
 
             drawBlackBackground(1f);
+            updateAndDrawRain(1f);
 
-            drawString(1f, 120f, gp.screenHeight / 2, "Michiduta Adventure", 40);
+            drawString(1f, 120f, gp.screenHeight / 2, "Echoes of the Heir", 40);
         
             if ( counterReached(300) ) {
                 scenePhase++;
@@ -405,6 +433,7 @@ public class CutsceneManager {
         if ( scenePhase == 7 ) {
 
             drawBlackBackground(1f);
+            updateAndDrawRain(1f);
 
             y = gp.screenHeight / 2;
             drawString(1f, 38f, y, endCredit, 40);
@@ -417,9 +446,8 @@ public class CutsceneManager {
         if ( scenePhase == 8 ) {
 
             drawBlackBackground(1f);
+            updateAndDrawRain(1f);
 
-            // SCROLLING THE CREDIT
-            
             y--;    
             drawString(1f, 38f, y, endCredit, 40);
 
@@ -430,6 +458,7 @@ public class CutsceneManager {
         if ( scenePhase == 9 ) {
 
             drawBlackBackground(1f);
+            updateAndDrawRain(1f);
 
             drawString(1f, 120f, gp.screenHeight / 2, "Michiduta Adventure", 40);
 
@@ -438,11 +467,46 @@ public class CutsceneManager {
             }
         }
         if ( scenePhase == 10 ) {
+            gp.eManager.pinnedFilterAlpha = -1f;
+            gp.eManager.pinnedWeather = -1;
+            gp.eManager.setWeather(0);
             gp.ui.titleScreenState = 0;
             gp.gameState = GamePanel.titleState;
         }
 
     }
+    private void initRain() {
+        for (int i = 0; i < RAIN_COUNT; i++) resetDrop(i, true);
+        rainInitialized = true;
+    }
+
+    private void resetDrop(int i, boolean randomY) {
+        rX[i]     = rng.nextFloat() * gp.screenWidth;
+        rY[i]     = randomY ? rng.nextFloat() * gp.screenHeight : -(rng.nextFloat() * 40 + 10);
+        rSpeed[i] = 8 + rng.nextFloat() * 7;
+        rLen[i]   = 6 + rng.nextFloat() * 8;
+    }
+
+    private void updateAndDrawRain(float overallAlpha) {
+        if (!rainInitialized) initRain();
+        g2.setComposite(AlphaComposite.getInstance(AlphaComposite.SRC_OVER, 0.45f * overallAlpha));
+        g2.setColor(new Color(180, 210, 255));
+        g2.setStroke(new BasicStroke(1f));
+        for (int i = 0; i < RAIN_COUNT; i++) {
+            rY[i] += rSpeed[i];
+            rX[i] -= 1.2f;
+            if (rY[i] > gp.screenHeight + 20 || rX[i] < -20) resetDrop(i, false);
+            g2.drawLine((int) rX[i], (int) rY[i],
+                        (int)(rX[i] + 2), (int)(rY[i] + rLen[i]));
+        }
+        g2.setComposite(AlphaComposite.getInstance(AlphaComposite.SRC_OVER, 1f));
+        g2.setStroke(new BasicStroke(1f));
+    }
+
+    private boolean isSectionHeader(String line) {
+        return CREDIT_HEADERS.contains(line.trim());
+    }
+
     public boolean counterReached ( int target ) {
 
         boolean counterReached = false;
@@ -466,11 +530,12 @@ public class CutsceneManager {
     public void drawString( float alpha, float fontSize, int y, String text, int lineHeigh) {
 
         g2.setComposite(AlphaComposite.getInstance(AlphaComposite.SRC_OVER, alpha));
-        g2.setColor(Color.white);  
-        g2.setFont(fontCache.computeIfAbsent(fontSize, s -> g2.getFont().deriveFont(s)));
-        
+        g2.setFont(fontCache.computeIfAbsent(fontSize, s -> pixelFont.deriveFont(Font.PLAIN, s)));
+        g2.setRenderingHint(RenderingHints.KEY_TEXT_ANTIALIASING, RenderingHints.VALUE_TEXT_ANTIALIAS_ON);
+        FontMetrics fm = g2.getFontMetrics();
         for ( String line: text.split("\n")) {
-            int x = gp.ui.getXforCenteredText(line);
+            int x = (gp.screenWidth - fm.stringWidth(line)) / 2;
+            g2.setColor(isSectionHeader(line) ? new Color(255, 215, 100) : Color.white);
             g2.drawString(line, x, y);
             y += lineHeigh;
         }

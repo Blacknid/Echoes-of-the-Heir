@@ -53,7 +53,6 @@ public final class Updater {
         }
     }
 
-    // ─────────────────────────────────────────────────────────────────────
     private static void waitForParent(long pid) throws InterruptedException {
         if (pid <= 0) { Thread.sleep(2000); return; }
         ProcessHandle.of(pid).ifPresent(ph -> {
@@ -62,7 +61,6 @@ public final class Updater {
         Thread.sleep(750); // give the OS time to release JAR file handles
     }
 
-    // ─────────────────────────────────────────────────────────────────────
     private static void applyPatch(Path gameJar, Path patchZip, String toVersion)
             throws IOException {
         if (!Files.isRegularFile(gameJar)) {
@@ -72,7 +70,6 @@ public final class Updater {
             throw new IOException("patch ZIP not found: " + patchZip);
         }
 
-        // 1. Read the patch manifest + collect overlay entries
         Set<String> deleteSet = new HashSet<>();
         java.util.Map<String, byte[]> overlay = new java.util.HashMap<>();
 
@@ -84,8 +81,6 @@ public final class Updater {
                 manifestBytes = is.readAllBytes();
             }
 
-            // Tiny hand-parser for the only field we care about: delete[].
-            // build_patch.py emits canonical JSON so this is safe.
             String json = new String(manifestBytes, StandardCharsets.UTF_8);
             int i = json.indexOf("\"delete\"");
             if (i >= 0) {
@@ -116,7 +111,6 @@ public final class Updater {
             }
         }
 
-        // 2. Rewrite the game JAR into a sibling temp file.
         Path tmpJar = gameJar.resolveSibling(gameJar.getFileName() + ".updating");
         Files.deleteIfExists(tmpJar);
 
@@ -132,7 +126,6 @@ public final class Updater {
                 String name = e.getName();
                 if (deleteSet.contains(name)) continue;
                 if (overlay.containsKey(name)) {
-                    // replace
                     zout.putNextEntry(new ZipEntry(name));
                     zout.write(overlay.get(name));
                     zout.closeEntry();
@@ -145,7 +138,6 @@ public final class Updater {
                 }
             }
 
-            // adds: every overlay entry not yet written
             for (java.util.Map.Entry<String, byte[]> en : overlay.entrySet()) {
                 if (writtenNames.contains(en.getKey())) continue;
                 zout.putNextEntry(new ZipEntry(en.getKey()));
@@ -154,30 +146,23 @@ public final class Updater {
             }
         }
 
-        // 3. Atomic-ish swap
         Path backup = gameJar.resolveSibling(gameJar.getFileName() + ".bak");
         try {
             Files.move(gameJar, backup, StandardCopyOption.REPLACE_EXISTING);
             Files.move(tmpJar, gameJar, StandardCopyOption.ATOMIC_MOVE);
             Files.deleteIfExists(backup);
         } catch (IOException ex) {
-            // Roll back if we left a backup behind
             if (Files.exists(backup) && !Files.exists(gameJar)) {
                 Files.move(backup, gameJar, StandardCopyOption.REPLACE_EXISTING);
             }
             throw ex;
         }
 
-        // 4. (Version is tracked by /res/build.properties INSIDE the JAR,
-        //     which the patch already replaced — nothing else to write.)
-
-        // 5. Best-effort cleanup of the temp patch zip
         try { Files.deleteIfExists(patchZip); } catch (IOException ignored) {}
 
         System.out.println("[Updater] Applied patch — now at v" + toVersion);
     }
 
-    // ─────────────────────────────────────────────────────────────────────
     private static void relaunch(Path gameJar) throws IOException {
         String javaExe = System.getProperty("java.home") + File.separator + "bin"
                 + File.separator + (isWindows() ? "java.exe" : "java");

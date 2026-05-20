@@ -136,5 +136,14 @@
     "description": "An ornate chalice.\nOnce owned by royalty.",
     "sprite": "/res/quest_items/Royal_Chalice",
     "solidArea": { "x": 18, "y": 18, "w": 28, "h": 28 }
-   }
+  },
+  {
+    "id": "mushroom_bundle",
+    "name": "Mushroom Bundle",
+    "type": "quest",
+    "stackable": true,
+    "description": "A bundle of cave mushrooms.\nUsed in potion brewing.",
+    "sprite": "/res/consumables/Potion",
+    "solidArea": { "x": 18, "y": 18, "w": 28, "h": 28 }
+  }
 ]

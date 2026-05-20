@@ -6,7 +6,7 @@
     "fileStates": {
         "": {
             "scaleInDock": 1,
-            "scaleInEditor": 0.75
+            "scaleInEditor": 1
         },
         "#Interior": {
             "scaleInDock": 0.5
@@ -1566,13 +1566,15 @@
         },
         "maps/Awakening_Cave.tmx": {
             "expandedObjectLayers": [
-                13
+                13,
+                17,
+                16
             ],
             "scale": 0.75,
             "selectedLayer": 21,
             "viewCenter": {
-                "x": 545.3333333333333,
-                "y": 500.66666666666663
+                "x": 710.6666666666667,
+                "y": 511.3333333333333
             }
         },
         "maps/Awakening_Cave.tmx#Details": {
@@ -1646,22 +1648,22 @@
         },
         "maps/Canvas_Village.tmx": {
             "expandedGroupLayers": [
+                31,
                 45,
                 54,
-                31,
                 50
             ],
             "expandedObjectLayers": [
+                10,
                 12,
                 8,
-                10,
                 4
             ],
-            "scale": 3,
-            "selectedLayer": 41,
+            "scale": 0.75,
+            "selectedLayer": 42,
             "viewCenter": {
-                "x": 2150,
-                "y": 1850.1666666666665
+                "x": 2240,
+                "y": 2163.333333333333
             }
         },
         "maps/Canvas_Village.tmx#Archer": {
@@ -1832,17 +1834,40 @@
             "scaleInDock": 0.75,
             "scaleInEditor": 1
         },
+        "maps/Hollow_King_Arena.tmx": {
+            "scale": 1.1969460227272728,
+            "selectedLayer": 8,
+            "viewCenter": {
+                "x": 447.8063252833323,
+                "y": 352.1462054233668
+            }
+        },
+        "maps/Hollow_King_Arena.tmx#Grass": {
+            "scaleInDock": 1
+        },
+        "maps/Hollow_King_Arena.tmx#Grass_Water": {
+            "scaleInDock": 1
+        },
+        "maps/Hollow_King_Arena.tmx#Objects": {
+            "scaleInDock": 1
+        },
+        "maps/Hollow_King_Arena.tmx#Objects2": {
+            "scaleInDock": 1
+        },
         "maps/Shattered_Lake.tmx": {
             "expandedObjectLayers": [
                 24,
                 23
             ],
-            "scale": 1,
-            "selectedLayer": 14,
+            "scale": 0.25,
+            "selectedLayer": 13,
             "viewCenter": {
-                "x": 2063,
-                "y": 1815.5
+                "x": 1420,
+                "y": 1406
             }
+        },
+        "maps/Shattered_Lake.tmx#Boat1": {
+            "scaleInDock": 1
         },
         "maps/Shattered_Lake.tmx#Grass": {
             "scaleInDock": 1,
@@ -1907,8 +1932,8 @@
         },
         "maps/Tavern_interior.tmx": {
             "expandedObjectLayers": [
-                18,
-                20
+                20,
+                18
             ],
             "scale": 2,
             "selectedLayer": 7,
@@ -1975,11 +2000,11 @@
     "project": "MichiAdventure.tiled-project",
     "property.type": "int",
     "recentFiles": [
-        "C:/Users/cstyl/Downloads/craftpix-net-471853-top-down-farm-with-animals-pixel-art-asset-pack (1)/Tiled_files/Farm.tmx",
-        "C:/Users/cstyl/Downloads/craftpix-net-624156-swamp-top-down-tileset-pixel-art/Tiled_files/Swamp.tmx",
+        "maps/Tavern_interior.tmx",
         "maps/Shattered_Lake.tmx",
         "maps/Awakening_Cave.tmx",
-        "maps/Tavern_interior.tmx",
+        "C:/Users/cstyl/Downloads/craftpix-net-471853-top-down-farm-with-animals-pixel-art-asset-pack (1)/Tiled_files/Farm.tmx",
+        "C:/Users/cstyl/Downloads/craftpix-net-624156-swamp-top-down-tileset-pixel-art/Tiled_files/Swamp.tmx",
         "maps/Canvas_Village.tmx",
         "C:/Users/cstyl/Downloads/craftpix-net-666104-tavern-top-down-pixel-rpg-asset-pack/Tiled_files/Tavern_interior_1nd_floor.tmx",
         "C:/Users/cstyl/Downloads/craftpix-net-666104-tavern-top-down-pixel-rpg-asset-pack/Tiled_files/Characters.tmx",

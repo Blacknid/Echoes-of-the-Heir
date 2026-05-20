@@ -10,19 +10,14 @@ public class KeyHandler implements KeyListener {
 
     GamePanel gp;
 
-    // Movement
     public boolean upPressed, downPressed, leftPressed, rightPressed, shotKeyPressed;
 
-    // Actions
     public boolean enterPressed, dashPressed;
 
-    // Ability keys
     public boolean shockwavePressed, voidSnarePressed, frostNovaPressed, overdrivePressed;
 
-    // Debug
     public boolean showDebugText = false;
 
-    // Abilities
     public int teleportCooldown = 0;
     public static final int TELEPORT_COOLDOWN_MAX = 90; // ~1.5 seconds
 
@@ -63,19 +58,15 @@ public class KeyHandler implements KeyListener {
             return;
         }
 
-        // TITLE STATE
         if (gp.gameState == GamePanel.titleState) {
             handleTitleState(code);
         }
-        // PLAY STATE
         else if (gp.gameState == GamePanel.playState) {
             handlePlayState(code);
         }
-        // PAUSE STATE
         else if (gp.gameState == GamePanel.pauseState) {
             if (code == KeyEvent.VK_P) gp.gameState = GamePanel.playState;
         }
-        // DIALOGUE / CUTSCENE STATE
         else if (gp.gameState == GamePanel.dialogueState || gp.gameState == GamePanel.cutsceneState) {
             // Allow skipping the awakening cutscene with Escape or Enter
             if (gp.gameState == GamePanel.cutsceneState
@@ -130,7 +121,6 @@ public class KeyHandler implements KeyListener {
 
     @Override
     public void keyTyped(KeyEvent e) {
-        // Text input for multiplayer server input screen
         if (gp.gameState == GamePanel.titleState && gp.ui.titleScreenState == 4) {
             char c = e.getKeyChar();
             int fieldCount = gp.ui.mpAddMode ? 3 : 2;
@@ -140,10 +130,6 @@ public class KeyHandler implements KeyListener {
             }
         }
     }
-
-    // ============================
-    // STATE HANDLERS
-    // ============================
 
     private void handleTitleState(int code) {
         if (gp.ui.titleScreenState == 0) {
@@ -164,7 +150,6 @@ public class KeyHandler implements KeyListener {
                 if (gp.ui.commandNum == 0) { gp.ui.titleScreenState = 1; }
                 if (gp.ui.commandNum == 1) { gp.saveLoad.load(); startGame(); }
                 if (gp.ui.commandNum == 2) {
-                    // MULTIPLAYER
                     gp.ui.titleScreenState = 3;
                     gp.ui.mpServerSelection = 0;
                     gp.ui.commandNum = 0;
@@ -185,7 +170,7 @@ public class KeyHandler implements KeyListener {
             if (code == KeyEvent.VK_ENTER) {
                 switch (gp.ui.commandNum) {
                     case 0 -> { gp.player.setPlayerStats(4, 2, 1, 4, 3); startNewGame(); } 
-                    case 1 -> { gp.player.setPlayerStats(2, 1, 3, 5, 2); startNewGame(); }
+                    case 1 -> { gp.player.setPlayerStats(2, 3, 3, 5, 2); startNewGame(); }
                     case 2 -> { gp.player.setPlayerStats(3, 1, 2, 5, 5); startNewGame(); }
                     case 3 -> { gp.ui.titleScreenState = 0; gp.ui.commandNum = 0; gp.playSE(SFX.MENU_SELECT); }
                 }
@@ -197,11 +182,9 @@ public class KeyHandler implements KeyListener {
                 gp.playSE(SFX.MENU_SELECT);
             }
         }
-        // ── MULTIPLAYER BROWSER (titleScreenState 3) ──
         else if (gp.ui.titleScreenState == 3) {
             handleMultiplayerBrowser(code);
         }
-        // ── MULTIPLAYER INPUT (titleScreenState 4) ──
         else if (gp.ui.titleScreenState == 4) {
             handleMultiplayerInput(code);
         }
@@ -209,7 +192,6 @@ public class KeyHandler implements KeyListener {
 
     private void startGame() {
         gp.gameState = GamePanel.playState;
-        // Apply music and weather from the TMX map's properties
         String path = gp.mapManager.mapRegistry.getOrDefault(gp.mapManager.currentMapId, "/res/maps/Canvas_Village.tmx");
         gp.mapObjectLoader.loadMapProperties(path);
     }
@@ -232,10 +214,9 @@ public class KeyHandler implements KeyListener {
         gp.csManager.scenePhase = 0;
     }
 
-    // ── MULTIPLAYER BROWSER ──
     private void handleMultiplayerBrowser(int code) {
         int serverCount = gp.serverList.getServers().size();
-        int totalItems = serverCount + 3; // servers + Add Server + Direct Connect + Back
+        int totalItems = serverCount + 3;
 
         if (code == KeyEvent.VK_W) {
             gp.ui.mpServerSelection = (gp.ui.mpServerSelection - 1 + totalItems) % totalItems;
@@ -251,7 +232,6 @@ public class KeyHandler implements KeyListener {
             gp.playSE(SFX.MENU_SELECT);
         }
         if (code == KeyEvent.VK_DELETE) {
-            // Remove selected server
             if (gp.ui.mpServerSelection < serverCount) {
                 gp.serverList.removeServer(gp.ui.mpServerSelection);
                 if (gp.ui.mpServerSelection >= gp.serverList.getServers().size()) {
@@ -262,13 +242,11 @@ public class KeyHandler implements KeyListener {
         }
         if (code == KeyEvent.VK_ENTER) {
             if (gp.ui.mpServerSelection < serverCount) {
-                // Connect to selected server
                 String[] srv = gp.serverList.getServers().get(gp.ui.mpServerSelection);
                 connectToServer(srv[1], srv[2]);
             } else {
                 int menuIdx = gp.ui.mpServerSelection - serverCount;
                 if (menuIdx == 0) {
-                    // Add Server
                     gp.ui.titleScreenState = 4;
                     gp.ui.mpAddMode = true;
                     gp.ui.mpInputField = 0;
@@ -277,7 +255,6 @@ public class KeyHandler implements KeyListener {
                     gp.ui.mpServerPort = "7777";
                     gp.playSE(SFX.MENU_SELECT);
                 } else if (menuIdx == 1) {
-                    // Direct Connect
                     gp.ui.titleScreenState = 4;
                     gp.ui.mpAddMode = false;
                     gp.ui.mpInputField = 0; // start at IP field (field 0 in direct mode)
@@ -285,7 +262,6 @@ public class KeyHandler implements KeyListener {
                     gp.ui.mpServerPort = "7777";
                     gp.playSE(SFX.MENU_SELECT);
                 } else if (menuIdx == 2) {
-                    // Back
                     gp.ui.titleScreenState = 0;
                     gp.ui.commandNum = 2;
                     gp.playSE(SFX.MENU_SELECT);
@@ -294,9 +270,7 @@ public class KeyHandler implements KeyListener {
         }
     }
 
-    // ── MULTIPLAYER INPUT SCREEN ──
     private void handleMultiplayerInput(int code) {
-        // Fields: add mode = 0(name),1(ip),2(port); direct mode = 0(ip),1(port)
         int fieldCount = gp.ui.mpAddMode ? 3 : 2;
         int buttonCount = gp.ui.mpAddMode ? 3 : 2;
         int totalItems = fieldCount + buttonCount;
@@ -310,7 +284,6 @@ public class KeyHandler implements KeyListener {
             gp.ui.titleScreenState = 3;
             gp.playSE(SFX.MENU_SELECT);
         }
-        // Arrow key navigation for buttons only; W/S are used for typing in fields
         if (!inTextField) {
             if (code == KeyEvent.VK_UP || code == KeyEvent.VK_W) {
                 gp.ui.mpInputField--;
@@ -323,10 +296,8 @@ public class KeyHandler implements KeyListener {
                 gp.playSE(SFX.MENU_SELECT);
             }
         } else {
-            // Arrow keys navigate between text fields
             if (code == KeyEvent.VK_UP) {
                 int newField = gp.ui.mpInputField - 1;
-                // For direct connect mode, skip field 0 (name)
                 if (!gp.ui.mpAddMode && newField == 0) newField = fieldCount - 1;
                 if (newField >= 0 && newField < fieldCount) {
                     gp.ui.mpInputField = newField;
@@ -342,18 +313,14 @@ public class KeyHandler implements KeyListener {
             }
         }
 
-        // Backspace for text fields
         if (code == KeyEvent.VK_BACK_SPACE && inTextField) {
             deleteCharFromField();
         }
 
-        // Enter on buttons or move past text fields
         if (code == KeyEvent.VK_ENTER) {
             if (inTextField) {
-                // Move to next field or first button
                 gp.ui.mpInputField++;
                 if (gp.ui.mpInputField >= fieldCount) {
-                    // Stay on first button
                 }
                 gp.playSE(SFX.MENU_SELECT);
             } else {
@@ -365,16 +332,13 @@ public class KeyHandler implements KeyListener {
 
     private void handleMultiplayerInputButton(int btnIdx) {
         if (gp.ui.mpAddMode) {
-            // Buttons: Save & Connect, Save, Cancel
             if (btnIdx == 0) {
-                // Save & Connect
                 if (!gp.ui.mpServerIP.isEmpty()) {
                     String name = gp.ui.mpServerName.isEmpty() ? gp.ui.mpServerIP : gp.ui.mpServerName;
                     gp.serverList.addServer(name, gp.ui.mpServerIP, gp.ui.mpServerPort);
                     connectToServer(gp.ui.mpServerIP, gp.ui.mpServerPort);
                 }
             } else if (btnIdx == 1) {
-                // Save only
                 if (!gp.ui.mpServerIP.isEmpty()) {
                     String name = gp.ui.mpServerName.isEmpty() ? gp.ui.mpServerIP : gp.ui.mpServerName;
                     gp.serverList.addServer(name, gp.ui.mpServerIP, gp.ui.mpServerPort);
@@ -382,19 +346,15 @@ public class KeyHandler implements KeyListener {
                     gp.playSE(SFX.MENU_SELECT);
                 }
             } else {
-                // Cancel
                 gp.ui.titleScreenState = 3;
                 gp.playSE(SFX.MENU_SELECT);
             }
         } else {
-            // Buttons: Connect, Cancel
             if (btnIdx == 0) {
-                // Connect
                 if (!gp.ui.mpServerIP.isEmpty()) {
                     connectToServer(gp.ui.mpServerIP, gp.ui.mpServerPort);
                 }
             } else {
-                // Cancel
                 gp.ui.titleScreenState = 3;
                 gp.playSE(SFX.MENU_SELECT);
             }
@@ -506,7 +466,6 @@ public class KeyHandler implements KeyListener {
             return;
         }
 
-        // World map overlay control (open/close)
         if (code == KeyEvent.VK_M && gp.minimap != null && !isOverlayOpen()) {
             gp.minimap.toggleWorldMap();
             if (gp.minimap.isWorldMapOpen()) {
@@ -527,29 +486,22 @@ public class KeyHandler implements KeyListener {
             return;
         }
 
-        // Movement
         if (code == KeyEvent.VK_W) {upPressed = true;}
         if (code == KeyEvent.VK_S) {downPressed = true;}
         if (code == KeyEvent.VK_A) {leftPressed = true;}
         if (code == KeyEvent.VK_D) {rightPressed = true;}
 
-        // Game state changes
         if (code == KeyEvent.VK_P) { gp.gameState = GamePanel.pauseState; }
         if (code == KeyEvent.VK_ESCAPE) { gp.gameState = GamePanel.optionsState; }
-        // Only allow opening inventory if no other overlay is open
         if (code == KeyEvent.VK_E && !isOverlayOpen()) { gp.gameState = GamePanel.characterState; }
         if (code == KeyEvent.VK_K && !isOverlayOpen()) { gp.gameState = GamePanel.skillTreeState; }
         if (code == KeyEvent.VK_J && !isOverlayOpen()) { gp.gameState = GamePanel.journalState; }
         if (code == KeyEvent.VK_ENTER) { enterPressed = true; }
         if (code == KeyEvent.VK_F) { shotKeyPressed = true; }
 
-        // DEBUGS   
-
-        // Dash
         if ( (code == KeyEvent.VK_SHIFT ) && ( leftPressed || rightPressed
                         || upPressed || downPressed ) ) { dashPressed = true; }
 
-        // Debug toggle
         if (code == KeyEvent.VK_T) { showDebugText = !showDebugText; }
 
         // [DEBUG] F5 = toggle persistent sepia overlay (MapShaderManager.sepiaMode)
@@ -564,16 +516,10 @@ public class KeyHandler implements KeyListener {
         // [DEBUG] F6 = trigger a test MemoryFlashback sequence
         if (code == KeyEvent.VK_F6) { gp.triggerDebugFlashback(); }
 
-        // Hitboxes toggle
         if (code == KeyEvent.VK_H) { gp.HitBoxes = !gp.HitBoxes; }
-
-        // Reload map
         if (code == KeyEvent.VK_R) { gp.reloadCurrentMapDebug(); }
+        if (code == KeyEvent.VK_Y) { gp.drawPath = !gp.drawPath; }
 
-        // Path toggle
-        if (code == KeyEvent.VK_Y) { gp.drawPath = !gp.drawPath; } 
-
-        // Quest log toggle - close if open, only open if no other overlay is active
         if (code == KeyEvent.VK_Q && gp.questManager != null) {
             if (gp.questManager.isLogOpen()) {
                 gp.questManager.toggleLog(); // always allow closing
@@ -582,15 +528,11 @@ public class KeyHandler implements KeyListener {
             }
         }
 
-        // Quest log scroll
         if (gp.questManager != null && gp.questManager.isLogOpen()) {
             if (code == KeyEvent.VK_UP)   gp.questManager.scrollLog(-1);
             if (code == KeyEvent.VK_DOWN) gp.questManager.scrollLog(1);
         }
 
-
-
-        // Abilities
         if ( code == KeyEvent.VK_SPACE && gp.teleportation ) { handleTeleport(); }
         if ( code == KeyEvent.VK_Z ) { shockwavePressed = true; }
         if ( code == KeyEvent.VK_X ) { voidSnarePressed = true; }
@@ -598,7 +540,6 @@ public class KeyHandler implements KeyListener {
         if ( code == KeyEvent.VK_V ) { overdrivePressed = true; }
     }
 
-    /** Returns true if any overlay (quest log, world map) is currently open */
     private boolean isOverlayOpen() {
          return gp.debugMenuOpen ||
              (gp.questManager != null && gp.questManager.isLogOpen()) ||

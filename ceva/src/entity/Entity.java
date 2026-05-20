@@ -15,8 +15,6 @@ public class Entity {
 
     protected GamePanel gp;
 
-    // PER-ENTITY PATH CACHE — recalculate only when the goal tile changes
-    // OPTIMIZATION: flat int[] arrays instead of ArrayList<int[]> — zero per-waypoint allocation
     private int[] waypointCols = new int[32];
     private int[] waypointRows = new int[32];
     private int   waypointCount  = 0;
@@ -26,7 +24,6 @@ public class Entity {
     private int pathStallCounter = 0;  // frames without reaching the next waypoint
     private static final int PATH_STALL_LIMIT = 10; // force repath after this many stalled frames
 
-    // DIRECTION CONSTANTS
     public static final int DIR_DOWN  = 0;
     public static final int DIR_LEFT  = 1;
     public static final int DIR_RIGHT = 2;
@@ -35,7 +32,6 @@ public class Entity {
 
 
 
-    // POSITION & STATE
     public int worldX, worldY;
     public boolean alive = true;
     public boolean dying = false;
@@ -43,27 +39,16 @@ public class Entity {
 
 
 
-    // SPRITES - legacy named fields (still used by object/item classes)
     public BufferedImage up1, up2, up3, up4, up5, up6, up7,
         down1, down2, down3, down4, down5, down6, down7,
         left1, left2, left3, left4, left5, left6, left7, left8,
         right1, right2, right3, right4, right5, right6, right7, right8;
-    // (idle/chest legacy sprite fields removed — use idleFrames[][] array instead)
-
-
-
-    // SPRITES - array-based storage: [dirIndex][frameIndex], dir = DIR_DOWN/LEFT/RIGHT/UP
     public BufferedImage[][] walkFrames;   // walk animation per direction
     public BufferedImage[][] idleFrames;   // idle animation per direction
     public BufferedImage[][] attackFrames;  // attack animation per direction (combo step 0)
     public BufferedImage[][] attackFrames2; // combo step 1, 1-tile sprites
     public BufferedImage[][] attackFrames3; // combo step 2, 1-tile sprites
     
-    // (attack legacy sprite fields removed — use attackFrames[][] array instead)
-
-    // ── ACTIVITY ANIMATION SYSTEM ──
-    // Named animation sets beyond walk/idle (e.g. "forge", "sweep", "sleep").
-    // Loaded from JSON (NPCFactory) or Tiled properties via MapObjectLoader.
     public java.util.HashMap<String, BufferedImage[][]> activityAnimations;   // key → [dir][frame]
     public java.util.HashMap<String, Integer> activityAnimSpeeds;             // key → ticks between frames
     public String  currentActivity = null;       // active animation key (null = use default walk/idle)
@@ -73,7 +58,6 @@ public class Entity {
 
     public int direction = DIR_DOWN;
 
-    // IDLE ANIMATION
     public int idleDirection = -1;          // -1 = use current direction; >= 0 = forced idle dir
     public int idleSpriteNum = 1;
     public int idleSpriteCounter = 0;
@@ -81,7 +65,6 @@ public class Entity {
     public int idleAnimationInterval = 24;  // ticks between idle frame advances (~0.4 s at 60 UPS)
     protected boolean entityIdle = true;
 
-    // COUNTERS
     public int spriteCounter = 0;
     public int spriteNum = 1;
     public int walkFrameCount = 3;
@@ -95,7 +78,6 @@ public class Entity {
     int hpBarCounter = 0;
     public int crowdControlTimer = 0;
 
-    // ── STATUS EFFECTS ──
     public boolean slowed = false;              // movement speed halved (e.g. Canvas Moth dust)
     public int     slowedTimer = 0;             // frames remaining
     public boolean rooted = false;              // cannot move (e.g. Hollow Stump grab)
@@ -111,31 +93,25 @@ public class Entity {
 
 
 
-    // HIT FLASH: white overlay on damage
     public int hitFlashCounter = 0;
     private static final int HIT_FLASH_DURATION = 6;
-    // ATTACK TELEGRAPH: red warning flash when monster is about to strike
     public int attackWindupFlash = 0;
-    // OPTIMIZATION: Pre-allocated Color constants to avoid per-frame allocation
     private static final Color HP_BAR_BG = new Color(35, 35, 35);
     private static final Color HP_BAR_FG = new Color(255, 0, 30);
     private static final Color SPARK_COLOR_1 = new Color(255, 235, 120);
     private static final Color SPARK_COLOR_2 = new Color(255, 200, 80);
     private static final Color COIN_MSG_COLOR = new Color(255, 210, 90);
     private static final Color SHADOW_COLOR = new Color(0, 0, 0, 60);
-    // OPTIMIZATION: Reusable flash image to avoid per-frame BufferedImage allocation
     private BufferedImage hitFlashBuffer;
     private int hitFlashBufferW, hitFlashBufferH;
-    private java.awt.Graphics2D hitFlashG2; // OPTIMIZATION: cached Graphics2D for hit flash overlay
+    private java.awt.Graphics2D hitFlashG2;
 
 
 
-    // TILE PARTICLES: throttle counter for footstep particle emission
     public int footstepParticleCounter = 0;
 
 
     
-    // DIALOGUE (lazy-initialized to avoid wasting memory on entities that don't talk)
     public String dialogues[][];
     public int dialogueIndex = 0;
     public int dialogueSet = 0;
@@ -143,7 +119,6 @@ public class Entity {
 
 
     
-    // OPTIMIZATION: Lazy dialogue access - only allocates when first written
     public String[][] ensureDialogues() {
         if (dialogues == null) {
             dialogues = new String[20][20];
@@ -153,14 +128,10 @@ public class Entity {
 
 
     
-    // IMAGES
-    // Renamed class level 'image' to 'activeImage' to avoid confusion, 
-    // though usually you draw specific sprites (up1, etc)
     public BufferedImage image, image1, image2, image3, compas_image;
 
 
 
-    // COLLISION & AREAS
     public Rectangle solidArea = new Rectangle(0, 0, 48, 48);
     public Rectangle attackArea = new Rectangle(0, 0, 0, 0);
     public int solidAreaDefaultX, solidAreaDefaultY;
@@ -187,7 +158,6 @@ public class Entity {
 
 
 
-    // TYPE CONSTANTS
     public int type;
     public static final int TYPE_PLAYER = 0;
     public static final int TYPE_NPC = 1;
@@ -204,7 +174,6 @@ public class Entity {
 
 
 
-    // CHARACTER ATTRIBUTES
     public String name;
     public int defaultSpeed = 1;
     public int speed;
@@ -286,7 +255,6 @@ public class Entity {
     public int    fragmentRequiredBoss  = -1;     // boss # that must be defeated (1–4, -1 = none)
     public String fragmentRequiredQuest = null;   // quest ID that must be complete
 
-    // ── CHOICE DIALOGUE SYSTEM ──
     public String[] dialogueChoices    = null;   // option texts (null = linear dialogue)
     public int      selectedChoice     = 0;      // cursor index during choice selection
     public int[]    choiceNextSet      = null;   // dialogue set to jump to per choice index
@@ -294,7 +262,6 @@ public class Entity {
 
 
 
-    // ITEM ATTRIBUTES
     public int attackValue; //pentru arme: cat adauga la atac cand e echipata
     public int defenseValue; //pentru scuturi: cat adauga la aparare cand e echipat
     public String itemId = null; // stable ItemFactory identifier for save/load and Tiled references
@@ -312,7 +279,6 @@ public class Entity {
 
 
 
-    // GETTERS, sau cum ii numesti...
     public int getLeftX() { return worldX + solidArea.x; }
     public int getRightX() { return worldX + solidArea.x + solidArea.width; }
     public int getTopY() { return worldY + solidArea.y; }
@@ -324,7 +290,6 @@ public class Entity {
     public int getTileCol() { return getCenterX() / gp.tileSize; }    
     public int getTileRow() { return getCenterY() / gp.tileSize; } 
 
-    // --- Combat methods ---
     public int getMaxLife() { return maxLife; }
     public int getLife() { return life; }
     public void setLife(int life) { this.life = life; }
@@ -333,12 +298,10 @@ public class Entity {
     public boolean isInvincible() { return invincible; }
     public boolean isDying() { return dying; }
 
-    // --- Animation methods ---
     public BufferedImage getWalkFrame(int direction, int frameIndex) { return getWalkFrameImage(direction, frameIndex); }
     public int getSpriteNum() { return spriteNum; }
     public int getDirection() { return direction; }
 
-    // --- Pathfinding methods ---
     public boolean isOnPath() { return onPath; }
     public void setOnPath(boolean onPath) { this.onPath = onPath; }
     public int getSpeed() { return speed; }
@@ -507,7 +470,7 @@ public class Entity {
             if (rootOnContactDuration > 0 && !gp.player.rooted) {
                 gp.player.rooted = true;
                 gp.player.rootedTimer = rootOnContactDuration;
-            }
+        }
         }
     }
     public Color getParticleColor() {
@@ -535,8 +498,6 @@ public class Entity {
         int particleMaxLife = generator.getParticleMaxLife();
         int style = generator.getParticleStyle();
 
-        // OPTIMIZATION: Use particle pool instead of creating new objects
-        // Position particles at the TARGET location (where hit occurred), not the generator
         Particle p1 = gp.particlePool.get();
         p1.setWithPosition(generator, target, color, size, particleSpeed, particleMaxLife, -1, -1, style);
         gp.particleList.add(p1);
@@ -592,10 +553,8 @@ public class Entity {
             return;
         }
 
-        // ── STATUS EFFECTS: tick timers ──
         if (slowedTimer > 0 && --slowedTimer == 0) slowed = false;
         if (rootedTimer > 0 && --rootedTimer == 0) rooted = false;
-        // Phasing cycle: first half = invulnerable, second half = vulnerable
         if (phasing) {
             if (++phasingCycleCounter >= phasingCycleDuration) phasingCycleCounter = 0;
             boolean shouldBeInvulnerable = phasingCycleCounter < phasingCycleDuration / 2;
@@ -604,7 +563,6 @@ public class Entity {
                 invincibleCounter = 0;
             }
         }
-        // Rooted: freeze AI and movement this frame while still ticking other timers
         if (rooted) {
             if (invincible) { invincibleCounter++; if (invincibleCounter > invincibleDuration) { invincible = false; invincibleCounter = 0; } }
             if (hitFlashCounter > 0) hitFlashCounter--;
@@ -615,16 +573,10 @@ public class Entity {
         int previousWorldX = worldX;
         int previousWorldY = worldY;
 
-        // guardMode: block setAction unless we currently have an active walkTo path
         if (!staticNPC && (!guardMode || onPath)) setAction();
-        // guardMode: face the player each tick when not walking
         if (guardMode && !onPath) faceTowardPlayer();
         checkCollision();
 
-        // ------------------------------------------------------------------
-        // NORMAL MOVEMENT
-        // IF COLLISION IS FALSE, MOVE
-        // Only run manual movement if pathfinding is NOT active
         if (!collisionOn && !onPath && !staticNPC && !guardMode) {
             int moveSpeed = slowed ? Math.max(1, speed / 2) : speed;
             switch (direction) {
@@ -636,11 +588,6 @@ public class Entity {
                 }
             }
         }
-        
-        // IMPORTANT: If we just finished pathfinding, we don't want to keep moving.
-        // The searchPath logic handles movement when onPath is true.
-
-        // ── CONFINEMENT ZONE: clamp monster inside its spawn zone ──
         if (confinementZone != null) {
             int solidLeft   = worldX + solidArea.x;
             int solidRight  = worldX + solidArea.x + solidArea.width;
@@ -662,7 +609,6 @@ public class Entity {
                 hitBoundary = true;
             }
             if (hitBoundary) {
-                // Pick a new random direction to wander away from the edge
                 actionLockCounter = 0;
                 onPath = false;
                 direction = switch (direction) {
@@ -677,7 +623,6 @@ public class Entity {
 
         boolean movedThisFrame = worldX != previousWorldX || worldY != previousWorldY;
 
-        // TILE PARTICLES: emit footstep particles when moving
         if (movedThisFrame && gp.tileParticleEmitter != null) {
             footstepParticleCounter++;
             if (footstepParticleCounter >= gp.tileParticleEmitter.getEmitInterval()) {
@@ -696,11 +641,9 @@ public class Entity {
             idleSpriteNum = 1;
             idleSpriteCounter = 0;
             idleFrameDirection = 1;
-            // Reset activity animation when NPC starts walking
             activitySpriteNum = 1;
             activitySpriteCounter = 0;
             activityFrameDirection = 1;
-
             spriteCounter++;
             if (spriteCounter > animationFrameInterval) {
                 int maxWalkFrames = Math.max(1, Math.min(walkFrameCount, 8));
@@ -728,7 +671,6 @@ public class Entity {
             walkFrameDirection = 1;
             entityIdle = true;
 
-            // Cycle idle animation if idle frames are available
             if (idleFrames != null) {
                 int dir = (idleDirection >= 0) ? idleDirection : direction;
                 if (dir >= 0 && dir < idleFrames.length && idleFrames[dir] != null && idleFrames[dir].length > 0) {
@@ -753,7 +695,6 @@ public class Entity {
                 }
             }
 
-            // ── ACTIVITY ANIMATION: cycle frames when idle and an activity is set ──
             if (currentActivity != null && activityAnimations != null) {
                 BufferedImage[][] actFrames = activityAnimations.get(currentActivity);
                 if (actFrames != null) {
@@ -794,7 +735,6 @@ public class Entity {
                 invincibleCounter = 0;
             }
         }
-        // HIT FLASH countdown
         if (hitFlashCounter > 0) hitFlashCounter--;
         if (shotAvailableCounter < 30) {
             shotAvailableCounter++;
@@ -855,7 +795,6 @@ public class Entity {
 
     public void draw(Graphics2D g2) {
         
-        // Use a local variable to determine which sprite to draw
         BufferedImage currentSprite = null;
         
         int screenX = worldX - gp.player.worldX + gp.player.screenX;
@@ -869,7 +808,6 @@ public class Entity {
             int drawW = (int)(gp.tileSize * spriteScale);
             int drawH = (int)(gp.tileSize * spriteScale);
 
-            // ── ACTIVITY ANIMATION: takes priority over idle when standing still ──
             if (currentSprite == null && entityIdle && currentActivity != null && activityAnimations != null) {
                 BufferedImage[][] actFrames = activityAnimations.get(currentActivity);
                 if (actFrames != null) {
@@ -883,7 +821,6 @@ public class Entity {
                 }
             }
 
-            // Use idle animation when standing still and idle frames exist
             if (currentSprite == null && entityIdle && idleFrames != null) {
                 int idleDir = (idleDirection >= 0) ? idleDirection : direction;
                 if (idleDir >= 0 && idleDir < idleFrames.length && idleFrames[idleDir] != null) {

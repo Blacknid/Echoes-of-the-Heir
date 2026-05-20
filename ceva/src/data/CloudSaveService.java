@@ -63,7 +63,6 @@ import javax.crypto.spec.SecretKeySpec;
  */
 public class CloudSaveService {
 
-    // ── Defaults ─────────────────────────────────────────────────────────
     /** Used only if {@code save_servers.txt} is missing or empty. */
     private static final String[] FALLBACK_HOSTS = { "192.168.137.14", "192.168.137.126" };
     private static final int    DEFAULT_PORT       = 5005;
@@ -75,7 +74,6 @@ public class CloudSaveService {
     private static final String LOCAL_SAVE_FILE     = "local_save.dat";
     private static final String SAVE_SERVERS_FILE   = "save_servers.txt";
 
-    // ── Embedded RSA public key (Base64 DER) ─────────────────────────────
     private static final String RSA_PUBLIC_KEY_B64 =
             "MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAuEwRNiBMB0MkhCI7+3Xs"
           + "fsZZWZMvk4WbgjZk7CBMUwyXSnY6vscwMcWIvlVj6BItyfNJP1PFUaaJgfoOFXl1"
@@ -85,7 +83,6 @@ public class CloudSaveService {
           + "QzrMKiwVogXLUTVGBFt1mmF/fXUjzM8oY4SEKBCoiybHPbwbIJLZ43L54PjmlCRf"
           + "1wIDAQAB";
 
-    // ── Crypto constants ─────────────────────────────────────────────────
     private static final String GCM = "AES/GCM/NoPadding";
     private static final int GCM_TAG_BITS = 128;
     private static final SecureRandom SECURE_RANDOM = new SecureRandom();
@@ -98,23 +95,16 @@ public class CloudSaveService {
     private static final byte DIR_C2S = 0x02;
     private static final byte DIR_S2C = 0x01;
 
-    // ── Heartbeat ────────────────────────────────────────────────────────
     private static final long HEARTBEAT_INTERVAL_MS = 10_000;
     private final AtomicBoolean serverOnline = new AtomicBoolean(false);
     private volatile boolean heartbeatRunning = false;
 
-    // ── Server pool (loaded from save_servers.txt) ───────────────────────
     private volatile List<Endpoint> serverPool = loadServerPool();
     /** First host that responded to PING. Refreshed by heartbeat. */
     private volatile Endpoint activeEndpoint;
 
-    // ── Sync state ───────────────────────────────────────────────────────
     private volatile boolean pendingUpload = false;
     private volatile String cachedLicenseKey;
-
-    // =====================================================================
-    //  PUBLIC API
-    // =====================================================================
 
     public void startHeartbeat() {
         if (heartbeatRunning) return;
@@ -201,10 +191,6 @@ public class CloudSaveService {
         return DownloadResult.fail("No save found on server or locally.");
     }
 
-    // =====================================================================
-    //  SERVER POOL
-    // =====================================================================
-
     /** One save-server endpoint. */
     public static final class Endpoint {
         public final String host;
@@ -280,10 +266,6 @@ public class CloudSaveService {
             return false;
         }
     }
-
-    // =====================================================================
-    //  CONNECT + HANDSHAKE
-    // =====================================================================
 
     /** Encapsulates an authenticated AEAD-framed session. */
     private static final class Session implements AutoCloseable {
@@ -438,10 +420,6 @@ public class CloudSaveService {
         }
     }
 
-    // =====================================================================
-    //  UPLOAD / DOWNLOAD
-    // =====================================================================
-
     private SaveResult uploadToServer(GameState state, String licenseKey) {
         try {
             byte[] jsonBytes = serializeToJsonBytes(state);
@@ -495,10 +473,6 @@ public class CloudSaveService {
             throw new IOException("unexpected status: " + status);
         }
     }
-
-    // =====================================================================
-    //  OFFLINE LOCAL CACHE  (derived key, no plaintext on disk)
-    // =====================================================================
 
     /**
      * Local-cache key = HKDF-SHA256(license_or_anon, salt=machine_fingerprint,
@@ -634,10 +608,6 @@ public class CloudSaveService {
         try { new File(LEGACY_AES_KEY_FILE).delete(); } catch (Exception ignored) {}
     }
 
-    // =====================================================================
-    //  CRYPTO PRIMITIVES
-    // =====================================================================
-
     private static PublicKey loadRSAPublicKey() throws GeneralSecurityException {
         byte[] der = Base64.getDecoder().decode(RSA_PUBLIC_KEY_B64);
         return KeyFactory.getInstance("RSA").generatePublic(new X509EncodedKeySpec(der));
@@ -696,10 +666,6 @@ public class CloudSaveService {
         }
         return out;
     }
-
-    // =====================================================================
-    //  SOCKET / FRAMING / STRING HELPERS
-    // =====================================================================
 
     private static BufferedWriter writer(Socket s) throws IOException {
         return new BufferedWriter(new OutputStreamWriter(s.getOutputStream(), StandardCharsets.UTF_8));
@@ -795,10 +761,6 @@ public class CloudSaveService {
         }
         return b.toString();
     }
-
-    // =====================================================================
-    //  JSON SERIALIZATION (zero-dependency fallback)
-    // =====================================================================
 
     byte[] serializeToJsonBytes(Object value) throws ReflectiveOperationException {
         String json = trySerializeWithGson(value);
@@ -905,10 +867,6 @@ public class CloudSaveService {
         }
         return b.append('"').toString();
     }
-
-    // =====================================================================
-    //  RESULT TYPES
-    // =====================================================================
 
     public record SaveResult(boolean ok, String message) {
         public static SaveResult ok(String msg) { return new SaveResult(true, msg); }

@@ -14,8 +14,6 @@ public class AudioManager {
     private final Sound music = new Sound();
     private final Sound se = new Sound();
 
-    // -- Music --
-
     public void playMusic(int index) {
         music.setFile(index);
         music.play();
@@ -26,14 +24,10 @@ public class AudioManager {
         music.stop();
     }
 
-    // -- Sound effects --
-
     public void playSE(int index) {
         se.setFile(index);
         se.play();
     }
-
-    // -- Volume control --
 
     public int getMusicVolume() { return music.volumeScale; }
     public int getSEVolume()    { return se.volumeScale; }

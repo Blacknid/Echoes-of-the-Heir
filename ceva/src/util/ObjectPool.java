@@ -12,7 +12,6 @@ import java.util.Set;
 @SuppressWarnings("unchecked")
 public class ObjectPool<T> {
     private List<T> available = new ArrayList<>();
-    // OPTIMIZATION: Use HashSet for O(1) contains/remove instead of O(n) linear scan
     private Set<T> inUse = new HashSet<>();
     private PoolableObject factory;
     private int expandSize;
@@ -27,7 +26,6 @@ public class ObjectPool<T> {
         this.factory = factory;
         this.expandSize = expandSize;
         
-        // Pre-allocate initial pool
         for (int i = 0; i < initialSize; i++) {
             available.add((T) factory.create());
         }
@@ -38,7 +36,6 @@ public class ObjectPool<T> {
      */
     public T get() {
         if (available.isEmpty()) {
-            // Expand pool when empty
             for (int i = 0; i < expandSize; i++) {
                 available.add((T) factory.create());
             }
@@ -54,7 +51,6 @@ public class ObjectPool<T> {
      */
     public void release(T obj) {
         if (inUse.remove(obj)) {
-            // Reset object to initial state
             if (obj instanceof Poolable) {
                 ((Poolable) obj).reset();
             }

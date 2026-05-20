@@ -84,7 +84,6 @@ public class MultiplayerClient {
     public String serverMessage = "";
     public String connectionStatus = "";
 
-    // ── World streaming ──
     public final MpMapStreamer mapStreamer;
 
     private int sendCounter = 0;

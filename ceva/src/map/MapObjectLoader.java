@@ -145,8 +145,6 @@ public class MapObjectLoader {
         this.gp = gp;
     }
 
-    // ---- Public API -----------------------------------------------------------
-
     /**
      * Read the map-level properties block and apply music, weather, ambient light,
      * map name, default spawn, and background colour.
@@ -173,8 +171,6 @@ public class MapObjectLoader {
         clearEventLayerLights();
         load(tmxPath, false, true);
     }
-
-    // ---- Core Loader ----------------------------------------------------------
 
     /**
      * Resolve an objectgroup layer name to one of the standard names,
@@ -463,8 +459,6 @@ public class MapObjectLoader {
         }
     }
 
-    // ---- Map Properties -------------------------------------------------------
-
     private void applyMapProperties(Element mapEl) {
         // Reset per-map overrides each time a map loads
         gp.eManager.pinnedFilterAlpha = -1f;
@@ -557,8 +551,6 @@ public class MapObjectLoader {
 
         
     }
-
-    // ---- Entity Factories -----------------------------------------------------
 
     private Entity createObject(String type, Element obj) {
         String itemId = getFirstStringProperty(obj, null, "itemId", "factoryId");
@@ -691,7 +683,6 @@ public class MapObjectLoader {
     private Entity createNPC(String type, Element obj, int worldX, int worldY) {
         Entity npc = switch (type) {
             case "NPC_Generic", "NPC_Alucard" -> {
-                // ── NPCFactory path: if npcId is set, build from JSON definition ──
                 // If the Tiled type is NPC_Alucard (legacy), default the npcId to "alucard"
                 String npcId = getStringProperty(obj, "npcId", null);
                 if (npcId == null && "NPC_Alucard".equals(type)) npcId = "alucard";
@@ -711,7 +702,6 @@ public class MapObjectLoader {
                     }
                 }
 
-                // ── Fallback: manual property-based NPC (original path) ──
                 NPC_Generic g = new NPC_Generic(gp);
                 // sprite path (walk sheet)
                 String sprite = getStringProperty(obj, "sprite", null);
@@ -769,7 +759,6 @@ public class MapObjectLoader {
         int wDlg = getIntProperty(obj, "walkToDialogueSet", -1);
         if (wDlg >= 0) npc.walkToDialogueSet = wDlg;
 
-        // ── NPC STEP CHAIN: step0_walkToCol, step0_walkToRow [, step0_dialogue] ... ──
         // step<N>_dialogue is optional — defaults to N so steps 0/1/2 automatically play
         // dialogue sets 0/1/2 from the NPC class's setDialogue() without any Tiled config.
         for (int si = 0; si < 20; si++) {
@@ -949,8 +938,6 @@ public class MapObjectLoader {
         }
     }
 
-    // ---- Common Entity Properties ---------------------------------------------
-
     private void applyCommonProperties(Entity entity, Element obj) {
         String facing = getStringProperty(obj, "facing", null);
         if (facing != null && !facing.isBlank()) entity.direction = parseDirection(facing);
@@ -959,8 +946,6 @@ public class MapObjectLoader {
         if (getBoolProperty(obj, "invisible", false)) entity.invisible = true;
         entity.removeOnPickup = getBoolProperty(obj, "removeOnPickup", entity.removeOnPickup);
     }
-
-    // ---- Event Types ----------------------------------------------------------
 
     private void loadEvent(String type, Element obj, int col, int row,
                            int worldX, int worldY, int areaW, int areaH, double sf) {
@@ -1145,8 +1130,6 @@ public class MapObjectLoader {
         }
     }
 
-    // ---- MonsterArea ----------------------------------------------------------
-
     /**
      * Creates a monster entity by name for use in dynamic systems (e.g. SpawnZone).
      * No level scaling or property reading — uses defaults.
@@ -1188,8 +1171,6 @@ public class MapObjectLoader {
         }
         System.out.println("MapObjectLoader: MonsterArea -> " + placed + " x " + monType);
     }
-
-    // ---- Generic Entity Lookup (chest loot + fallback) ------------------------
 
     /**
      * Creates any game entity by name string.
@@ -1259,8 +1240,6 @@ public class MapObjectLoader {
         return light;
     }
 
-    // ---- Tower Eye Spawning ---------------------------------------------------
-
     private void spawnTowerEyes() {
         for (Entity entity : gp.obj) {
             if (entity instanceof OBJ_Tower tower) tower.spawnEye();
@@ -1292,8 +1271,6 @@ public class MapObjectLoader {
         return obj.getElementsByTagName("point").getLength() > 0;
     }
 
-    // ---- Utilities ------------------------------------------------------------
-
     private int firstFreeSlot(Entity[] arr) {
         for (int i = 0; i < arr.length; i++) if (arr[i] == null) return i;
         return arr.length;
@@ -1312,8 +1289,6 @@ public class MapObjectLoader {
             default      -> Entity.DIR_DOWN;
         };
     }
-
-    // ---- XML Helpers ----------------------------------------------------------
 
     private Document parseXmlResource(String path) throws Exception {
         Document document = ResourceCache.loadXml(path);

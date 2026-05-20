@@ -32,18 +32,15 @@ public class RenderPipeline {
     private Graphics2D worldGraphics;
     private boolean worldCacheValid = false;
 
-    // OPTIMIZATION: Pre-allocate entityList with estimated capacity
     ArrayList<Entity> entityList = new ArrayList<>(150);
     int entityListIndex = 0;
 
-    // OPTIMIZATION: Define Comparator once
     Comparator<Entity> renderSorter = (e1, e2) -> {
         int feet1 = e1.worldY + e1.solidArea.y + e1.solidArea.height;
         int feet2 = e2.worldY + e2.solidArea.y + e2.solidArea.height;
         return Integer.compare(feet1, feet2);
     };
 
-    // PRE-ALLOCATED DEBUG COLORS & FONT (avoid per-frame allocation in hitbox debug)
     private static final Color DBG_PLAYER  = new Color(  0, 255,   0, 160); // green  — player solid
     private static final Color DBG_ATTACK  = new Color(255, 100,   0, 160); // orange — attack box
     private static final Color DBG_NPC     = new Color( 80, 140, 255, 160); // blue   — NPC solid
@@ -123,11 +120,9 @@ public class RenderPipeline {
     }
 
     private void drawWorldLayers(Graphics2D g2) {
-        // OPTIMIZATION: AA off for pixel art
         g2.setRenderingHint(java.awt.RenderingHints.KEY_ANTIALIASING, java.awt.RenderingHints.VALUE_ANTIALIAS_OFF);
         g2.setRenderingHint(java.awt.RenderingHints.KEY_TEXT_ANTIALIASING, java.awt.RenderingHints.VALUE_TEXT_ANTIALIAS_OFF);
 
-        // SCREEN SHAKE
         int shakeX = gp.screenShake.getOffsetX();
         int shakeY = gp.screenShake.getOffsetY();
         if (shakeX != 0 || shakeY != 0) {
@@ -146,7 +141,6 @@ public class RenderPipeline {
         }
         entityList.sort(renderSorter);
 
-        // TILE PARTICLES
         int tpCount = 0;
         if (gp.tileParticleEmitter != null) {
             tpCount = gp.tileParticleEmitter.prepareSortedIndices();
@@ -155,7 +149,6 @@ public class RenderPipeline {
         int depthTileCount = gp.tileM.getDepthTileCount();
         int depthTileIdx = 0;
 
-        // DRAW ENTITIES + TILE PARTICLES interleaved by Y (depth-correct)
         java.awt.Composite savedComp = g2.getComposite();
         for (int i = 0; i < entityListIndex; i++) {
             Entity e = entityList.get(i);
@@ -197,39 +190,31 @@ public class RenderPipeline {
         }
         g2.setComposite(savedComp);
 
-        // REMOTE PLAYERS (multiplayer)
         if (gp.mpClient != null && gp.mpClient.isConnected()) {
             gp.drawRemotePlayers(g2);
         }
 
-        // FOREGROUND TILES
         gp.tileM.drawForeground(g2);
 
         clearRenderableEntities();
 
-        // DAMAGE NUMBERS
         for (int i = 0; i < gp.damageNumbers.size(); i++) {
             entity.DamageNumber dn = gp.damageNumbers.get(i);
             if (dn.alive) dn.draw(g2);
         }
 
-        // CUTSCENE
         gp.csManager.draw(g2);
 
-        // DEBUG HITBOXES
         if (gp.HitBoxes) {
             drawHitboxDebug(g2);
         }
 
-        // UNDO SHAKE
         if (shakeX != 0 || shakeY != 0) {
             g2.translate(-shakeX, -shakeY);
         }
 
-        // ENVIRONMENT
         gp.eManager.draw(g2);
 
-        // SHADER
         if (gp.mapShader != null) {
             gp.mapShader.drawAmbientParticles(g2);
             gp.mapShader.drawWeather(g2);
@@ -265,7 +250,6 @@ public class RenderPipeline {
         int psx = gp.player.screenX;
         int psy = gp.player.screenY;
 
-        // ── PLAYER solid area (green) ────────────────────────────────────────
         {
             Rectangle r = gp.player.solidArea;
             int px = psx + r.x;
@@ -276,7 +260,6 @@ public class RenderPipeline {
             g2.drawRect(px, py, r.width, r.height);
             dbgLabel(g2, "PLAYER", px, py, r.width);
 
-            // knockback vector arrow
             if (gp.player.knockBack) {
                 g2.setColor(DBG_KNOCK);
                 g2.fillRect(px, py, r.width, r.height);
@@ -293,7 +276,6 @@ public class RenderPipeline {
             }
         }
 
-        // ── PLAYER attack hitbox (orange) ────────────────────────────────────
         if (gp.player.attacking) {
             g2.setColor(DBG_ATTACK);
             int ts = gp.tileSize;
@@ -314,7 +296,6 @@ public class RenderPipeline {
             g2.drawString("ATTACK", asx, asy - 3);
         }
 
-        // ── NPCs (blue) ──────────────────────────────────────────────────────
         g2.setColor(DBG_NPC);
         for (Entity n : gp.npc) {
             if (n == null) continue;
@@ -326,9 +307,27 @@ public class RenderPipeline {
             g2.drawRect(nx, ny, r.width, r.height);
             g2.setColor(DBG_NPC);
             dbgLabel(g2, n.name != null ? n.name : "NPC", nx, ny, r.width);
+
+            if (n.interactRange > 0) {
+                int ncx = n.worldX - pwx + psx + n.solidArea.x + n.solidArea.width  / 2;
+                int ncy = n.worldY - pwy + psy + n.solidArea.y + n.solidArea.height / 2;
+                int rad = n.interactRange;
+                Color rangeColor = new Color(255, 220, 60, 60);
+                Color rangeBorder = new Color(255, 220, 60, 200);
+                Composite prevComp = g2.getComposite();
+                g2.setComposite(AlphaComposite.SrcOver);
+                g2.setColor(rangeColor);
+                g2.fillOval(ncx - rad, ncy - rad, rad * 2, rad * 2);
+                g2.setColor(rangeBorder);
+                g2.setStroke(new BasicStroke(1.5f));
+                g2.drawOval(ncx - rad, ncy - rad, rad * 2, rad * 2);
+                g2.setComposite(prevComp);
+                g2.setColor(new Color(255, 220, 60));
+                g2.setFont(DBG_FONT);
+                g2.drawString("range:" + rad, ncx - 18, ncy + rad + 12);
+            }
         }
 
-        // ── MONSTERS (yellow, knockback in purple) ───────────────────────────
         for (Entity m : gp.monster) {
             if (m == null) continue;
             Rectangle r = m.solidArea;
@@ -356,7 +355,6 @@ public class RenderPipeline {
             }
         }
 
-        // ── OBJECTS (red) ────────────────────────────────────────────────────
         g2.setColor(DBG_OBJECT);
         for (Entity o : gp.obj) {
             if (o == null) continue;
@@ -370,7 +368,6 @@ public class RenderPipeline {
             dbgLabel(g2, o.name != null ? o.name : "OBJ", ox, oy, r.width);
         }
 
-        // ── INTERACTIVE TILES (cyan) ─────────────────────────────────────────
         g2.setColor(DBG_ITILE);
         for (int i = 0; i < gp.iTile.length; i++) {
             if (gp.iTile[i] == null) continue;
@@ -384,7 +381,6 @@ public class RenderPipeline {
             dbgLabel(g2, gp.iTile[i].name != null ? gp.iTile[i].name : "iTILE", ix, iy, r.width);
         }
 
-        // ── PROJECTILES (pink) ───────────────────────────────────────────────
         g2.setColor(DBG_PROJ);
         for (int i = 0; i < gp.projectilesList.size(); i++) {
             Entity proj = gp.projectilesList.get(i);
@@ -399,7 +395,6 @@ public class RenderPipeline {
             dbgLabel(g2, proj.name != null ? proj.name : "PROJ", prx, pry, r.width);
         }
 
-        // ── TMX COLLISION SHAPES (dark blue, filled) ─────────────────────────
         if (gp.tileM.collisionShapes != null && !gp.tileM.collisionShapes.isEmpty()) {
             g2.setColor(DBG_COLLIDE);
             AffineTransform oldTransform = g2.getTransform();
@@ -413,12 +408,10 @@ public class RenderPipeline {
             g2.setTransform(oldTransform);
         }
 
-        // ── EVENT ZONES (drawn as outlines with coloured labels) ─────────────
         if (gp.eHandler != null) {
             gp.eHandler.drawEventDebug(g2, pwx, pwy, psx, psy, gp.tileSize);
         }
 
-        // ── LEGEND (top-left corner) ─────────────────────────────────────────
         g2.setStroke(oldStroke);
         g2.setComposite(oldComp);
         drawHitboxLegend(g2);
@@ -452,18 +445,15 @@ public class RenderPipeline {
         int bx         = 6;
         int by         = 6;
 
-        // background
         g2.setColor(new Color(0, 0, 0, 160));
         g2.fillRoundRect(bx, by, boxW, boxH, 8, 8);
         g2.setColor(new Color(200, 200, 200, 180));
         g2.drawRoundRect(bx, by, boxW, boxH, 8, 8);
 
-        // title
         g2.setFont(new Font("Arial", Font.BOLD, 10));
         g2.setColor(Color.WHITE);
         g2.drawString("[H] HITBOX DEBUG", bx + pad, by + pad + 9);
 
-        // entries
         g2.setFont(DBG_FONT);
         for (int i = 0; i < labels.length; i++) {
             int col = i % cols;

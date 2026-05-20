@@ -42,7 +42,6 @@ public class Player extends Entity {
     private static final float[] DASH_ALPHAS = {0.28f, 0.16f, 0.07f};
     private static final int[] DASH_OFFSETS = {5, 10, 15};
 
-    // ── HIT / DEATH ANIMATION ──
     public BufferedImage[][] hitFrames;    // getHit sprite sheet [dir][frame]
     public BufferedImage[][] deathFrames;  // death sprite sheet  [dir][frame]
     public boolean playerDying = false;     // death animation in progress
@@ -58,10 +57,8 @@ public class Player extends Entity {
     private static final int DEATH_TOTAL_FRAMES = 5;  // frames in death sheet per direction
     private static final int HIT_TOTAL_FRAMES = 4;    // frames in hit sheet per direction
 
-    // Constants
     public final int maxInventorySize = 20;
 
-    // Instance variables
     KeyHandler keyH;
     public int screenX;
     public int screenY;
@@ -75,24 +72,20 @@ public class Player extends Entity {
     public int hasKey = 0;
     public int hasArtefact = 0;
     public int hasGem = 0;
-    // Combat
     public boolean attackCanceled = false;
-    public int attackSpeed = 1; // Number of frames between attacks
+    public int attackSpeed = 1;
 
-    // Attack combo system
-    private int comboStep = 0;       // 0, 1, 2 (light, light, heavy)
+    private int comboStep = 0;
     private int comboWindow = 0;     // frames remaining to chain next attack
     private static final int COMBO_WINDOW_MAX = 20;
-    private boolean attackBuffered = false; // buffered input for rapid presses mid-attack
+    private boolean attackBuffered = false;
 
-    // Level-up stat choice
-    public int levelUpChoice = 0;    // currently highlighted option (0-2)
-    public String[] levelUpOptions;  // 3 stat upgrade labels
-    public int[] levelUpValues;      // stat gain amounts
+    public int levelUpChoice = 0;
+    public String[] levelUpOptions;
+    public int[] levelUpValues;
     public int skillPoints = 20;
     public final SkillTree skillTree = new SkillTree();
 
-    // Passive bonuses from skill tree
     public float meleeDamageMultiplier = 1f;
     public float damageTakenMultiplier = 1f;
     public boolean dashUnlocked = true;
@@ -115,11 +108,9 @@ public class Player extends Entity {
     public boolean undyingWillUnlocked = false;
     public int undyingWillCooldown = 0;
 
-    // In-world level-up animation state
     public int levelUpBannerTimer = 0;
     public String levelUpBannerText = "";
 
-    // Swift Evade (medieval dodge — snappy sidestep with weight)
     private boolean dashing = false;
     private int dashCounter = 0;
     private final int dashDuration = 10;  // frames (~0.17s — snappy burst)
@@ -178,17 +169,14 @@ public class Player extends Entity {
         setDefaultValues();
     }
 
-    // Initialization methods
     public void setDefaultValues() {
-        // Spawn position is determined by the TMX SpawnPoint object in the Events layer.
-        // setDefaultPositions() will apply it once events are loaded.
         worldX = 0;
         worldY = 0;
         defaultSpeed = 5;
         speed = defaultSpeed;
         direction = DIR_DOWN;
         level = 100;
-        maxLife = 3;
+        maxLife = 100;
         life = maxLife;
         strenght = 2;
         dexterity = 1;
@@ -277,7 +265,6 @@ public class Player extends Entity {
     public void restoreLifeAndMana() {
         life = maxLife;
         mana = maxMana;
-        // Reset death animation state
         playerDying = false;
         playerDeathCounter = 0;
         playerDeathFrame = 0;
@@ -285,37 +272,32 @@ public class Player extends Entity {
         hitAnimFrame = 0;
     }
 
-    // Image loading methods
     /**
      * Adaugam un sistem de incarcare a unui spritesheet cu un numar variabil de cadre pe rand.
      */
     public void getPlayerImages() {
         // Sheet order: down=row0, left=row1, right=row2, up=row3 — maps directly to DIR_DOWN=0,LEFT=1,RIGHT=2,UP=3
-        int[] framesPerRow = {7, 8, 8, 7}; // down, left, right, up
+        int[] framesPerRow = {7, 8, 8, 7};
         walkFrames = loadSheetVariable("/res/player/Player_walking-sheet", framesPerRow);
     }
 
     public void getPlayerAttackImages() {
         attackFrames = new BufferedImage[4][5];
-        // UP
         attackFrames[DIR_UP][0] = setup("/res/player/b.attack/attack 1/up/u1", gp.tileSize, gp.tileSize * 2);
         attackFrames[DIR_UP][1] = setup("/res/player/b.attack/attack 1/up/u2", gp.tileSize, gp.tileSize * 2);
         attackFrames[DIR_UP][2] = setup("/res/player/b.attack/attack 1/up/u3", gp.tileSize, gp.tileSize * 2);
         attackFrames[DIR_UP][3] = setup("/res/player/b.attack/attack 1/up/u4", gp.tileSize, gp.tileSize * 2);
         attackFrames[DIR_UP][4] = setup("/res/player/b.attack/attack 1/up/u5", gp.tileSize, gp.tileSize * 2);
-        // DOWN
         attackFrames[DIR_DOWN][0] = setup("/res/player/b.attack/attack 1/front/f1", gp.tileSize, gp.tileSize * 2);
         attackFrames[DIR_DOWN][1] = setup("/res/player/b.attack/attack 1/front/f2", gp.tileSize, gp.tileSize * 2);
         attackFrames[DIR_DOWN][2] = setup("/res/player/b.attack/attack 1/front/f3", gp.tileSize, gp.tileSize * 2);
         attackFrames[DIR_DOWN][3] = setup("/res/player/b.attack/attack 1/front/f4", gp.tileSize, gp.tileSize * 2);
         attackFrames[DIR_DOWN][4] = setup("/res/player/b.attack/attack 1/front/f5", gp.tileSize, gp.tileSize * 2);
-        // LEFT
         attackFrames[DIR_LEFT][0] = setup("/res/player/b.attack/attack 1/left/l1", gp.tileSize * 2, gp.tileSize);
         attackFrames[DIR_LEFT][1] = setup("/res/player/b.attack/attack 1/left/l2", gp.tileSize * 2, gp.tileSize);
         attackFrames[DIR_LEFT][2] = setup("/res/player/b.attack/attack 1/left/l3", gp.tileSize * 2, gp.tileSize);
         attackFrames[DIR_LEFT][3] = setup("/res/player/b.attack/attack 1/left/l4", gp.tileSize * 2, gp.tileSize);
         attackFrames[DIR_LEFT][4] = setup("/res/player/b.attack/attack 1/left/l5", gp.tileSize * 2, gp.tileSize);
-        // RIGHT
         attackFrames[DIR_RIGHT][0] = setup("/res/player/b.attack/attack 1/right/r1", gp.tileSize * 2, gp.tileSize);
         attackFrames[DIR_RIGHT][1] = setup("/res/player/b.attack/attack 1/right/r2", gp.tileSize * 2, gp.tileSize);
         attackFrames[DIR_RIGHT][2] = setup("/res/player/b.attack/attack 1/right/r3", gp.tileSize * 2, gp.tileSize);
@@ -369,14 +351,12 @@ public class Player extends Entity {
         idleFrames[DIR_RIGHT] = frames[3]; // row 3 = right
     }
 
-    // Update and movement methods
     @Override
     public void update() {
         if (levelUpBannerTimer > 0) {
             levelUpBannerTimer--;
         }
 
-        // ── PLAYER DEATH ANIMATION ──
         if (playerDying) {
             playerDeathCounter++;
             int frameIndex = playerDeathCounter / DEATH_ANIM_SPEED;
@@ -401,7 +381,6 @@ public class Player extends Entity {
             return; // block all movement/combat during death
         }
 
-        // ── HIT ANIMATION COUNTER ──
         if (hitAnimCounter > 0) {
             hitAnimCounter--;
             hitAnimFrame = (HIT_TOTAL_FRAMES - 1) - (hitAnimCounter / HIT_ANIM_SPEED);
@@ -409,7 +388,6 @@ public class Player extends Entity {
             if (hitAnimFrame < 0) hitAnimFrame = 0;
         }
 
-        // Cancel attack if in dialogue or cutscene
         if (gp.gameState == GamePanel.dialogueState || gp.gameState == GamePanel.cutsceneState) {
             attacking = false;
             spriteCounter = 0;
@@ -421,7 +399,6 @@ public class Player extends Entity {
             movingThisFrame = false;
         }
 
-        // Swift Evade — snappy medieval sidestep
         if (dashUnlocked && keyH.dashPressed && dashCooldown == 0 && !dashing && !attacking && evadeRecovery == 0) {
             dashing = true;
             dashCounter = dashDuration;
@@ -432,14 +409,12 @@ public class Player extends Entity {
             gp.playSE(SFX.WEAPON_SWING); // quick whoosh
         }
         if (dashing) {
-            // Quadratic ease-out: explosive start, smooth deceleration
             float t = Math.max(0f, Math.min(1f, (dashDuration - dashCounter) / (float)Math.max(1, dashDuration)));
             float speedMultiplier = 3.2f * (1f - t * t);  // burst → decel
             speed = Math.max(defaultSpeed + 1, Math.round(defaultSpeed * speedMultiplier));
             invincible = true;
             invincibleCounter = 0;  // hold i-frames during evade
             dashCounter--;
-            // Dust trail every 3 frames
             if (dashCounter % 3 == 0) {
                 spawnDashTrail();
             }
@@ -448,8 +423,7 @@ public class Player extends Entity {
                 speed = Math.max(1, defaultSpeed - 1); // brief heavy landing
                 evadeRecovery = EVADE_RECOVERY_FRAMES;
                 spawnDashBurst(false);
-                invincibleCounter = 54; // tight grace period (~6 real i-frames)
-                // Shadow Step: damage nearby enemies at end of dash
+                invincibleCounter = 54;
                 if (shadowStepUnlocked) {
                     for (int si = 0; si < gp.monster.length; si++) {
                         Entity m = gp.monster[si];
@@ -471,7 +445,6 @@ public class Player extends Entity {
                 }
             }
         }
-        // Post-evade recovery: regain footing
         if (evadeRecovery > 0) {
             evadeRecovery--;
             if (evadeRecovery == 0) {
@@ -489,7 +462,6 @@ public class Player extends Entity {
         if (overdriveCooldown > 0) overdriveCooldown--;
         if (undyingWillCooldown > 0) undyingWillCooldown--;
 
-        // Status effect timers
         if (slowedTimer > 0 && --slowedTimer == 0) slowed = false;
         if (rootedTimer > 0 && --rootedTimer == 0) rooted = false;
 
@@ -509,21 +481,15 @@ public class Player extends Entity {
 
         handleAbilityInputs();
 
-        // Hitstop is now handled globally in GamePanel.triggerHitstop()
-
-        // Combo window countdown
         if (comboWindow > 0) comboWindow--;
         if (comboWindow <= 0 && !attacking) comboStep = 0;
 
-        // Handle attacking first
         if (attacking && !attackCanceled) {
-            // Buffer attack input during active attack for responsive combos
             if (keyH.enterPressed) {
                 attackBuffered = true;
                 keyH.enterPressed = false;
             }
             attacking();
-            // Slight attack movement if holding the same direction
             int attackMoveSpeed = Math.max(1, speed / 2);
             int nextX = worldX;
             int nextY = worldY;
@@ -533,24 +499,18 @@ public class Player extends Entity {
                 case DIR_LEFT:  if (keyH.leftPressed)  nextX -= attackMoveSpeed; break;
                 case DIR_RIGHT: if (keyH.rightPressed) nextX += attackMoveSpeed; break;
             }
-            // Save original position
             int originalX = worldX;
             int originalY = worldY;
-            // Temporarily move to next position for collision check
             worldX = nextX;
             worldY = nextY;
             collisionOn = false;
             gp.cChecker.checkTile(this);
-            // Check for object collision
             int objIndex = gp.cChecker.checkObject(this, true);
             if (objIndex != 999) collisionOn = true;
-            // Check for NPC collision
             int npcIndex = gp.cChecker.checkEntity(this, gp.npc);
             if (npcIndex != 999 && gp.npc[npcIndex].collision) collisionOn = true;
-            // Check for monster collision
             int monsterIndex = gp.cChecker.checkEntity(this, gp.monster);
             if (monsterIndex != 999 && gp.monster[monsterIndex].collision) collisionOn = true;
-            // Check for interactive tile collision
             int iTileIndex = gp.cChecker.checkEntity(this, gp.iTile);
             if (iTileIndex != 999 && gp.iTile[iTileIndex] != null) {
                 if (gp.iTile[iTileIndex].collision) collisionOn = true;
@@ -562,17 +522,13 @@ public class Player extends Entity {
                     gp.iTile[iTileIndex] = null;
                 }
             }
-            // If collision, reset position
             if (collisionOn) {
                 worldX = originalX;
                 worldY = originalY;
             }
         } else {
-            // INPUT LOCKED: freeze player during door animations etc.
             if (gp.inputLocked) return;
-            // STATUS: rooted blocks all movement input
             boolean canMove = !rooted;
-            // Determine direction based on keys — vertical takes priority for animation
             boolean movingUp    = canMove && keyH.upPressed;
             boolean movingDown  = canMove && keyH.downPressed;
             boolean movingLeft  = canMove && keyH.leftPressed;
@@ -594,7 +550,6 @@ public class Player extends Entity {
                 idleFrameDirection = 1;
                 idleDelayCounter = 0;
 
-                // Calculate movement speeds
                 // Diagonal movement: use 1/sqrt(2) ≈ 0.7071 per axis
                 // This ensures total diagonal distance = cardinal distance (standard in Zelda, Diablo, Stardew Valley)
                 int moveSpeedX = speed;
@@ -617,10 +572,7 @@ public class Player extends Entity {
                     moveSpeedY = Math.max(1, moveSpeedY * 3 / 5);
                 }
 
-                // --- PER-AXIS COLLISION: check and move each axis independently ---
-                // Horizontal axis
                 if (movingHorizontal && !keyH.enterPressed) {
-                    // Temporarily set direction for collision checker prediction
                     int savedDir = direction;
                     direction = movingLeft ? DIR_LEFT : DIR_RIGHT;
                     collisionOn = false;
@@ -636,7 +588,6 @@ public class Player extends Entity {
                     direction = savedDir; // restore for vertical check
                 }
 
-                // Vertical axis
                 if (movingVertical && !keyH.enterPressed) {
                     int savedDir = direction;
                     direction = movingUp ? DIR_UP : DIR_DOWN;
@@ -653,8 +604,6 @@ public class Player extends Entity {
                     direction = savedDir;
                 }
 
-                // --- Full collision pass for pickups, NPC interaction, events ---
-                // Reset direction to the animation direction for game logic
                 if (movingUp) direction = DIR_UP;
                 else if (movingDown) direction = DIR_DOWN;
                 else if (movingLeft) direction = DIR_LEFT;
@@ -672,7 +621,6 @@ public class Player extends Entity {
                 gp.cChecker.checkEntity(this, gp.iTile);
                 gp.eHandler.checkEvent();
 
-                // Start attack if enter pressed or buffered (combo chain within window)
                 if ((keyH.enterPressed || attackBuffered) && !attackCanceled && !dashing && currentWeapon != null) {
                     attacking = true;
                     spriteCounter = 0;
@@ -686,10 +634,8 @@ public class Player extends Entity {
                 attackCanceled = false;
                 attackBuffered = false;
                 keyH.enterPressed = false;
-                // Update animation sprites
                 updateSprite();
 
-                // TILE PARTICLES: emit footstep particles when player is moving
                 if (gp.tileParticleEmitter != null) {
                     footstepParticleCounter++;
                     if (footstepParticleCounter >= gp.tileParticleEmitter.getEmitInterval()) {
@@ -702,7 +648,6 @@ public class Player extends Entity {
                 }
             } else {
                 footstepParticleCounter = 0;
-                // Wait 2 seconds before playing idle animation
                 idleDelayCounter++;
 
                 if (idleDelayCounter >= idleStartDelayFrames) {
@@ -712,11 +657,8 @@ public class Player extends Entity {
                 }
             }
             if(gp.keyH.shotKeyPressed && !projectile.alive && shotAvailableCounter == 30 && projectile.haveResource(this)) {
-                //SET DEFAULT COORDINATES, DIRECTIONS AND USER
                 projectile.set(worldX, worldY, direction, true, this);
-                // SUBSTRACT RESOURCES
                 projectile.subtractResource(this);
-                //ADD TO ARRAY
                 gp.projectilesList.add(projectile);
                 shotAvailableCounter = 0;
                 gp.playSE(SFX.ARROW);
@@ -724,7 +666,6 @@ public class Player extends Entity {
             if (shotAvailableCounter < 30) {
                 shotAvailableCounter++;
             }
-            // Handle invincibility timer
             if (invincible) {
                 invincibleCounter++;
                 if (invincibleCounter > 60) {
@@ -734,15 +675,11 @@ public class Player extends Entity {
             }
         }
 
-        // SMOOTH CAMERA: compute the hard-clamped target screenX/Y from worldX/Y,
-        // then lerp the actual screenX/Y toward it. Because the target is always
-        // within valid map bounds, void can never appear at map edges.
         int mapPixelW = gp.tileM.currentMapCols * gp.tileSize;
         int mapPixelH = gp.tileM.currentMapRows * gp.tileSize;
         int defaultScreenX = gp.screenWidth / 2 - (gp.tileSize / 2);
         int defaultScreenY = gp.screenHeight / 2 - (gp.tileSize / 2);
 
-        // --- Compute fully-clamped target screen position from real worldX/Y ---
         int targetScreenX, targetScreenY;
         if (mapPixelW <= gp.screenWidth) {
             targetScreenX = worldX + (gp.screenWidth - mapPixelW) / 2;
@@ -761,12 +698,10 @@ public class Player extends Entity {
             else                                         targetScreenY = defaultScreenY;
         }
 
-        // Initialise smooth cam on first tick
         if (camScreenX == 0f && camScreenY == 0f) {
             camScreenX = targetScreenX;
             camScreenY = targetScreenY;
         }
-        // Soft deadzone: camera only moves when player drifts > 24px from current cam center
         final float CAM_DEADZONE = 24f;
         float dxCam = targetScreenX - camScreenX;
         float dyCam = targetScreenY - camScreenY;
@@ -777,8 +712,6 @@ public class Player extends Entity {
             camScreenY += (dyCam - Math.signum(dyCam) * CAM_DEADZONE) * CAM_LERP;
         }
 
-        // Hard-clamp the lerped camera so fast movement (dash/knockback) near a
-        // map border can never let the interpolated position drift into void.
         if (mapPixelW >= gp.screenWidth) {
             float minCamX = worldX - (mapPixelW - gp.screenWidth);
             float maxCamX = worldX;
@@ -854,7 +787,6 @@ public class Player extends Entity {
         if (anticipationTimer > 0) {
             anticipationTimer--;
             spriteNum = 1;
-            // Subtle visual lean backward during anticipation (no hitbox movement)
             int leanPx = (comboStep == 2) ? 2 : 1;
             switch (direction) {
                 case DIR_UP    -> animOffsetY = leanPx;
@@ -865,10 +797,8 @@ public class Player extends Entity {
             return;
         }
 
-        // --- SWING PHASE (counter only ticks here, not during anticipation) ---
         spriteCounter++;
 
-        // Determine current frame from variable-length durations
         int elapsed = 0;
         int maxFrames = durations.length;
         int currentFrame = maxFrames;
@@ -883,10 +813,8 @@ public class Player extends Entity {
         int totalDuration = 0;
         for (int d : durations) totalDuration += d;
 
-        // --- VISUAL OFFSET: lean forward during swing, ease back on recovery ---
         int maxLean = (comboStep == 2) ? 3 : 2;
         if (currentFrame <= 3) {
-            // Lean into the swing (frames 1-3)
             float progress = Math.min(1f, currentFrame / 3f);
             int lean = Math.round(maxLean * progress);
             switch (direction) {
@@ -896,7 +824,6 @@ public class Player extends Entity {
                 case DIR_RIGHT -> { animOffsetX = lean; animOffsetY = 0; }
             }
         } else {
-            // Ease back to center (frames 4-5)
             float recovery = (currentFrame - 3) / 2f;
             int lean = Math.round(maxLean * (1f - recovery));
             switch (direction) {
@@ -907,21 +834,17 @@ public class Player extends Entity {
             }
         }
 
-        // --- SWING TRAIL: record positions during active swing frames ---
         if (currentFrame >= 2 && currentFrame <= 4) {
             trailWorldX[trailIndex] = worldX;
             trailWorldY[trailIndex] = worldY;
             trailIndex = (trailIndex + 1) % TRAIL_SIZE;
             if (trailCount < TRAIL_SIZE) trailCount++;
-            // trailActive = true;
         }
 
-        // HIT on frame 3 (first tick of that frame)
         int frame3Start = durations[0] + durations[1] + 1;
         if (currentFrame == 3 && spriteCounter == frame3Start) {
             performAttackHitbox();
         }
-        // End attack → open combo window
         if (spriteCounter >= totalDuration) {
             spriteCounter = 0;
             attacking = false;
@@ -935,7 +858,6 @@ public class Player extends Entity {
     }
 
     private void performAttackHitbox() {
-        // Temporary entity for attack hitbox
         Entity attackHitbox = new Entity(gp);
         attackHitbox.worldX = worldX;
         attackHitbox.worldY = worldY;
@@ -944,7 +866,6 @@ public class Player extends Entity {
         int ts = gp.tileSize;
         int quarter = ts / 4;  // 16px at 64px tile — scales with tile size
         int eighth  = ts / 8;  // 8px  at 64px tile — scales with tile size
-        // Attack hitbox: proportional to tile size so it stays correct at any resolution
         switch(direction) {
             case DIR_UP:
                 attackHitbox.solidArea.width  = ts - quarter;  // 48 at 64px
@@ -971,20 +892,16 @@ public class Player extends Entity {
                 attackHitbox.worldY += eighth;                 // center vertically
                 break;
         }
-        // Check for tile using the attack hitbox instead of player
         int iTileIndex = gp.cChecker.checkEntity(attackHitbox, gp.iTile);
         damageInteractiveTile(iTileIndex);
-        // Check for monster using the attack hitbox
         int monsterIndex = gp.cChecker.checkEntity(attackHitbox, gp.monster);
         damageMonster(monsterIndex, attack);
     }
 
     // Combat methods
-    public void damageMonster(int i, int attack) {
-        if (i != 999) {
+    public void damageMonster(int i, int attack) {        if (i != 999) {
             if (!gp.monster[i].invincible) {
-                gp.playSE(SFX.MONSTER_HIT); // TODO: likely should be SFX.MONSTER_HIT (index 9)
-                // Combo damage escalation: step 0 = 1x, step 1 = 1.15x, step 2 = 1.6x
+                gp.playSE(SFX.MONSTER_HIT);
                 boolean isHeavy = (comboStep == 2);
                 float comboMultiplier = switch (comboStep) {
                     case 1  -> 1.15f;
@@ -998,7 +915,6 @@ public class Player extends Entity {
                 knockBack(gp.monster[i], kb, worldX, worldY);
                 int damage = effectiveAttack - gp.monster[i].defense;
                 if (damage < 0) damage = 0;
-                // Frontal armor: 50% damage reduction when hitting the monster's face
                 if (gp.monster[i].frontalArmor) {
                     int md = gp.monster[i].direction;
                     boolean isFrontalHit =
@@ -1011,7 +927,6 @@ public class Player extends Entity {
                 gp.monster[i].life -= damage;
                 generateParticle(this, gp.monster[i]);
 
-                // Escalating spark colors per combo step
                 Color sparkColor = switch (comboStep) {
                     case 1  -> COLOR_COMBO_GOLDEN;  // golden
                     case 2  -> COLOR_COMBO_FIERY;  // fiery orange
@@ -1021,14 +936,12 @@ public class Player extends Entity {
                 spawnDamageNumber(gp.monster[i], damage, isHeavy);
                 gp.monster[i].hitFlashCounter = isHeavy ? 10 : 6;
 
-                // Escalating screen shake per combo step
                 switch (comboStep) {
                     case 0 -> gp.screenShake.shakeLight();
                     case 1 -> gp.screenShake.shakeMedium();
                     case 2 -> gp.screenShake.shakeHeavy();
                 }
 
-                // Global hitstop: brief freeze-frame (scales with combo)
                 switch (comboStep) {
                     case 0 -> gp.triggerHitstop(2);
                     case 1 -> gp.triggerHitstop(3);

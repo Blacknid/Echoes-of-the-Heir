@@ -14,7 +14,6 @@ import java.util.Map;
  */
 public class MemoryJournal {
 
-    // ── Inner class ──
     public static class MemoryFragment {
         public final String id;
         public final String name;
@@ -33,9 +32,7 @@ public class MemoryJournal {
         }
     }
 
-    // Master registry: ordered by storyOrder
     private final Map<String, MemoryFragment> registry = new LinkedHashMap<>();
-    // Sorted view cache (rebuilt on registration changes)
     private final List<MemoryFragment> sortedFragments = new ArrayList<>();
     private boolean sortDirty = true;
 

@@ -20,7 +20,6 @@ public class OBJ_Door extends Entity {
     /** Named spawn point on the target map — resolved after the map loads. */
     public String spawnId = "";
 
-    // ── DOOR OPEN ANIMATION (future — null means no animation, immediate transition) ──
     public BufferedImage[] doorOpenFrames;
     public int doorAnimIndex = 0;
     public int doorAnimSpeed = 8;      // ticks per frame

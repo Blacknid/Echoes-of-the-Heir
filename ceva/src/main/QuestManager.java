@@ -49,9 +49,6 @@ import java.util.Map;
  */
 public class QuestManager {
 
-    // ══════════════════════════════════════════════════════════════════════
-    //  PUBLIC DATA CLASSES
-    // ══════════════════════════════════════════════════════════════════════
 
     /** One step in a multi-step quest. */
     public static class QuestStep {
@@ -105,9 +102,6 @@ public class QuestManager {
         }
     }
 
-    // ══════════════════════════════════════════════════════════════════════
-    //  QUEST REGISTRY (loaded once from quests.json)
-    // ══════════════════════════════════════════════════════════════════════
 
     private static class QuestDef {
         Map<String, String> props = new HashMap<>();
@@ -162,9 +156,6 @@ public class QuestManager {
         return null;
     }
 
-    // ══════════════════════════════════════════════════════════════════════
-    //  INSTANCE STATE
-    // ══════════════════════════════════════════════════════════════════════
 
     private final GamePanel gp;
     private final ArrayList<Quest> quests = new ArrayList<>();
@@ -221,7 +212,6 @@ public class QuestManager {
         }
     }
 
-    // ── Constructor ──
 
     public QuestManager(GamePanel gp) {
         this.gp = gp;
@@ -229,9 +219,6 @@ public class QuestManager {
         startAutoQuests();
     }
 
-    // ══════════════════════════════════════════════════════════════════════
-    //  PUBLIC API — adding / removing / progressing quests
-    // ══════════════════════════════════════════════════════════════════════
 
     /**
      * Start a quest by its id (looks it up in quests.json).
@@ -501,16 +488,10 @@ public class QuestManager {
         return states;
     }
 
-    // ══════════════════════════════════════════════════════════════════════
-    //  LOG TOGGLE
-    // ══════════════════════════════════════════════════════════════════════
 
     public void toggleLog() { logOpen = !logOpen; }
     public boolean isLogOpen() { return logOpen; }
 
-    // ══════════════════════════════════════════════════════════════════════
-    //  DRAWING
-    // ══════════════════════════════════════════════════════════════════════
 
     /** Draw the current objective tracker (small HUD overlay). */
     public void drawTracker(Graphics2D g2) {
@@ -524,7 +505,6 @@ public class QuestManager {
         ensureFonts(g2);
         g2.setFont(fontPlain14);
 
-        // Build tracker text
         String tracker;
         if (active.steps != null && active.currentStep < active.steps.length) {
             QuestStep step = active.steps[active.currentStep];
@@ -567,16 +547,13 @@ public class QuestManager {
         int x = gp.screenWidth - margin - trackerW;
         int y = margin + 3 * pillH + 2 * pillGap + (int)(6 * sf);
 
-        // Draw background pill
         g2.setComposite(AlphaComposite.getInstance(AlphaComposite.SRC_OVER, 0.82f));
         g2.setColor(BG);
         g2.fillRoundRect(x, y, trackerW, pillH, 8, 8);
-        // Left accent line (quest gold)
         g2.setColor(INCOMPLETE);
         g2.fillRoundRect(x, y + (int)(4 * sf), (int)(3 * sf), pillH - (int)(8 * sf), 3, 3);
         g2.setComposite(AlphaComposite.getInstance(AlphaComposite.SRC_OVER, 1f));
 
-        // Text
         g2.setFont(fontPlain14);
         g2.setColor(INCOMPLETE);
         int textY = y + pillH / 2 + fm.getAscent() / 2 - 1;
@@ -599,7 +576,6 @@ public class QuestManager {
         final int contentBottom = y + H - FOOTER_H;
         final int contentH      = contentBottom - contentTop;
 
-        // ── Background ──
         g2.setComposite(AlphaComposite.getInstance(AlphaComposite.SRC_OVER, 0.97f));
         g2.setColor(BG);
         g2.fillRoundRect(x, y, W, H, 18, 18);
@@ -608,7 +584,6 @@ public class QuestManager {
         g2.setStroke(STROKE_2);
         g2.drawRoundRect(x + 2, y + 2, W - 4, H - 4, 16, 16);
 
-        // ── Title bar ──
         g2.setColor(new Color(25, 20, 15, 240));
         g2.fillRect(x + 3, y + 3, W - 6, TITLE_H - 3);
         // thin gold separator under title
@@ -632,13 +607,11 @@ public class QuestManager {
         int sw = g2.getFontMetrics().stringWidth(summary);
         g2.drawString(summary, x + W - sw - PADDING, y + 36);
 
-        // ── Clip content area ──
         java.awt.Shape oldClip = g2.getClip();
         g2.setClip(x + 4, contentTop, W - 8, contentH);
 
         int qy = contentTop + 10 - logScrollOffset;
 
-        // ── ACTIVE QUESTS section ──
         if (activeCount > 0) {
             drawSectionHeader(g2, x, qy, W, PADDING, "\u25B6  ACTIVE QUESTS", SECTION_COLOR, 130);
             qy += 34;
@@ -647,7 +620,6 @@ public class QuestManager {
                 Quest q = quests.get(i);
                 if (q.isComplete()) continue;
 
-                // Determine objective and progress
                 String objective = null;
                 boolean hasProgress = false;
                 int progC = 0, progT = 1;
@@ -663,7 +635,6 @@ public class QuestManager {
                         objective = q.description;
                     }
 
-                    // Progress bar values?
                     if (step.count > 1) {
                         hasProgress = true;
                         progC = q.stepProgress;
@@ -685,12 +656,10 @@ public class QuestManager {
                     }
                 }
 
-                // Card Height Calculation
                 int cardH = 34;
                 if (objective != null && !objective.isEmpty()) cardH += 22;
                 if (hasProgress) cardH += 18;
 
-                // Draw Card Background
                 g2.setColor(CARD_BG);
                 g2.fillRoundRect(x + PADDING, qy - 20, W - PADDING * 2, cardH, 12, 12);
                 g2.setColor(CARD_BORDER);
@@ -713,7 +682,6 @@ public class QuestManager {
                     qy += 22;
                 }
 
-                // Progress Bar
                 if (hasProgress) {
                     qy += 4;
                     int bx = x + PADDING + 20;
@@ -789,9 +757,7 @@ public class QuestManager {
         g2.setStroke(STROKE_2);
     }
 
-    // ══════════════════════════════════════════════════════════════════════
     //  INTERNAL HELPERS
-    // ══════════════════════════════════════════════════════════════════════
 
     /** Start all quests marked "autoStart": true in the registry. */
     private void startAutoQuests() {
@@ -927,9 +893,7 @@ public class QuestManager {
         }
     }
 
-    // ══════════════════════════════════════════════════════════════════════
     //  JSON PARSING
-    // ══════════════════════════════════════════════════════════════════════
 
     private static String strVal(Map<String, String> m, String key, String fallback) {
         String v = m.get(key);

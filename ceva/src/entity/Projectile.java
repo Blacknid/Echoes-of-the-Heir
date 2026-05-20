@@ -126,11 +126,9 @@ public class Projectile extends Entity implements Poolable {
         int w = img.getWidth();
         int h = img.getHeight();
         
-        // Create a new image of the same size
         BufferedImage rotated = new BufferedImage(w, h, img.getType());
         Graphics2D g2d = rotated.createGraphics();
         
-        // Apply rotation around the center
         g2d.rotate(Math.toRadians(degrees), w / 2, h / 2);
         g2d.drawImage(img, 0, 0, null);
         g2d.dispose();
@@ -141,7 +139,6 @@ public class Projectile extends Entity implements Poolable {
 
     @Override
     public void reset() {
-        // Reset projectile to safe state for reuse
         alive = false;
         user = null;
         life = 0;

@@ -6,19 +6,19 @@ import java.util.Random;
 import main.GamePanel;
 
 /**
- * Data-driven NPC — all dialogue, sprite, behavior, and memory-fragment
- * properties are set externally (typically by MapObjectLoader reading Tiled
- * properties) rather than hardcoded.
+ * NPC condus de date — toate dialogurile, sprite-urile, comportamentul si proprietatile
+ * fragmentelor de memorie sunt setate extern (de obicei de MapObjectLoader citind
+ * proprietatile din Tiled), nu hardcodate.
  *
- * Tiled properties consumed by MapObjectLoader → NPC_Generic:
- *   sprite           (String)  resource path without extension, e.g. "/res/npc/Villager_walk-sheet"
- *   dialogue_S_L     (String)  dialogue set S, line L  (e.g. dialogue_0_0, dialogue_1_2)
- *   memoryFragmentId (String)  fragment id this NPC gives on claim
- *   memoryFragmentName(String) display name for the fragment
- *   memoryText0..4   (String)  flashback text lines
- *   fragmentTrigger  (String)  "talk" (default) | "defeat" | "quest"
- *   dialogueChoices  (String)  pipe-separated choice labels, e.g. "Accept|Refuse"
- *   choiceNextSet    (String)  pipe-separated set indices, e.g. "2|3"
+ * Proprietati Tiled consumate de MapObjectLoader → NPC_Generic:
+ *   sprite           (String)  calea resursei fara extensie, ex: "/res/npc/Villager_walk-sheet"
+ *   dialogue_S_L     (String)  set S, linia L de dialog (ex: dialogue_0_0, dialogue_1_2)
+ *   memoryFragmentId (String)  id-ul fragmentului de memorie dat de acest NPC la obtinere
+ *   memoryFragmentName(String) numele afisat al fragmentului
+ *   memoryText0..4   (String)  linii de text pentru flashback
+ *   fragmentTrigger  (String)  "talk" (implicit) | "defeat" | "quest"
+ *   dialogueChoices  (String)  etichete optiuni separate prin |, ex: "Accept|Refuz"
+ *   choiceNextSet    (String)  indici set urmator separati prin |, ex: "2|3"
  * dialogue_0_0 = "Uhm... hello?"
  * dialogue_0_1 = "I don't really remember much, but I think I got hurt near here..."
  * dialogue_0_2 = "Please take my sword, it might help you on your journey."
@@ -27,50 +27,51 @@ import main.GamePanel;
  */
 public class NPC_Generic extends Entity {
 
-    // ── ACTIVITY STATE SYSTEM ──
-    // Condition-based state machine: evaluates quest/fragment/boss/story progress
-    // to pick which animation, position, direction, and dialogue the NPC uses.
-    // States are loaded from npcs.json via NPCFactory or from Tiled properties.
-    // Last matching state wins (higher index = higher priority).
+    // Masina de stari bazata pe conditii: evalueaza progresul quest/fragment/boss/poveste
+    // pentru a alege animatia, pozitia, directia si dialogul NPC-ului.
+    // Starile sunt incarcate din npcs.json via NPCFactory sau din proprietatile Tiled.
+    // Ultima stare care se potriveste castiga (index mai mare = prioritate mai mare).
 
-    /** A single activity state an NPC can be in, depending on game conditions. */
+    /** O singura stare de activitate in care poate fi NPC-ul, in functie de conditiile jocului. */
     public static class NPCActivityState {
-        public String id;                           // "forging", "idle_shop", "sleeping"
-        public String animationKey  = null;         // key into activityAnimations (null = default idle)
-        public int    direction     = -1;           // forced facing (-1 = don't override)
-        public int    posCol        = -1;           // tile col to stand at (-1 = stay put)
-        public int    posRow        = -1;           // tile row to stand at (-1 = stay put)
-        public int    dialogueSet   = -1;           // which dialogue set to use (-1 = don't override)
-        public String dialogueName  = null;          // named dialogue key (resolved via dialogueNameMap)
-        public boolean stationary   = false;        // lock NPC in place during this activity
+        public String id;                           // "forjare", "magazin_inactiv", "dormit"
+        public String animationKey  = null;         // cheie in activityAnimations (null = inactiv implicit)
+        public int    direction     = -1;           // directie fortata (-1 = nu suprascrie)
+        public int    posCol        = -1;           // coloana tile unde sta (-1 = ramane pe loc)
+        public int    posRow        = -1;           // randul tile unde sta (-1 = ramane pe loc)
+        public int    dialogueSet   = -1;           // setul de dialog de folosit (-1 = nu suprascrie)
+        public String dialogueName  = null;          // cheie dialog dupa nume (rezolvata via dialogueNameMap)
+        public boolean stationary   = false;        // blocheaza NPC-ul in loc in aceasta activitate
 
-        // Conditions — ALL must match for this state to activate (AND logic)
-        public String requiredQuestComplete = null; // quest ID that must be complete
-        public String requiredQuestActive   = null; // quest ID that must be active (not complete)
-        public int    requiredFragments     = -1;   // minimum fragment count (-1 = ignore)
-        public int    requiredBoss          = -1;   // boss index that must be defeated (-1 = ignore)
-        public int    requiredStoryAct      = -1;   // minimum story act (-1 = ignore)
-        public int    requiredLevel         = -1;   // minimum player level (-1 = ignore)
+        // Conditii — TOATE trebuie sa fie satisfacute pentru activarea starii (logica AND)
+        public String requiredQuestComplete = null; // ID quest care trebuie finalizat
+        public String requiredQuestActive   = null; // ID quest care trebuie activ (nefinalizat)
+        public int    requiredFragments     = -1;   // numar minim de fragmente (-1 = ignora)
+        public int    requiredBoss          = -1;   // boss care trebuie invins (-1 = ignora)
+        public int    requiredStoryAct      = -1;   // act minim al povestii (-1 = ignora)
+        public int    requiredLevel         = -1;   // nivel minim al jucatorului (-1 = ignora)
+        public String npcNotMet             = null; // conditie: NPC-ul cu acest objectId NU e inca in gp.metNPCs
+        public boolean marksNpcMet          = false; // cand dialogul se termina, adauga npc.objectId in gp.metNPCs
     }
 
-    /** Ordered list of activity states. Index 0 = default/fallback, last match wins. */
+    /** Lista ordonata de stari de activitate. Indexul 0 = implicit/fallback, ultima potrivire castiga. */
     public final java.util.ArrayList<NPCActivityState> activityStates = new java.util.ArrayList<>();
-    /** Currently active state (resolved by evaluateActivityState). */
+    /** Starea activa curenta (rezolvata de evaluateActivityState). */
     public NPCActivityState activeState = null;
     private String lastStateId = null;
-    /** Spawn tile position (default position before any state overrides). */
+    /** Pozitia tile de spawn (pozitia implicita inainte de orice suprascrie de stare). */
     public int spawnCol = -1, spawnRow = -1;
 
-    /** Sprite path set by MapObjectLoader; loaded lazily in getImage(). */
+    /** Calea sprite-ului setata de MapObjectLoader; incarcata lazy in getImage(). */
     public String spritePath = null;
-    /** Idle sprite sheet path; loaded lazily in getImage(). */
+    /** Calea foii de sprite inactiv; incarcata lazy in getImage(). */
     public String idleSpritePath = null;
-    /** Number of direction rows in the idle sprite sheet (1 = single direction, 4 = full). Default: 4 */
+    /** Numarul de randuri de directii in foaia de sprite inactiv (1 = directie unica, 4 = complet). Implicit: 4 */
     public int idleRows = 4;
     /**
-     * Cell aspect ratio for both the walk and idle sprite sheet.
-     * 1 = square cells (default). 2 = each cell is 2x wider than tall.
-     * Used when the sprite sheet has non-square frames (e.g. Fighter_Training).
+     * Raportul de aspect al celulei pentru foile de sprite walk si idle.
+     * 1 = celule patrate (implicit). 2 = fiecare celula e de 2 ori mai lata decat inalta.
+     * Folosit cand foaia are cadre non-patrate (ex: Fighter_Training).
      */
     public float spriteAspect = 1.0f;
     private boolean imageLoaded = false;
@@ -93,15 +94,14 @@ public class NPC_Generic extends Entity {
         solidAreaDefaultY = solidArea.y;
     }
 
-    /** Call after setting spritePath / idleSpritePath to load the sheets. Safe to call multiple times. */
+    /** Cheama dupa setarea spritePath / idleSpritePath pentru a incarca foile. Sigur de apelat de mai multe ori. */
     public void getImage() {
         if (imageLoaded) return;
-        // Walk sprite sheet
         if (spritePath != null) {
             try {
                 walkFrames = new BufferedImage[4][];
                 if (spriteAspect != 1.0f) {
-                    // Non-square walk sheet: compute cell dims from sheet height
+                    // Foaie walk non-patrata: calculeaza dimensiunile celulei din inaltimea foii
                     java.io.InputStream is = getClass().getResourceAsStream(spritePath + ".png");
                     if (is != null) {
                         BufferedImage rawWalk = javax.imageio.ImageIO.read(is);
@@ -131,17 +131,17 @@ public class NPC_Generic extends Entity {
                 System.out.println("NPC_Generic: Failed to load walk sprite '" + spritePath + "': " + e.getMessage());
             }
         }
-        // Idle sprite sheet — row order: down / left / right / up
+        // Foaie sprite inactiv — ordinea randurilor: jos / stanga / dreapta / sus
         if (idleSpritePath != null) {
             try {
                 BufferedImage raw = util.ResourceCache.loadImageIfPresent(idleSpritePath + ".png");
                 if (raw != null) {
                     int rows = idleRows;
-                    int cellH = raw.getHeight() / rows; // cell height
-                    int cellW = Math.max(1, Math.round(cellH * spriteAspect));   // cell width (spriteAspect=1 → square, 0.5 → half-wide, 2 → twice as wide)
+                    int cellH = raw.getHeight() / rows; // inaltimea celulei
+                    int cellW = Math.max(1, Math.round(cellH * spriteAspect));   // latimea celulei (spriteAspect=1 → patrat, 0.5 → lat jumatate, 2 → dublu lat)
                     int maxCols  = raw.getWidth()  / cellW;
 
-                    // Count actual (non-transparent) frames per row
+                    // Numara cadrele reale (non-transparente) per rand
                     int[] actualFrames = new int[rows];
                     for (int r = 0; r < rows; r++) {
                         actualFrames[r] = maxCols;
@@ -153,9 +153,9 @@ public class NPC_Generic extends Entity {
                         }
                     }
 
-                    // Compute per-row visible-content bounding boxes so each row is
-                    // cropped based only on frames in that row (avoids extreme
-                    // horizontal crops caused by other rows).
+                    // Calculeaza bounding box-urile vizibile per rand — fiecare rand e
+                    // decupat pe baza cadrelor din acel rand (evita decupari extreme
+                    // cauzate de alte randuri).
                     int[] rowMinX = new int[rows];
                     int[] rowMaxX = new int[rows];
                     int[] rowMinY = new int[rows];
@@ -180,9 +180,9 @@ public class NPC_Generic extends Entity {
                     }
 
                     int ts = gp.tileSize;
-                    // dirMap: row index → direction constant.
-                    // For a 4-row sheet: row0=DOWN, row1=LEFT, row2=RIGHT, row3=UP.
-                    // For a 1-row sheet: the single row is used for all directions.
+                    // dirMap: index rand → constanta de directie.
+                    // Pentru o foaie cu 4 randuri: rand0=JOS, rand1=STANGA, rand2=DREAPTA, rand3=SUS.
+                    // Pentru o foaie cu 1 rand: randul unic e folosit pentru toate directiile.
                     int[] dirMap = {DIR_DOWN, DIR_LEFT, DIR_RIGHT, DIR_UP};
                     boolean debugFruit = idleSpritePath != null && idleSpritePath.toLowerCase().contains("fruit_trader");
                     if (debugFruit) {
@@ -211,9 +211,8 @@ public class NPC_Generic extends Entity {
                             BufferedImage crop = raw.getSubimage(
                                 f * cellW + cropMinX, r * cellH + cropMinY, cropW, cropH2);
 
-                            // Height-first scaling: prefer to fill the tile height so
-                            // characters use the full vertical space. Allow horizontal
-                            // overflow (it will be clipped) to avoid very short sprites.
+                            // Scalare pe inaltime: prefera umplerea inaltimii tile-ului
+                            // pentru ca personajele sa foloseasca tot spatiul vertical.
                             float scale = (float) ts / (float) cropH2;
                             int dh = ts;
                             int dw = Math.max(1, Math.round(cropW * scale));
@@ -237,8 +236,8 @@ public class NPC_Generic extends Entity {
                         }
                     }
 
-                    // If the sheet had fewer than 4 direction rows, fill missing
-                    // directions with a copy of row 0 (single-direction sprites).
+                    // Daca foaia are mai putin de 4 randuri de directii, completeaza directiile
+                    // lipsa cu o copie a randului 0 (sprite cu directie unica).
                     if (rows < 4 && idleFrames[DIR_DOWN] != null) {
                         if (idleFrames[DIR_UP]    == null) idleFrames[DIR_UP]    = idleFrames[DIR_DOWN];
                         if (idleFrames[DIR_LEFT]  == null) idleFrames[DIR_LEFT]  = idleFrames[DIR_DOWN];
@@ -252,7 +251,7 @@ public class NPC_Generic extends Entity {
         imageLoaded = true;
     }
 
-    /** Returns true if any pixel in the given rectangle has alpha > 0. */
+    /** Returneaza true daca orice pixel din dreptunghiul dat are alpha > 0. */
     private boolean hasVisiblePixel(BufferedImage img, int x, int y, int w, int h) {
         int x2 = Math.min(x + w, img.getWidth());
         int y2 = Math.min(y + h, img.getHeight());
@@ -290,9 +289,9 @@ public class NPC_Generic extends Entity {
     }
 
     /**
-     * Evaluates all activity states in order. The last state whose conditions
-     * all match becomes active. On state change: sets animation, pathfinds to
-     * position, overrides direction and dialogue set.
+     * Evalueaza toate starile de activitate in ordine. Ultima stare ale carei conditii
+     * sunt toate satisfacute devine activa. La schimbarea starii: seteaza animatia, calculeaza
+     * calea catre pozitie, suprascrie directia si setul de dialog.
      */
     public void evaluateActivityState() {
         if (activityStates.isEmpty()) return;
@@ -305,7 +304,7 @@ public class NPC_Generic extends Entity {
             }
         }
 
-        // No state matched — clear to defaults
+        // Nicio stare nu s-a potrivit — resetare la valorile implicite
         if (candidate == null) {
             if (activeState != null) {
                 activeState = null;
@@ -313,7 +312,7 @@ public class NPC_Generic extends Entity {
                 currentActivity = null;
                 activitySpriteNum = 1;
                 activitySpriteCounter = 0;
-                // Return to spawn position if we have one
+                // Intoarcere la pozitia de spawn daca exista
                 if (spawnCol >= 0 && spawnRow >= 0) {
                     walkToCol = spawnCol;
                     walkToRow = spawnRow;
@@ -323,7 +322,7 @@ public class NPC_Generic extends Entity {
             return;
         }
 
-        // Same state as before — no transition needed, but enforce direction once arrived
+        // Aceeasi stare ca inainte — nicio tranzitie necesara, dar aplica directia odata ajuns
         if (candidate.id != null && candidate.id.equals(lastStateId)) {
             if (!onPath && candidate.direction >= 0) {
                 direction = candidate.direction;
@@ -331,11 +330,9 @@ public class NPC_Generic extends Entity {
             return;
         }
 
-        // ── STATE TRANSITION ──
         activeState = candidate;
         lastStateId = candidate.id;
 
-        // Animation
         currentActivity = candidate.animationKey;
         activitySpriteNum = 1;
         activitySpriteCounter = 0;
@@ -348,13 +345,13 @@ public class NPC_Generic extends Entity {
             guardMode = false; // temporarily unlock movement for pathfinding
         }
 
-        // Direction: applied after arriving (or immediately if no walk needed)
+        // Directie: aplicata dupa sosire (sau imediat daca nu e nevoie de deplasare)
         if (candidate.direction >= 0 && candidate.posCol < 0) {
             direction = candidate.direction;
             if (idleDirection < 0) idleDirection = candidate.direction;
         }
 
-        // Dialogue set override — support named dialogue keys
+        // Suprascrie setul de dialog — suporta chei de dialog dupa nume
         if (candidate.dialogueName != null && dialogueNameMap != null) {
             Integer idx = dialogueNameMap.get(candidate.dialogueName);
             if (idx != null) walkToDialogueSet = idx;
@@ -362,33 +359,28 @@ public class NPC_Generic extends Entity {
             walkToDialogueSet = candidate.dialogueSet;
         }
 
-        // Stationary flag
         if (candidate.stationary) {
             staticNPC = true;
         }
     }
 
-    /** Checks if ALL conditions of a state are met. */
+    /** Verifica daca TOATE conditiile unei stari sunt satisfacute. */
     private boolean matchesConditions(NPCActivityState state) {
-        // Quest complete check
         if (state.requiredQuestComplete != null && !state.requiredQuestComplete.isBlank()) {
             if (gp.questManager == null || !gp.questManager.isComplete(state.requiredQuestComplete)) {
                 return false;
             }
         }
-        // Quest active (but not complete) check
         if (state.requiredQuestActive != null && !state.requiredQuestActive.isBlank()) {
             if (gp.questManager == null) return false;
             if (!gp.questManager.hasQuest(state.requiredQuestActive)) return false;
             if (gp.questManager.isComplete(state.requiredQuestActive)) return false;
         }
-        // Fragment count check
         if (state.requiredFragments >= 0) {
             if (gp.memoryJournal == null || gp.memoryJournal.getCount() < state.requiredFragments) {
                 return false;
             }
         }
-        // Boss defeated check
         if (state.requiredBoss >= 0) {
             boolean bossDefeated = switch (state.requiredBoss) {
                 case 1 -> gp.boss1Defeated;
@@ -399,17 +391,18 @@ public class NPC_Generic extends Entity {
             };
             if (!bossDefeated) return false;
         }
-        // Story act check
         if (state.requiredStoryAct >= 0) {
             if (gp.storyAct < state.requiredStoryAct) {
                 return false;
             }
         }
-        // Player level check
         if (state.requiredLevel >= 0) {
             if (gp.player == null || gp.player.level < state.requiredLevel) {
                 return false;
             }
+        }
+        if (state.npcNotMet != null && !state.npcNotMet.isBlank()) {
+            if (gp.metNPCs.contains(state.npcNotMet)) return false;
         }
         return true;
     }
@@ -419,21 +412,19 @@ public class NPC_Generic extends Entity {
         facePlayer();
         syncQuestDrivenNpcState();
 
-        // Re-evaluate in case quest state changed since last tick
+        // Re-evalueaza in caz ca starea quest-ului s-a schimbat de la ultimul tick
         evaluateActivityState();
 
-        // Temporarily pause activity animation while talking (face player naturally)
+        // Pauza temporara a animatiei de activitate in timp ce vorbeste (intoarce fata catre jucator natural)
         String savedActivity = currentActivity;
         currentActivity = null;
 
-        // ── Quest step execution (JSON-driven NPCs) ──
         if (gp.questManager != null && objectId != null) {
             if (gp.questManager.executeStepForNpc(objectId, this)) {
                 return;
             }
         }
 
-        // Give item on first interaction
         if (giveItemId != null && !giveItemGiven) {
             Entity item = data.ItemFactory.create(gp, giveItemId);
             if (item != null) gp.player.canObtainItem(item);
@@ -445,13 +436,11 @@ public class NPC_Generic extends Entity {
             return;
         }
 
-        // Item-conditional dialogue override
         if (checkRequiredItemDialogue()) return;
 
-        // Memory fragment claim: if this NPC has one and it's not yet collected
+        // Obtinere fragment de memorie: daca NPC-ul are unul si nu a fost colectat inca
         if (memoryFragmentId != null && !memoryFragmentClaimed) {
             boolean canClaim = true;
-            // Check prerequisites
             if (fragmentRequiredCount > 0 && gp.memoryJournal != null
                     && gp.memoryJournal.getCount() < fragmentRequiredCount) {
                 canClaim = false;
@@ -464,7 +453,7 @@ public class NPC_Generic extends Entity {
             }
         }
 
-        // Step chain (multi-step pathfinding dialogue)
+        // Lant de pasi (dialog cu pathfinding in mai multi pasi)
         if (!npcSteps.isEmpty()) {
             int dlg = (walkToDialogueSet >= 0) ? walkToDialogueSet : 0;
             startDialogue(this, dlg);
@@ -472,9 +461,8 @@ public class NPC_Generic extends Entity {
             return;
         }
 
-        // Post-walk dialogue (NPC has arrived at destination)
+        // Dialog post-deplasare (NPC-ul a ajuns la destinatie)
         if (walkToCol < 0 && walkToDialogueSet >= 0) {
-            // Give second item after helping, if configured
             if (giveItem2Id != null && !giveItem2Given) {
                 Entity item2 = data.ItemFactory.create(gp, giveItem2Id);
                 if (item2 != null) gp.player.canObtainItem(item2);
@@ -487,16 +475,16 @@ public class NPC_Generic extends Entity {
             return;
         }
 
-        // Default: advance dialogue set on each interaction
+        // Implicit: avanseaza setul de dialog la fiecare interactiune
         dialogueSet++;
         String[][] d = ensureDialogues();
         if (dialogueSet >= d.length || d[dialogueSet] == null || d[dialogueSet][0] == null) {
-            dialogueSet = 0; // loop back
+            dialogueSet = 0; // reincepe de la inceput
         }
         startDialogue(this, dialogueSet);
     }
 
-    /** Claims the memory fragment this NPC carries and triggers the flashback. */
+    /** Obtine fragmentul de memorie purtat de acest NPC si declanseaza flashback-ul. */
     private void claimFragment() {
         memoryFragmentClaimed = true;
 
@@ -507,7 +495,6 @@ public class NPC_Generic extends Entity {
             gp.questManager.progress("find_exit", 1);
         }
 
-        // Trigger flashback effect
         if (gp.memoryFlashback != null && memoryFragmentText != null) {
             data.MemoryJournal.MemoryFragment frag = (gp.memoryJournal != null)
                     ? gp.memoryJournal.getFragment(memoryFragmentId) : null;

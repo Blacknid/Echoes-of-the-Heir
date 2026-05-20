@@ -1,10 +1,8 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<map version="1.10" tiledversion="1.12.1" orientation="orthogonal" renderorder="right-down" width="100" height="100" tilewidth="32" tileheight="32" infinite="0" nextlayerid="75" nextobjectid="187">
+<map version="1.10" tiledversion="1.12.1" orientation="orthogonal" renderorder="right-down" width="100" height="100" tilewidth="32" tileheight="32" infinite="0" nextlayerid="75" nextobjectid="383">
  <properties>
   <property name="actTitle" value="THE CANVAS VILLAGE"/>
   <property name="ambientLight" type="float" value="0"/>
-  <property name="defaultSpawnCol" type="int" value="38"/>
-  <property name="defaultSpawnRow" type="int" value="59"/>
   <property name="music" value="0"/>
   <property name="weather" value="CLEAR"/>
   <property name="weatherCycle" type="bool" value="true"/>
@@ -908,17 +906,17 @@
   </tile>
   <tile id="640">
    <properties>
-    <property name="sortYOffset" type="int" value="64"/>
+    <property name="sortYOffset" type="int" value="96"/>
    </properties>
   </tile>
   <tile id="641">
    <properties>
-    <property name="sortYOffset" type="int" value="64"/>
+    <property name="sortYOffset" type="int" value="96"/>
    </properties>
   </tile>
   <tile id="642">
    <properties>
-    <property name="sortYOffset" type="int" value="64"/>
+    <property name="sortYOffset" type="int" value="96"/>
    </properties>
   </tile>
   <tile id="646">
@@ -964,6 +962,21 @@
   <tile id="675">
    <properties>
     <property name="sortYOffset" type="int" value="64"/>
+   </properties>
+  </tile>
+  <tile id="700">
+   <properties>
+    <property name="sortYOffset" type="int" value="-64"/>
+   </properties>
+  </tile>
+  <tile id="701">
+   <properties>
+    <property name="sortYOffset" type="int" value="-64"/>
+   </properties>
+  </tile>
+  <tile id="702">
+   <properties>
+    <property name="sortYOffset" type="int" value="-64"/>
    </properties>
   </tile>
   <tile id="720">
@@ -2558,21 +2571,6 @@
     <property name="sortYOffset" type="int" value="-64"/>
    </properties>
   </tile>
-  <tile id="160">
-   <properties>
-    <property name="sortYOffset" type="int" value="64"/>
-   </properties>
-  </tile>
-  <tile id="161">
-   <properties>
-    <property name="sortYOffset" type="int" value="64"/>
-   </properties>
-  </tile>
-  <tile id="162">
-   <properties>
-    <property name="sortYOffset" type="int" value="64"/>
-   </properties>
-  </tile>
   <tile id="163">
    <properties>
     <property name="sortYOffset" type="int" value="64"/>
@@ -2601,6 +2599,21 @@
   <tile id="170">
    <properties>
     <property name="sortYOffset" type="int" value="64"/>
+   </properties>
+  </tile>
+  <tile id="176">
+   <properties>
+    <property name="sortYOffset" type="int" value="-64"/>
+   </properties>
+  </tile>
+  <tile id="177">
+   <properties>
+    <property name="sortYOffset" type="int" value="-64"/>
+   </properties>
+  </tile>
+  <tile id="178">
+   <properties>
+    <property name="sortYOffset" type="int" value="-64"/>
    </properties>
   </tile>
   <tile id="183">
@@ -2635,17 +2648,17 @@
   </tile>
   <tile id="192">
    <properties>
-    <property name="sortYOffset" type="int" value="-64"/>
+    <property name="sortYOffset" type="int" value="-96"/>
    </properties>
   </tile>
   <tile id="193">
    <properties>
-    <property name="sortYOffset" type="int" value="-64"/>
+    <property name="sortYOffset" type="int" value="-96"/>
    </properties>
   </tile>
   <tile id="194">
    <properties>
-    <property name="sortYOffset" type="int" value="-64"/>
+    <property name="sortYOffset" type="int" value="-96"/>
    </properties>
   </tile>
   <tile id="195">
@@ -2670,17 +2683,17 @@
   </tile>
   <tile id="200">
    <properties>
-    <property name="sortYOffset" type="int" value="96"/>
+    <property name="sortYOffset" type="int" value="64"/>
    </properties>
   </tile>
   <tile id="201">
    <properties>
-    <property name="sortYOffset" type="int" value="96"/>
+    <property name="sortYOffset" type="int" value="64"/>
    </properties>
   </tile>
   <tile id="202">
    <properties>
-    <property name="sortYOffset" type="int" value="96"/>
+    <property name="sortYOffset" type="int" value="64"/>
    </properties>
   </tile>
   <tile id="203">
@@ -2718,21 +2731,6 @@
     <property name="sortYOffset" type="int" value="64"/>
    </properties>
   </tile>
-  <tile id="216">
-   <properties>
-    <property name="sortYOffset" type="int" value="64"/>
-   </properties>
-  </tile>
-  <tile id="217">
-   <properties>
-    <property name="sortYOffset" type="int" value="64"/>
-   </properties>
-  </tile>
-  <tile id="218">
-   <properties>
-    <property name="sortYOffset" type="int" value="64"/>
-   </properties>
-  </tile>
   <tile id="222">
    <properties>
     <property name="sortYOffset" type="int" value="-64"/>
@@ -2749,6 +2747,21 @@
    </properties>
   </tile>
   <tile id="229">
+   <properties>
+    <property name="sortYOffset" type="int" value="-64"/>
+   </properties>
+  </tile>
+  <tile id="232">
+   <properties>
+    <property name="sortYOffset" type="int" value="-64"/>
+   </properties>
+  </tile>
+  <tile id="233">
+   <properties>
+    <property name="sortYOffset" type="int" value="-64"/>
+   </properties>
+  </tile>
+  <tile id="234">
    <properties>
     <property name="sortYOffset" type="int" value="-64"/>
    </properties>
@@ -2858,26 +2871,6 @@
     <property name="sortYOffset" type="int" value="96"/>
    </properties>
   </tile>
-  <tile id="268">
-   <properties>
-    <property name="sortYOffset" type="int" value="96"/>
-   </properties>
-  </tile>
-  <tile id="269">
-   <properties>
-    <property name="sortYOffset" type="int" value="96"/>
-   </properties>
-  </tile>
-  <tile id="270">
-   <properties>
-    <property name="sortYOffset" type="int" value="96"/>
-   </properties>
-  </tile>
-  <tile id="271">
-   <properties>
-    <property name="sortYOffset" type="int" value="96"/>
-   </properties>
-  </tile>
   <tile id="272">
    <properties>
     <property name="sortYOffset" type="int" value="64"/>
@@ -2940,22 +2933,22 @@
   </tile>
   <tile id="284">
    <properties>
-    <property name="sortYOffset" type="int" value="64"/>
+    <property name="sortYOffset" type="int" value="-64"/>
    </properties>
   </tile>
   <tile id="285">
    <properties>
-    <property name="sortYOffset" type="int" value="64"/>
+    <property name="sortYOffset" type="int" value="-64"/>
    </properties>
   </tile>
   <tile id="286">
    <properties>
-    <property name="sortYOffset" type="int" value="64"/>
+    <property name="sortYOffset" type="int" value="-64"/>
    </properties>
   </tile>
   <tile id="287">
    <properties>
-    <property name="sortYOffset" type="int" value="64"/>
+    <property name="sortYOffset" type="int" value="-64"/>
    </properties>
   </tile>
   <tile id="296">
@@ -2974,6 +2967,26 @@
    </properties>
   </tile>
   <tile id="299">
+   <properties>
+    <property name="sortYOffset" type="int" value="-96"/>
+   </properties>
+  </tile>
+  <tile id="300">
+   <properties>
+    <property name="sortYOffset" type="int" value="-96"/>
+   </properties>
+  </tile>
+  <tile id="301">
+   <properties>
+    <property name="sortYOffset" type="int" value="-96"/>
+   </properties>
+  </tile>
+  <tile id="302">
+   <properties>
+    <property name="sortYOffset" type="int" value="-96"/>
+   </properties>
+  </tile>
+  <tile id="303">
    <properties>
     <property name="sortYOffset" type="int" value="-96"/>
    </properties>
@@ -3298,22 +3311,22 @@
     <property name="sortYOffset" type="int" value="64"/>
    </properties>
   </tile>
-  <tile id="508">
-   <properties>
-    <property name="sortYOffset" type="int" value="64"/>
-   </properties>
-  </tile>
-  <tile id="509">
-   <properties>
-    <property name="sortYOffset" type="int" value="64"/>
-   </properties>
-  </tile>
   <tile id="518">
    <properties>
     <property name="sortYOffset" type="int" value="-64"/>
    </properties>
   </tile>
   <tile id="519">
+   <properties>
+    <property name="sortYOffset" type="int" value="-64"/>
+   </properties>
+  </tile>
+  <tile id="524">
+   <properties>
+    <property name="sortYOffset" type="int" value="-64"/>
+   </properties>
+  </tile>
+  <tile id="525">
    <properties>
     <property name="sortYOffset" type="int" value="-64"/>
    </properties>
@@ -7344,6 +7357,36 @@
  </tileset>
  <tileset firstgid="9584" name="Assets_source" tilewidth="32" tileheight="32" tilecount="840" columns="24">
   <image source="../tiles/CANVAS VILLAGE/Field/Assets_source.png" width="768" height="1120"/>
+  <tile id="0">
+   <properties>
+    <property name="sortYOffset" type="int" value="128"/>
+   </properties>
+  </tile>
+  <tile id="1">
+   <properties>
+    <property name="sortYOffset" type="int" value="128"/>
+   </properties>
+  </tile>
+  <tile id="2">
+   <properties>
+    <property name="sortYOffset" type="int" value="128"/>
+   </properties>
+  </tile>
+  <tile id="3">
+   <properties>
+    <property name="sortYOffset" type="int" value="128"/>
+   </properties>
+  </tile>
+  <tile id="4">
+   <properties>
+    <property name="sortYOffset" type="int" value="128"/>
+   </properties>
+  </tile>
+  <tile id="5">
+   <properties>
+    <property name="sortYOffset" type="int" value="128"/>
+   </properties>
+  </tile>
   <tile id="12">
    <properties>
     <property name="sortYOffset" type="int" value="96"/>
@@ -7400,6 +7443,36 @@
    </properties>
   </tile>
   <tile id="23">
+   <properties>
+    <property name="sortYOffset" type="int" value="96"/>
+   </properties>
+  </tile>
+  <tile id="24">
+   <properties>
+    <property name="sortYOffset" type="int" value="96"/>
+   </properties>
+  </tile>
+  <tile id="25">
+   <properties>
+    <property name="sortYOffset" type="int" value="96"/>
+   </properties>
+  </tile>
+  <tile id="26">
+   <properties>
+    <property name="sortYOffset" type="int" value="96"/>
+   </properties>
+  </tile>
+  <tile id="27">
+   <properties>
+    <property name="sortYOffset" type="int" value="96"/>
+   </properties>
+  </tile>
+  <tile id="28">
+   <properties>
+    <property name="sortYOffset" type="int" value="96"/>
+   </properties>
+  </tile>
+  <tile id="29">
    <properties>
     <property name="sortYOffset" type="int" value="96"/>
    </properties>
@@ -7464,6 +7537,36 @@
     <property name="sortYOffset" type="int" value="64"/>
    </properties>
   </tile>
+  <tile id="48">
+   <properties>
+    <property name="sortYOffset" type="int" value="64"/>
+   </properties>
+  </tile>
+  <tile id="49">
+   <properties>
+    <property name="sortYOffset" type="int" value="64"/>
+   </properties>
+  </tile>
+  <tile id="50">
+   <properties>
+    <property name="sortYOffset" type="int" value="64"/>
+   </properties>
+  </tile>
+  <tile id="51">
+   <properties>
+    <property name="sortYOffset" type="int" value="64"/>
+   </properties>
+  </tile>
+  <tile id="52">
+   <properties>
+    <property name="sortYOffset" type="int" value="64"/>
+   </properties>
+  </tile>
+  <tile id="53">
+   <properties>
+    <property name="sortYOffset" type="int" value="64"/>
+   </properties>
+  </tile>
   <tile id="84">
    <properties>
     <property name="sortYOffset" type="int" value="-64"/>
@@ -7522,6 +7625,96 @@
   <tile id="95">
    <properties>
     <property name="sortYOffset" type="int" value="-64"/>
+   </properties>
+  </tile>
+  <tile id="96">
+   <properties>
+    <property name="sortYOffset" type="int" value="-64"/>
+   </properties>
+  </tile>
+  <tile id="97">
+   <properties>
+    <property name="sortYOffset" type="int" value="-64"/>
+   </properties>
+  </tile>
+  <tile id="98">
+   <properties>
+    <property name="sortYOffset" type="int" value="-64"/>
+   </properties>
+  </tile>
+  <tile id="99">
+   <properties>
+    <property name="sortYOffset" type="int" value="-64"/>
+   </properties>
+  </tile>
+  <tile id="100">
+   <properties>
+    <property name="sortYOffset" type="int" value="-64"/>
+   </properties>
+  </tile>
+  <tile id="101">
+   <properties>
+    <property name="sortYOffset" type="int" value="-64"/>
+   </properties>
+  </tile>
+  <tile id="120">
+   <properties>
+    <property name="sortYOffset" type="int" value="-96"/>
+   </properties>
+  </tile>
+  <tile id="121">
+   <properties>
+    <property name="sortYOffset" type="int" value="-96"/>
+   </properties>
+  </tile>
+  <tile id="122">
+   <properties>
+    <property name="sortYOffset" type="int" value="-96"/>
+   </properties>
+  </tile>
+  <tile id="123">
+   <properties>
+    <property name="sortYOffset" type="int" value="-96"/>
+   </properties>
+  </tile>
+  <tile id="124">
+   <properties>
+    <property name="sortYOffset" type="int" value="-96"/>
+   </properties>
+  </tile>
+  <tile id="125">
+   <properties>
+    <property name="sortYOffset" type="int" value="-96"/>
+   </properties>
+  </tile>
+  <tile id="144">
+   <properties>
+    <property name="sortYOffset" type="int" value="-128"/>
+   </properties>
+  </tile>
+  <tile id="145">
+   <properties>
+    <property name="sortYOffset" type="int" value="-128"/>
+   </properties>
+  </tile>
+  <tile id="146">
+   <properties>
+    <property name="sortYOffset" type="int" value="-128"/>
+   </properties>
+  </tile>
+  <tile id="147">
+   <properties>
+    <property name="sortYOffset" type="int" value="-128"/>
+   </properties>
+  </tile>
+  <tile id="148">
+   <properties>
+    <property name="sortYOffset" type="int" value="-128"/>
+   </properties>
+  </tile>
+  <tile id="149">
+   <properties>
+    <property name="sortYOffset" type="int" value="-128"/>
    </properties>
   </tile>
   <tile id="168">
@@ -9124,6 +9317,21 @@
     <property name="sortYOffset" type="int" value="96"/>
    </properties>
   </tile>
+  <tile id="750">
+   <properties>
+    <property name="sortYOffset" type="int" value="64"/>
+   </properties>
+  </tile>
+  <tile id="751">
+   <properties>
+    <property name="sortYOffset" type="int" value="64"/>
+   </properties>
+  </tile>
+  <tile id="752">
+   <properties>
+    <property name="sortYOffset" type="int" value="64"/>
+   </properties>
+  </tile>
   <tile id="753">
    <properties>
     <property name="sortYOffset" type="int" value="64"/>
@@ -9175,6 +9383,21 @@
    </properties>
   </tile>
   <tile id="781">
+   <properties>
+    <property name="sortYOffset" type="int" value="-64"/>
+   </properties>
+  </tile>
+  <tile id="798">
+   <properties>
+    <property name="sortYOffset" type="int" value="-64"/>
+   </properties>
+  </tile>
+  <tile id="799">
+   <properties>
+    <property name="sortYOffset" type="int" value="-64"/>
+   </properties>
+  </tile>
+  <tile id="800">
    <properties>
     <property name="sortYOffset" type="int" value="-64"/>
    </properties>
@@ -14234,9 +14457,9 @@
    </properties>
    <point/>
   </object>
-  <object id="167" name="Potion_trader" type="NPC_Generic" x="928" y="1152">
+  <object id="167" name="Magic_trader" type="NPC_Generic" x="928" y="1152">
    <properties>
-    <property name="npcId" value="potion_trader"/>
+    <property name="npcId" value="magic_trader"/>
    </properties>
    <point/>
   </object>
@@ -14306,10 +14529,10 @@
    <polygon points="0,0 0,-640 32,-640 32,-672 64,-672 64,-704 96,-704 96,-736 128,-736 128,-768 736,-768 736,-704 160,-704 160,-672 128,-672 128,-640 96,-640 96,-608 64,-608 64,-576 32,-576 32,0"/>
   </object>
   <object id="147" name="Awakening_Cave" x="1440" y="3200">
-   <polygon points="0,0 0,-96 -32,-96 -32,-32 -64,-32 -64,0"/>
+   <polygon points="21.5417,0.166667 21.5,-104.25 -51.7391,-104.147 -52.1903,-32.3324 -86.5,-0.125"/>
   </object>
   <object id="148" name="Awakening_Cave" x="1632" y="3136">
-   <polygon points="0,0 0,64 96,64 96,0"/>
+   <polygon points="11.2727,-17.2727 10.7273,63.8182 83.2727,63.4545 83.0909,-17.0909"/>
   </object>
   <object id="152" name="Shopper" x="864" y="1216">
    <polygon points="0,0 32,0 32,-32 64,-32 64,-64 96,-64 96,-32 160,-32 160,-128 0,-128"/>
@@ -14318,10 +14541,10 @@
    <polygon points="0,0 0,96 192,96 192,0"/>
   </object>
   <object id="154" name="Weapons" x="1312" y="896">
-   <polygon points="0,0 0,96 128,96 128,64 191.994,63.9719 191.96,49.9475 212.544,49.9186 212.563,32 192,32 192,0"/>
+   <polygon points="0,0 0,96 128,96 128,64 191.994,63.9719 192,0"/>
   </object>
   <object id="155" name="Bread" x="1249.5" y="1136.5">
-   <polygon points="0,0 160,0 160,32 0,32"/>
+   <polygon points="0,0 160,0 160,32 159.866,43.4573 145.5,43.5 145.25,32 37.0455,32 36.8636,50.3636 0.0650285,49.825 0,32"/>
   </object>
   <object id="156" name="Fence" x="1856" y="832">
    <polygon points="0,0 0,128 32,128 32,192 64,192 64,224 96,224 96,256 160,256 160,288 256,288 256,320 300.014,320.006 300.001,287.996 274.073,288 274.087,255.957 178.188,255.938 178,223.938 113.75,224.063 113.688,191.938 82.375,191.875 82.25,159.938 50.9375,160 50.5625,95.9375 18,96 17,0"/>
@@ -14358,6 +14581,501 @@
   </object>
   <object id="185" x="2858.75" y="1509">
    <polygon points="0,0 0,39.75 79.5,39.75 79.5,0"/>
+  </object>
+  <object id="192" x="631.75" y="1509.66">
+   <polygon points="-4.17965,9.94845 -3.09091,25.4545 27.0909,25.6364 28.7053,10.1197"/>
+  </object>
+  <object id="193" x="437.75" y="669.327">
+   <polygon points="0.00216542,9.94845 0,24 24,24 23.978,9.93788"/>
+  </object>
+  <object id="194" x="184.417" y="198.993">
+   <polygon points="0.00216542,9.94845 0,24 24,24 23.978,9.93788"/>
+  </object>
+  <object id="195" x="405.083" y="105.993">
+   <polygon points="0.00216542,9.94845 0,24 24,24 23.978,9.93788"/>
+  </object>
+  <object id="196" x="757.75" y="324.993">
+   <polygon points="0.00216542,9.94845 0,24 24,24 23.978,9.93788"/>
+  </object>
+  <object id="201" x="2156.42" y="2527.97">
+   <polygon points="0.00384212,17.6516 0,42.5833 42.5833,42.5833 42.5443,17.6328"/>
+  </object>
+  <object id="202" x="2041.92" y="2909.47">
+   <polygon points="-1.49616,20.4016 -8.25,33.5833 22.8333,46.3333 50.8286,37.2306 43.5443,20.1328"/>
+  </object>
+  <object id="204" x="1824" y="2656">
+   <polygon points="0,0 -64,0 -78,19.5 -64,32 0,32 15,18"/>
+  </object>
+  <object id="205" x="1022" y="2847">
+   <polygon points="0,0 -64,0 -78,19.5 -64,32 0,32 15,18"/>
+  </object>
+  <object id="206" x="925" y="1441">
+   <polygon points="0,0 -64,0 -78,19.5 -64,32 0,32 15,18"/>
+  </object>
+  <object id="207" x="1760" y="3072">
+   <polygon points="7.45455,5.81818 -21.4545,17.6364 -21.4545,50.5455 23.2514,50.4929 23.2727,31.8182"/>
+  </object>
+  <object id="208" x="1463.3" y="3056.73">
+   <polygon points="-12.3636,-0.0909091 -12.5455,12.9091 25.2756,12.5966 25.3295,0.0142045"/>
+  </object>
+  <object id="209" x="1344" y="2848">
+   <polygon points="4.18182,7.45455 4.45455,41.6364 79.7273,41.7273 79.5723,20.854 68.1537,20.5222 68.1818,7.09091"/>
+  </object>
+  <object id="210" x="1256.73" y="2775.64">
+   <polygon points="-0.467391,-8.53804 -0.27668,22.4269 44.3636,22.5455 43.7609,-8.60919"/>
+  </object>
+  <object id="211" x="232.98" y="3062.89">
+   <polygon points="-0.467391,-8.53804 -0.27668,22.4269 44.3636,22.5455 43.7609,-8.60919"/>
+  </object>
+  <object id="212" x="40.3664" y="1366.55">
+   <polygon points="-0.467391,-8.53804 -0.27668,22.4269 44.3636,22.5455 43.7609,-8.60919"/>
+  </object>
+  <object id="213" x="610.333" y="33.6667">
+   <polygon points="4.18182,7.45455 4.45455,41.6364 79.7273,41.7273 79.5723,20.854 68.1537,20.5222 68.1818,7.09091"/>
+  </object>
+  <object id="214" x="1463.75" y="1476.99">
+   <polygon points="-4.17965,9.94845 -3.09091,25.4545 27.0909,25.6364 28.7053,10.1197"/>
+  </object>
+  <object id="215" x="1138.84" y="1314.57">
+   <polygon points="-4.17965,9.94845 -3.09091,25.4545 27.0909,25.6364 28.7053,10.1197"/>
+  </object>
+  <object id="216" x="1718.75" y="1693.41">
+   <polygon points="-4.17965,9.94845 -3.09091,25.4545 27.0909,25.6364 28.7053,10.1197"/>
+  </object>
+  <object id="217" x="2215.75" y="2080.66">
+   <polygon points="-4.17965,9.94845 -3.09091,25.4545 27.0909,25.6364 28.7053,10.1197"/>
+  </object>
+  <object id="218" x="2229.25" y="1477.91">
+   <polygon points="-4.17965,9.94845 -3.09091,25.4545 27.0909,25.6364 28.7053,10.1197"/>
+  </object>
+  <object id="219" x="2567.25" y="1246.91">
+   <polygon points="-4.17965,9.94845 -3.09091,25.4545 27.0909,25.6364 28.7053,10.1197"/>
+  </object>
+  <object id="220" x="2627.75" y="801.66">
+   <polygon points="-4.17965,9.94845 -3.09091,25.4545 27.0909,25.6364 28.7053,10.1197"/>
+  </object>
+  <object id="221" x="2833.75" y="513.66">
+   <polygon points="-4.17965,9.94845 -3.09091,25.4545 27.0909,25.6364 28.7053,10.1197"/>
+  </object>
+  <object id="222" x="2452.75" y="587.66">
+   <polygon points="-4.17965,9.94845 -3.09091,25.4545 27.0909,25.6364 28.7053,10.1197"/>
+  </object>
+  <object id="223" x="2148.75" y="194.66">
+   <polygon points="-4.17965,9.94845 -3.09091,25.4545 27.0909,25.6364 28.7053,10.1197"/>
+  </object>
+  <object id="224" x="3140.75" y="37.1737">
+   <polygon points="-4.84201,11.525 -3.58073,29.4883 31.3841,29.6991 33.2543,11.7234"/>
+  </object>
+  <object id="225" x="2519.75" y="2601.66">
+   <polygon points="-4.17965,9.94845 -3.09091,25.4545 27.0909,25.6364 28.7053,10.1197"/>
+  </object>
+  <object id="226" x="2404.75" y="2401.66">
+   <polygon points="-4.17965,9.94845 -3.09091,25.4545 27.0909,25.6364 28.7053,10.1197"/>
+  </object>
+  <object id="227" x="2547.75" y="3005.66">
+   <polygon points="-4.17965,9.94845 -3.09091,25.4545 27.0909,25.6364 28.7053,10.1197"/>
+  </object>
+  <object id="228" x="1718.75" y="2842.66">
+   <polygon points="-4.17965,9.94845 -3.09091,25.4545 27.0909,25.6364 28.7053,10.1197"/>
+  </object>
+  <object id="229" x="1328.75" y="3041.66">
+   <polygon points="-4.17965,9.94845 -3.09091,25.4545 27.0909,25.6364 28.7053,10.1197"/>
+  </object>
+  <object id="230" x="1428.75" y="2568.66">
+   <polygon points="-4.17965,9.94845 -3.09091,25.4545 27.0909,25.6364 28.7053,10.1197"/>
+  </object>
+  <object id="231" x="1908.75" y="2472.66">
+   <polygon points="-4.17965,9.94845 -3.09091,25.4545 27.0909,25.6364 28.7053,10.1197"/>
+  </object>
+  <object id="232" x="1478.75" y="1962.33">
+   <polygon points="-4.17965,9.94845 -3.09091,25.4545 27.0909,25.6364 28.7053,10.1197"/>
+  </object>
+  <object id="233" x="1076.75" y="1661.16">
+   <polygon points="-4.17965,9.94845 -3.09091,25.4545 27.0909,25.6364 28.7053,10.1197"/>
+  </object>
+  <object id="234" x="966.417" y="2078.99">
+   <polygon points="-4.17965,9.94845 -3.09091,25.4545 27.0909,25.6364 28.7053,10.1197"/>
+  </object>
+  <object id="235" x="307.083" y="2272.99">
+   <polygon points="-4.17965,9.94845 -3.09091,25.4545 27.0909,25.6364 28.7053,10.1197"/>
+  </object>
+  <object id="237" x="2080.83" y="1259.66">
+   <polygon points="-4.17965,9.94845 -3.09091,25.4545 35.5909,25.8864 35.7053,9.8697"/>
+  </object>
+  <object id="238" x="789.25" y="2573.16">
+   <polygon points="-4.17965,9.94845 -3.09091,25.4545 27.0909,25.6364 28.7053,10.1197"/>
+  </object>
+  <object id="240" x="1119.33" y="437">
+   <polygon points="0,0 -64,0 -78,19.5 -64,32 0,32 15,18"/>
+  </object>
+  <object id="241" x="1729.33" y="1953.33">
+   <polygon points="7.45455,5.81818 -21.4545,17.6364 -21.4545,50.5455 23.2514,50.4929 23.2727,31.8182"/>
+  </object>
+  <object id="242" x="1887.33" y="1216">
+   <polygon points="7.45455,5.81818 -21.4545,17.6364 -21.4545,50.5455 23.2514,50.4929 23.2727,31.8182"/>
+  </object>
+  <object id="243" x="95" y="353">
+   <polygon points="7.45455,5.81818 -21.4545,17.6364 -21.4545,50.5455 23.2514,50.4929 23.2727,31.8182"/>
+  </object>
+  <object id="244" x="607.5" y="2752">
+   <polygon points="7.45455,5.81818 -21.4545,17.6364 -21.4545,50.5455 23.2514,50.4929 23.2727,31.8182"/>
+  </object>
+  <object id="245" x="2688.5" y="2626.5">
+   <polygon points="7.45455,5.81818 -21.4545,17.6364 -21.4545,50.5455 23.2514,50.4929 23.2727,31.8182"/>
+  </object>
+  <object id="246" x="2811.92" y="815.47">
+   <polygon points="-1.49616,20.4016 -8.25,33.5833 22.8333,46.3333 50.8286,37.2306 43.5443,20.1328"/>
+  </object>
+  <object id="247" x="704" y="3072">
+   <polygon points="-12,-7 -25,24 -5.13311,59.1578 54.5455,74.1818 89.5,27.5 75.5,-8"/>
+  </object>
+  <object id="248" x="662.92" y="1148.97">
+   <polygon points="-1.49616,20.4016 -8.25,33.5833 22.8333,46.3333 50.8286,37.2306 43.5443,20.1328"/>
+  </object>
+  <object id="249" x="894.5" y="1900.5">
+   <polygon points="11.6667,-6.33333 -7,22.3333 -0.466443,55.8245 30.5455,70.8485 59.859,57.775 78.9793,48.2956 82.5,4.83333 62.1667,-8"/>
+  </object>
+  <object id="250" x="1838.67" y="1957" width="64" height="32">
+   <ellipse/>
+  </object>
+  <object id="251" x="1711.34" y="2440.33" width="64" height="32">
+   <ellipse/>
+  </object>
+  <object id="253" x="1483" y="1068.17" width="44.6633" height="22.3317">
+   <ellipse/>
+  </object>
+  <object id="254" x="1450.67" y="2445.5" width="44.6633" height="22.3317">
+   <ellipse/>
+  </object>
+  <object id="256" x="1675.67" y="1484" width="64" height="32">
+   <ellipse/>
+  </object>
+  <object id="257" x="1370.25" y="1406.8">
+   <polygon points="-1.49616,20.4016 -8.25,33.5833 22.8333,46.3333 50.8286,37.2306 43.5443,20.1328"/>
+  </object>
+  <object id="259" x="341.5" y="372.625" width="24.75" height="24.75">
+   <ellipse/>
+  </object>
+  <object id="260" x="405.5" y="372.625" width="24.75" height="24.75">
+   <ellipse/>
+  </object>
+  <object id="261" x="469.5" y="372.625" width="24.75" height="24.75">
+   <ellipse/>
+  </object>
+  <object id="262" x="308.25" y="303.875" width="24.75" height="24.75">
+   <ellipse/>
+  </object>
+  <object id="263" x="504.25" y="307.625" width="24.75" height="24.75">
+   <ellipse/>
+  </object>
+  <object id="270" x="377.438" y="2495.25" width="144.875" height="144.875">
+   <ellipse/>
+  </object>
+  <object id="273" x="771.375" y="2887.13">
+   <polygon points="12.125,20.875 5.63581,38.372 12.5,38.125 52.75,38.375 52.5,21.375"/>
+  </object>
+  <object id="274" x="1113.83" y="2598" width="45.25" height="23.5">
+   <ellipse/>
+  </object>
+  <object id="275" x="828.333" y="2395.67" width="42" height="42.6667">
+   <ellipse/>
+  </object>
+  <object id="276" x="470.217" y="3156.4">
+   <polygon points="-12.3636,-0.0909091 -12.5455,12.9091 25.2756,12.5966 25.3295,0.0142045"/>
+  </object>
+  <object id="277" x="118.333" y="2689" width="54.3333" height="37">
+   <ellipse/>
+  </object>
+  <object id="278" x="370.371" y="2028.15" width="58.2961" height="39.6986">
+   <ellipse/>
+  </object>
+  <object id="279" x="906.815" y="82.0598" width="77.741" height="52.9402">
+   <ellipse/>
+  </object>
+  <object id="280" x="699.025" y="499.706" width="72.225" height="57.588">
+   <ellipse/>
+  </object>
+  <object id="281" x="643.375" y="678.13">
+   <polygon points="12.125,20.875 5.63581,38.372 12.5,38.125 52.75,38.375 52.5,21.375"/>
+  </object>
+  <object id="282" x="3010.38" y="647.13">
+   <polygon points="12.125,20.875 5.63581,38.372 12.5,38.125 52.75,38.375 52.5,21.375"/>
+  </object>
+  <object id="283" x="2118.04" y="2726.13">
+   <polygon points="12.125,20.875 5.63581,38.372 12.5,38.125 52.75,38.375 52.5,21.375"/>
+  </object>
+  <object id="284" x="2363.03" y="2740.21" width="72.225" height="57.588">
+   <ellipse/>
+  </object>
+  <object id="285" x="2107.03" y="467.706" width="72.225" height="57.588">
+   <ellipse/>
+  </object>
+  <object id="286" x="150.55" y="916.23">
+   <polygon points="-12.3636,-0.0909091 -12.5455,12.9091 25.2756,12.5966 25.3295,0.0142045"/>
+  </object>
+  <object id="287" x="1973.55" y="340.897">
+   <polygon points="-12.3636,-0.0909091 -12.5455,12.9091 25.2756,12.5966 25.3295,0.0142045"/>
+  </object>
+  <object id="288" x="2772.55" y="1044.23">
+   <polygon points="-12.3636,-0.0909091 -12.5455,12.9091 25.2756,12.5966 25.3295,0.0142045"/>
+  </object>
+  <object id="289" x="1466.67" y="1257.67" width="42" height="42.6667">
+   <ellipse/>
+  </object>
+  <object id="291" x="1715" y="1099" width="57" height="36.5">
+   <ellipse/>
+  </object>
+  <object id="292" x="1699.04" y="2183.46">
+   <polygon points="12.125,20.875 5.63581,38.372 12.5,38.125 52.75,38.375 52.5,21.375"/>
+  </object>
+  <object id="293" x="1158.04" y="1062.8">
+   <polygon points="12.125,20.875 5.63581,38.372 12.5,38.125 52.75,38.375 52.5,21.375"/>
+  </object>
+  <object id="294" x="1092.67" y="3071.67">
+   <polygon points="0,0 0,26 26,26 26,0 0,0"/>
+  </object>
+  <object id="295" x="245.337" y="1039">
+   <polygon points="0,0 0,26 26,26 26,0 0,0"/>
+  </object>
+  <object id="296" x="103.818" y="709.818">
+   <polygon points="0,0 0,16.2155 15.5791,16.2155 15.5791,0 0,0"/>
+  </object>
+  <object id="297" x="2069.17" y="1357.67">
+   <polygon points="0,0 0,26 26,26 26,0 0,0"/>
+  </object>
+  <object id="298" x="2390" y="2509">
+   <polygon points="0,0 0,26 26,26 26,0 0,0"/>
+  </object>
+  <object id="299" x="1387.75" y="2200.3">
+   <polygon points="0.00384212,17.6516 0,42.5833 42.5833,42.5833 42.5443,17.6328"/>
+  </object>
+  <object id="300" x="970.92" y="314.137">
+   <polygon points="0.00384212,17.6516 0,42.5833 42.5833,42.5833 42.5443,17.6328"/>
+  </object>
+  <object id="301" x="407.091" y="912.727">
+   <polygon points="0,0 0,16.2155 15.5791,16.2155 15.5791,0 0,0"/>
+  </object>
+  <object id="302" x="597.818" y="1011.15">
+   <polygon points="0,0 0,16.2155 15.5791,16.2155 15.5791,0 0,0"/>
+  </object>
+  <object id="303" x="168.318" y="2143.82">
+   <polygon points="0,0 0,16.2155 15.5791,16.2155 15.5791,0 0,0"/>
+  </object>
+  <object id="304" x="602.735" y="2186.65">
+   <polygon points="0,0 0,16.2155 15.5791,16.2155 15.5791,0 0,0"/>
+  </object>
+  <object id="305" x="84.1041" y="2416">
+   <polygon points="0,0 0,23.5335 22.6099,23.5335 22.6099,0 0,0"/>
+  </object>
+  <object id="306" x="728.68" y="2996.61">
+   <polygon points="0,0 0,14.079 13.5264,14.079 13.5264,0 0,0"/>
+  </object>
+  <object id="307" x="649.195" y="2368.09">
+   <polygon points="0,0 0,14.079 13.5264,14.079 13.5264,0 0,0"/>
+  </object>
+  <object id="308" x="536.195" y="471.09">
+   <polygon points="0,0 0,14.079 13.5264,14.079 13.5264,0 0,0"/>
+  </object>
+  <object id="309" x="2356.86" y="81.8474">
+   <polygon points="0,0 0,21.655 20.805,21.655 20.805,0 0,0"/>
+  </object>
+  <object id="310" x="3156.86" y="497.847">
+   <polygon points="0,0 0,21.655 20.805,21.655 20.805,0 0,0"/>
+  </object>
+  <object id="311" x="1843.83" y="618.833" width="54.3333" height="37">
+   <ellipse/>
+  </object>
+  <object id="312" x="3094.83" y="348.5" width="54.3333" height="37">
+   <ellipse/>
+  </object>
+  <object id="313" x="2998.33" y="134" width="54.3333" height="37">
+   <ellipse/>
+  </object>
+  <object id="314" x="2526.33" y="34.5366" width="71.167" height="48.4634">
+   <ellipse/>
+  </object>
+  <object id="315" x="2318.33" y="340.409" width="27.667" height="18.8407">
+   <ellipse/>
+  </object>
+  <object id="316" x="1886.33" y="56.5" width="76.667" height="52.2088">
+   <ellipse/>
+  </object>
+  <object id="317" x="1212.33" y="258.537" width="71.167" height="48.4634">
+   <ellipse/>
+  </object>
+  <object id="318" x="2639" y="467.242" width="27.667" height="18.8407">
+   <ellipse/>
+  </object>
+  <object id="320" x="246.33" y="1265.77" width="48.6697" height="33.143">
+   <ellipse/>
+  </object>
+  <object id="322" x="519.985" y="1344.32">
+   <polygon points="0,0 0,16.2155 15.5791,16.2155 15.5791,0 0,0"/>
+  </object>
+  <object id="323" x="1237.49" y="2214.67">
+   <polygon points="0,0 0,16.2155 15.5791,16.2155 15.5791,0 0,0"/>
+  </object>
+  <object id="324" x="2465.08" y="2196.41">
+   <polygon points="0.00570745,26.2214 0,63.2573 63.2573,63.2573 63.1994,26.1935"/>
+  </object>
+  <object id="325" x="667.33" y="883.742" width="27.667" height="18.8407">
+   <ellipse/>
+  </object>
+  <object id="326" x="465.845" y="1174.53" width="27.667" height="18.8407">
+   <ellipse/>
+  </object>
+  <object id="327" x="635.33" y="1937.5" width="76.667" height="52.2088">
+   <ellipse/>
+  </object>
+  <object id="328" x="23.33" y="2772.51" width="45.0033" height="30.6464">
+   <ellipse/>
+  </object>
+  <object id="329" x="393.663" y="2903.08" width="40.6282" height="27.6671">
+   <ellipse/>
+  </object>
+  <object id="330" x="2803.41" y="2533.29" width="22.337" height="15.2111">
+   <ellipse/>
+  </object>
+  <object id="331" x="1900.16" y="2964.79" width="33.34" height="22.7039">
+   <ellipse/>
+  </object>
+  <object id="332" x="2941.41" y="951.5" width="38.916" height="26.5011">
+   <ellipse/>
+  </object>
+  <object id="333" x="1195.25" y="614.47">
+   <polygon points="0.00384212,17.6516 0,42.5833 42.5833,42.5833 42.5443,17.6328"/>
+  </object>
+  <object id="334" x="143.08" y="553" width="29.976" height="20.413">
+   <ellipse/>
+  </object>
+  <object id="335" x="101.163" y="1941.28" width="23.0867" height="15.7216">
+   <ellipse/>
+  </object>
+  <object id="336" x="1142.22" y="2451.73">
+   <polygon points="-12.3636,-0.0909091 -12.5455,12.9091 25.2756,12.5966 25.3295,0.0142045"/>
+  </object>
+  <object id="337" x="1149.5" y="1422">
+   <polygon points="0,0 -25.75,-0.25 -43.75,15.5 -61,15.5 -61.2727,34.0682 35.4545,34.1364 35.0795,15.6875 16,15.75"/>
+  </object>
+  <object id="338" x="1783.67" y="1871.58">
+   <polygon points="0,0 0,16.2155 15.5791,16.2155 15.5791,0 0,0"/>
+  </object>
+  <object id="339" x="957.833" y="1293">
+   <polygon points="0,0 -25.75,-0.25 -43.75,15.5 -61,15.5 -61.2727,34.0682 35.4545,34.1364 35.0795,15.6875 16,15.75"/>
+  </object>
+  <object id="340" x="1341.5" y="1301.5">
+   <polygon points="0,0 -25.75,-0.25 -43.75,15.5 -61,15.5 -61.2727,34.0682 35.4545,34.1364 35.0795,15.6875 16,15.75"/>
+  </object>
+  <object id="341" x="1116" y="1955.5">
+   <polygon points="0,0 -25.75,-0.25 -43.75,15.5 -61,15.5 -61.2727,34.0682 35.4545,34.1364 35.0795,15.6875 16,15.75"/>
+  </object>
+  <object id="342" x="1372.13" y="1922.63">
+   <polygon points="0,0 -25.75,-0.25 -43.75,15.5 -61,15.5 -61.0227,38.9432 -41.1245,38.6586 -41.3792,48.1768 -26.578,48.2801 -21.2249,39.3031 35.7045,39.5114 35.0795,15.6875 16,15.75"/>
+  </object>
+  <object id="343" x="2575.1" y="310.03" width="27.667" height="18.8407">
+   <ellipse/>
+  </object>
+  <object id="344" x="2712.88" y="252.512">
+   <polygon points="-1.49616,20.4016 -8.25,33.5833 22.8333,46.3333 50.8286,37.2306 43.5443,20.1328"/>
+  </object>
+  <object id="345" x="1138.33" y="1910.33" width="26" height="24">
+   <ellipse/>
+  </object>
+  <object id="346" x="1880" y="1378.72" width="164" height="137.211">
+   <ellipse/>
+  </object>
+  <object id="348" x="1459.33" y="1114.33" width="51.3333" height="56.3333">
+   <ellipse/>
+  </object>
+  <object id="349" x="1442.25" y="1163" width="30.5" height="25">
+   <ellipse/>
+  </object>
+  <object id="350" x="1811.5" y="1357.75" width="57" height="36.5">
+   <ellipse/>
+  </object>
+  <object id="351" x="1742.55" y="1490.36" width="68.1818" height="18.1818">
+   <ellipse/>
+  </object>
+  <object id="352" x="1359.1" y="2422.91" width="68.1818" height="18.1818">
+   <ellipse/>
+  </object>
+  <object id="353" x="2028.55" y="1109.36" width="68.1818" height="18.1818">
+   <ellipse/>
+  </object>
+  <object id="354" x="2317.05" y="1172.86" width="68.1818" height="18.1818">
+   <ellipse/>
+  </object>
+  <object id="355" x="2129" y="1159.18" width="7.45455" height="8">
+   <ellipse/>
+  </object>
+  <object id="356" x="2215.18" y="1157.36" width="7.45455" height="8">
+   <ellipse/>
+  </object>
+  <object id="357" x="2334.5" y="998.18" width="15" height="16.0976">
+   <ellipse/>
+  </object>
+  <object id="358" x="2334.5" y="1062.18" width="15" height="16.0976">
+   <ellipse/>
+  </object>
+  <object id="359" x="2334.5" y="1126.18" width="15" height="16.0976">
+   <ellipse/>
+  </object>
+  <object id="360" x="1866.67" y="844" width="81.3333" height="101.333">
+   <ellipse/>
+  </object>
+  <object id="361" x="2370.33" y="1641.91">
+   <polygon points="-4.17965,9.94845 -3.09091,25.4545 35.5909,25.8864 35.7053,9.8697"/>
+  </object>
+  <object id="362" x="2002.58" y="1877.08" width="26" height="24">
+   <ellipse/>
+  </object>
+  <object id="363" x="2168.93" y="2431.36">
+   <polygon points="0,0 0,14.079 13.5264,14.079 13.5264,0 0,0"/>
+  </object>
+  <object id="365" x="2304" y="3072">
+   <polygon points="-22,20 -17.5,63 110,82 110,-7.5 -8.9122,-7.10274"/>
+  </object>
+  <object id="366" x="1288.16" y="3168.29" width="33.34" height="22.7039">
+   <ellipse/>
+  </object>
+  <object id="367" x="536.93" y="309.61">
+   <polygon points="0,0 0,14.079 13.5264,14.079 13.5264,0 0,0"/>
+  </object>
+  <object id="368" x="1472.64" y="545.573">
+   <polygon points="-5.48586,13.0575 -4.05687,33.4094 46.7136,33.9763 46.8638,12.9541"/>
+  </object>
+  <object id="369" x="2812" y="663.181" width="44" height="29.9632">
+   <ellipse/>
+  </object>
+  <object id="370" x="2836.86" y="273.847">
+   <polygon points="0,0 0,21.655 20.805,21.655 20.805,0 0,0"/>
+  </object>
+  <object id="372" x="1376" y="2592">
+   <polygon points="-19,19 -19.6667,77.3333 -63.2506,77.2647 -63.3758,68.133 -95.3713,68.1379 -95.1251,77.2145 -132.3,77.156 -132.25,57.2083 -159.792,56.8769 -159.667,18.6667"/>
+  </object>
+  <object id="373" x="1065.7" y="1122.34">
+   <polygon points="0,0 0,14.079 13.5264,14.079 13.5264,0 0,0"/>
+  </object>
+  <object id="374" x="1263.36" y="980.271" width="7.45455" height="8">
+   <ellipse/>
+  </object>
+  <object id="375" x="1702.92" y="813.917" width="144" height="40.25">
+   <ellipse/>
+  </object>
+  <object id="378" x="1888.33" y="832">
+   <polyline points="0,0 -0.333333,16 383.333,16"/>
+  </object>
+  <object id="379" x="840" y="895.333" width="86.6667" height="62.6667">
+   <ellipse/>
+  </object>
+  <object id="380" x="943" y="826" width="91.5" height="25">
+   <ellipse/>
+  </object>
+  <object id="381" x="1005" y="2145">
+   <polygon points="0,0 0,102 25.8,102 25.8,127.5 103.2,127.5 103.2,76.5 129,76.5 129,0"/>
+  </object>
+  <object id="382" x="267" y="2720">
+   <polygon points="0,0 0,48 26.6667,48 26.6667,96 80,96 80,72 160,72 160,24 133.333,24 133.333,0 53.3333,0"/>
   </object>
  </objectgroup>
  <objectgroup id="12" name="Events">
