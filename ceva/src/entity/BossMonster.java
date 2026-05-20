@@ -113,6 +113,12 @@ public class BossMonster extends Entity {
         if (gp.boss4Defeated) count++;
         gp.storyAct = Math.max(gp.storyAct, count);
         if (!onDeathQuestId.isEmpty()) gp.questManager.progress(onDeathQuestId, 1);
+        if (bossId == 1) {
+            gp.csManager.sceneNum = gp.csManager.ending;
+            gp.csManager.scenePhase = 0;
+            gp.csManager.counter = 0;
+            gp.gameState = GamePanel.cutsceneState;
+        }
     }
 
     public int getPhase() { return phase; }

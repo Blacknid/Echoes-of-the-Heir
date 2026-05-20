@@ -176,7 +176,7 @@ public class Player extends Entity {
         speed = defaultSpeed;
         direction = DIR_DOWN;
         level = 100;
-        maxLife = 3;
+        maxLife = 100;
         life = maxLife;
         strenght = 2;
         dexterity = 1;

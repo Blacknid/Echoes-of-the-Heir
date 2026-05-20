@@ -7,7 +7,7 @@
     "target": 1,
     "autoStart": false,
       "steps": [
-        { "action": "talk", "npc": "sword_giver_npc", "dialogue": "intro", "give": "wooden_sword",
+        { "action": "talk", "npc": "sword_giver_npc", "dialogue": "intro", "give": "shadow_blade",
           "description": "Talk to the wounded soldier" },
         { "action": "deliver", "npc": "sword_giver_npc", "item": "bandage", "consume": true,
           "dialogue": "thanks", "failDialogue": "waiting",
