@@ -2,23 +2,10 @@
 """
 Michi's Adventure - Multiplayer Server v2
 
-Reprogrammed from scratch with the same security model as the cloud-save
-server:
-
-  - RSA-OAEP-SHA256 license-bound handshake (per connection)
-  - AES-256-GCM authenticated encryption for every gameplay frame
-  - HKDF-SHA256 for delivery & session key derivation
-  - Anti-replay: signed timestamp + per-handshake nonces + nonce cache
-  - Per-IP sliding-window rate limit
-  - Bounded write queues + connection cap
-  - Server-authoritative life clamp + name sanitization
-  - Bind IP/port asked interactively at startup (overridable via env or argv)
-
-Wire format:
-    All lines are newline-terminated UTF-8.
+Format comunicare:
 
     Handshake (first message C->S; last is server-encrypted session key):
-        C -> "HELLO v2 <base64(client_nonce_16)>"
+        C -> "HELLO v2 <base64(client_nonce_16)>" ----TODO: genereaza client nonce asa cum trebuie
         S -> "OK <base64(server_nonce_16)>"
         C -> "AUTH <base64(rsa_oaep_sha256(handshake_json))>"
             handshake_json = {
@@ -43,10 +30,10 @@ Wire format:
 from __future__ import annotations
 
 import argparse
-import asyncio
+import asyncio #pentru citire/scriere intr-o conexiune TCP, am renuntat la sockets
 import base64
 import collections
-import hashlib
+import hashlib #momentan nefolosit...
 import hmac
 import ipaddress
 import json
@@ -71,9 +58,8 @@ from world import MapCollection, TmxMap
 import license_verify
 
 
-# ── Constants & defaults ────────────────────────────────────────────────────
 BASE_DIR = Path(__file__).resolve().parent
-CONFIG_PATH = BASE_DIR / "mp_config.json"
+CONFIG_PATH = BASE_DIR / "mp_config.json" #config file
 
 PROTOCOL_TAG = "v2"
 HANDSHAKE_TS_WINDOW = 60
@@ -84,12 +70,11 @@ DEFAULT_PRIVATE_KEY = "server_private_key.pem"
 DEFAULT_MAPS_DIR = "maps"
 DEFAULT_CHUNK_SIZE = 32
 DEFAULT_MAX_CHUNKS_PER_TICK = 4
-# Movement validation: how far (in tiles) a single move packet may displace
-# the player relative to the previous server-authoritative position.
+
 DEFAULT_MAX_TILE_STEP = 4
-# Default per-player hitbox in pixels (matches the client's solidArea).
-DEFAULT_HITBOX_W = 24
-DEFAULT_HITBOX_H = 24
+
+DEFAULT_HITBOX_W = 24 #latimea playerului, echivalenta cu cea din client
+DEFAULT_HITBOX_H = 24 #inaltimea playerului
 
 MAX_LINE_BYTES = 64 * 1024
 MAX_CHAT_LEN = 200
@@ -97,27 +82,28 @@ MAX_NAME_LEN = 24
 MAX_CLASS_LEN = 16
 MAX_PAYLOAD_BYTES = 16 * 1024
 MAX_LIFE_CAP = 9999
-MAX_PLAYERS_DEFAULT = 8
+MAX_PLAYERS = 8
 TICK_RATE = 20
 PING_TIMEOUT = 15.0
 SESSION_IDLE_TIMEOUT = 60.0
 RATE_LIMIT_PER_IP_PER_MIN = 30
 MAX_CHAT_PER_10S = 5
 
-DEFAULT_CONFIG = {
+
+'''
+======================================
+initializare
+======================================
+'''
+
+INITIAL_CONFIG = {
     "host": None,
     "port": None,
-    "private_key_path": DEFAULT_PRIVATE_KEY,
-    # RSA-2048 public key (DER/SPKI base64) that the installer uses to
-    # sign license.properties. MUST match LicenseManager.PUBLIC_KEY_B64.
-    # Placeholder = signature verification disabled (registry-only fallback).
+    "private_key_path": DEFAULT_PRIVATE_KEY, #cheia publica primita la instalare. criptata cu RSA-2048, cheia care a fost folosita pentru a semna license.proprieties. TREBUIE sa se potriveasca cu LicenseManager.PUBLIC_KEY_B64.
     "license_public_key_b64": "REPLACE_WITH_PUBLIC_KEY_FROM_generate_license_keys.py",
-    # Path to the license allow-list (relative to this server's dir).
-    "licenses_db": "licenses.json",
-    # Set true ONLY on a dev/localhost instance. Disables license verification
-    # entirely so you can connect without a signed license.properties.
-    "dev_mode": False,
-    "max_players": MAX_PLAYERS_DEFAULT,
+    #aici tinem locul de citire licenses.json, am renuntat la lista
+    "dev_mode": False, #MOD DE DEBUG. NU PORNI DECAT IN CAZ DE SERVER HOSTUIT LA LOOPBACK. opreste verificarea de licenta
+    "max_players": MAX_PLAYERS,
     "rate_limit_per_ip_per_minute": RATE_LIMIT_PER_IP_PER_MIN,
 
     # ---- World streaming ----
@@ -137,17 +123,18 @@ ALLOWED_NAME = set(
     "abcdefghijklmnopqrstuvwxyz"
     "ABCDEFGHIJKLMNOPQRSTUVWXYZ"
     "0123456789_-. "
-)
+) #caractere care pot aparea in numele playerului. numele nu va fi folosit inca. numele este default Player
 
 
+#definim configul
 def load_config() -> dict:
-    cfg = dict(DEFAULT_CONFIG)
+    cfg = dict(INITIAL_CONFIG)
     if CONFIG_PATH.exists():
         try:
-            cfg.update(json.loads(CONFIG_PATH.read_text(encoding="utf-8")))
+            cfg.update(json.loads(CONFIG_PATH.read_text(encoding="utf-8"))) #marea citire
         except Exception as exc:
             print(f"[WARN] Could not parse {CONFIG_PATH}: {exc} — using defaults")
-    cfg["host"] = os.environ.get("MICHI_MP_HOST") or cfg["host"]
+    cfg["host"] = os.environ.get("MICHI_MP_HOST") or cfg["host"] #ia din environment variable sau din config file
     raw_port = os.environ.get("MICHI_MP_PORT")
     if raw_port:
         try:
@@ -157,7 +144,7 @@ def load_config() -> dict:
     return cfg
 
 
-# ── Logging ────────────────────────────────────────────────────────────────
+#loguri, nu logging :)). engleza asta...
 logging.basicConfig(
     level=logging.INFO,
     format="[%(asctime)s] %(levelname)s  %(message)s",
@@ -200,7 +187,7 @@ def clamp_int(value, lo: int, hi: int, default: int) -> int:
     return v
 
 
-# ── Anti-replay nonce cache ────────────────────────────────────────────────
+#Anti-replay nonce cache. iubim playerii, iubim si atacatorii.... . Dar nu se poate cu amandoi...
 class NonceCache:
     def __init__(self, ttl: int = NONCE_REPLAY_WINDOW):
         self.ttl = ttl
@@ -219,7 +206,7 @@ class NonceCache:
             return True
 
 
-# ── Per-IP rate limiter ────────────────────────────────────────────────────
+#Rate limiter pe ip. In caz de orice atac ddos/dos
 class IpRateLimiter:
     def __init__(self, max_per_minute: int):
         self.max_per_minute = max_per_minute
@@ -237,7 +224,7 @@ class IpRateLimiter:
         return True
 
 
-# ── Player state ───────────────────────────────────────────────────────────
+#Player state
 @dataclass
 class PlayerState:
     player_id: int
@@ -278,10 +265,12 @@ class PlayerState:
         }
 
 
-# ── Encrypted client connection ────────────────────────────────────────────
+#Encrypted client connection
+
+#da wrap la conexiunea tcp si are grija de comunicarea post-handshake
 class ClientConnection:
-    DIR_S2C = b"\x01"
-    DIR_C2S = b"\x02"
+    DIR_S2C = b"\x01" #Server to Client. Semnifica directional tags. Previne unele replay/reflect attacks destul de eficient
+    DIR_C2S = b"\x02" #Client to Server
 
     def __init__(self, reader: asyncio.StreamReader, writer: asyncio.StreamWriter,
                  session_key: bytes, player: PlayerState):
@@ -912,8 +901,8 @@ def parse_args() -> argparse.Namespace:
     p = argparse.ArgumentParser(description="Michi's Adventure multiplayer server v2")
     p.add_argument("--host", help="Bind IP (skips prompt).")
     p.add_argument("--port", type=int, help="Bind port (skips prompt).")
-    p.add_argument("--max-players", type=int, default=MAX_PLAYERS_DEFAULT,
-                   help=f"Maximum concurrent players (default {MAX_PLAYERS_DEFAULT}).")
+    p.add_argument("--max-players", type=int, default=MAX_PLAYERS,
+                   help=f"Maximum concurrent players (default {MAX_PLAYERS}).")
     p.add_argument("--private-key", default=DEFAULT_PRIVATE_KEY,
                    help="Path to RSA private key PEM.")
     p.add_argument("--no-prompt", action="store_true",
@@ -1005,8 +994,8 @@ def main() -> None:
         log.error("Must specify --host and --port when --no-prompt is set.")
         sys.exit(2)
 
-    max_players = args.max_players if args.max_players != MAX_PLAYERS_DEFAULT \
-        else cfg.get("max_players", MAX_PLAYERS_DEFAULT)
+    max_players = args.max_players if args.max_players != MAX_PLAYERS \
+        else cfg.get("max_players", MAX_PLAYERS)
 
     log.info("Starting on %s:%d (key=%s, max_players=%d)",
              host, port, pk_path, max_players)
