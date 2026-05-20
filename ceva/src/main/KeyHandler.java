@@ -170,7 +170,7 @@ public class KeyHandler implements KeyListener {
             if (code == KeyEvent.VK_ENTER) {
                 switch (gp.ui.commandNum) {
                     case 0 -> { gp.player.setPlayerStats(4, 2, 1, 4, 3); startNewGame(); } 
-                    case 1 -> { gp.player.setPlayerStats(2, 1, 3, 5, 2); startNewGame(); }
+                    case 1 -> { gp.player.setPlayerStats(2, 3, 3, 5, 2); startNewGame(); }
                     case 2 -> { gp.player.setPlayerStats(3, 1, 2, 5, 5); startNewGame(); }
                     case 3 -> { gp.ui.titleScreenState = 0; gp.ui.commandNum = 0; gp.playSE(SFX.MENU_SELECT); }
                 }

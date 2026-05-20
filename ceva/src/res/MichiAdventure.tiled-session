@@ -1566,13 +1566,15 @@
         },
         "maps/Awakening_Cave.tmx": {
             "expandedObjectLayers": [
-                13
+                13,
+                17,
+                16
             ],
-            "scale": 4,
+            "scale": 0.75,
             "selectedLayer": 21,
             "viewCenter": {
-                "x": 1023.25,
-                "y": 547.625
+                "x": 710.6666666666667,
+                "y": 511.3333333333333
             }
         },
         "maps/Awakening_Cave.tmx#Details": {
@@ -1657,11 +1659,11 @@
                 8,
                 4
             ],
-            "scale": 2,
+            "scale": 0.75,
             "selectedLayer": 42,
             "viewCenter": {
-                "x": 937.5,
-                "y": 1199.25
+                "x": 2240,
+                "y": 2163.333333333333
             }
         },
         "maps/Canvas_Village.tmx#Archer": {
@@ -1832,16 +1834,36 @@
             "scaleInDock": 0.75,
             "scaleInEditor": 1
         },
+        "maps/Hollow_King_Arena.tmx": {
+            "scale": 1.1969460227272728,
+            "selectedLayer": 8,
+            "viewCenter": {
+                "x": 447.8063252833323,
+                "y": 352.1462054233668
+            }
+        },
+        "maps/Hollow_King_Arena.tmx#Grass": {
+            "scaleInDock": 1
+        },
+        "maps/Hollow_King_Arena.tmx#Grass_Water": {
+            "scaleInDock": 1
+        },
+        "maps/Hollow_King_Arena.tmx#Objects": {
+            "scaleInDock": 1
+        },
+        "maps/Hollow_King_Arena.tmx#Objects2": {
+            "scaleInDock": 1
+        },
         "maps/Shattered_Lake.tmx": {
             "expandedObjectLayers": [
                 24,
                 23
             ],
-            "scale": 0.33,
-            "selectedLayer": 14,
+            "scale": 0.25,
+            "selectedLayer": 13,
             "viewCenter": {
-                "x": 563.6363636363635,
-                "y": 1431.818181818182
+                "x": 1420,
+                "y": 1406
             }
         },
         "maps/Shattered_Lake.tmx#Boat1": {
