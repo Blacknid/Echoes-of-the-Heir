@@ -3,6 +3,8 @@
  <properties>
   <property name="actTitle" value="THE CANVAS VILLAGE"/>
   <property name="ambientLight" type="float" value="0"/>
+  <property name="defaultSpawnCol" type="int" value="71"/>
+  <property name="defaultSpawnRow" type="int" value="21"/>
   <property name="music" value="0"/>
   <property name="weather" value="CLEAR"/>
   <property name="weatherCycle" type="bool" value="true"/>
