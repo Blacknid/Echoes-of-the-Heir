@@ -229,6 +229,11 @@ public class MapManager {
             gp.eManager.lightning.clearShadowCaches();
         }
 
+        // Invalidate render pipeline world cache to prevent black ground after transitions
+        if (gp.renderPipeline != null) {
+            gp.renderPipeline.invalidateWorldCache();
+        }
+
         gp.eHandler.reset();
 
         if (savedObjects.containsKey(currentMapId)) {

@@ -440,6 +440,10 @@ public class Player extends Entity {
                                 m.damageReaction();
                                 spawnDamageNumber(m, dmg, false);
                                 if (m.life <= 0) killMonster(m);
+                                // Sync mob damage to other players in multiplayer
+                                if (gp.mpClient != null && gp.mpClient.isConnected()) {
+                                    gp.mpClient.sendMobDamage(si, dmg, m.life, m.maxLife, m.name);
+                                }
                             }
                         }
                     }
@@ -963,6 +967,10 @@ public class Player extends Entity {
                 if (gp.monster[i].life <= 0) {
                     killMonster(gp.monster[i]);
                 }
+                // Sync mob damage to other players in multiplayer
+                if (gp.mpClient != null && gp.mpClient.isConnected()) {
+                    gp.mpClient.sendMobDamage(i, damage, gp.monster[i].life, gp.monster[i].maxLife, gp.monster[i].name);
+                }
             }
         }
     }
@@ -1046,6 +1054,10 @@ public class Player extends Entity {
                 if (m.life <= 0) {
                     killMonster(m);
                 }
+                // Sync mob damage to other players in multiplayer
+                if (gp.mpClient != null && gp.mpClient.isConnected()) {
+                    gp.mpClient.sendMobDamage(i, damage, m.life, m.maxLife, m.name);
+                }
             }
         }
 
@@ -1112,6 +1124,10 @@ public class Player extends Entity {
                 if (m.life <= 0) {
                     killMonster(m);
                 }
+                // Sync mob damage to other players in multiplayer
+                if (gp.mpClient != null && gp.mpClient.isConnected()) {
+                    gp.mpClient.sendMobDamage(i, damage, m.life, m.maxLife, m.name);
+                }
             }
 
             Particle p = gp.particlePool.get();
@@ -1152,6 +1168,15 @@ public class Player extends Entity {
         // Soul Reaper: heal 1 HP on kill
         if (soulReaperUnlocked && life < maxLife) {
             life++;
+        }
+        // Find monster index and sync death to other players in multiplayer
+        if (gp.mpClient != null && gp.mpClient.isConnected()) {
+            for (int i = 0; i < gp.monster.length; i++) {
+                if (gp.monster[i] == monster) {
+                    gp.mpClient.sendMobDeath(i, monster.name);
+                    break;
+                }
+            }
         }
     }
 
