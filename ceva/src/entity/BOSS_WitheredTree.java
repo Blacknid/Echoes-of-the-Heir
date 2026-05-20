@@ -1,4 +1,4 @@
-﻿package entity;
+package entity;
 
 import java.awt.AlphaComposite;
 import java.awt.BasicStroke;

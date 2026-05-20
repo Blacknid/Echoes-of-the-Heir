@@ -2,24 +2,24 @@
 """
 World streaming module for Michi's Adventure multiplayer server.
 
-Responsibilities
+Responsabilitati
 ----------------
-1. Load a collection of TMX maps from disk (configurable directory).
+1. Incarca o mapa/colectie de mape de pe disk (director mentionat in mp_config.json).
 2. Parse each TMX into:
      - dimensions      (width × height in tiles, tilewidth/tileheight in px)
      - tile layers     (raw uint32 GIDs preserving Tiled flip-flags)
      - object groups   (Collision, Events, NPCs, Monsters, Objects, …)
-3. Pre-split every tile layer into spatial chunks of `chunk_size` tiles on
-   each side. Chunks are gzipped+base64-encoded for cheap delivery.
-4. Build a fast collision oracle (rect-based + tile-layer based) so that the
-   server can authoritatively reject illegal moves.
-5. Build a trigger index (rectangles in objectgroup name="Events") so the
-   server can detect when a player steps on a map-transition / spawn /
-   dialogue trigger and inform the client.
-6. Generate a "skeleton" version of the TMX where every <data> block has
-   been replaced with a same-shape CSV of zeros. The skeleton is small
-   (no tile data) and is sent to the client up-front so its TileManager
-   can allocate the right structures. Real GIDs flow in later via chunks.
+3. Pre-imparte fiecare tile layer in chunkuri de `chunk_size` tiles pe
+   fiecare parte. Chunkurile sunt gzipped+base64-encoded pentru livrare fara prea multe resurse.
+4. construieste un collision oracle rapid (rect-based + tile-layer based) ca serverul
+   sa detecteze autoritar miscari ilegale.
+5. Construieste un trigger index (rectangles in objectgroup name="Events") pentru ca
+   serverul sa poata detecta cand un player calca pe o zona de tranzitie mapa/spawn/
+   dialogue trigger si informeaza clientul.
+6. Genereaza un "schelet" al TMX-ului, unde fiecare bloc <data> a fost
+   inlocuit cu o forma echivalenta CSV din zero-uri. Scheletul este mic
+   (no tile data) si este trimis clientului inainte pentru ca TileManager
+   sa poata aloca structurile corespunzatare. Adevarata harta va fi trimisa in chunkuri pe parcurs.
 
 The module is pure Python + stdlib (xml.etree, gzip, base64, struct).
 No external deps beyond the cryptography lib already used by the server.
@@ -45,7 +45,7 @@ GID_MASK = 0x1FFFFFFF
 FLIP_BITS = 0xE0000000
 
 
-# ── Data classes ───────────────────────────────────────────────────────────
+# Data classes
 @dataclass
 class TmxObject:
     """Mirrors a Tiled <object> entry — typed properties already coerced."""
@@ -74,7 +74,8 @@ class TmxLayer:
 
 # ── Map ────────────────────────────────────────────────────────────────────
 class TmxMap:
-    """One parsed TMX map, sliced into chunks."""
+    """o harta din TMX impartita pe bucatele. dimensiunea o vom declara la apel, pentru a permite
+       mai mult customization din partea comunitatii (ma rog, viitoarei comunitati...)"""
 
     def __init__(self, map_id: str, path: Path, chunk_size: int = 32):
         self.map_id = map_id
@@ -86,6 +87,8 @@ class TmxMap:
 
         self.tree = ET.ElementTree(ET.fromstring(self.raw_bytes))
         root = self.tree.getroot()
+
+
         if root.tag != "map":
             raise ValueError(f"{path}: root is <{root.tag}>, expected <map>")
 
@@ -96,9 +99,12 @@ class TmxMap:
         if self.width <= 0 or self.height <= 0:
             raise ValueError(f"{path}: invalid dimensions {self.width}x{self.height}")
 
+
         self.properties: dict = self._parse_properties(root)
         self.layers: list[TmxLayer] = []
         self.object_groups: dict[str, list[TmxObject]] = {}
+
+
 
         for child in list(root):
             if child.tag == "layer":
@@ -108,6 +114,7 @@ class TmxMap:
                 self.object_groups[gname] = self._parse_object_group(child)
 
         # Chunk index — lazily filled. Maps (layer_idx, cx, cy) → encoded blob.
+        
         self._chunk_cache: dict[tuple[int, int, int], dict] = {}
         self.num_chunks_x = (self.width + self.chunk_size - 1) // self.chunk_size
         self.num_chunks_y = (self.height + self.chunk_size - 1) // self.chunk_size

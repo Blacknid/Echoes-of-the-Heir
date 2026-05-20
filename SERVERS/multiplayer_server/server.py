@@ -5,7 +5,7 @@ Michi's Adventure - Multiplayer Server v2
 Format comunicare:
 
     Handshake (first message C->S; last is server-encrypted session key):
-        C -> "HELLO v2 <base64(client_nonce_16)>" ----TODO: genereaza client nonce asa cum trebuie
+        C -> "HELLO v2 <base64(client_nonce_16)>"
         S -> "OK <base64(server_nonce_16)>"
         C -> "AUTH <base64(rsa_oaep_sha256(handshake_json))>"
             handshake_json = {
@@ -65,7 +65,7 @@ PROTOCOL_TAG = "v2"
 HANDSHAKE_TS_WINDOW = 60
 NONCE_REPLAY_WINDOW = 300
 
-DEFAULT_PORT = 7777
+DEFAULT_PORT = 7777 #INTRE 0 SI 65535
 DEFAULT_PRIVATE_KEY = "server_private_key.pem"
 DEFAULT_MAPS_DIR = "maps"
 DEFAULT_CHUNK_SIZE = 32
@@ -265,6 +265,38 @@ class PlayerState:
         }
 
 
+# Mob state for multiplayer synchronization
+@dataclass
+class MobState:
+    mob_id: int           # Array index on client
+    mob_type: str         # Monster type identifier
+    life: int
+    max_life: int
+    alive: bool = True
+    dying: bool = False
+    world_x: int = 0
+    world_y: int = 0
+    last_attacker_pid: int = -1
+
+    def to_damage_dict(self) -> dict:
+        return {
+            "type": "mob_damage",
+            "mob_id": self.mob_id,
+            "life": self.life,
+            "max_life": self.max_life,
+            "alive": self.alive,
+            "dying": self.dying,
+            "attacker_pid": self.last_attacker_pid,
+        }
+
+    def to_death_dict(self) -> dict:
+        return {
+            "type": "mob_death",
+            "mob_id": self.mob_id,
+            "killer_pid": self.last_attacker_pid,
+        }
+
+
 #Encrypted client connection
 
 #da wrap la conexiunea tcp si are grija de comunicarea post-handshake
@@ -347,6 +379,7 @@ class ClientConnection:
             raise ValueError("payload too big")
         return json.loads(plaintext.decode("utf-8"))
 
+#for future development: se poate folosi functia de chat. se va lansa in urmatorul client update. am declarat mai jos ce inseamna un frame de chat
     def chat_allowed_now(self) -> bool:
         now = time.monotonic()
         cutoff = now - 10.0
@@ -358,7 +391,8 @@ class ClientConnection:
         return True
 
 
-# ── Game server ────────────────────────────────────────────────────────────
+
+#Game Server
 class GameServer:
     def __init__(self, host: str, port: int, max_players: int,
                  private_key, nonce_cache: NonceCache,
@@ -371,7 +405,7 @@ class GameServer:
         self.nonce_cache = nonce_cache
         self.rate_limiter = rate_limiter
         self.cfg = cfg
-        self.maps = maps
+        self.maps = maps # foloseste world.py, aici e integrarea dintre serverul efectiv si world.py
         self.active_map_id = active_map_id
         self.world: TmxMap = maps.get(active_map_id)
         if self.world is None:
@@ -383,6 +417,8 @@ class GameServer:
         self._next_id = 1
         self._running = False
         self._server: Optional[asyncio.AbstractServer] = None
+        # Mob tracking for multiplayer synchronization
+        self.mobs: dict[int, MobState] = {}
 
     def _allocate_id(self) -> int:
         pid = self._next_id
@@ -394,7 +430,7 @@ class GameServer:
             if pid != exclude_id:
                 client.send_json(obj)
 
-    # ── Handshake ──
+    #Handshake
     async def _handshake(self, reader: asyncio.StreamReader,
                          writer: asyncio.StreamWriter,
                          peer: tuple[str, int]) -> Optional[tuple[bytes, dict]]:
@@ -458,16 +494,16 @@ class GameServer:
             return None
 
         license_key = str(payload.get("license", ""))[:32]
-        ts = int(payload.get("ts", 0))
+        ts = int(payload.get("ts", 0)) #folosim Unix timestamps
         cn_check = bytes.fromhex(str(payload.get("client_nonce", "")) or "")
         sn_check = bytes.fromhex(str(payload.get("server_nonce", "")) or "")
 
         # Server-side dev_mode (ONLY localhost dev): bypass all license checks.
-        # The old client-controlled "debug" field is gone — that was a public bypass.
         dev_mode = bool(self.cfg.get("dev_mode", False))
 
+        #FARA DEV
         if not dev_mode:
-            # Step 1: structural sanity check (RSA + registry do the real work).
+            # Step 1: structural sanity check
             if not license_is_well_formed(license_key):
                 writer.write(b"AUTH_FAIL\n")
                 await writer.drain()
@@ -501,6 +537,8 @@ class GameServer:
             log.info("AUTH replay rejected from %s", peer)
             return None
 
+        #CU DEV
+
         if dev_mode:
             log.warning("dev_mode auth bypass accepted from %s", peer)
         delivery_key = hkdf(
@@ -518,7 +556,7 @@ class GameServer:
 
         return session_key, payload
 
-    # ── Per-client lifecycle ──
+    #Per-client lifecycle
     async def handle_client(self, reader: asyncio.StreamReader,
                             writer: asyncio.StreamWriter):
         peer = writer.get_extra_info("peername") or ("?", 0)
@@ -579,7 +617,7 @@ class GameServer:
         player.player_class = "".join(c for c in cls_raw if c.isalnum()) or "Fighter"
         player.map_id = self.active_map_id
 
-        # Authoritative spawn position from TMX
+        # Spawn arbitrar din TMX
         spawn_col, spawn_row = self.world.default_spawn
         player.x = spawn_col * self.world.tilewidth
         player.y = spawn_row * self.world.tileheight
@@ -663,6 +701,12 @@ class GameServer:
                 elif t == "ping":
                     client.send_json({"type": "pong"})
 
+                elif t == "mob_damage":
+                    self._handle_mob_damage(client, msg)
+
+                elif t == "mob_death":
+                    self._handle_mob_death(client, msg)
+
                 else:
                     # Ignore unknown messages, do not punish — protocol may grow
                     log.debug("Unknown msg type from pid=%s: %s",
@@ -695,14 +739,13 @@ class GameServer:
                 for other_pid, other_client in self.clients.items():
                     if other_pid != pid:
                         other_client.send_json(update)
-            # Drain queued chunk requests, rate-limited per player so a single
-            # client can't flood the encrypted writer queue.
+            #stergem chunk-ul din coada, limitam rata pentru a opri un singur client de a da flood la toata coada criptata 
             for pid, client in list(self.clients.items()):
                 self._drain_chunks(client, max_chunks)
             elapsed = time.monotonic() - start
             await asyncio.sleep(max(0.0, interval - elapsed))
 
-    # ── Authoritative move validation ──
+    #Authoritative move validation
     def _handle_move(self, client: "ClientConnection", msg: dict) -> None:
         player = client.player
         world = self.world
@@ -712,7 +755,7 @@ class GameServer:
         new_x = clamp_int(msg.get("x"), 0, world.width  * world.tilewidth  - 1, player.x)
         new_y = clamp_int(msg.get("y"), 0, world.height * world.tileheight - 1, player.y)
 
-        # Anti-teleport: cap the per-packet displacement.
+        #Anti-teleport: cap the per-packet displacement.
         dx = new_x - player.last_valid_x
         dy = new_y - player.last_valid_y
         if abs(dx) > max_step_px or abs(dy) > max_step_px:
@@ -720,11 +763,11 @@ class GameServer:
             new_y = player.last_valid_y + clamp_int(dy, -max_step_px, max_step_px, 0)
             log.debug("Player %d step exceeded cap; clamped", player.player_id)
 
-        # Collision: validate the destination box.
+        #Collision: validate the destination box.
         hb_w = int(self.cfg.get("player_hitbox_w", DEFAULT_HITBOX_W))
         hb_h = int(self.cfg.get("player_hitbox_h", DEFAULT_HITBOX_H))
-        # Player coords are top-left of sprite; hitbox is centred horizontally
-        # and aligned to the bottom 75% of the sprite (matches client default).
+        #Player coords are top-left of sprite; hitbox is centred horizontally
+        #and aligned to the bottom 75% of the sprite (matches client default).
         hb_off_x = (world.tilewidth - hb_w) // 2
         hb_off_y = world.tileheight - hb_h
         bx = new_x + hb_off_x
@@ -797,7 +840,71 @@ class GameServer:
         log.info("Player %d hit cross-map trigger -> %s",
                  client.player.player_id, new_world.map_id)
 
-    # ── Chunk delivery ──
+    #Mob synchronization handlers
+    def _handle_mob_damage(self, client: "ClientConnection", msg: dict) -> None:
+        """Process mob damage from a client and broadcast to all other clients."""
+        mob_id = clamp_int(msg.get("mob_id"), 0, 999, -1)
+        damage = clamp_int(msg.get("damage"), 0, 9999, 0)
+        life = clamp_int(msg.get("life"), 0, 9999, 0)
+        max_life = clamp_int(msg.get("max_life"), 1, 9999, 1)
+        mob_type = str(msg.get("mob_type", "unknown"))[:32]
+
+        if mob_id < 0 or damage <= 0:
+            return
+
+        # Get or create mob state
+        mob = self.mobs.get(mob_id)
+        if mob is None:
+            mob = MobState(mob_id=mob_id, mob_type=mob_type, life=max_life, max_life=max_life)
+            self.mobs[mob_id] = mob
+
+        # Update mob state from client report
+        mob.life = life
+        mob.last_attacker_pid = client.player.player_id
+
+        # Broadcast damage to all other clients
+        self.broadcast_json({
+            "type": "mob_damage",
+            "mob_id": mob_id,
+            "life": life,
+            "max_life": max_life,
+            "damage": damage,
+            "attacker_pid": client.player.player_id,
+            "mob_type": mob.mob_type,
+        }, exclude_id=client.player.player_id)
+
+    def _handle_mob_death(self, client: "ClientConnection", msg: dict) -> None:
+        """Process mob death from a client and broadcast to all other clients."""
+        mob_id = clamp_int(msg.get("mob_id"), 0, 999, -1)
+        mob_type = str(msg.get("mob_type", "unknown"))[:32]
+
+        if mob_id < 0:
+            return
+
+        # Update mob state
+        mob = self.mobs.get(mob_id)
+        if mob is None:
+            mob = MobState(mob_id=mob_id, mob_type=mob_type, life=0, max_life=1)
+            self.mobs[mob_id] = mob
+
+        mob.alive = False
+        mob.dying = True
+        mob.life = 0
+        mob.last_attacker_pid = client.player.player_id
+
+        # Broadcast death to all clients (including sender for confirmation)
+        self.broadcast_json({
+            "type": "mob_death",
+            "mob_id": mob_id,
+            "killer_pid": client.player.player_id,
+            "mob_type": mob.mob_type,
+        })
+
+        # Clean up dead mob after a delay (keep for respawn logic)
+        # For now, just mark as dead; respawn logic can be added later
+        log.debug("Mob %d (%s) killed by player %d", mob_id, mob.mob_type, client.player.player_id)
+
+    #Chunk delivery
     def _handle_chunk_request(self, client: "ClientConnection", msg: dict) -> None:
         """Queue a (layer_idx, cx, cy) request for the per-player drainer."""
         layer_idx = clamp_int(msg.get("layer_idx"), 0, len(self.world.layers) - 1, -1)
@@ -829,7 +936,7 @@ class GameServer:
             client.player.chunks_sent.add(key)
             sent += 1
 
-    # ── Server start/stop ──
+    #Server start/stop
     async def start(self) -> None:
         self._running = True
         self._server = await asyncio.start_server(
@@ -852,7 +959,7 @@ class GameServer:
             self._server.close()
 
 
-# ── Startup helpers ────────────────────────────────────────────────────────
+#STARTUP MESSAGES and helpers
 def prompt_bind_address(default_host: str, default_port: int) -> tuple[str, int]:
     print("══════════════════════════════════════════════════════")
     print("  Michi's Adventure — Multiplayer Server v2")

@@ -1,5 +1,7 @@
 package main;
 
+import entity.DamageNumber;
+import entity.Entity;
 import java.io.BufferedReader;
 import java.io.BufferedWriter;
 import java.io.IOException;
@@ -515,6 +517,8 @@ public class MultiplayerClient {
                 connectionStatus = "Kicked: " + (reason != null ? reason : "No reason");
                 disconnect();
             }
+            case "mob_damage" -> handleMobDamage(json);
+            case "mob_death" -> handleMobDeath(json);
             default -> { /* ignore unknown */ }
         }
     }
@@ -850,6 +854,100 @@ public class MultiplayerClient {
         int start = i + search.length();
         while (start < json.length() && json.charAt(start) == ' ') start++;
         return json.startsWith("true", start);
+    }
+
+    // =====================================================================
+    //  MOB SYNCHRONIZATION (multiplayer damage/death sync)
+    // =====================================================================
+
+    /** Send mob damage to the server for synchronization with other players. */
+    public void sendMobDamage(int mobId, int damage, int currentLife, int maxLife, String mobType) {
+        if (!connected.get()) return;
+        try {
+            String msg = "{\"type\":\"mob_damage\","
+                    + "\"mob_id\":" + mobId + ","
+                    + "\"damage\":" + damage + ","
+                    + "\"life\":" + currentLife + ","
+                    + "\"max_life\":" + maxLife + ","
+                    + "\"mob_type\":\"" + jsonEscape(mobType) + "\""
+                    + "}";
+            sendEncrypted(msg);
+        } catch (Exception e) {
+            System.out.println("[MP Client] Error sending mob_damage: " + e.getMessage());
+        }
+    }
+
+    /** Send mob death to the server for synchronization with other players. */
+    public void sendMobDeath(int mobId, String mobType) {
+        if (!connected.get()) return;
+        try {
+            String msg = "{\"type\":\"mob_death\","
+                    + "\"mob_id\":" + mobId + ","
+                    + "\"mob_type\":\"" + jsonEscape(mobType) + "\""
+                    + "}";
+            sendEncrypted(msg);
+        } catch (Exception e) {
+            System.out.println("[MP Client] Error sending mob_death: " + e.getMessage());
+        }
+    }
+
+    /** Handle incoming mob damage from another player via the server. */
+    private void handleMobDamage(String json) {
+        try {
+            int mobId = extractInt(json, "mob_id", -1);
+            int life = extractInt(json, "life", -1);
+            int damage = extractInt(json, "damage", 0);
+            int attackerPid = extractInt(json, "attacker_pid", -1);
+
+            if (mobId < 0 || mobId >= gp.monster.length) return;
+            Entity mob = gp.monster[mobId];
+            if (mob == null || !mob.alive) return;
+
+            // Don't apply damage from ourselves (already applied locally)
+            if (attackerPid == localId) return;
+
+            // Apply synchronized damage
+            mob.life = life;
+            mob.hitFlashCounter = 6;
+            mob.damageReaction();
+
+            // Show damage number
+            if (damage > 0) {
+                DamageNumber dn = gp.damageNumberPool.get();
+                int x = mob.worldX + gp.tileSize / 4;
+                int y = mob.worldY - 8;
+                dn.set(x, y, String.valueOf(damage), new java.awt.Color(255, 80, 60), false);
+                gp.damageNumbers.add(dn);
+            }
+
+            System.out.println("[MP] Mob " + mobId + " took " + damage + " damage from player " + attackerPid);
+        } catch (Exception e) {
+            System.out.println("[MP Client] handleMobDamage error: " + e.getMessage());
+        }
+    }
+
+    /** Handle incoming mob death from another player via the server. */
+    private void handleMobDeath(String json) {
+        try {
+            int mobId = extractInt(json, "mob_id", -1);
+            int killerPid = extractInt(json, "killer_pid", -1);
+
+            if (mobId < 0 || mobId >= gp.monster.length) return;
+            Entity mob = gp.monster[mobId];
+            if (mob == null) return;
+
+            // If we're the killer, we already handled this locally
+            if (killerPid == localId) return;
+
+            // Only kill if not already dying/dead
+            if (mob.alive && !mob.dying) {
+                int coinDrop = Math.max(1, mob.exp / 2);
+                mob.beginDeath(mob.exp, 1, coinDrop);
+                System.out.println("[MP] Mob " + mobId + " killed by player " + killerPid);
+            }
+        } catch (Exception e) {
+            System.out.println("[MP Client] handleMobDeath error: " + e.getMessage());
+        }
     }
 
     /** Holds the state of a remote player for rendering. */
