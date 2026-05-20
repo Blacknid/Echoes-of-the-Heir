@@ -1,10 +1,10 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<map version="1.10" tiledversion="1.12.1" orientation="orthogonal" renderorder="right-down" width="40" height="30" tilewidth="32" tileheight="32" infinite="0" nextlayerid="24" nextobjectid="127">
+<map version="1.10" tiledversion="1.12.1" orientation="orthogonal" renderorder="right-down" width="40" height="30" tilewidth="32" tileheight="32" infinite="0" nextlayerid="24" nextobjectid="130">
  <properties>
   <property name="actTitle" value="Act I: The Awakening Cave"/>
   <property name="actTitleNewGameOnly" type="bool" value="true"/>
   <property name="ambientLight" type="float" value="0.7"/>
-  <property name="music" type="int" value="1"/>
+  <property name="music" type="int" value="0"/>
   <property name="weather" value="CLEAR"/>
   <property name="weatherCycle" type="bool" value="false"/>
  </properties>
@@ -3930,26 +3930,26 @@
  </tileset>
  <tileset firstgid="7724" name="ground_grasss" tilewidth="32" tileheight="32" tilecount="742" columns="53">
   <image source="../tiles/CANVAS VILLAGE/Field/ground_grasss.png" width="1696" height="448"/>
-  <tile id="663">
+  <tile id="716">
    <properties>
-    <property name="sortYOffset" type="int" value="64"/>
+    <property name="sortYOffset" type="int" value="-64"/>
    </properties>
   </tile>
-  <tile id="664">
+  <tile id="717">
    <properties>
-    <property name="sortYOffset" type="int" value="64"/>
+    <property name="sortYOffset" type="int" value="-64"/>
    </properties>
   </tile>
-  <tile id="665">
+  <tile id="718">
    <properties>
-    <property name="sortYOffset" type="int" value="64"/>
+    <property name="sortYOffset" type="int" value="-64"/>
    </properties>
   </tile>
  </tileset>
  <layer id="1" name="Ground" width="40" height="30">
   <properties>
    <property name="background" type="bool" value="true"/>
-   <property name="render" propertytype="RenderBucket" value="background"/>
+   <property name="render" value="background"/>
   </properties>
   <data encoding="csv">
 59,59,59,59,59,59,59,59,59,59,59,59,59,59,59,59,59,59,59,59,59,59,59,59,59,59,59,59,59,59,59,59,59,59,59,59,59,59,59,59,
@@ -3986,7 +3986,7 @@
  </layer>
  <layer id="18" name="Ground_water" width="40" height="30">
   <properties>
-   <property name="render" propertytype="RenderBucket" value="background"/>
+   <property name="render" value="background"/>
   </properties>
   <data encoding="csv">
 0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
@@ -4023,7 +4023,7 @@
  </layer>
  <layer id="19" name="Walls_water" width="40" height="30">
   <properties>
-   <property name="render" propertytype="RenderBucket" value="background"/>
+   <property name="render" value="background"/>
   </properties>
   <data encoding="csv">
 0,0,0,0,0,0,0,0,4036,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
@@ -4060,7 +4060,7 @@
  </layer>
  <layer id="4" name="Ground_details" width="40" height="30">
   <properties>
-   <property name="render" propertytype="RenderBucket" value="depth"/>
+   <property name="render" value="depth"/>
   </properties>
   <data encoding="csv">
 1458,0,0,0,0,0,0,0,0,1390,1391,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1256,0,0,0,0,0,
@@ -4097,7 +4097,7 @@
  </layer>
  <layer id="23" name="Entrance_Canvas" width="40" height="30">
   <properties>
-   <property name="render" propertytype="RenderBucket" value="background"/>
+   <property name="render" value="background"/>
   </properties>
   <data encoding="csv">
 0,0,0,0,0,0,0,0,0,0,0,8187,8188,8188,8188,8188,8188,8188,8188,8188,8188,8188,8189,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
@@ -4134,7 +4134,7 @@
  </layer>
  <layer id="5" name="Spawn" width="40" height="30">
   <properties>
-   <property name="render" propertytype="RenderBucket" value="background"/>
+   <property name="render" value="background"/>
   </properties>
   <data encoding="csv">
 0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,8202,8203,8203,8204,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
@@ -4171,7 +4171,7 @@
  </layer>
  <layer id="22" name="Plants_under" width="40" height="30">
   <properties>
-   <property name="render" propertytype="RenderBucket" value="depth"/>
+   <property name="render" value="depth"/>
   </properties>
   <data encoding="csv">
 0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
@@ -4209,7 +4209,7 @@
  <layer id="3" name="Walls" width="40" height="30">
   <properties>
    <property name="depthSort" type="bool" value="true"/>
-   <property name="render" propertytype="RenderBucket" value="depth"/>
+   <property name="render" value="depth"/>
   </properties>
   <data encoding="csv">
 0,0,0,310,311,2147484034,2147483930,0,0,0,0,0,8387,8388,8389,0,0,0,0,8387,8388,8389,0,0,0,1129,1130,0,0,0,0,0,0,0,0,379,1122,1123,1124,377,
@@ -4246,7 +4246,7 @@
  </layer>
  <layer id="21" name="Walls_vertically" width="40" height="30">
   <properties>
-   <property name="render" propertytype="RenderBucket" value="depth"/>
+   <property name="render" value="depth"/>
   </properties>
   <data encoding="csv">
 0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
@@ -4283,7 +4283,7 @@
  </layer>
  <layer id="10" name="Effects_walls" width="40" height="30">
   <properties>
-   <property name="render" propertytype="RenderBucket" value="depth"/>
+   <property name="render" value="depth"/>
   </properties>
   <data encoding="csv">
 0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
@@ -4320,7 +4320,7 @@
  </layer>
  <layer id="7" name="Plants_over" width="40" height="30">
   <properties>
-   <property name="render" propertytype="RenderBucket" value="depth"/>
+   <property name="render" value="depth"/>
   </properties>
   <data encoding="csv">
 1379,1380,1381,1382,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
@@ -4357,7 +4357,7 @@
  </layer>
  <layer id="8" name="Ceilling" width="40" height="30">
   <properties>
-   <property name="render" propertytype="RenderBucket" value="depth"/>
+   <property name="render" value="depth"/>
   </properties>
   <data encoding="csv">
 0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1196,1102,1228,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
@@ -4394,7 +4394,7 @@
  </layer>
  <layer id="6" name="Walls_details" width="40" height="30">
   <properties>
-   <property name="render" propertytype="RenderBucket" value="depth"/>
+   <property name="render" value="depth"/>
   </properties>
   <data encoding="csv">
 0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
@@ -4431,7 +4431,7 @@
  </layer>
  <layer id="20" name="Objects_2" width="40" height="30">
   <properties>
-   <property name="render" propertytype="RenderBucket" value="depth"/>
+   <property name="render" value="depth"/>
   </properties>
   <data encoding="csv">
 0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
@@ -4468,7 +4468,7 @@
  </layer>
  <layer id="11" name="Objects" width="40" height="30">
   <properties>
-   <property name="render" propertytype="RenderBucket" value="depth"/>
+   <property name="render" value="depth"/>
   </properties>
   <data encoding="csv">
 0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
@@ -4505,7 +4505,7 @@
  </layer>
  <layer id="12" name="Whisps" width="40" height="30">
   <properties>
-   <property name="render" propertytype="RenderBucket" value="depth"/>
+   <property name="render" value="depth"/>
   </properties>
   <data encoding="csv">
 0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
@@ -4542,7 +4542,7 @@
  </layer>
  <layer id="9" name="Effects" width="40" height="30">
   <properties>
-   <property name="render" propertytype="RenderBucket" value="foreground"/>
+   <property name="render" value="foreground"/>
   </properties>
   <data encoding="csv">
 0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
@@ -4685,6 +4685,9 @@
   <object id="123" x="0" y="888.875">
    <polygon points="0,0 16.0625,0 16,37.2167 -0.125,37.25"/>
   </object>
+  <object id="128" x="384" y="0">
+   <polyline points="0,0 32,32 64,32 96,0 96,-32 224,-32 224,0 256,32 288,32 320,0"/>
+  </object>
  </objectgroup>
  <objectgroup id="13" name="Events">
   <object id="23" name="Slime spawner" type="SpawnZone" x="864" y="364.8">
@@ -4794,8 +4797,9 @@ Keep searching.</property>
   </object>
   <object id="81" name="Tutorial ( Combat )" type="DialogueTrigger" x="1120" y="512">
    <properties>
-    <property name="message">You'll start the Combat Tutorial. 
- Good Luck!</property>
+    <property name="message">You'll start the Combat Tutorial.  
+Press ENTER  to attack!
+Good luck!</property>
     <property name="oneShot" type="bool" value="true"/>
    </properties>
    <polyline points="0,0 32,0"/>
