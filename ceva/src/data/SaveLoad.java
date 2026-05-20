@@ -169,6 +169,10 @@ public class SaveLoad {
         gs.frostNovaUnlocked = gp.player.frostNovaUnlocked;
         gs.overdriveUnlocked = gp.player.overdriveUnlocked;
 
+        for (main.SkillTree.SkillNode n : gp.player.skillTree.getNodes()) {
+            if (n.unlocked) gs.unlockedSkillNodes.add(n.id);
+        }
+
         for (Entity e : gp.player.inventory) {
             gs.itemNames.add(serializeEntityId(e));
             gs.itemAmounts.add(e.amount);
@@ -315,6 +319,15 @@ public class SaveLoad {
             sb.append("metNPCs.size=").append(metList.size()).append('\n');
             for (int i = 0; i < metList.size(); i++) {
                 sb.append("metNPCs.").append(i).append('=').append(metList.get(i)).append('\n');
+            }
+
+            main.SkillTree.SkillNode[] skillNodes = gp.player.skillTree.getNodes();
+            int unlockedCount = 0;
+            for (main.SkillTree.SkillNode n : skillNodes) { if (n.unlocked) unlockedCount++; }
+            sb.append("skilltree.size=").append(unlockedCount).append('\n');
+            int si = 0;
+            for (main.SkillTree.SkillNode n : skillNodes) {
+                if (n.unlocked) { sb.append("skilltree.").append(si++).append('=').append(n.id).append('\n'); }
             }
 
             byte[] encrypted = encrypt(sb.toString());
@@ -482,6 +495,12 @@ public class SaveLoad {
                 if (mid != null && !mid.isBlank()) gp.metNPCs.add(mid);
             }
 
+            int stSize = Integer.parseInt(map.getOrDefault("skilltree.size", "0"));
+            for (int i = 0; i < stSize; i++) {
+                String nid = map.get("skilltree." + i);
+                if (nid != null && !nid.isBlank()) gp.player.skillTree.markUnlocked(nid);
+            }
+
         } catch (java.io.IOException | java.security.GeneralSecurityException | RuntimeException e) {
             System.out.println("Load from disk failed: " + e.getMessage());
             System.out.println("Load Exception!");
@@ -510,7 +529,9 @@ public class SaveLoad {
         gp.mapManager.clearSavedMapEntities(targetId);
         gp.mapManager.nextSpawnId = "";
 
+        gp.mapManager.loadingGame = true;
         gp.mapManager.changeMap(targetId, spawnCol, spawnRow);
+        gp.mapManager.loadingGame = false;
     }
 
     private void applyGameState(GameState state) {
@@ -545,6 +566,20 @@ public class SaveLoad {
         gp.player.voidSnareUnlocked = state.voidSnareUnlocked;
         gp.player.frostNovaUnlocked = state.frostNovaUnlocked;
         gp.player.overdriveUnlocked = state.overdriveUnlocked;
+
+        // Skill tree visual state — use full node list when available (new saves),
+        // fall back to the 5 legacy boolean flags for old saves.
+        if (state.unlockedSkillNodes != null && !state.unlockedSkillNodes.isEmpty()) {
+            for (String nid : state.unlockedSkillNodes) {
+                gp.player.skillTree.markUnlocked(nid);
+            }
+        } else {
+            if (state.dashUnlocked)      gp.player.skillTree.markUnlocked("WINDSTEP");
+            if (state.shockwaveUnlocked) gp.player.skillTree.markUnlocked("SHOCKWAVE");
+            if (state.voidSnareUnlocked) gp.player.skillTree.markUnlocked("VOID_SNARE");
+            if (state.frostNovaUnlocked) gp.player.skillTree.markUnlocked("FROST_NOVA");
+            if (state.overdriveUnlocked) gp.player.skillTree.markUnlocked("OVERDRIVE");
+        }
 
         gp.player.inventory.clear();
         int invSize = Math.min(state.itemNames.size(), state.itemAmounts.size());

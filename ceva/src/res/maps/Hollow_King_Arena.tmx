@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<map version="1.10" tiledversion="1.12.1" orientation="orthogonal" renderorder="right-down" width="28" height="22" tilewidth="32" tileheight="32" infinite="0" nextlayerid="11" nextobjectid="23">
+<map version="1.10" tiledversion="1.12.1" orientation="orthogonal" renderorder="right-down" width="28" height="22" tilewidth="32" tileheight="32" infinite="0" nextlayerid="11" nextobjectid="26">
  <properties>
   <property name="ambientLight" type="float" value="0.15"/>
   <property name="music" value="0"/>
@@ -832,5 +832,9 @@
    <polygon points="0,0 0,16 17,16 17,0"/>
   </object>
  </objectgroup>
- <objectgroup id="10" name="Monsters"/>
+ <objectgroup id="10" name="Monsters">
+  <object id="23" type="withered_tree" x="386" y="249">
+   <point/>
+  </object>
+ </objectgroup>
 </map>

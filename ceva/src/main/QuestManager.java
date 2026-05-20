@@ -216,7 +216,10 @@ public class QuestManager {
     public QuestManager(GamePanel gp) {
         this.gp = gp;
         loadRegistry();
-        startAutoQuests();
+        // Do NOT call startAutoQuests() here — quests are started by the
+        // awakening cutscene on New Game, or restored from save on Load Game.
+        // Calling it here would queue a "New quest" notification that fires
+        // a second time once the cutscene ends, causing a duplicate.
     }
 
 
@@ -760,7 +763,7 @@ public class QuestManager {
     //  INTERNAL HELPERS
 
     /** Start all quests marked "autoStart": true in the registry. */
-    private void startAutoQuests() {
+    public void startAutoQuests() {
         for (QuestDef def : registry) {
             if ("true".equals(def.props.get("autoStart"))) {
                 String id = def.props.get("id");
@@ -814,6 +817,12 @@ public class QuestManager {
             gp.ui.addMessage("Quest complete: " + q.name + "!", COMPLETE);
             grantRewards(q.id);
             chainNext(q.id);
+            if ("visit_elder_after_boss".equals(q.id)) {
+                gp.csManager.sceneNum = gp.csManager.ending;
+                gp.csManager.scenePhase = 0;
+                gp.csManager.counter = 0;
+                gp.gameState = GamePanel.cutsceneState;
+            }
         }
     }
 

@@ -175,8 +175,8 @@ public class Player extends Entity {
         defaultSpeed = 5;
         speed = defaultSpeed;
         direction = DIR_DOWN;
-        level = 100;
-        maxLife = 100;
+        level = 1;
+        maxLife = 4;
         life = maxLife;
         strenght = 2;
         dexterity = 1;
@@ -216,6 +216,8 @@ public class Player extends Entity {
         overdriveTimer = 0;
         currentWeapon = null;
         currentShield = null;
+        inventory.clear();
+        skillTree.reset();
         projectile = new OBJ_Arrow(gp);
         attack = getAttack();
         defense = getDefense();

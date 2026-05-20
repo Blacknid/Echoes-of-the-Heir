@@ -169,9 +169,13 @@ public class KeyHandler implements KeyListener {
             }
             if (code == KeyEvent.VK_ENTER) {
                 switch (gp.ui.commandNum) {
-                    case 0 -> { gp.player.setPlayerStats(4, 2, 1, 4, 3); startNewGame(); } 
-                    case 1 -> { gp.player.setPlayerStats(2, 3, 3, 5, 2); startNewGame(); }
-                    case 2 -> { gp.player.setPlayerStats(3, 1, 2, 5, 5); startNewGame(); }
+                    // setPlayerStats MUST come after startNewGame() so the class stats
+                    // are applied on top of the defaults set by resetGame(true) inside
+                    // startNewGame(); calling it before would have them wiped by
+                    // player.setDefaultValues().
+                    case 0 -> { startNewGame(); gp.player.setPlayerStats(4, 2, 1, 4, 3); }
+                    case 1 -> { startNewGame(); gp.player.setPlayerStats(2, 3, 3, 5, 2); }
+                    case 2 -> { startNewGame(); gp.player.setPlayerStats(3, 1, 2, 5, 5); }
                     case 3 -> { gp.ui.titleScreenState = 0; gp.ui.commandNum = 0; gp.playSE(SFX.MENU_SELECT); }
                 }
             }
@@ -202,11 +206,14 @@ public class KeyHandler implements KeyListener {
         // LOAD) keeps the old inventory, opened chests, story flags, etc.
         gp.mapManager.shownActTitles.clear();
         gp.openedGates.clear();
+        gp.metNPCs.clear();
         gp.boss1Defeated = gp.boss2Defeated = gp.boss3Defeated = gp.boss4Defeated = false;
         gp.storyAct = 0;
         gp.endingChosen = 0;
         if (gp.memoryJournal != null) gp.memoryJournal.reset();
         if (gp.questManager != null) gp.questManager.clearQuests();
+        if (gp.eManager != null) gp.eManager.reset();
+        gp.ui.clearMessages();
         gp.resetGame(true);
         // Enter cutscene state — the Awakening scene handles the rest
         gp.gameState = GamePanel.cutsceneState;

@@ -69,11 +69,6 @@ public class Lightning {
 
     private final Path2D.Double        reusableShadowPath = new Path2D.Double();
     private final ArrayList<Rectangle> reusableOccluders  = new ArrayList<>(128);
-    // Pre-allocated pool for buildSolidTileOccluders — avoids per-frame Rectangle allocation.
-    private static final int SOLID_POOL_SIZE = 128;
-    private final Rectangle[] solidTilePool  = new Rectangle[SOLID_POOL_SIZE];
-    { for (int i = 0; i < SOLID_POOL_SIZE; i++) solidTilePool[i] = new Rectangle(); }
-    private int solidTilePoolUsed = 0;
     private final Rectangle            reusableWorldRect  = new Rectangle();
 
     private final ArrayList<Rectangle> tileShadowOccluders = new ArrayList<>(32);
@@ -129,6 +124,8 @@ public class Lightning {
         lastDarkArgb    = Integer.MIN_VALUE;
         lastPlayerSXov  = Integer.MIN_VALUE;
         lastPlayerSYov  = Integer.MIN_VALUE;
+        lastPlayerWX    = Integer.MIN_VALUE;
+        lastPlayerWY    = Integer.MIN_VALUE;
     }
 
     // ===================== PRIVATE HELPERS =====================
@@ -468,34 +465,15 @@ public class Lightning {
     }
 
     /**
-     * Fill `out` with one tile-sized Rectangle per solid tile that lies within lightBounds.
-     * Uses the rasterised tileSolid grid when available; falls back to lightOccluderRects.
-     * Called during HIGH-mode shadow polygon computation (cached, infrequent).
+     * Fill `out` with the exact lightOccluderRects that intersect lightBounds.
+     * Using the actual collision rectangles (not a tile-rasterised grid) ensures shadow
+     * polygons start at the precise collision boundary, not at a tile-aligned approximation
+     * that could be up to (tileSize-1) pixels in front of the real object.
      */
     private void buildSolidTileOccluders(Rectangle lightBounds, ArrayList<Rectangle> out) {
-        solidTilePoolUsed = 0;
-        boolean[][] solid = gp.tileM.tileSolid;
-        if (solid == null) {
-            ArrayList<Rectangle> fallback = gp.tileM.lightOccluderRects;
-            for (int i = 0, n = fallback.size(); i < n; i++)
-                if (fallback.get(i).intersects(lightBounds)) out.add(fallback.get(i));
-            return;
-        }
-        int ts     = gp.tileSize;
-        int maxCol = solid.length;
-        int maxRow = maxCol > 0 ? solid[0].length : 0;
-        int minCol = Math.max(0, lightBounds.x / ts);
-        int maxColI = Math.min(maxCol - 1, (lightBounds.x + lightBounds.width)  / ts);
-        int minRow = Math.max(0, lightBounds.y / ts);
-        int maxRowI = Math.min(maxRow - 1, (lightBounds.y + lightBounds.height) / ts);
-        for (int col = minCol; col <= maxColI; col++) {
-            for (int row = minRow; row <= maxRowI; row++) {
-                if (solid[col][row] && solidTilePoolUsed < SOLID_POOL_SIZE) {
-                    Rectangle r = solidTilePool[solidTilePoolUsed++];
-                    r.setBounds(col * ts, row * ts, ts, ts);
-                    out.add(r);
-                }
-            }
+        ArrayList<Rectangle> rects = gp.tileM.lightOccluderRects;
+        for (int i = 0, n = rects.size(); i < n; i++) {
+            if (rects.get(i).intersects(lightBounds)) out.add(rects.get(i));
         }
     }
 
@@ -798,9 +776,14 @@ public class Lightning {
 
     // OPTIMIZATION: Overlay dirty tracking — skip Arrays.fill + light redraw when nothing changed.
     // Saves the most expensive work on static scenes (e.g. Shattered Lake standing still).
+    // World position is included because shadow polygons depend on which occluders surround the
+    // light: when the player moves (scrolling camera), screenX/Y stay constant but the set of
+    // nearby solid tiles changes, so the overlay must be redrawn every time worldX/Y changes.
     private int   lastDarkArgb      = Integer.MIN_VALUE;
     private int   lastPlayerSXov    = Integer.MIN_VALUE;
     private int   lastPlayerSYov    = Integer.MIN_VALUE;
+    private int   lastPlayerWX      = Integer.MIN_VALUE;
+    private int   lastPlayerWY      = Integer.MIN_VALUE;
     private int   lastLightDs       = -1;
     private boolean overlayDirty    = true;
 
@@ -862,10 +845,14 @@ public class Lightning {
         int playerSXov = (playerScreenX + gp.tileSize / 2) / ds;
         int playerSYov = (playerScreenY + gp.tileSize / 2) / ds;
 
-        // Invalidate overlay when darkness level, player position, downscale, or overlay size changed
+        // Invalidate overlay when darkness level, player position, downscale, or overlay size changed.
+        // World position is checked because shadow polygons depend on nearby collision geometry:
+        // when the player moves (camera scrolls), screenX/Y stay constant but the surrounding
+        // occluders change, so the overlay must be rebuilt on every world-position change.
         if (overlayResized || darkArgb != lastDarkArgb
                 || playerSXov != lastPlayerSXov || playerSYov != lastPlayerSYov
-                || ds != lastLightDs || torchShadowCacheDirty) {
+                || ds != lastLightDs || torchShadowCacheDirty
+                || playerWorldX != lastPlayerWX || playerWorldY != lastPlayerWY) {
             overlayDirty = true;
         }
 
@@ -873,6 +860,8 @@ public class Lightning {
             lastDarkArgb   = darkArgb;
             lastPlayerSXov = playerSXov;
             lastPlayerSYov = playerSYov;
+            lastPlayerWX   = playerWorldX;
+            lastPlayerWY   = playerWorldY;
             lastLightDs    = ds;
             overlayDirty   = false;
 

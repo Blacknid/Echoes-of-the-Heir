@@ -58,6 +58,9 @@ public class GameState implements Serializable {
     public ArrayList<String> claimedNPCFragments = new ArrayList<>();
     public ArrayList<String> metNPCs = new ArrayList<>();
     public ArrayList<String> completedSideQuests = new ArrayList<>();
+
+    /** Unlocked skill tree node IDs — supersedes the individual boolean fields. */
+    public ArrayList<String> unlockedSkillNodes = new ArrayList<>();
     public ArrayList<String> questIds = new ArrayList<>();
     public ArrayList<String> questNames = new ArrayList<>();
     public ArrayList<String> questDescriptions = new ArrayList<>();

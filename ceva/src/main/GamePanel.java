@@ -806,14 +806,6 @@ public class GamePanel extends JPanel implements Runnable{
                     if ( !monster[i].alive ) {
                         if (monster[i] instanceof entity.BossMonster bm) {
                             bm.onDeath();
-                        } 
-                        else if (monster[i] instanceof entity.BOSS_WitheredTree) {
-                            boss1Defeated = true;
-                            storyAct = Math.max(storyAct, 1);
-                            csManager.sceneNum = csManager.ending;
-                            csManager.scenePhase = 0;
-                            csManager.counter = 0;
-                            gameState = cutsceneState;
                         }
                         monster[i] = null;
                     }

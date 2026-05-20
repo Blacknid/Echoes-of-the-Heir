@@ -274,16 +274,20 @@ public class MapManager {
         retrySpawnCol = spawnCol;
         retrySpawnRow = spawnRow;
 
-        // Show map-entry dialogue trigger message if one was defined
+        // Show map-entry dialogue trigger message if one was defined.
+        // Skip during save-game loading so stale map messages don't pop up.
         if (!pendingDialogueTrigger.isEmpty()) {
-            gp.ui.addMessage(pendingDialogueTrigger, new java.awt.Color(255, 240, 180), pendingDialogueTriggerDuration);
+            if (!loadingGame) {
+                gp.ui.addMessage(pendingDialogueTrigger, new java.awt.Color(255, 240, 180), pendingDialogueTriggerDuration);
+            }
             pendingDialogueTrigger = "";
         }
 
         // Show act title card if one was defined for this map, but only once per run.
         // If actTitleNewGameOnly=true, skip here — the New Game cutscene will show it instead.
+        // Skip during save-game loading for the same reason.
         if (!pendingActTitle.isEmpty()) {
-            if (!pendingActTitleNewGameOnly && !shownActTitles.contains(currentMapId)) {
+            if (!loadingGame && !pendingActTitleNewGameOnly && !shownActTitles.contains(currentMapId)) {
                 shownActTitles.add(currentMapId);
                 gp.ui.showActTitle(pendingActTitle);
             }
@@ -341,6 +345,8 @@ public class MapManager {
             gp.tileM.mapLayers.clear();
             gp.tileM.loadMapFromTMX(path);
             gp.tileM.loadCollisionLayer(path);
+            gp.tileM.initTileLitMap();
+            gp.mapObjectLoader.loadMapProperties(path);
             gp.cChecker.updateCollisionRectsCache();
             if (gp.minimap != null) gp.minimap.bakeTerrainImage();
 
@@ -358,8 +364,8 @@ public class MapManager {
             gp.eHandler.reset();
 
             gp.player.setDefaultValues();
-            gp.aSetter.setObject();
-            gp.aSetter.setInteractiveTile();
+            // Note: setObject() and setInteractiveTile() are called in the common block
+            // below, so we skip them here to avoid spawning objects twice.
 
             retrySpawnCol = -1;
             retrySpawnRow = -1;

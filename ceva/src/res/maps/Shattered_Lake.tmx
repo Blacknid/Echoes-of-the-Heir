@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<map version="1.10" tiledversion="1.12.1" orientation="orthogonal" renderorder="right-down" width="80" height="80" tilewidth="32" tileheight="32" infinite="0" nextlayerid="29" nextobjectid="126">
+<map version="1.10" tiledversion="1.12.1" orientation="orthogonal" renderorder="right-down" width="80" height="80" tilewidth="32" tileheight="32" infinite="0" nextlayerid="29" nextobjectid="130">
  <properties>
   <property name="ambientLight" type="float" value="0.15"/>
   <property name="music" value="0"/>
@@ -6550,9 +6550,9 @@
 0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0
 </data>
  </layer>
- <objectgroup id="22" name="Monsters" visible="0"/>
+ <objectgroup id="22" name="Monsters"/>
  <objectgroup id="24" name="Events">
-  <object id="7" name="SpawnPoint" type="SpawnPoint" x="640" y="1216">
+  <object id="7" name="SpawnPoint" type="SpawnPoint" x="672" y="1184">
    <properties>
     <property name="id" value="Coming_from_canvas"/>
    </properties>
@@ -6588,8 +6588,33 @@
   <object id="125" type="WaterZone" x="1599" y="2559">
    <polygon points="0,0 4,-32 13,-42 24,-47 30,-57 31,-65 54,-86 63,-92 76,-101 91,-117 95,-130 113,-131 141,-131 168,-130 184,-130 188,-151 206,-158 246,-158 288,-156 314,-156 346,-162 350,-175 354,-184 399,-187 426,-187 494,-189 507,-192 528,-197 547,-207 561,-227 568,-239 601,-275 604,-295 623,-320 653,-316 662,-314 668,-314 690,-297 702,-275 714,-267 735,-254 746,-229 739,-208 752,-184 772,-181 776,-170 825,-158 855,-158 883,-158 896,-158 930,-158 942,-154 952,-137 955,-127 961,-67 963,-7 770,0 764,-22 765,-28 741,-33 726,-33 708,-34 704,-43 702,-55 692,-62 683,-66 672,-74 675,-92 666,-110 660,-120 652,-127 638,-131 627,-125 618,-115 614,-107 607,-101 593,-99 581,-99 571,-99 563,-96 558,-88 553,-80 546,-69 532,-62 517,-64 506,-66 493,-61 486,-51 485,-41 479,-33 459,-32 450,-32 432,-30 427,-28 422,-23 418,-7 419,-3 419,-2"/>
   </object>
+  <object id="126" name="Shattered Lake" type="MemoryGate" x="645.333" y="1166.67" width="126.333" height="16.6667" rotation="90">
+   <properties>
+    <property name="requiredFragments" type="int" value="1"/>
+    <property name="spawnId" value="Coming_from_shattered"/>
+    <property name="targetMap" value="canvas_village"/>
+   </properties>
+  </object>
+  <object id="127" name="SpawnPoint" type="SpawnPoint" x="2243.33" y="1782">
+   <properties>
+    <property name="id" value="Coming_from_boss1"/>
+   </properties>
+   <point/>
+  </object>
+  <object id="129" name="Archer" type="SpawnZone" x="1344" y="864">
+   <properties>
+    <property name="activationRange" type="int" value="4"/>
+    <property name="confined" type="bool" value="true"/>
+    <property name="interval" type="int" value="240"/>
+    <property name="lootItem" value="iron_sword"/>
+    <property name="maxAmount" type="int" value="1"/>
+    <property name="monster" value="archer"/>
+    <property name="totalLimit" type="int" value="5"/>
+   </properties>
+   <polygon points="0,0 64,0 64,448 224,448 320,320 416,288 512,352 576,512 544,608 832,608 960,544 928,320 832,224 864,128 640,32 480,32 352,-32 192,-128 0,-128"/>
+  </object>
  </objectgroup>
- <objectgroup id="28" name="Objects" visible="0">
+ <objectgroup id="28" name="Objects">
   <object id="34" name="Hollow_King" type="Door" x="2236.67" y="1729.68">
    <properties>
     <property name="destination" value="hollow_king_arena"/>
@@ -6609,8 +6634,8 @@
    <polygon points="0,0 0,30.4051 42.2084,30.4051 42.0356,0"/>
   </object>
  </objectgroup>
- <objectgroup id="25" name="NPCs" visible="0"/>
- <objectgroup id="23" name="Collision" visible="0">
+ <objectgroup id="25" name="NPCs"/>
+ <objectgroup id="23" name="Collision">
   <object id="10" name="Border" x="672" y="0">
    <polyline points="0,0 1888,0 1888,2560 -128,2560 -128,2208 -160,2208 -160,2048 -192,2048 -192,1920 -160,1920 -160,1824 -128,1824 -96,1824 -96,1696 -64,1696 -64,1632 -96,1632 -96,1568 -64,1568 -64,1312 -32,1312 -32,1152 -64,1152 -64,1056 -96,1056 -96,1024 -160,1024 -160,992 -192,992 -192,896 -224,896 -224,864 -192,864 -192,352 -160,352 -160,320 -128,320 -128,288 -96,288 -96,256 -64,256 -64,192 -32,192 -32,96 0,96 0,0"/>
   </object>

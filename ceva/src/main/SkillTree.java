@@ -131,6 +131,24 @@ public class SkillTree {
         return nodes;
     }
 
+    /** Reset all nodes to locked state. Called on New Game. */
+    public void reset() {
+        for (SkillNode n : nodes) {
+            n.unlocked = false;
+        }
+        revealMaxColCache = -1;
+        selectedIndex = 0;
+        scrollOffset = 0;
+    }
+
+    /** Mark a node as unlocked by ID without applying player stat effects. Used when restoring save state. */
+    public void markUnlocked(String id) {
+        Integer idx = nodeIndexById.get(id);
+        if (idx == null) return;
+        nodes[idx].unlocked = true;
+        revealMaxColCache = -1;
+    }
+
     public int findIndexById(String id) {
         if (id == null) return -1;
         Integer index = nodeIndexById.get(id);

@@ -169,6 +169,25 @@ public class EnvironmentManager {
         dayCounter = 0;
     }
 
+    /**
+     * Resets all weather and day/night state to clear daytime defaults.
+     * Call this at the start of a New Game so no weather from a previous
+     * session bleeds through.
+     */
+    public void reset() {
+        setWeather(WEATHER_CLEAR);
+        weatherState     = WEATHER_CLEAR;
+        weatherIntensity = 0f;
+        pinnedWeather    = -1;
+        weatherTimer     = 0;
+        weatherCycleEnabled = true;
+        dayState         = day;
+        filterAlpha      = 0f;
+        dayCounter       = 0;
+        pinnedFilterAlpha = -1f;
+        if (lightning != null) lightning.clearShadowCaches();
+    }
+
     public void draw(Graphics2D g2) {
         float weatherDarkness = 0f;
         if (weatherState == WEATHER_RAIN) {

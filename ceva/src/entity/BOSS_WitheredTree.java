@@ -184,7 +184,7 @@ public class BOSS_WitheredTree extends Entity {
         life = maxLife;
         attack = 6;
         defense = 2;
-        exp = 25;
+        exp = 4;
         defaultSpeed = 1;
         speed = defaultSpeed;
         walkFrameCount = 6;
@@ -1498,6 +1498,21 @@ public class BOSS_WitheredTree extends Entity {
         }
 
         changeAlpha(g2, 1f);
+    }
+
+    @Override
+    public void dyingAnimation(Graphics2D g2) {
+        boolean wasAlive = alive;
+        super.dyingAnimation(g2);
+        if (wasAlive && !alive) {
+            // Boss defeated — advance quest and story flags before map transition
+            gp.boss1Defeated = true;
+            gp.storyAct = Math.max(gp.storyAct, 1);
+            if (gp.questManager != null) gp.questManager.progress("defeat_hollow_king", 1);
+            // Transition to Shattered Lake at the Coming_from_boss1 spawn point
+            gp.mapManager.nextSpawnId = "Coming_from_boss1";
+            gp.mapManager.startTransition("shattered_lake", -1, -1);
+        }
     }
 
     private BufferedImage getCurrentSprite() {

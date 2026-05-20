@@ -7,7 +7,7 @@
     "target": 1,
     "autoStart": false,
       "steps": [
-        { "action": "talk", "npc": "sword_giver_npc", "dialogue": "intro", "give": "shadow_blade",
+        { "action": "talk", "npc": "sword_giver_npc", "dialogue": "intro", "give": "wooden_sword",
           "description": "Talk to the wounded soldier" },
         { "action": "deliver", "npc": "sword_giver_npc", "item": "bandage", "consume": true,
           "dialogue": "thanks", "failDialogue": "waiting",
@@ -156,15 +156,14 @@
     "chainQuestId": "defeat_hollow_king",
     "steps": [
       { "action": "go", "map": "shattered_lake",
-        "description": "Reach Shattered Lake." },
-      { "action": "collect", "count": 1,
-        "description": "Find the source of the disturbance in the lake's depths." }
+        "description": "Go to the Fishing Dock and enter the boat." },
+      { "action": "go", "map": "Hollow_King_Arena", "description": "Discover the Whitered Tree's Arena. ( Hand Statue )" }
     ]
   },
   {
     "id": "defeat_hollow_king",
-    "name": "Defeat the Hollow King",
-    "description": "Defeat the Hollow King lurking in the depths of Shattered Lake.",
+    "name": "Defeat the Withered Tree",
+    "description": "Defeat the Withered Tree lurking in the depths of Shattered Lake.",
     "target": 1,
     "autoStart": false,
     "rewardCoins": 1000,
@@ -172,7 +171,7 @@
     "rewardFragmentId": "his_last_expression",
     "chainQuestId": "visit_elder_after_boss",
     "steps": [
-      { "action": "defeat", "enemy": "hollow_king", "description": "Defeat the Hollow King." }
+      { "action": "defeat", "enemy": "withered_tree", "description": "Defeat the Withered Tree." }
     ]
   },
   {
@@ -187,6 +186,7 @@
     "rewardFragmentId": "",
     "chainQuestId": "explore_fading_woods",
     "steps": [
+      { "action": "go", "map": "canvas_village", "description": "Return to the village." },
       { "action": "talk", "npc": "village_elder", "dialogue": "post_boss1",
         "description": "Talk to the village elder." }
     ]

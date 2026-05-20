@@ -1051,7 +1051,51 @@ public class MapObjectLoader {
                 int    totalLim  = getIntProperty(obj, "totalLimit",  0);
                 String lootItm  = getStringProperty(obj, "lootItem",  "");
                 String lootFrag = getStringProperty(obj, "lootFragment", "");
-                gp.eHandler.registerSpawnZone(worldX, worldY, areaW, areaH,
+                // Check for a <polygon> child — if present build an exact polygon zone.
+                // NOTE: worldX/worldY have already been shifted to the bounding-box top-left
+                // by the outer parsing block (worldX += minPX*sf). To recover the correct
+                // absolute world coords for each point use (rawX - minRawX)*sf + worldX,
+                // mirroring the same two-pass approach used by the WaterZone polygon case.
+                java.awt.Polygon spawnPoly = null;
+                NodeList spawnPolyNodes = obj.getElementsByTagName("polygon");
+                if (spawnPolyNodes.getLength() > 0) {
+                    String pts = ((Element) spawnPolyNodes.item(0)).getAttribute("points");
+                    if (pts != null && !pts.isEmpty()) {
+                        String[] tokens = pts.trim().split("\\s+");
+                        double[] rawX = new double[tokens.length];
+                        double[] rawY = new double[tokens.length];
+                        int n = 0;
+                        double minRawX = Double.MAX_VALUE, minRawY = Double.MAX_VALUE;
+                        double maxRawX = -Double.MAX_VALUE, maxRawY = -Double.MAX_VALUE;
+                        for (String pt : tokens) {
+                            String[] xy = pt.split(",");
+                            if (xy.length < 2) continue;
+                            rawX[n] = Double.parseDouble(xy[0]);
+                            rawY[n] = Double.parseDouble(xy[1]);
+                            if (rawX[n] < minRawX) minRawX = rawX[n];
+                            if (rawY[n] < minRawY) minRawY = rawY[n];
+                            if (rawX[n] > maxRawX) maxRawX = rawX[n];
+                            if (rawY[n] > maxRawY) maxRawY = rawY[n];
+                            n++;
+                        }
+                        if (n >= 3) {
+                            int[] xs = new int[n];
+                            int[] ys = new int[n];
+                            for (int pi = 0; pi < n; pi++) {
+                                // worldX is already the bounding-box top-left, so:
+                                // worldX + (rawX[pi] - minRawX) * sf
+                                xs[pi] = worldX + (int)((rawX[pi] - minRawX) * sf);
+                                ys[pi] = worldY + (int)((rawY[pi] - minRawY) * sf);
+                            }
+                            spawnPoly = new java.awt.Polygon(xs, ys, n);
+                            // Override the AABB bounds so the sampling loop uses the polygon's bounds
+                            areaW = (int)((maxRawX - minRawX) * sf);
+                            areaH = (int)((maxRawY - minRawY) * sf);
+                            // worldX/worldY are already the correct bounding-box origin
+                        }
+                    }
+                }
+                gp.eHandler.registerSpawnZone(worldX, worldY, areaW, areaH, spawnPoly,
                                                monType, maxAmt, interval,
                                                confined, actRange, totalLim, lootItm, lootFrag);
             }

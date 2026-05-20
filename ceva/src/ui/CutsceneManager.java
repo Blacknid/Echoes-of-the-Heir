@@ -91,8 +91,8 @@ public class CutsceneManager {
                 + "\n\n\n"
                 + "Special Thanks to\n"
                 + "Our friends for their support and encouragement\n"
-                + "Drila Luca , Mihai Andrei , Radu Iulian , Rusu Andrei\n"
-                + "Ciobanu Andrei , Munteanu Andrei , Dinu Andrei\n"
+                + "Drila Luca-Laurentiu , Virgil Mihaiu-Sebastian , Nedescu Adrian-Rafael\n"
+                + "Stremiuc Neftali-Samuel, Avram Dennis-Sebastian\n"
                 + "\n\n\n"
                 + "Sources from\n"
                 + "Youtube helper : RyiSnow\n"
@@ -277,6 +277,8 @@ public class CutsceneManager {
             if (gp.thoughts != null) {
                 gp.thoughts.show("I can't remember anything... Just fragments... like a dream I can't hold.", 150, 60);
             }
+            // Start all autoStart quests now that a new game has fully begun
+            if (gp.questManager != null) gp.questManager.startAutoQuests();
         }
     }
 
@@ -297,6 +299,8 @@ public class CutsceneManager {
 
         // Show actTitle for the starting map if it was marked as newGame-only
         showNewGameActTitle();
+        // Start all autoStart quests now that a new game has fully begun
+        if (gp.questManager != null) gp.questManager.startAutoQuests();
 
         // First inner monologue after waking up
         if (gp.thoughts != null) {
@@ -460,7 +464,7 @@ public class CutsceneManager {
             drawBlackBackground(1f);
             updateAndDrawRain(1f);
 
-            drawString(1f, 120f, gp.screenHeight / 2, "Michiduta Adventure", 40);
+            drawString(1f, 120f, gp.screenHeight / 2, "Echoes of the Heir", 40);
 
             if ( counterReached(480) ) {
                 scenePhase++;

@@ -866,6 +866,15 @@ public class UI {
     }
 }
 
+    /** Clear all pending HUD notification messages (e.g. on New Game start). */
+    public void clearMessages() {
+        message.clear();
+        messageCounter.clear();
+        messageColor.clear();
+        messageIcon.clear();
+        messageDuration.clear();
+    }
+
     private int promptBobCounter = 0;
 
     public void drawInteractionPrompt() {
@@ -2726,6 +2735,7 @@ public class UI {
             } else if (commandNum == 1) {
                 // Quit without saving
                 subState = 0;
+                commandNum = 0;
                 titleScreenState = 0;
                 gp.stopMusic();
                 gp.resetGame(true);

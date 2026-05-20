@@ -129,6 +129,7 @@ public class EventHandler {
 
     static class SpawnZoneData {
         int worldX, worldY, areaW, areaH;
+        java.awt.Polygon poly;  // null = rectangle, non-null = exact polygon shape for spawning
         String monsterType;
         int maxAmount, intervalFrames, spawnTimer;
         boolean confined;       // if true, spawned monsters cannot leave this zone
@@ -140,10 +141,12 @@ public class EventHandler {
         boolean lootGiven;      // true once the loot has been awarded
         /** Indices into gp.monster[] that this zone has spawned and not yet replaced. */
         final List<Integer> trackedSlots = new ArrayList<>();
-        SpawnZoneData(int wx, int wy, int aw, int ah, String mt, int max, int interval,
+        SpawnZoneData(int wx, int wy, int aw, int ah, java.awt.Polygon poly,
+                      String mt, int max, int interval,
                       boolean confined, int activationRange, int totalLimit,
                       String lootItem, String lootFragment) {
             worldX=wx; worldY=wy; areaW=aw; areaH=ah;
+            this.poly=poly;
             monsterType=mt; maxAmount=max; intervalFrames=interval; spawnTimer=0;
             this.confined=confined; this.activationRange=activationRange;
             this.totalLimit=totalLimit; this.totalSpawned=0;
@@ -308,11 +311,22 @@ public class EventHandler {
                                    String monsterType, int maxAmount, int intervalFrames,
                                    boolean confined, int activationRange,
                                    int totalLimit, String lootItem, String lootFragment) {
-        spawnZones.add(new SpawnZoneData(worldX, worldY, areaW, areaH,
+        registerSpawnZone(worldX, worldY, areaW, areaH, null,
+                          monsterType, maxAmount, intervalFrames,
+                          confined, activationRange, totalLimit, lootItem, lootFragment);
+    }
+
+    public void registerSpawnZone(int worldX, int worldY, int areaW, int areaH,
+                                   java.awt.Polygon poly,
+                                   String monsterType, int maxAmount, int intervalFrames,
+                                   boolean confined, int activationRange,
+                                   int totalLimit, String lootItem, String lootFragment) {
+        spawnZones.add(new SpawnZoneData(worldX, worldY, areaW, areaH, poly,
                                          monsterType, maxAmount, intervalFrames,
                                          confined, activationRange, totalLimit,
                                          lootItem, lootFragment));
         System.out.println("EventHandler: SpawnZone registered " + monsterType
+            + (poly != null ? " [polygon]" : " [rect]")
             + " max=" + maxAmount + " interval=" + intervalFrames + "f"
             + " confined=" + confined + " activationRange=" + activationRange + " tiles"
             + " totalLimit=" + totalLimit + " lootItem=" + lootItem
@@ -392,6 +406,8 @@ public class EventHandler {
                 int tr = (zone.worldY / ts) + spawnRnd.nextInt(rows);
                 int wx = tc * ts;
                 int wy = tr * ts;
+                // For polygon zones, reject tiles whose centre falls outside the polygon
+                if (zone.poly != null && !zone.poly.contains(wx + ts / 2, wy + ts / 2)) continue;
                 // Use the standard monster solid area (matches MobSpawner)
                 candidate.setBounds(wx + 12, wy + 8, 40, 48);
                 // Reject positions too close to the player (within 3 tiles)
@@ -408,8 +424,10 @@ public class EventHandler {
             entity.Entity m = gp.mapObjectLoader.createMonsterByName(zone.monsterType, col, row);
             if (m != null) {
                 if (zone.confined) {
-                    m.confinementZone = new java.awt.Rectangle(
-                        zone.worldX, zone.worldY, zone.areaW, zone.areaH);
+                    java.awt.Rectangle confRect = (zone.poly != null)
+                        ? zone.poly.getBounds()
+                        : new java.awt.Rectangle(zone.worldX, zone.worldY, zone.areaW, zone.areaH);
+                    m.confinementZone = confRect;
                 }
                 gp.monster[slot] = m;
                 zone.trackedSlots.add(slot);
@@ -810,14 +828,31 @@ public class EventHandler {
         }
         g2.setTransform(savedTx);
 
-        // Spawn zones (have custom world-space bounds, not tile-grid keys)
+        // Spawn zones — draw exact polygon when present, otherwise fall back to AABB rect
+        g2.setTransform(savedTx);          // ensure we're back on the default transform
+        g2.translate(camOffX, camOffY);    // switch to world-space camera transform
+        g2.setComposite(AlphaComposite.getInstance(AlphaComposite.SRC_OVER, 0.30f));
         g2.setColor(new Color(255, 160, 0));
         for (SpawnZoneData sz : spawnZones) {
-            int sx = sz.worldX - playerWorldX + pScreenX;
-            int sy = sz.worldY - playerWorldY + pScreenY;
-            g2.drawRect(sx, sy, sz.areaW, sz.areaH);
-            g2.drawString("ZONE:" + sz.monsterType, sx + 3, sy + 13);
+            if (sz.poly != null) {
+                g2.fill(sz.poly);
+            } else {
+                g2.fillRect(sz.worldX, sz.worldY, sz.areaW, sz.areaH);
+            }
         }
+        g2.setComposite(AlphaComposite.getInstance(AlphaComposite.SRC_OVER, 0.85f));
+        g2.setColor(new Color(255, 160, 0));
+        for (SpawnZoneData sz : spawnZones) {
+            if (sz.poly != null) {
+                g2.draw(sz.poly);
+                java.awt.Rectangle zb = sz.poly.getBounds();
+                g2.drawString("ZONE:" + sz.monsterType, zb.x + 3, zb.y + 13);
+            } else {
+                g2.drawRect(sz.worldX, sz.worldY, sz.areaW, sz.areaH);
+                g2.drawString("ZONE:" + sz.monsterType, sz.worldX + 3, sz.worldY + 13);
+            }
+        }
+        g2.setTransform(savedTx);          // restore before drawing spawn points
 
         // Named spawn points — lime
         g2.setColor(new Color(160, 255, 80));

@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<map version="1.10" tiledversion="1.12.1" orientation="orthogonal" renderorder="right-down" width="100" height="100" tilewidth="32" tileheight="32" infinite="0" nextlayerid="75" nextobjectid="383">
+<map version="1.10" tiledversion="1.12.1" orientation="orthogonal" renderorder="right-down" width="100" height="100" tilewidth="32" tileheight="32" infinite="0" nextlayerid="75" nextobjectid="384">
  <properties>
   <property name="actTitle" value="THE CANVAS VILLAGE"/>
   <property name="ambientLight" type="float" value="0"/>
@@ -14433,12 +14433,6 @@
    </properties>
    <point/>
   </object>
-  <object id="163" name="Citizen" type="NPC_Generic" x="1600" y="1600">
-   <properties>
-    <property name="npcId" value="citizen"/>
-   </properties>
-   <point/>
-  </object>
   <object id="164" name="Fighter" type="NPC_Generic" x="2304" y="1056">
    <properties>
     <property name="npcId" value="fighter"/>
@@ -15128,6 +15122,12 @@
   <object id="173" name="Fisher_exterior" type="SpawnPoint" x="2784" y="1440">
    <properties>
     <property name="id" value="Fisher_exterior"/>
+   </properties>
+   <point/>
+  </object>
+  <object id="383" name="SpawnPoint" type="SpawnPoint" x="3072.36" y="1574.36">
+   <properties>
+    <property name="id" value="Coming_from_shattered"/>
    </properties>
    <point/>
   </object>
