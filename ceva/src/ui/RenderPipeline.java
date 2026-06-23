@@ -194,6 +194,8 @@ public class RenderPipeline {
             gp.drawRemotePlayers(g2);
         }
 
+        gp.drawLocalPlayerNametag(g2);
+
         gp.tileM.drawForeground(g2);
 
         clearRenderableEntities();

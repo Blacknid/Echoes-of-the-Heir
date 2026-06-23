@@ -1273,9 +1273,65 @@ public class GamePanel extends JPanel implements Runnable{
         audio.playSE(i);
     }
 
+    private static final java.awt.Color NAMETAG_BOX_BG     = new java.awt.Color(10, 8, 20, 170);
+    private static final java.awt.Color NAMETAG_BOX_BORDER = new java.awt.Color(200, 185, 255, 90);
+    private static final java.awt.Color NAMETAG_TEXT_LOCAL = new java.awt.Color(255, 240, 180);
+    private static final java.awt.BasicStroke NAMETAG_STROKE = new java.awt.BasicStroke(1f);
+
+    /**
+     * Draw a translucent nametag box centered above a sprite.
+     * centerX = horizontal center of the sprite on screen.
+     * spriteTopY = top of the sprite on screen.
+     * isLocal = true for the local player (gold text), false for remote players (light-blue text).
+     */
+    private void drawNametagBox(Graphics2D g2, String name, int centerX, int spriteTopY, boolean isLocal) {
+        if (name == null || name.isEmpty()) return;
+        if (mpNametagFont == null) mpNametagFont = new Font("Arial", Font.BOLD, 12);
+        g2.setFont(mpNametagFont);
+        java.awt.FontMetrics fm = g2.getFontMetrics();
+
+        int padX = 7, padY = 3;
+        int textW = fm.stringWidth(name);
+        int textH = fm.getAscent();
+        int boxW = textW + padX * 2;
+        int boxH = textH + padY * 2;
+        int boxX = centerX - boxW / 2;
+        int boxY = spriteTopY - boxH - 4;
+
+        // Translucent background
+        java.awt.Composite saved = g2.getComposite();
+        g2.setComposite(java.awt.AlphaComposite.getInstance(java.awt.AlphaComposite.SRC_OVER, 0.82f));
+        g2.setColor(NAMETAG_BOX_BG);
+        g2.fillRoundRect(boxX, boxY, boxW, boxH, 6, 6);
+        g2.setColor(NAMETAG_BOX_BORDER);
+        g2.setStroke(NAMETAG_STROKE);
+        g2.drawRoundRect(boxX, boxY, boxW, boxH, 6, 6);
+        g2.setComposite(saved);
+
+        // Name text
+        int textX = boxX + padX;
+        int textY = boxY + padY + textH - 1;
+        g2.setColor(new java.awt.Color(0, 0, 0, 130));
+        g2.drawString(name, textX + 1, textY + 1);
+        g2.setColor(isLocal ? NAMETAG_TEXT_LOCAL : MP_NAME_COLOR);
+        g2.drawString(name, textX, textY);
+    }
+
+    /**
+     * Draw local player nametag if a username has been set.
+     * Called from RenderPipeline during the world render pass.
+     */
+    public void drawLocalPlayerNametag(Graphics2D g2) {
+        String name = ui.playerUsername;
+        if (name == null || name.isEmpty()) return;
+        int centerX = player.screenX + tileSize / 2;
+        int spriteTopY = player.screenY;
+        drawNametagBox(g2, name, centerX, spriteTopY, true);
+    }
+
     /**
      * Draw all remote players from the multiplayer client.
-     * Renders a simple colored rectangle with nametag.
+     * Renders a simple colored rectangle with translucent nametag box above each player.
      * Uses the local player's sprite frames when available.
      */
     public void drawRemotePlayers(Graphics2D g2) {
@@ -1299,10 +1355,8 @@ public class GamePanel extends JPanel implements Runnable{
             }
 
             if (sprite != null) {
-                // Tint the sprite slightly to distinguish from local player
                 java.awt.Composite old = g2.getComposite();
                 g2.drawImage(sprite, screenPosX, screenPosY, tileSize, tileSize, null);
-                // Draw a subtle colored overlay
                 g2.setComposite(java.awt.AlphaComposite.getInstance(java.awt.AlphaComposite.SRC_OVER, 0.15f));
                 g2.setColor(MP_TINT_COLOR);
                 g2.fillRect(screenPosX, screenPosY, tileSize, tileSize);
@@ -1316,26 +1370,15 @@ public class GamePanel extends JPanel implements Runnable{
                 g2.drawRoundRect(screenPosX + 8, screenPosY + 8, tileSize - 16, tileSize - 16, 8, 8);
             }
 
-            // Nametag above the sprite
-            if (mpNametagFont == null) mpNametagFont = g2.getFont().deriveFont(Font.BOLD, 12f);
-            g2.setFont(mpNametagFont);
-            java.awt.FontMetrics fm = g2.getFontMetrics();
-            int nameW = fm.stringWidth(rp.name);
-            int nameX = screenPosX + tileSize / 2 - nameW / 2;
-            int nameY = screenPosY - 6;
+            // Translucent nametag box above sprite
+            drawNametagBox(g2, rp.name, screenPosX + tileSize / 2, screenPosY, false);
 
-            // Name shadow
-            g2.setColor(MP_NAME_SHADOW);
-            g2.drawString(rp.name, nameX + 1, nameY + 1);
-            g2.setColor(MP_NAME_COLOR);
-            g2.drawString(rp.name, nameX, nameY);
-
-            // HP bar below nametag
+            // HP bar just above the nametag box
             if (rp.maxLife > 0) {
                 int barW = 40;
                 int barH = 4;
                 int barX = screenPosX + tileSize / 2 - barW / 2;
-                int barY = screenPosY - 12;
+                int barY = screenPosY - 28;
                 g2.setColor(MP_BAR_BG);
                 g2.fillRoundRect(barX, barY, barW, barH, 3, 3);
                 float ratio = (float) rp.life / rp.maxLife;

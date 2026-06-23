@@ -123,7 +123,82 @@ ALLOWED_NAME = set(
     "abcdefghijklmnopqrstuvwxyz"
     "ABCDEFGHIJKLMNOPQRSTUVWXYZ"
     "0123456789_-. "
-) #caractere care pot aparea in numele playerului. numele nu va fi folosit inca. numele este default Player
+) #caractere care pot aparea in numele playerului.
+
+# ── Save-server username check ─────────────────────────────────────────────
+# The MP server calls the save server synchronously (in an executor thread)
+# during the handshake to verify that the requested username is not already
+# owned by a different license.  This is the *same* TCP+RSA+AES-GCM protocol
+# the Java client uses, but we reuse the server's own private key so we don't
+# need to distribute a second key-pair.
+#
+# To enable: set "save_server_host" and "save_server_port" in mp_config.json.
+# If those keys are absent the check is skipped (useful for local dev).
+
+import re as _re
+import socket as _socket
+
+_USERNAME_RE = _re.compile(r"^[A-Za-z0-9_\-]{1,20}$")
+
+def _username_valid(name: str) -> bool:
+    return isinstance(name, str) and bool(_USERNAME_RE.match(name))
+
+
+def _save_server_check_username(cfg: dict, private_key, license_key: str,
+                                username: str) -> str:
+    """Contact the save server and run CHECK_USERNAME via the internal API.
+
+    Returns one of: "AVAILABLE", "TAKEN", "INVALID", "SKIP".
+    Runs in a thread-pool executor — does NOT block the async event loop.
+    """
+    return _save_server_internal(cfg, "CHECK_USERNAME", license_key, username)
+
+
+def _save_server_claim_username(cfg: dict, private_key, license_key: str,
+                                username: str) -> str:
+    """Contact the save server and run CLAIM_USERNAME via the internal API.
+
+    Returns: "CLAIMED", "TAKEN", "INVALID", "SKIP".
+    """
+    return _save_server_internal(cfg, "CLAIM_USERNAME", license_key, username)
+
+
+def _save_server_internal(cfg: dict, cmd: str, license_key: str, username: str,
+                           timeout: float = 5.0) -> str:
+    """Send a single internal command to the save server over a lightweight
+    pre-shared-key path (no RSA handshake).
+
+    The save server accepts "INTERNAL <api_key> <json>" from 127.0.0.1 only.
+    Both servers must have the same "internal_api_key" in their config files.
+    If save_server_host/port or internal_api_key are not configured, returns "SKIP".
+    """
+    host = cfg.get("save_server_host")
+    port = cfg.get("save_server_port")
+    api_key = cfg.get("internal_api_key", "")
+    if not host or not port or not api_key:
+        return "SKIP"
+
+    try:
+        port = int(port)
+        payload = json.dumps({"cmd": cmd, "license": license_key, "username": username})
+        line = f"INTERNAL {api_key} {payload}\n"
+
+        with _socket.create_connection((host, port), timeout=timeout) as sock:
+            sock.settimeout(timeout)
+            sock.sendall(line.encode("utf-8"))
+            buf = b""
+            while True:
+                c = sock.recv(1)
+                if not c or c == b"\n":
+                    break
+                buf += c
+                if len(buf) > 4096:
+                    break
+            resp = json.loads(buf.decode("utf-8"))
+            return resp.get("status", "ERROR")
+    except Exception as exc:
+        log.warning("save_server internal %s failed: %s", cmd, exc)
+        return "SKIP"
 
 
 #definim configul
@@ -230,6 +305,7 @@ class PlayerState:
     player_id: int
     name: str = "Player"
     player_class: str = "Fighter"
+    license_key: str = ""   # stored for ban enforcement
     x: int = 0
     y: int = 0
     direction: int = 0
@@ -419,6 +495,9 @@ class GameServer:
         self._server: Optional[asyncio.AbstractServer] = None
         # Mob tracking for multiplayer synchronization
         self.mobs: dict[int, MobState] = {}
+        # Ban list: license_key → expiry timestamp (float, 0 = permanent)
+        self._bans: dict[str, float] = {}
+        self._bans_lock = asyncio.Lock()
 
     def _allocate_id(self) -> int:
         pid = self._next_id
@@ -429,6 +508,73 @@ class GameServer:
         for pid, client in self.clients.items():
             if pid != exclude_id:
                 client.send_json(obj)
+
+    # ── Admin helpers ───────────────────────────────────────────────────────
+
+    async def is_banned(self, license_key: str) -> bool:
+        async with self._bans_lock:
+            exp = self._bans.get(license_key)
+            if exp is None:
+                return False
+            if exp == 0 or time.time() < exp:
+                return True
+            del self._bans[license_key]
+            return False
+
+    async def admin_ban(self, target: str, duration_seconds: int) -> str:
+        """Ban by player name or id. duration_seconds=0 means permanent."""
+        client = self._find_client(target)
+        if client is None:
+            return f"No player found: {target!r}"
+        exp = 0 if duration_seconds <= 0 else time.time() + duration_seconds
+        async with self._bans_lock:
+            self._bans[client.player.license_key] = exp
+        reason = f"Banned for {duration_seconds}s" if exp else "Permanently banned"
+        client.send_json({"type": "kick", "reason": reason})
+        await client.close()
+        return f"Banned {client.player.name} (license={client.player.license_key}) — {reason}"
+
+    async def admin_kick(self, target: str, reason: str = "Kicked by admin") -> str:
+        client = self._find_client(target)
+        if client is None:
+            return f"No player found: {target!r}"
+        client.send_json({"type": "kick", "reason": reason})
+        await client.close()
+        return f"Kicked {client.player.name}"
+
+    def admin_teleport(self, target: str, col: int, row: int) -> str:
+        client = self._find_client(target)
+        if client is None:
+            return f"No player found: {target!r}"
+        tile_w = self.world.tilewidth
+        tile_h = self.world.tileheight
+        new_x = col * tile_w
+        new_y = row * tile_h
+        client.player.x = new_x
+        client.player.y = new_y
+        client.player.last_valid_x = new_x
+        client.player.last_valid_y = new_y
+        client.send_json({"type": "pos_correction", "x": new_x, "y": new_y, "reason": "admin_teleport"})
+        return f"Teleported {client.player.name} to col={col} row={row}"
+
+    def admin_list(self) -> str:
+        if not self.clients:
+            return "No players connected."
+        lines = [f"  id={pid} name={c.player.name!r} map={c.player.map_id}"
+                 for pid, c in self.clients.items()]
+        return "\n".join(lines)
+
+    def _find_client(self, target: str) -> "Optional[ClientConnection]":
+        """Find a client by numeric id or name (case-insensitive prefix match)."""
+        try:
+            pid = int(target)
+            return self.clients.get(pid)
+        except ValueError:
+            low = target.lower()
+            for c in self.clients.values():
+                if c.player.name.lower().startswith(low):
+                    return c
+            return None
 
     #Handshake
     async def _handshake(self, reader: asyncio.StreamReader,
@@ -537,6 +683,35 @@ class GameServer:
             log.info("AUTH replay rejected from %s", peer)
             return None
 
+        # ── Ban check ───────────────────────────────────────────────────────
+        if await self.is_banned(license_key):
+            writer.write(b"BANNED\n")
+            await writer.drain()
+            log.info("AUTH rejected banned license %s from %s", license_key, peer)
+            return None
+
+        # ── Username uniqueness check (via save server) ─────────────────────
+        requested_name = str(payload.get("name", ""))[:MAX_NAME_LEN]
+        if _username_valid(requested_name):
+            username_status = await asyncio.get_event_loop().run_in_executor(
+                None,
+                lambda: _save_server_check_username(self.cfg, self.private_key,
+                                                    license_key, requested_name)
+            )
+            if username_status == "TAKEN":
+                writer.write(b"USERNAME_TAKEN\n")
+                await writer.drain()
+                log.info("AUTH rejected: username %r already taken (license=%s from %s)",
+                         requested_name, license_key, peer)
+                return None
+            # If AVAILABLE or SKIP, claim it now (best-effort, non-fatal)
+            if username_status == "AVAILABLE":
+                await asyncio.get_event_loop().run_in_executor(
+                    None,
+                    lambda: _save_server_claim_username(self.cfg, self.private_key,
+                                                        license_key, requested_name)
+                )
+
         #CU DEV
 
         if dev_mode:
@@ -613,6 +788,7 @@ class GameServer:
 
         player = PlayerState(player_id=self._allocate_id())
         player.name = sanitize_name(payload.get("name", ""), "Player")
+        player.license_key = str(payload.get("license", ""))[:32]
         cls_raw = str(payload.get("class", "Fighter"))[:MAX_CLASS_LEN]
         player.player_class = "".join(c for c in cls_raw if c.isalnum()) or "Fighter"
         player.map_id = self.active_map_id
@@ -1073,12 +1249,96 @@ async def amain(host: str, port: int, max_players: int, private_key, cfg: dict) 
         except NotImplementedError:
             signal.signal(sig, lambda s, f: shutdown_handler())
 
+    asyncio.create_task(_admin_console(server))
+
     try:
         await server.start()
     except asyncio.CancelledError:
         pass
     finally:
         await server.stop()
+
+
+async def _admin_console(server: "GameServer") -> None:
+    """Async stdin loop for server admin commands.
+
+    Commands:
+      list                        — show connected players
+      kick  <name|id> [reason]    — kick a player
+      ban   <name|id> <seconds>   — ban for N seconds (0 = permanent)
+      teleport <name|id> <col> <row> — move player to tile col,row
+      help                        — show this list
+    """
+    print("[Admin] Console ready. Type 'help' for commands.")
+    loop = asyncio.get_event_loop()
+
+    while True:
+        try:
+            line = await loop.run_in_executor(None, sys.stdin.readline)
+        except Exception:
+            break
+        if not line:
+            break
+        line = line.strip()
+        if not line:
+            continue
+
+        parts = line.split()
+        cmd = parts[0].lower()
+
+        try:
+            if cmd == "help":
+                print(
+                    "  list\n"
+                    "  kick  <name|id> [reason]\n"
+                    "  ban   <name|id> <seconds>   (0 = permanent)\n"
+                    "  teleport <name|id> <col> <row>\n"
+                    "  help"
+                )
+
+            elif cmd == "list":
+                print(server.admin_list())
+
+            elif cmd == "kick":
+                if len(parts) < 2:
+                    print("Usage: kick <name|id> [reason]")
+                    continue
+                target = parts[1]
+                reason = " ".join(parts[2:]) if len(parts) > 2 else "Kicked by admin"
+                result = await server.admin_kick(target, reason)
+                print(result)
+
+            elif cmd == "ban":
+                if len(parts) < 3:
+                    print("Usage: ban <name|id> <seconds>  (0 = permanent)")
+                    continue
+                target = parts[1]
+                try:
+                    secs = int(parts[2])
+                except ValueError:
+                    print("seconds must be an integer")
+                    continue
+                result = await server.admin_ban(target, secs)
+                print(result)
+
+            elif cmd == "teleport":
+                if len(parts) < 4:
+                    print("Usage: teleport <name|id> <col> <row>")
+                    continue
+                target = parts[1]
+                try:
+                    col, row = int(parts[2]), int(parts[3])
+                except ValueError:
+                    print("col and row must be integers")
+                    continue
+                result = server.admin_teleport(target, col, row)
+                print(result)
+
+            else:
+                print(f"Unknown command: {cmd!r}. Type 'help'.")
+
+        except Exception as exc:
+            print(f"[Admin] Error: {exc}")
 
 
 def main() -> None:
