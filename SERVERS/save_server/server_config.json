@@ -8,5 +8,6 @@
   "max_concurrent_connections": 200,
   "handshake_timeout_seconds": 10,
   "session_timeout_seconds": 30,
-  "max_payload_bytes": 10485760
+  "max_payload_bytes": 10485760,
+  "internal_api_key": "CHANGE_THIS_TO_A_RANDOM_SECRET"
 }

@@ -13,6 +13,9 @@
   "max_tile_step_per_move": 4,
   "player_hitbox_w": 24,
   "player_hitbox_h": 24,
+  "save_server_host": "127.0.0.1",
+  "save_server_port": 5005,
+  "internal_api_key": "CHANGE_THIS_TO_A_RANDOM_SECRET",
   "maps": {
     "canvas_village": {
       "width": 100,

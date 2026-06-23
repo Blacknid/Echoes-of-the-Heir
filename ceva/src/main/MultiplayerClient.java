@@ -274,8 +274,10 @@ public class MultiplayerClient {
             // Step 2: server nonce
             String okLine = readLine();
             if (okLine == null || !okLine.startsWith("OK ")) {
-                if ("RATE_LIMIT".equals(okLine)) connectionStatus = "Rate-limited by server.";
+                if ("RATE_LIMIT".equals(okLine))      connectionStatus = "Rate-limited by server.";
                 else if ("SERVER_FULL".equals(okLine)) connectionStatus = "Server is full.";
+                else if ("BANNED".equals(okLine))      connectionStatus = "You are banned from this server.";
+                else if ("USERNAME_TAKEN".equals(okLine)) connectionStatus = "Username is already taken. Change it in the main menu (press U).";
                 return false;
             }
             byte[] serverNonce = Base64.getDecoder().decode(okLine.substring(3));
@@ -302,7 +304,15 @@ public class MultiplayerClient {
 
             // Step 4: AUTH_OK + encrypted session key
             String authLine = readLine();
-            if (authLine == null || !authLine.startsWith("AUTH_OK ")) return false;
+            if (authLine == null || !authLine.startsWith("AUTH_OK ")) {
+                if ("BANNED".equals(authLine))
+                    connectionStatus = "You are banned from this server.";
+                else if ("USERNAME_TAKEN".equals(authLine))
+                    connectionStatus = "Username \"" + name + "\" is already taken. Change it in the main menu (press U).";
+                else if ("AUTH_FAIL".equals(authLine))
+                    connectionStatus = "Authentication failed.";
+                return false;
+            }
             byte[] encSession = Base64.getDecoder().decode(authLine.substring(8));
 
             byte[] deliveryKey = hkdf(

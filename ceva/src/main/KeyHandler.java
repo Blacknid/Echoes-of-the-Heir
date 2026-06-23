@@ -46,7 +46,7 @@ public class KeyHandler implements KeyListener {
         if (code == KeyEvent.VK_A || code == KeyEvent.VK_LEFT)  menuLeft  = true;
         if (code == KeyEvent.VK_D || code == KeyEvent.VK_RIGHT) menuRight = true;
         // Fire once immediately on first press in menu states, then arm repeat counter
-        if (isDirKey && isInMenuState()) {
+        if (isDirKey && isInMenuState() && !gp.ui.usernameFieldFocused) {
             fireMenuNavigation();
             menuRepeatCounter = MENU_INITIAL_DELAY;
             return;
@@ -121,8 +121,19 @@ public class KeyHandler implements KeyListener {
 
     @Override
     public void keyTyped(KeyEvent e) {
+        char c = e.getKeyChar();
+        if (gp.gameState == GamePanel.titleState && gp.ui.usernameFieldFocused
+                && gp.ui.titleScreenState == 0) {
+            if (c != KeyEvent.CHAR_UNDEFINED && c != '\b' && c != '\n' && c != '\r' && c != '\t') {
+                if (gp.ui.playerUsername.length() < 20) {
+                    gp.ui.playerUsername += c;
+                    // Keep player.name in sync so it's available immediately in singleplayer
+                    gp.player.name = gp.ui.playerUsername;
+                }
+            }
+            return;
+        }
         if (gp.gameState == GamePanel.titleState && gp.ui.titleScreenState == 4) {
-            char c = e.getKeyChar();
             int fieldCount = gp.ui.mpAddMode ? 3 : 2;
             if (gp.ui.mpInputField < fieldCount && c != KeyEvent.CHAR_UNDEFINED
                     && c != '\b' && c != '\n' && c != '\r' && c != '\t') {
@@ -133,6 +144,25 @@ public class KeyHandler implements KeyListener {
 
     private void handleTitleState(int code) {
         if (gp.ui.titleScreenState == 0) {
+            // Username field intercepts most keys when focused
+            if (gp.ui.usernameFieldFocused) {
+                if (code == KeyEvent.VK_BACK_SPACE) {
+                    if (!gp.ui.playerUsername.isEmpty()) {
+                        gp.ui.playerUsername = gp.ui.playerUsername.substring(0, gp.ui.playerUsername.length() - 1);
+                        gp.player.name = gp.ui.playerUsername;
+                    }
+                } else if (code == KeyEvent.VK_ENTER || code == KeyEvent.VK_ESCAPE) {
+                    gp.ui.usernameFieldFocused = false;
+                    gp.player.name = gp.ui.playerUsername;
+                    gp.playSE(SFX.MENU_SELECT);
+                }
+                return; // don't forward to menu navigation while typing
+            }
+            if (code == KeyEvent.VK_U) {
+                gp.ui.usernameFieldFocused = true;
+                gp.playSE(SFX.MENU_SELECT);
+                return;
+            }
             if (code == KeyEvent.VK_W) {
                 gp.ui.commandNum = (gp.ui.commandNum - 1 + 4) % 4;
                 gp.playSE(SFX.MENU_SELECT);
@@ -376,8 +406,10 @@ public class KeyHandler implements KeyListener {
             gp.mpClient.connectionStatus = "Invalid port number!";
             return;
         }
-        // Start connection attempt
-        gp.mpClient.connect(ip.trim(), port, "Player", "Fighter");
+        // Start connection attempt — use username from title screen, fall back to "Player"
+        String username = (gp.ui.playerUsername != null && !gp.ui.playerUsername.isEmpty())
+                ? gp.ui.playerUsername : "Player";
+        gp.mpClient.connect(ip.trim(), port, username, "Fighter");
         // Start game in multiplayer mode
         gp.multiplayerMode = true;
         // Watcher thread:
@@ -743,7 +775,7 @@ public class KeyHandler implements KeyListener {
         if (teleportCooldown > 0) teleportCooldown--;
 
         // Menu navigation key repeat
-        if (isInMenuState() && (menuUp || menuDown || menuLeft || menuRight)) {
+        if (isInMenuState() && !gp.ui.usernameFieldFocused && (menuUp || menuDown || menuLeft || menuRight)) {
             if (menuRepeatCounter > 0) {
                 menuRepeatCounter--;
             } else {

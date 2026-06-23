@@ -247,8 +247,89 @@ def init_db() -> None:
                 status      TEXT    NOT NULL
             )
         """)
+        # Username registry: one username per license, globally unique.
+        # claim_username() enforces uniqueness atomically.
+        con.execute("""
+            CREATE TABLE IF NOT EXISTS usernames (
+                username     TEXT PRIMARY KEY,
+                license_key  TEXT NOT NULL UNIQUE,
+                claimed_at   TEXT NOT NULL
+            )
+        """)
         con.commit()
         con.close()
+
+
+# ── Username registry ───────────────────────────────────────────────────────
+_USERNAME_RE = __import__("re").compile(r"^[A-Za-z0-9_\-]{1,20}$")
+
+def username_is_valid(name: str) -> bool:
+    return isinstance(name, str) and bool(_USERNAME_RE.match(name))
+
+
+def claim_username(username: str, license_key: str) -> str:
+    """Try to claim *username* for *license_key*.
+
+    Returns:
+      "CLAIMED"  — success (new claim or same license already owns it)
+      "TAKEN"    — owned by a different license
+      "INVALID"  — name fails validation
+    """
+    if not username_is_valid(username):
+        return "INVALID"
+    now = time.strftime("%Y-%m-%d %H:%M:%S", time.gmtime())
+    with _db_lock:
+        con = sqlite3.connect(str(DB_PATH))
+        con.execute("PRAGMA journal_mode=WAL")
+        try:
+            # Check current owner
+            row = con.execute(
+                "SELECT license_key FROM usernames WHERE username = ?",
+                (username,),
+            ).fetchone()
+            if row is not None:
+                if row[0] == license_key:
+                    return "CLAIMED"   # already ours
+                return "TAKEN"
+            # Remove any previous username this license held
+            con.execute("DELETE FROM usernames WHERE license_key = ?", (license_key,))
+            # Claim new one
+            con.execute(
+                "INSERT INTO usernames (username, license_key, claimed_at) VALUES (?, ?, ?)",
+                (username, license_key, now),
+            )
+            con.commit()
+            return "CLAIMED"
+        except sqlite3.IntegrityError:
+            # Race: another thread inserted the same username between our SELECT and INSERT
+            return "TAKEN"
+        finally:
+            con.close()
+
+
+def check_username(username: str, license_key: str) -> str:
+    """Check whether *username* is available for *license_key*.
+
+    Returns:
+      "AVAILABLE" — not claimed, or claimed by this license
+      "TAKEN"     — claimed by a different license
+      "INVALID"   — name fails validation
+    """
+    if not username_is_valid(username):
+        return "INVALID"
+    with _db_lock:
+        con = sqlite3.connect(str(DB_PATH))
+        con.execute("PRAGMA journal_mode=WAL")
+        try:
+            row = con.execute(
+                "SELECT license_key FROM usernames WHERE username = ?",
+                (username,),
+            ).fetchone()
+            if row is None:
+                return "AVAILABLE"
+            return "AVAILABLE" if row[0] == license_key else "TAKEN"
+        finally:
+            con.close()
 
 
 def save_path(license_key: str) -> Path:
@@ -410,6 +491,31 @@ class Session:
 
 
 # ── Client handler ──────────────────────────────────────────────────────────
+def _handle_internal(conn: socket.socket, client_ip: str, cfg: dict,
+                     cmd_json: dict) -> str:
+    """Handle an internal (loopback) unauthenticated command.
+
+    The caller is the multiplayer server running on the same host.
+    Only callable from 127.0.0.1/::1; validated by shared api_key in config.
+    Returns a status string for logging.
+    """
+    cmd = str(cmd_json.get("cmd", "")).upper()
+    license_key = str(cmd_json.get("license", ""))[:32]
+    username    = str(cmd_json.get("username", ""))[:32]
+
+    if cmd == "CLAIM_USERNAME":
+        result = claim_username(username, license_key)
+        send_line(conn, json.dumps({"status": result}))
+        return f"INTERNAL_CLAIM:{result}:{username}"
+    elif cmd == "CHECK_USERNAME":
+        result = check_username(username, license_key)
+        send_line(conn, json.dumps({"status": result}))
+        return f"INTERNAL_CHECK:{result}:{username}"
+    else:
+        send_line(conn, json.dumps({"status": "ERROR", "msg": "unknown internal cmd"}))
+        return f"INTERNAL_UNKNOWN:{cmd}"
+
+
 def handle_client(conn: socket.socket, addr: tuple[str, int],
                   cfg: dict, nonce_cache: NonceCache,
                   semaphore: threading.BoundedSemaphore) -> None:
@@ -423,6 +529,29 @@ def handle_client(conn: socket.socket, addr: tuple[str, int],
         if first == "PING":
             send_line(conn, "PONG")
             status = "PING"
+            return
+
+        # ── Internal API path (loopback only) ──────────────────────────────
+        # The multiplayer server uses this to check/claim usernames without
+        # going through the full RSA handshake.  Only accepted from 127.0.0.1
+        # and ::1, and requires a pre-shared api_key in server_config.json.
+        if first.startswith("INTERNAL "):
+            is_loopback = client_ip in ("127.0.0.1", "::1", "localhost")
+            internal_api_key = cfg.get("internal_api_key", "")
+            parts_int = first.split(" ", 2)
+            if (is_loopback and internal_api_key
+                    and len(parts_int) == 3
+                    and hmac.compare_digest(parts_int[1], internal_api_key)):
+                try:
+                    cmd_json = json.loads(parts_int[2])
+                except json.JSONDecodeError:
+                    send_line(conn, json.dumps({"status": "ERROR", "msg": "bad json"}))
+                    status = "INTERNAL_BAD_JSON"
+                    return
+                status = _handle_internal(conn, client_ip, cfg, cmd_json)
+            else:
+                send_line(conn, json.dumps({"status": "ERROR", "msg": "forbidden"}))
+                status = "INTERNAL_FORBIDDEN"
             return
 
         # The first authenticated line MUST be HELLO. Inject `first` back into
@@ -586,6 +715,19 @@ def handle_client(conn: socket.socket, addr: tuple[str, int],
                     "data": base64.b64encode(existing).decode("ascii"),
                 })
                 status = f"DOWNLOADED:{len(existing)}"
+
+        elif cmd == "CLAIM_USERNAME":
+            uname = str(req.get("username", ""))[:32]
+            result = claim_username(uname, license_key)
+            sess.send_json({"status": result})
+            status = f"CLAIM_USERNAME:{result}:{uname}"
+
+        elif cmd == "CHECK_USERNAME":
+            uname = str(req.get("username", ""))[:32]
+            result = check_username(uname, license_key)
+            sess.send_json({"status": result})
+            status = f"CHECK_USERNAME:{result}:{uname}"
+
         else:
             sess.send_json({"status": "ERROR", "msg": "unknown command"})
             status = f"UNKNOWN_CMD:{cmd}"

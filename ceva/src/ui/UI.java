@@ -73,6 +73,9 @@ public class UI {
     public boolean mpAddMode = false;     // true=add server, false=direct connect
     public String mpStatusMessage = "";   // connection status text
 
+    public String playerUsername = "";    // username set on title screen, shown above player head
+    public boolean usernameFieldFocused = false; // true when the username field is being typed into
+
     private int animTick = 0;          // global UI animation ticker
     private float smoothLife = -1f;    // for smooth health bar interpolation
     private float smoothMana = -1f;    // for smooth mana bar interpolation
@@ -1029,6 +1032,59 @@ public class UI {
                 }
             }
 
+            // Username input box — top-right corner of title screen
+            {
+                float pulse2 = fastPulse(animTick, 2);
+                int boxW = 220, boxH = 34;
+                int boxX = gp.screenWidth - boxW - 22;
+                int boxY = 18;
+                int boxRound = 8;
+
+                // Background panel
+                g2.setColor(cachedColor(6, 4, 14, 200));
+                g2.fillRoundRect(boxX, boxY, boxW, boxH, boxRound, boxRound);
+
+                // Border — highlighted when focused
+                if (usernameFieldFocused) {
+                    int bordA = (int)(160 + pulse2 * 80);
+                    g2.setColor(cachedColor(232, 52, 118, bordA));
+                } else {
+                    g2.setColor(cachedColor(90, 80, 110, 160));
+                }
+                g2.setStroke(STROKE_15);
+                g2.drawRoundRect(boxX, boxY, boxW, boxH, boxRound, boxRound);
+
+                // Label
+                g2.setFont(cachedFont(Font.PLAIN, 11F));
+                g2.setColor(cachedColor(160, 145, 200, 180));
+                g2.drawString("USERNAME", boxX + 8, boxY - 3);
+
+                // Text content + cursor
+                g2.setFont(cachedFont(Font.BOLD, 13F));
+                String display = playerUsername.isEmpty() && !usernameFieldFocused ? "Click to set name" : playerUsername;
+                Color textCol = playerUsername.isEmpty()
+                        ? cachedColor(120, 110, 140, 140)
+                        : cachedColor(230, 220, 255);
+                g2.setColor(textCol);
+                int textX = boxX + 10;
+                int textY = boxY + boxH / 2 + cachedFM().getAscent() / 2 - 2;
+                g2.drawString(display, textX, textY);
+
+                // Blinking cursor when focused
+                if (usernameFieldFocused && (animTick / 20) % 2 == 0) {
+                    int cursorX = textX + cachedFM().stringWidth(playerUsername);
+                    g2.setColor(cachedColor(232, 52, 118, 220));
+                    g2.setStroke(STROKE_15);
+                    g2.drawLine(cursorX + 2, boxY + 6, cursorX + 2, boxY + boxH - 6);
+                }
+
+                // Hint below box
+                g2.setFont(cachedFont(Font.PLAIN, 11F));
+                g2.setColor(cachedColor(100, 92, 120, 140));
+                String hint = usernameFieldFocused ? "Press ENTER or ESC to confirm" : "Press U to edit";
+                g2.drawString(hint, boxX, boxY + boxH + 13);
+            }
+
             g2.setFont(cachedFont(Font.PLAIN, 14F));
             g2.setColor(cachedColor(108, 98, 78, 160));
             g2.drawString("[I] Info & Update Log", 22, gp.screenHeight - 22);
@@ -1445,6 +1501,20 @@ public class UI {
             int btw = (int) cachedFM().getStringBounds(bText, g2).getWidth();
             g2.setColor(sel ? cachedColor(100, 220, 160) : cachedColor(140, 135, 120));
             g2.drawString(bText, bx + (btnW - btw) / 2, btnY + btnH / 2 + 5);
+        }
+
+        // Connection status (shown after a failed connect attempt)
+        if (gp.mpClient != null && !gp.mpClient.connectionStatus.isEmpty()) {
+            g2.setFont(cachedFont(Font.ITALIC, 12F));
+            String cs = gp.mpClient.connectionStatus;
+            boolean isError = cs.contains("taken") || cs.contains("banned") || cs.contains("failed")
+                    || cs.contains("timed") || cs.contains("full");
+            g2.setColor(isError ? cachedColor(255, 110, 100, 220) : cachedColor(120, 210, 140, 220));
+            int csw = (int) cachedFM().getStringBounds(cs, g2).getWidth();
+            // Wrap to panel width if too long
+            if (csw > panelW - 60) cs = cs.substring(0, Math.min(cs.length(), 60)) + "…";
+            csw = (int) cachedFM().getStringBounds(cs, g2).getWidth();
+            g2.drawString(cs, px + (panelW - csw) / 2, py + panelH - 36);
         }
 
         g2.setFont(cachedFont(Font.PLAIN, 12F));
