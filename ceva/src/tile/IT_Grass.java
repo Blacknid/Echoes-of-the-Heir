@@ -28,8 +28,6 @@ public class IT_Grass extends interactiveTile {
 
     // Deflect on player contact
     private float deflect1 = 0f, deflect2 = 0f;
-    private int deflectTimer1 = 0, deflectTimer2 = 0;
-    private static final int DEFLECT_FRAMES = 22;
     private static final float DEFLECT_ANGLE = 0.45f; // ~26 degrees
 
     private static final float MAX_SWAY = 0.21f; // ~12 degrees
@@ -67,32 +65,29 @@ public class IT_Grass extends interactiveTile {
         angle1 = (float) Math.sin(phase1) * MAX_SWAY;
         angle2 = (float) Math.sin(phase2) * MAX_SWAY;
 
-        // Detect player proximity and push blades away
-        int dx = (gp.player.worldX + gp.tileSize / 2) - (worldX + gp.tileSize / 2);
-        int dy = (gp.player.worldY + gp.tileSize / 2) - (worldY + gp.tileSize / 2);
-        int dist = (int) Math.sqrt(dx * dx + dy * dy);
-        if (dist < gp.tileSize) {
-            // Push direction: blades lean away from player
+        // Detect player hitbox overlap with this tile's area
+        java.awt.Rectangle p = gp.player.solidArea;
+        int px1 = gp.player.worldX + p.x;
+        int py1 = gp.player.worldY + p.y;
+        int px2 = px1 + p.width;
+        int py2 = py1 + p.height;
+        int tx1 = worldX;
+        int ty1 = worldY;
+        int tx2 = worldX + gp.tileSize;
+        int ty2 = worldY + gp.tileSize;
+        float targetDeflect1 = 0f, targetDeflect2 = 0f;
+        if (px2 > tx1 && px1 < tx2 && py2 > ty1 && py1 < ty2) {
+            int dx = (px1 + p.width / 2) - (worldX + gp.tileSize / 2);
             float pushSign = dx >= 0 ? -1f : 1f;
-            deflect1 = pushSign * DEFLECT_ANGLE;
-            deflect2 = pushSign * DEFLECT_ANGLE * 0.75f;
-            deflectTimer1 = DEFLECT_FRAMES;
-            deflectTimer2 = DEFLECT_FRAMES;
+            targetDeflect1 = pushSign * DEFLECT_ANGLE;
+            targetDeflect2 = pushSign * DEFLECT_ANGLE * 0.75f;
         }
 
-        // Decay deflect back to zero
-        if (deflectTimer1 > 0) {
-            deflectTimer1--;
-            deflect1 *= 0.85f;
-        } else {
-            deflect1 = 0f;
-        }
-        if (deflectTimer2 > 0) {
-            deflectTimer2--;
-            deflect2 *= 0.85f;
-        } else {
-            deflect2 = 0f;
-        }
+        // Smooth lerp toward target (in or back to zero)
+        deflect1 += (targetDeflect1 - deflect1) * 0.12f;
+        deflect2 += (targetDeflect2 - deflect2) * 0.09f;
+        if (Math.abs(deflect1) < 0.001f) deflect1 = 0f;
+        if (Math.abs(deflect2) < 0.001f) deflect2 = 0f;
     }
 
     @Override
