@@ -32,6 +32,7 @@ public class UI {
     BufferedImage Hearts_Full, Hearts_Empty, Key, Crystal_Full, Crystal_Empty;
     public BufferedImage Compas;
     public BufferedImage titleBackground;
+    private BufferedImage titleBackgroundRaw;
     public boolean messageOn = false;
     ArrayList<String> message = new ArrayList<>();
     ArrayList<Integer> messageCounter = new ArrayList<>();
@@ -255,9 +256,9 @@ public class UI {
         Key = key.down1;
 
         try {
-            titleBackground = ImageIO.read(getClass().getResourceAsStream(getTitleScreenBackgroundImage()));
-            if (titleBackground != null) {
-                titleBackground = UtilityTool.scaleImage(titleBackground, gp.screenWidth, gp.screenHeight);
+            titleBackgroundRaw = ImageIO.read(getClass().getResourceAsStream(getTitleScreenBackgroundImage()));
+            if (titleBackgroundRaw != null) {
+                titleBackground = UtilityTool.scaleImage(titleBackgroundRaw, gp.screenWidth, gp.screenHeight);
                 System.out.println("Title background loaded successfully!");
             } else {
                 System.out.println("Title background file found but could not be loaded");
@@ -297,6 +298,15 @@ public class UI {
         hudFont_prompt  = arial_40.deriveFont(Font.BOLD,  (float) Math.round(14f * sf));
     }
 
+    /** Rescales HUD fonts and title background when the logical resolution changes. */
+    public void onResolutionChanged() {
+        initHudFonts();
+        fmCache.clear();
+        if (titleBackgroundRaw != null) {
+            titleBackground = UtilityTool.scaleImage(titleBackgroundRaw, gp.screenWidth, gp.screenHeight);
+        }
+    }
+
     public void addMessage(String text, Color color) {
         addMessage(text, color, (BufferedImage) null, 180);
     }
@@ -320,10 +330,14 @@ public class UI {
 
         this.g2 = g2;
     
-        // Crisp pixel art: shapes rendered without shape AA, text with LCD sub-pixel AA
-        // (LCD gives sharp edges on modern monitors without the blurry halo of regular AA)
-        g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_OFF);
-        g2.setRenderingHint(RenderingHints.KEY_TEXT_ANTIALIASING, RenderingHints.VALUE_TEXT_ANTIALIAS_LCD_HRGB);
+        // Rendering hints for the logical back-buffer (1280×720 → scaled to screen):
+        // - ANTIALIAS OFF: sprites/shapes stay pixel-crisp
+        // - TEXT_ANTIALIAS ON: grayscale AA smooths small font edges without sub-pixel
+        //   colour fringing (LCD_HRGB causes coloured blur when the buffer is scaled up)
+        // - FRACTIONALMETRICS OFF: glyphs snap to integer pixel positions
+        g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING,      RenderingHints.VALUE_ANTIALIAS_OFF);
+        g2.setRenderingHint(RenderingHints.KEY_TEXT_ANTIALIASING, RenderingHints.VALUE_TEXT_ANTIALIAS_ON);
+        g2.setRenderingHint(RenderingHints.KEY_FRACTIONALMETRICS, RenderingHints.VALUE_FRACTIONALMETRICS_OFF);
 
         g2.setFont(arial_40);
         g2.setColor(Color.white);
@@ -1987,11 +2001,11 @@ public class UI {
         g2.setColor(Color.white);
         g2.setFont(cachedFont(Font.PLAIN, 32F));
 
-        // SUB WINDOW
-        int frameX = gp.tileSize * 6;
-        int frameY = gp.tileSize;
-        int frameWidth = gp.tileSize * 8;
-        int frameHeight = gp.tileSize * 10;
+        // SUB WINDOW — centered at any resolution
+        int frameWidth  = Math.min(520, (int)(gp.screenWidth * 0.42f));
+        int frameHeight = Math.min(660, (int)(gp.screenHeight * 0.92f));
+        int frameX = (gp.screenWidth  - frameWidth)  / 2;
+        int frameY = (gp.screenHeight - frameHeight) / 2;
         drawSubWindow(frameX, frameY, frameWidth, frameHeight);
 
         switch (subState) {
@@ -2008,10 +2022,10 @@ public class UI {
         float pulse = fastPulse(animTick, 1);
         float leafSway = fastSin(animTick, 1) * 3f;
 
-        final int frameX = gp.tileSize + gp.tileSize / 2;
-        final int frameY = 12;
-        final int frameWidth = gp.tileSize * 6;
+        final int frameWidth  = Math.min(384, (int)(gp.screenWidth * 0.30f));
         final int frameHeight = gp.screenHeight - 24;
+        final int frameX = (int)(gp.screenWidth * 0.02f);
+        final int frameY = 12;
         drawSubWindow(frameX, frameY, frameWidth, frameHeight);
 
         final int pad = 16;
@@ -2169,7 +2183,7 @@ public class UI {
     }
     public void drawInventory() {
 
-        int frameWidth  = gp.tileSize * 6;
+        int frameWidth  = Math.min(384, (int)(gp.screenWidth * 0.30f));
         int frameHeight = gp.tileSize * 5;
         int frameX = gp.screenWidth - frameWidth - 16;  // right-aligned: works at any tileSize/resolution
         int frameY = gp.tileSize;
@@ -2342,7 +2356,7 @@ public class UI {
 
     public void options_top( int frameX, int frameY ) {
 
-        int fw = gp.tileSize * 8;
+        int fw = Math.min(520, (int)(gp.screenWidth * 0.42f));
         int pad = 20;                   // inner padding
         int lineH = 46;                 // row height for menu items
         int rightCol = frameX + fw - pad - 155; // right column for controls/sliders
@@ -2364,13 +2378,13 @@ public class UI {
         int startY = titleY + 42;       // first item Y baseline
         int textX = frameX + pad + 15;
 
-        String[] labels = { "Full Screen", "V-Sync", "Perf Mode", "Graphics", "Music", "Sound FX", "Controls", "End Game", "Save Game", "Back" };
-        int totalItems = labels.length;  // 10 items, indices 0-9
+        String[] labels = { "Full Screen", "V-Sync", "Perf Mode", "Graphics", "Music", "Sound FX", "Controls", "End Game", "Save Game", "Dynamic View", "Back" };
+        int totalItems = labels.length;  // 11 items, indices 0-10
 
         for (int i = 0; i < totalItems; i++) {
             int itemY = startY + i * lineH;
             boolean selected = (commandNum == i);
-            boolean isBack = (i == 9);
+            boolean isBack = (i == 10);
 
             // draw separator before "Back"
             if (isBack) {
@@ -2470,7 +2484,16 @@ public class UI {
                     gp.keyH.enterPressed = false;
                 }
             }
-            else if (i == 9) { // Back
+            else if (i == 9) { // Dynamic View: ON = dynamic viewport (more tiles), OFF = fixed 1280×720 scaled
+                drawMedievalToggle(rightCol + 100, ctrlY, !Config.stretchToFill); // lit when dynamic ON
+                if (selected && gp.keyH.enterPressed) {
+                    Config.stretchToFill = !Config.stretchToFill;
+                    gp.playSE(SFX.MENU_SELECT);
+                    gp.keyH.enterPressed = false;
+                    gp.config.saveConfig();
+                }
+            }
+            else if (i == 10) { // Back
                 if (selected && gp.keyH.enterPressed) { gp.gameState = GamePanel.playState; commandNum = 0; gp.config.saveConfig(); }
             }
         }
@@ -2548,7 +2571,7 @@ public class UI {
     }
     public void options_fullScreenNotification ( int frameX, int frameY ) {
 
-        int fw = gp.tileSize * 8;
+        int fw = Math.min(520, (int)(gp.screenWidth * 0.42f));
         g2.setFont(cachedFont(Font.BOLD, 30F));
         g2.setColor(OPT_GOLD);
         String noteTitle = "Notice";
@@ -2589,7 +2612,7 @@ public class UI {
     }
     public void options_control ( int frameX, int frameY ) {
 
-        int fw = gp.tileSize * 8;
+        int fw = Math.min(520, (int)(gp.screenWidth * 0.42f));
         int pad = 30;
 
         g2.setFont(cachedFont(Font.BOLD, 34F));
@@ -2681,7 +2704,7 @@ public class UI {
     }
     public void options_endGameConfirmation( int frameX, int frameY  ) {
 
-        int fw = gp.tileSize * 8;
+        int fw = Math.min(520, (int)(gp.screenWidth * 0.42f));
 
         // Warning title
         g2.setFont(cachedFont(Font.BOLD, 30F));

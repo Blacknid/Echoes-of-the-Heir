@@ -15,6 +15,7 @@ public class AudioManager {
     private final Sound se = new Sound();
 
     public void playMusic(int index) {
+        music.stop();
         music.setFile(index);
         music.play();
         music.loop();

@@ -111,6 +111,12 @@ public class Player extends Entity {
     public int levelUpBannerTimer = 0;
     public String levelUpBannerText = "";
 
+    // Drift / momentum: sub-pixel velocity that decays after keys are released.
+    // DRIFT_FRICTION chosen for a 2-4 frame glide at normal walk speed (feels like grass, not ice).
+    private float driftVx = 0f, driftVy = 0f;
+    private float driftAccumX = 0f, driftAccumY = 0f;
+    private static final float DRIFT_FRICTION = 0.72f; // per-frame multiplier; lower = snappier, higher = more slide
+
     private boolean dashing = false;
     private int dashCounter = 0;
     private final int dashDuration = 10;  // frames (~0.17s — snappy burst)
@@ -248,6 +254,13 @@ public class Player extends Entity {
         }
         direction = DIR_DOWN;
         // Snap camera instantly to new spawn position (no lerp drift across map transitions)
+        camScreenX = 0f;
+        camScreenY = 0f;
+    }
+
+    /** Instantly snaps the smooth camera to its default position — call after a window resize
+     *  to avoid the camera lerping from the old position to the new screen centre. */
+    public void snapCamera() {
         camScreenX = 0f;
         camScreenY = 0f;
     }
@@ -588,10 +601,14 @@ public class Player extends Entity {
                     gp.cChecker.checkEntity(this, gp.monster);
                     gp.cChecker.checkEntity(this, gp.iTile);
                     if (!collisionOn) {
-                        if (movingLeft) worldX -= moveSpeedX;
-                        if (movingRight) worldX += moveSpeedX;
+                        if (movingLeft) { worldX -= moveSpeedX; driftVx = -moveSpeedX; }
+                        if (movingRight) { worldX += moveSpeedX; driftVx =  moveSpeedX; }
+                    } else {
+                        driftVx = 0f;
                     }
                     direction = savedDir; // restore for vertical check
+                } else if (!movingHorizontal) {
+                    driftVx = 0f;
                 }
 
                 if (movingVertical && !keyH.enterPressed) {
@@ -604,10 +621,14 @@ public class Player extends Entity {
                     gp.cChecker.checkEntity(this, gp.monster);
                     gp.cChecker.checkEntity(this, gp.iTile);
                     if (!collisionOn) {
-                        if (movingUp) worldY -= moveSpeedY;
-                        if (movingDown) worldY += moveSpeedY;
+                        if (movingUp)   { worldY -= moveSpeedY; driftVy = -moveSpeedY; }
+                        if (movingDown) { worldY += moveSpeedY; driftVy =  moveSpeedY; }
+                    } else {
+                        driftVy = 0f;
                     }
                     direction = savedDir;
+                } else if (!movingVertical) {
+                    driftVy = 0f;
                 }
 
                 if (movingUp) direction = DIR_UP;
@@ -655,6 +676,48 @@ public class Player extends Entity {
             } else {
                 footstepParticleCounter = 0;
                 idleDelayCounter++;
+
+                // Drift: glide to a stop after keys released
+                driftVx *= DRIFT_FRICTION;
+                driftVy *= DRIFT_FRICTION;
+                if (Math.abs(driftVx) < 0.1f) driftVx = 0f;
+                if (Math.abs(driftVy) < 0.1f) driftVy = 0f;
+
+                if (driftVx != 0f) {
+                    driftAccumX += driftVx;
+                    int dx = (int) driftAccumX;
+                    if (dx != 0) {
+                        int savedDir = direction;
+                        direction = dx < 0 ? DIR_LEFT : DIR_RIGHT;
+                        collisionOn = false;
+                        gp.cChecker.checkTile(this);
+                        gp.cChecker.checkObject(this, false);
+                        gp.cChecker.checkEntity(this, gp.npc);
+                        gp.cChecker.checkEntity(this, gp.monster);
+                        gp.cChecker.checkEntity(this, gp.iTile);
+                        if (!collisionOn) { worldX += dx; } else { driftVx = 0f; }
+                        driftAccumX -= dx;
+                        direction = savedDir;
+                    }
+                } else { driftAccumX = 0f; }
+
+                if (driftVy != 0f) {
+                    driftAccumY += driftVy;
+                    int dy = (int) driftAccumY;
+                    if (dy != 0) {
+                        int savedDir = direction;
+                        direction = dy < 0 ? DIR_UP : DIR_DOWN;
+                        collisionOn = false;
+                        gp.cChecker.checkTile(this);
+                        gp.cChecker.checkObject(this, false);
+                        gp.cChecker.checkEntity(this, gp.npc);
+                        gp.cChecker.checkEntity(this, gp.monster);
+                        gp.cChecker.checkEntity(this, gp.iTile);
+                        if (!collisionOn) { worldY += dy; } else { driftVy = 0f; }
+                        driftAccumY -= dy;
+                        direction = savedDir;
+                    }
+                } else { driftAccumY = 0f; }
 
                 if (idleDelayCounter >= idleStartDelayFrames) {
                     updateIdleSprite();

@@ -52,6 +52,9 @@ public class Config {
     public static int originalTileSize = 32;
     public static double scale = 2.0;
     public static int tileSize = (int)(originalTileSize * scale);
+    /** When true: stretch the fixed 1280×720 back-buffer to fill the window.
+     *  When false (default): dynamic viewport — bigger window = more world tiles visible, 1:1 pixels. */
+    public static boolean stretchToFill = false;
 
     /** Set the scale multiplier and update derived values. */
     public static void setScale(double s) {
@@ -94,6 +97,7 @@ public class Config {
             bw.write("vsync=" + (gp.vSyncOn ? "On" : "Off"));           bw.newLine();
             bw.write("fpsTarget=" + fpsTarget);                           bw.newLine();
             bw.write("graphicsQuality=" + graphicsQuality);                bw.newLine();
+            bw.write("stretchToFill=" + (Config.stretchToFill ? "On" : "Off")); bw.newLine();
             // Save window position: use live coords when windowed, saved bounds when fullscreen
             int wx, wy;
             if (!gp.fullScreenOn && Main.window != null) {
@@ -133,6 +137,7 @@ public class Config {
             gp.vSyncOn = "On".equals(map.getOrDefault("vsync", "Off"));
             try { fpsTarget = Integer.parseInt(map.getOrDefault("fpsTarget", "60")); } catch (Exception ignored) {}
             try { graphicsQuality = Math.max(GRAPHICS_LOW, Math.min(GRAPHICS_HIGH, Integer.parseInt(map.getOrDefault("graphicsQuality", "2")))); } catch (Exception ignored) {}
+            Config.stretchToFill = "On".equals(map.getOrDefault("stretchToFill", "Off"));
             try { windowX = Integer.parseInt(map.getOrDefault("windowX", "-1")); } catch (Exception ignored) {}
             try { windowY = Integer.parseInt(map.getOrDefault("windowY", "-1")); } catch (Exception ignored) {}
 

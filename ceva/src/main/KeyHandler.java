@@ -651,7 +651,7 @@ public class KeyHandler implements KeyListener {
         if (code == KeyEvent.VK_ENTER) enterPressed = true;
 
         int maxCommandNum = switch (gp.ui.subState) {
-            case 0 -> 9;
+            case 0 -> 10;
             case 3 -> 2;
             default -> 0;
         };

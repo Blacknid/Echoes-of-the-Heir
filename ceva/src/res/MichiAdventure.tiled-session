@@ -5,7 +5,7 @@
     "file.lastUsedOpenFilter": "All Files (*)",
     "fileStates": {
         "": {
-            "scaleInDock": 1,
+            "scaleInDock": 0.0625,
             "scaleInEditor": 1
         },
         "#Interior": {
@@ -1566,9 +1566,9 @@
         },
         "maps/Awakening_Cave.tmx": {
             "expandedObjectLayers": [
-                13,
+                16,
                 17,
-                16
+                13
             ],
             "scale": 0.75,
             "selectedLayer": 21,
@@ -1648,22 +1648,22 @@
         },
         "maps/Canvas_Village.tmx": {
             "expandedGroupLayers": [
-                31,
                 45,
-                54,
-                50
+                31,
+                50,
+                54
             ],
             "expandedObjectLayers": [
                 10,
                 12,
-                8,
-                4
+                4,
+                8
             ],
-            "scale": 0.75,
-            "selectedLayer": 42,
+            "scale": 1,
+            "selectedLayer": 36,
             "viewCenter": {
-                "x": 2240,
-                "y": 2163.333333333333
+                "x": 1677,
+                "y": 1783.5
             }
         },
         "maps/Canvas_Village.tmx#Archer": {
@@ -1733,6 +1733,9 @@
         },
         "maps/Canvas_Village.tmx#Plants": {
             "scaleInDock": 0.75
+        },
+        "maps/Canvas_Village.tmx#Player_walking-sheet": {
+            "scaleInDock": 1
         },
         "maps/Canvas_Village.tmx#Smoke_animation": {
             "scaleInDock": 1,
@@ -1862,8 +1865,8 @@
             "scale": 0.25,
             "selectedLayer": 13,
             "viewCenter": {
-                "x": 1420,
-                "y": 1406
+                "x": 1340,
+                "y": 1280
             }
         },
         "maps/Shattered_Lake.tmx#Boat1": {
@@ -1935,10 +1938,10 @@
                 20,
                 18
             ],
-            "scale": 2,
+            "scale": 1.5,
             "selectedLayer": 7,
             "viewCenter": {
-                "x": 530.5,
+                "x": 568.6666666666666,
                 "y": 320
             }
         },
@@ -1987,7 +1990,7 @@
         }
     },
     "frame.defaultDuration": 120,
-    "last.imagePath": "C:/Users/cstyl/Documents/Michi-s-adventure/ceva/src/res/tiles/CANVAS VILLAGE/Fishing Dock",
+    "last.imagePath": "C:/Users/cstyl/Documents/Michi-s-adventure/ceva/src/res/player",
     "map.height": 20,
     "map.lastUsedFormat": "tmx",
     "map.width": 26,
@@ -1998,14 +2001,14 @@
         "maps/Shattered_Lake.tmx"
     ],
     "project": "MichiAdventure.tiled-project",
-    "property.type": "int",
+    "property.type": "string",
     "recentFiles": [
-        "maps/Tavern_interior.tmx",
         "maps/Shattered_Lake.tmx",
         "maps/Awakening_Cave.tmx",
+        "maps/Tavern_interior.tmx",
+        "maps/Canvas_Village.tmx",
         "C:/Users/cstyl/Downloads/craftpix-net-471853-top-down-farm-with-animals-pixel-art-asset-pack (1)/Tiled_files/Farm.tmx",
         "C:/Users/cstyl/Downloads/craftpix-net-624156-swamp-top-down-tileset-pixel-art/Tiled_files/Swamp.tmx",
-        "maps/Canvas_Village.tmx",
         "C:/Users/cstyl/Downloads/craftpix-net-666104-tavern-top-down-pixel-rpg-asset-pack/Tiled_files/Tavern_interior_1nd_floor.tmx",
         "C:/Users/cstyl/Downloads/craftpix-net-666104-tavern-top-down-pixel-rpg-asset-pack/Tiled_files/Characters.tmx",
         "maps/Tavern_2nd_floor.tmx",

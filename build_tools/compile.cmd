@@ -22,6 +22,14 @@ echo   Michi's Adventure Build Pipeline v%VERSION%
 echo ============================================
 echo.
 
+:: Abort if the packaged game EXE is already running — compiling while it's open corrupts the bin dir.
+tasklist /FI "IMAGENAME eq MichisAdventure.exe" 2>nul | find /I "MichisAdventure.exe" >nul
+if %ERRORLEVEL% EQU 0 (
+    echo [ABORT] MichisAdventure.exe is currently running. Close the game first.
+    pause
+    exit /b 1
+)
+
 :: Auto-increment build number in build.properties
 set BUILD_PROPS=%SRC_DIR%\res\build.properties
 if exist "%BUILD_PROPS%" (

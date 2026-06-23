@@ -218,6 +218,8 @@ public class MapShaderManager {
         int h = gp.screenHeight;
         vignetteImage = new BufferedImage(w, h, BufferedImage.TYPE_INT_ARGB);
         Graphics2D vg = vignetteImage.createGraphics();
+        vg.setRenderingHint(java.awt.RenderingHints.KEY_INTERPOLATION,
+                java.awt.RenderingHints.VALUE_INTERPOLATION_NEAREST_NEIGHBOR);
 
         float cx = w / 2f;
         float cy = h / 2f;
