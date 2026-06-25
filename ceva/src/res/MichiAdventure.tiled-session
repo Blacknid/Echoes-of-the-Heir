@@ -1,5 +1,5 @@
 {
-    "activeFile": "maps/Canvas_Village.tmx",
+    "activeFile": "maps/Shattered_Lake.tmx",
     "expandedProjectPaths": [
     ],
     "file.lastUsedOpenFilter": "All Files (*)",
@@ -1567,14 +1567,14 @@
         "maps/Awakening_Cave.tmx": {
             "expandedObjectLayers": [
                 16,
-                17,
-                13
+                13,
+                17
             ],
             "scale": 0.75,
             "selectedLayer": 21,
             "viewCenter": {
-                "x": 710.6666666666667,
-                "y": 511.3333333333333
+                "x": 334.66666666666663,
+                "y": 480
             }
         },
         "maps/Awakening_Cave.tmx#Details": {
@@ -1648,22 +1648,22 @@
         },
         "maps/Canvas_Village.tmx": {
             "expandedGroupLayers": [
-                45,
-                31,
                 50,
+                31,
+                45,
                 54
             ],
             "expandedObjectLayers": [
-                10,
-                12,
+                8,
                 4,
-                8
+                12,
+                10
             ],
-            "scale": 1,
-            "selectedLayer": 36,
+            "scale": 1.5,
+            "selectedLayer": 42,
             "viewCenter": {
-                "x": 1677,
-                "y": 1783.5
+                "x": 1596.6666666666665,
+                "y": 1744
             }
         },
         "maps/Canvas_Village.tmx#Archer": {
@@ -1859,14 +1859,14 @@
         },
         "maps/Shattered_Lake.tmx": {
             "expandedObjectLayers": [
-                24,
-                23
+                23,
+                24
             ],
             "scale": 0.25,
             "selectedLayer": 13,
             "viewCenter": {
                 "x": 1340,
-                "y": 1280
+                "y": 1278
             }
         },
         "maps/Shattered_Lake.tmx#Boat1": {
@@ -1935,8 +1935,8 @@
         },
         "maps/Tavern_interior.tmx": {
             "expandedObjectLayers": [
-                20,
-                18
+                18,
+                20
             ],
             "scale": 1.5,
             "selectedLayer": 7,
@@ -2003,10 +2003,10 @@
     "project": "MichiAdventure.tiled-project",
     "property.type": "string",
     "recentFiles": [
-        "maps/Shattered_Lake.tmx",
-        "maps/Awakening_Cave.tmx",
-        "maps/Tavern_interior.tmx",
         "maps/Canvas_Village.tmx",
+        "maps/Tavern_interior.tmx",
+        "maps/Awakening_Cave.tmx",
+        "maps/Shattered_Lake.tmx",
         "C:/Users/cstyl/Downloads/craftpix-net-471853-top-down-farm-with-animals-pixel-art-asset-pack (1)/Tiled_files/Farm.tmx",
         "C:/Users/cstyl/Downloads/craftpix-net-624156-swamp-top-down-tileset-pixel-art/Tiled_files/Swamp.tmx",
         "C:/Users/cstyl/Downloads/craftpix-net-666104-tavern-top-down-pixel-rpg-asset-pack/Tiled_files/Tavern_interior_1nd_floor.tmx",

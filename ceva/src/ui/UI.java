@@ -7,6 +7,7 @@ import java.awt.Font;
 import java.awt.FontMetrics;
 import java.awt.Graphics2D;
 import java.awt.RenderingHints;
+import java.awt.Shape;
 import java.awt.image.BufferedImage;
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -46,6 +47,7 @@ public class UI {
     public int slotCol = 0;
     public int slotRow = 0;
     public int subState = 0;
+    public int controlScroll = 0;
     int counter = 0;
     public Entity npc;
     int charIndex = 0;
@@ -1870,7 +1872,7 @@ public class UI {
         }
     }
 
-    private int journalScroll = 0;
+    public int journalScroll = 0;
     public int journalSelectedIndex = 0;
 
     public void drawJournalScreen() {
@@ -2682,7 +2684,8 @@ public class UI {
     }
     public void options_control ( int frameX, int frameY ) {
 
-        int fw = Math.min(520, (int)(gp.screenWidth * 0.42f));
+        int fw  = Math.min(520, (int)(gp.screenWidth  * 0.42f));
+        int fh  = Math.min(660, (int)(gp.screenHeight * 0.92f));
         int pad = 30;
 
         g2.setFont(cachedFont(Font.BOLD, 34F));
@@ -2690,73 +2693,72 @@ public class UI {
         String ctrlTitle = "Controls";
         int ctw = (int) cachedFM().getStringBounds(ctrlTitle, g2).getWidth();
         g2.drawString(ctrlTitle, frameX + fw / 2 - ctw / 2, frameY + 48);
-        // decorative line
         g2.setColor(OPT_SEPARATOR);
         g2.fillRect(frameX + pad, frameY + 58, fw - pad * 2, 2);
 
         // Key bindings table
         g2.setFont(cachedFont(Font.PLAIN, 19F));
         String[] actions = {
-            "Move",
-            "Attack / Confirm",
-            "Shoot",
-            "Dodge Roll",
-            "Blink",
-            "Shockwave",
-            "Void Snare",
-            "Frost Nova",
-            "Overdrive",
-            "Inventory",
-            "Skill Tree",
-            "Quest Log",
-            "Pause",
-            "Options",
-            "Debug Tools"
+            "Move", "Attack / Confirm", "Shoot", "Dodge Roll", "Blink",
+            "Shockwave", "Void Snare", "Frost Nova", "Overdrive",
+            "Inventory", "Skill Tree", "Quest Log", "Pause", "Options", "Debug Tools"
         };
-        String[] keys    = {
-            "W A S D",
-            "ENTER",
-            "F",
-            "SHIFT + Move",
-            "SPACE",
-            "Z",
-            "X",
-            "C",
-            "V",
-            "E",
-            "K",
-            "Q",
-            "P",
-            "ESC",
-            "T / H / R / Y"
+        String[] keys = {
+            "W A S D", "ENTER", "F", "SHIFT + Move", "SPACE",
+            "Z", "X", "C", "V", "E", "K", "Q", "P", "ESC", "Ctrl+D / F9"
         };
-        int textX = frameX + pad;
-        int keyX  = frameX + fw - pad;
-        int textY = frameY + 92;
-        int rowH  = 34;
 
-        for (int i = 0; i < actions.length; i++) {
-            int ry = textY + i * rowH;
-            // zebra stripe
+        int textX   = frameX + pad;
+        int keyX    = frameX + fw - pad;
+        int rowH    = 34;
+        // reserve space at the bottom for the Back button (36px button + 16px margin each side)
+        int backAreaH = 68;
+        int listTop   = frameY + 70;
+        int listH     = fh - (listTop - frameY) - backAreaH;
+        int maxVis    = listH / rowH;
+
+        // clamp scroll
+        int maxScroll = Math.max(0, actions.length - maxVis);
+        controlScroll = Math.max(0, Math.min(controlScroll, maxScroll));
+
+        // clip to list area so rows don't bleed into the Back button
+        Shape oldClip = g2.getClip();
+        g2.setClip(frameX, listTop, fw, listH);
+
+        for (int i = controlScroll; i < actions.length && i < controlScroll + maxVis; i++) {
+            int ry = listTop + (i - controlScroll) * rowH + rowH - 6;
             if (i % 2 == 0) {
                 g2.setColor(cachedColor(40, 35, 25, 60));
                 g2.fillRoundRect(frameX + 12, ry - 26, fw - 24, rowH - 4, 8, 8);
             }
-            // action label
             g2.setColor(OPT_TEXT);
             g2.drawString(actions[i], textX + 5, ry);
-            // key label right-aligned in gold
             g2.setColor(OPT_GOLD_DIM);
             int kw = (int) cachedFM().getStringBounds(keys[i], g2).getWidth();
             g2.drawString(keys[i], keyX - kw - 5, ry);
         }
 
-        // BACK button centered
+        g2.setClip(oldClip);
+
+        // scroll hint if there are more rows above or below
+        if (maxScroll > 0) {
+            g2.setFont(cachedFont(Font.PLAIN, 13F));
+            g2.setColor(cachedColor(120, 115, 105));
+            String hint = (controlScroll > 0 ? "▲ " : "  ") + "Scroll" + (controlScroll < maxScroll ? " ▼" : "");
+            int hw = (int) cachedFM().getStringBounds(hint, g2).getWidth();
+            g2.drawString(hint, frameX + fw / 2 - hw / 2, frameY + fh - backAreaH + 2);
+        }
+
+        // separator above Back button
+        g2.setColor(OPT_SEPARATOR);
+        g2.fillRect(frameX + pad, frameY + fh - backAreaH + 6, fw - pad * 2, 1);
+
+        // BACK button — always at fixed position inside the reserved area
         g2.setFont(cachedFont(Font.PLAIN, 26F));
         String back = "Back";
-        int bw = (int) cachedFM().getStringBounds(back, g2).getWidth();
+        int bw   = (int) cachedFM().getStringBounds(back, g2).getWidth();
         int backX = frameX + fw / 2 - bw / 2;
-        int backY = frameY + gp.tileSize * 9 - 20;
+        int backY = frameY + fh - backAreaH + 46;
         boolean sel = (commandNum == 0);
         if (sel) {
             g2.setColor(OPT_SEL_BG);
@@ -2767,7 +2769,7 @@ public class UI {
         }
         g2.setColor(sel ? OPT_GOLD : OPT_BACK_TEXT);
         g2.drawString(back, backX, backY);
-        if ( sel && gp.keyH.enterPressed ) {
+        if (sel && gp.keyH.enterPressed) {
             subState = 0;
             commandNum = 4;
         }

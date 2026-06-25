@@ -68,6 +68,7 @@ public class GamePanel extends JPanel implements Runnable{
 
     public boolean HitBoxes = false;
     public boolean drawPath = false;
+    public boolean debugModeEnabled = false;
     public boolean debugMenuOpen = false;
     // Pending debug reload — set from EDT, consumed by the game-loop thread at the start of update()
     private volatile boolean pendingReloadAll     = false;
@@ -107,6 +108,7 @@ public class GamePanel extends JPanel implements Runnable{
 
     public TileManager tileM = new TileManager(this);
     public KeyHandler keyH = new KeyHandler(this);
+    public MouseHandler mouseH = new MouseHandler(this);
     public AudioManager audio = new AudioManager();
     public CollisionChecker cChecker = new CollisionChecker(this);
     public AssetSetter aSetter = new AssetSetter(this);
@@ -260,6 +262,9 @@ public class GamePanel extends JPanel implements Runnable{
         this.setBackground(Color.black);
         this.setDoubleBuffered(true);
         this.addKeyListener(keyH);
+        this.addMouseListener(mouseH);
+        this.addMouseMotionListener(mouseH);
+        this.addMouseWheelListener(mouseH);
         this.setFocusable(true);
 
         // Dynamic viewport: immediately adapt resolution when the panel is resized.
@@ -707,6 +712,7 @@ public class GamePanel extends JPanel implements Runnable{
     public void startGameThread(){
 
         gameThread = new Thread(this);
+        gameThread.setDaemon(true);
         gameThread.start();
     }
 

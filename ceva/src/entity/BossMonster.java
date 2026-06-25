@@ -55,6 +55,7 @@ public class BossMonster extends Entity {
         this.solidArea.height = innerMonster.solidArea.height;
         this.solidAreaDefaultX = innerMonster.solidAreaDefaultX;
         this.solidAreaDefaultY = innerMonster.solidAreaDefaultY;
+        this.hurtPolygon = innerMonster.hurtPolygon;
         this.walkFrames = innerMonster.walkFrames;
         this.projectile = innerMonster.projectile;
         this.hpBarOn = true;

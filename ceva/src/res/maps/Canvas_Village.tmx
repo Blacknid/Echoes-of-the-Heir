@@ -14516,7 +14516,7 @@
   <object id="386" type="IT_Grass" x="2624" y="1568">
    <point/>
   </object>
-  <object id="387" type="IT_Grass" x="2616.67" y="1540.67">
+  <object id="387" type="IT_Grass" x="2624" y="1536">
    <point/>
   </object>
  </objectgroup>

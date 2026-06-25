@@ -159,6 +159,13 @@ public class Player extends Entity {
     private final int idleStartDelayFrames = 120;
     private int idleDelayCounter = 0;
     private boolean movingThisFrame = false;
+    private boolean wasMovingLastFrame = false;
+
+    // Wind-down: play 2 more walk frames after keys released before going idle
+    private boolean windingDown = false;
+    private int windDownFramesLeft = 0;
+    private int windDownCounter = 0;
+    private static final int WIND_DOWN_FRAMES = 2;
 
     public Player(GamePanel gp, KeyHandler keyH) {
         super(gp);
@@ -547,99 +554,63 @@ public class Player extends Entity {
             }
         } else {
             if (gp.inputLocked) return;
+
             boolean canMove = !rooted;
             boolean movingUp    = canMove && keyH.upPressed;
             boolean movingDown  = canMove && keyH.downPressed;
             boolean movingLeft  = canMove && keyH.leftPressed;
             boolean movingRight = canMove && keyH.rightPressed;
-            boolean movingVertical = movingUp || movingDown;
-            boolean movingHorizontal = movingLeft || movingRight;
-            boolean diagonal = movingVertical && movingHorizontal;
-            boolean moving = movingVertical || movingHorizontal;
+            boolean movingH = movingLeft || movingRight;
+            boolean movingV = movingUp   || movingDown;
+            boolean moving  = movingH    || movingV;
             movingThisFrame = moving;
-            
-            // Set facing direction: vertical priority (up/down animation for diagonals)
-            if (movingUp) direction = DIR_UP;
-            else if (movingDown) direction = DIR_DOWN;
-            else if (movingLeft) direction = DIR_LEFT;
-            else if (movingRight) direction = DIR_RIGHT;
+
+            if (moving) {
+                // Vertical direction takes priority for diagonals (walk up/down anim while strafing)
+                if      (movingUp)    direction = DIR_UP;
+                else if (movingDown)  direction = DIR_DOWN;
+                else if (movingLeft)  direction = DIR_LEFT;
+                else if (movingRight) direction = DIR_RIGHT;
+            }
 
             if (moving || keyH.enterPressed) {
+                windingDown = false;
                 idleCounter = 0;
                 idleFrameDirection = 1;
                 idleDelayCounter = 0;
 
-                // Diagonal movement: use 1/sqrt(2) ≈ 0.7071 per axis
-                // This ensures total diagonal distance = cardinal distance (standard in Zelda, Diablo, Stardew Valley)
-                int moveSpeedX = speed;
-                int moveSpeedY = speed;
-                if (diagonal) {
-                    // 70.71% per axis — total vector equals cardinal speed, balanced feel
-                    moveSpeedX = Math.max(1, Math.round(speed * 0.7071f));
-                    moveSpeedY = Math.max(1, Math.round(speed * 0.7071f));
-                }
-                // Slowed: halve effective movement speed (e.g. Canvas Moth dust debuff)
+                // Diagonal: scale each axis by 1/√2 so total speed equals cardinal
+                boolean diagonal = movingH && movingV;
+                int sx = diagonal ? Math.max(1, Math.round(speed * 0.7071f)) : speed;
+                int sy = sx;
+
                 if (slowed && !dashing) {
-                    moveSpeedX = Math.max(1, moveSpeedX / 2);
-                    moveSpeedY = Math.max(1, moveSpeedY / 2);
+                    sx = Math.max(1, sx / 2);
+                    sy = Math.max(1, sy / 2);
                 }
-                // Water terrain: wading slows movement to ~60% when inside a WaterZone rectangle
                 if (!dashing && gp.eHandler.isInWaterZone(
                         worldX + solidArea.x, worldY + solidArea.y,
                         solidArea.width, solidArea.height)) {
-                    moveSpeedX = Math.max(1, moveSpeedX * 3 / 5);
-                    moveSpeedY = Math.max(1, moveSpeedY * 3 / 5);
+                    sx = Math.max(1, sx * 3 / 5);
+                    sy = Math.max(1, sy * 3 / 5);
                 }
 
-                if (movingHorizontal && !keyH.enterPressed) {
-                    int savedDir = direction;
-                    direction = movingLeft ? DIR_LEFT : DIR_RIGHT;
-                    collisionOn = false;
-                    gp.cChecker.checkTile(this);
-                    gp.cChecker.checkObject(this, false);
-                    gp.cChecker.checkEntity(this, gp.npc);
-                    gp.cChecker.checkEntity(this, gp.monster);
-                    gp.cChecker.checkEntity(this, gp.iTile);
-                    if (!collisionOn) {
-                        if (movingLeft) { worldX -= moveSpeedX; driftVx = -moveSpeedX; }
-                        if (movingRight) { worldX += moveSpeedX; driftVx =  moveSpeedX; }
-                    } else {
-                        driftVx = 0f;
-                    }
-                    direction = savedDir; // restore for vertical check
-                } else if (!movingHorizontal) {
-                    driftVx = 0f;
-                }
+                if (movingH && !keyH.enterPressed) moveAxis(movingLeft ? DIR_LEFT : DIR_RIGHT, movingLeft ? -sx : sx, 0);
+                else if (!movingH) driftVx = 0f;
 
-                if (movingVertical && !keyH.enterPressed) {
-                    int savedDir = direction;
-                    direction = movingUp ? DIR_UP : DIR_DOWN;
-                    collisionOn = false;
-                    gp.cChecker.checkTile(this);
-                    gp.cChecker.checkObject(this, false);
-                    gp.cChecker.checkEntity(this, gp.npc);
-                    gp.cChecker.checkEntity(this, gp.monster);
-                    gp.cChecker.checkEntity(this, gp.iTile);
-                    if (!collisionOn) {
-                        if (movingUp)   { worldY -= moveSpeedY; driftVy = -moveSpeedY; }
-                        if (movingDown) { worldY += moveSpeedY; driftVy =  moveSpeedY; }
-                    } else {
-                        driftVy = 0f;
-                    }
-                    direction = savedDir;
-                } else if (!movingVertical) {
-                    driftVy = 0f;
-                }
+                if (movingV && !keyH.enterPressed) moveAxis(movingUp ? DIR_UP : DIR_DOWN, 0, movingUp ? -sy : sy);
+                else if (!movingV) driftVy = 0f;
 
-                if (movingUp) direction = DIR_UP;
-                else if (movingDown) direction = DIR_DOWN;
-                else if (movingLeft) direction = DIR_LEFT;
+                // Restore final facing direction after axis checks
+                if      (movingUp)    direction = DIR_UP;
+                else if (movingDown)  direction = DIR_DOWN;
+                else if (movingLeft)  direction = DIR_LEFT;
                 else if (movingRight) direction = DIR_RIGHT;
 
                 collisionOn = false;
                 gp.cChecker.checkTile(this);
                 int objIndex = gp.cChecker.checkObject(this, true);
-                gp.nearbyInteractable = null; // reset each frame
+                gp.nearbyInteractable = null;
                 pickUpObject(objIndex);
                 int npcIndex = gp.cChecker.checkEntity(this, gp.npc);
                 interactNPC(npcIndex);
@@ -652,15 +623,13 @@ public class Player extends Entity {
                     attacking = true;
                     spriteCounter = 0;
                     attackBuffered = false;
-                    if (comboWindow > 0 && comboStep < 2) {
-                        comboStep++;
-                    } else if (comboWindow <= 0) {
-                        comboStep = 0;
-                    }
+                    if (comboWindow > 0 && comboStep < 2) comboStep++;
+                    else if (comboWindow <= 0) comboStep = 0;
                 }
                 attackCanceled = false;
                 attackBuffered = false;
                 keyH.enterPressed = false;
+                wasMovingLastFrame = true;
                 updateSprite();
 
                 if (gp.tileParticleEmitter != null) {
@@ -669,61 +638,61 @@ public class Player extends Entity {
                         footstepParticleCounter = 0;
                         int col = getCenterX() / gp.tileSize;
                         int row = (worldY + gp.tileSize - 1) / gp.tileSize;
-                        int tileType = gp.tileM.getTileType(col, row);
-                        gp.tileParticleEmitter.emit(worldX, worldY, tileType, direction);
+                        gp.tileParticleEmitter.emit(worldX, worldY, gp.tileM.getTileType(col, row), direction);
                     }
                 }
             } else {
                 footstepParticleCounter = 0;
-                idleDelayCounter++;
+
+                // Wind-down: trigger whenever we just stopped moving, regardless of which frame we're on
+                if (!windingDown && wasMovingLastFrame) {
+                    windingDown = true;
+                    windDownFramesLeft = WIND_DOWN_FRAMES;
+                    windDownCounter = 0;
+                }
+                wasMovingLastFrame = false;
 
                 // Drift: glide to a stop after keys released
                 driftVx *= DRIFT_FRICTION;
                 driftVy *= DRIFT_FRICTION;
                 if (Math.abs(driftVx) < 0.1f) driftVx = 0f;
                 if (Math.abs(driftVy) < 0.1f) driftVy = 0f;
+                applyDrift(DIR_LEFT, DIR_RIGHT, true);
+                applyDrift(DIR_UP, DIR_DOWN, false);
 
-                if (driftVx != 0f) {
-                    driftAccumX += driftVx;
-                    int dx = (int) driftAccumX;
-                    if (dx != 0) {
-                        int savedDir = direction;
-                        direction = dx < 0 ? DIR_LEFT : DIR_RIGHT;
-                        collisionOn = false;
-                        gp.cChecker.checkTile(this);
-                        gp.cChecker.checkObject(this, false);
-                        gp.cChecker.checkEntity(this, gp.npc);
-                        gp.cChecker.checkEntity(this, gp.monster);
-                        gp.cChecker.checkEntity(this, gp.iTile);
-                        if (!collisionOn) { worldX += dx; } else { driftVx = 0f; }
-                        driftAccumX -= dx;
-                        direction = savedDir;
+                if (windingDown) {
+                    int interval = Math.max(1, 32 / Math.max(1, speed));
+                    windDownCounter++;
+                    if (windDownCounter > interval) {
+                        windDownCounter = 0;
+                        int frameCount = (walkFrames != null && walkFrames[direction] != null)
+                                ? walkFrames[direction].length : 7;
+                        spriteNum = (spriteNum % frameCount) + 1;
+                        windDownFramesLeft--;
                     }
-                } else { driftAccumX = 0f; }
-
-                if (driftVy != 0f) {
-                    driftAccumY += driftVy;
-                    int dy = (int) driftAccumY;
-                    if (dy != 0) {
-                        int savedDir = direction;
-                        direction = dy < 0 ? DIR_UP : DIR_DOWN;
-                        collisionOn = false;
-                        gp.cChecker.checkTile(this);
-                        gp.cChecker.checkObject(this, false);
-                        gp.cChecker.checkEntity(this, gp.npc);
-                        gp.cChecker.checkEntity(this, gp.monster);
-                        gp.cChecker.checkEntity(this, gp.iTile);
-                        if (!collisionOn) { worldY += dy; } else { driftVy = 0f; }
-                        driftAccumY -= dy;
-                        direction = savedDir;
+                    if (windDownFramesLeft <= 0) {
+                        windingDown = false;
+                        spriteNum = 1;
+                        idleDelayCounter = 0;
                     }
-                } else { driftAccumY = 0f; }
-
-                if (idleDelayCounter >= idleStartDelayFrames) {
-                    updateIdleSprite();
                 } else {
-                    spriteNum = 1;
+                    idleDelayCounter++;
+                    if (idleDelayCounter >= idleStartDelayFrames) {
+                        updateIdleSprite();
+                    } else {
+                        spriteNum = 1;
+                    }
                 }
+            }
+            // Mouse left-click attack — fires whether standing still or moving
+            if (gp.mouseH.leftClicked && !attacking && !dashing && currentWeapon != null) {
+                gp.mouseH.leftClicked = false;
+                direction = gp.mouseH.getAttackDirectionFromMouse();
+                attacking = true;
+                spriteCounter = 0;
+                windingDown = false;
+                if (comboWindow > 0 && comboStep < 2) comboStep++;
+                else if (comboWindow <= 0) comboStep = 0;
             }
             if(gp.keyH.shotKeyPressed && !projectile.alive && shotAvailableCounter == 30 && projectile.haveResource(this)) {
                 projectile.set(worldX, worldY, direction, true, this);
@@ -796,14 +765,64 @@ public class Player extends Entity {
         screenY = Math.round(camScreenY);
     }
 
+    private void moveAxis(int axisDir, int dx, int dy) {
+        int savedDir = direction;
+        direction = axisDir;
+        collisionOn = false;
+        gp.cChecker.checkTile(this);
+        gp.cChecker.checkObject(this, false);
+        gp.cChecker.checkEntity(this, gp.npc);
+        gp.cChecker.checkEntity(this, gp.monster);
+        gp.cChecker.checkEntity(this, gp.iTile);
+        if (!collisionOn) {
+            worldX += dx;
+            worldY += dy;
+            if (dx != 0) driftVx = dx;
+            if (dy != 0) driftVy = dy;
+        } else {
+            if (dx != 0) driftVx = 0f;
+            if (dy != 0) driftVy = 0f;
+        }
+        direction = savedDir;
+    }
+
+    private void applyDrift(int negDir, int posDir, boolean horizontal) {
+        float vel = horizontal ? driftVx : driftVy;
+        if (vel == 0f) {
+            if (horizontal) driftAccumX = 0f; else driftAccumY = 0f;
+            return;
+        }
+        if (horizontal) driftAccumX += vel; else driftAccumY += vel;
+        int delta = (int)(horizontal ? driftAccumX : driftAccumY);
+        if (delta == 0) return;
+        int savedDir = direction;
+        direction = delta < 0 ? negDir : posDir;
+        collisionOn = false;
+        gp.cChecker.checkTile(this);
+        gp.cChecker.checkObject(this, false);
+        gp.cChecker.checkEntity(this, gp.npc);
+        gp.cChecker.checkEntity(this, gp.monster);
+        gp.cChecker.checkEntity(this, gp.iTile);
+        if (!collisionOn) {
+            if (horizontal) { worldX += delta; driftAccumX -= delta; }
+            else            { worldY += delta; driftAccumY -= delta; }
+        } else {
+            if (horizontal) { driftVx = 0f; driftAccumX = 0f; }
+            else            { driftVy = 0f; driftAccumY = 0f; }
+        }
+        direction = savedDir;
+    }
+
     private void updateSprite() {
         spriteCounter++;
         // Tie animation cadence to movement speed so feet never slide:
         // at defaultSpeed (5) interval = 40/5 = 8 ticks — same as before.
         // During a dash speed rises to ~16 so interval drops to ~2 (snappy).
-        int interval = Math.max(1, 40 / Math.max(1, speed));
+        int interval = Math.max(1, 32 / Math.max(1, speed));
+        int frameCount = (walkFrames != null && walkFrames[direction] != null)
+                ? walkFrames[direction].length : 7;
         if (spriteCounter > interval) {
-            spriteNum = (spriteNum % 7) + 1; // loops 1–7
+            spriteNum = (spriteNum % frameCount) + 1;
             spriteCounter = 0;
         }
     }

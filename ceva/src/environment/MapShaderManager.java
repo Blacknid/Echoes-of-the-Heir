@@ -75,8 +75,12 @@ public class MapShaderManager {
     private float windGustTarget = -2.0f;
     private int   windGustTimer  = 0;
 
-    private static final int MAX_RAIN = 160;
+    private static final int MAX_RAIN = 220;
     private float[] rainX, rainY, rainSpeed, rainAlpha, rainLength;
+
+    private static final int MAX_SPLASHES = 80;
+    private float[] splashX, splashY, splashRadius, splashAlpha;
+    private boolean[] splashAlive;
 
     private static final int MAX_SNOW = 120;
     private float[] snowX, snowY, snowSpeed, snowSize, snowDrift, snowAlpha;
@@ -87,7 +91,9 @@ public class MapShaderManager {
     private static final Color RAIN_TINT  = new Color(40, 80, 160, 12);
     private static final Color STORM_TINT = new Color(30, 60, 140, 18);
     private static final Color SNOW_TINT  = new Color(180, 210, 240, 8);
-    private static final Color RAIN_DROP_COLOR = new Color(180, 210, 255);
+    private static final Color RAIN_DROP_COLOR      = new Color(200, 225, 255);
+    private static final Color RAIN_DROP_TAIL_COLOR = new Color(150, 190, 240);
+    private static final Color RAIN_SPLASH_COLOR    = new Color(180, 215, 255);
     private static final Color SNOW_FLAKE_COLOR = new Color(240, 245, 255);
 
     public MapShaderManager(GamePanel gp) {
@@ -276,6 +282,12 @@ public class MapShaderManager {
         rainLength = new float[MAX_RAIN];
         for (int i = 0; i < MAX_RAIN; i++) resetRaindrop(i, true);
 
+        splashX      = new float[MAX_SPLASHES];
+        splashY      = new float[MAX_SPLASHES];
+        splashRadius = new float[MAX_SPLASHES];
+        splashAlpha  = new float[MAX_SPLASHES];
+        splashAlive  = new boolean[MAX_SPLASHES];
+
         snowX = new float[MAX_SNOW];
         snowY = new float[MAX_SNOW];
         snowSpeed = new float[MAX_SNOW];
@@ -294,9 +306,9 @@ public class MapShaderManager {
         rainX[i] = camWX + random.nextFloat() * (gp.screenWidth + 120) - 60;
         rainY[i] = randomY ? camWY + random.nextFloat() * gp.screenHeight
                            : camWY - random.nextFloat() * 40;
-        rainSpeed[i] = 12 + random.nextFloat() * 6;
-        rainAlpha[i] = 0.25f + random.nextFloat() * 0.35f;
-        rainLength[i] = 8 + random.nextFloat() * 6;
+        rainSpeed[i]  = 16 + random.nextFloat() * 6;
+        rainAlpha[i]  = 0.30f + random.nextFloat() * 0.40f;
+        rainLength[i] = 14 + random.nextFloat() * 8;
     }
 
     private void resetSnowflake(int i, boolean randomY) {
@@ -346,6 +358,9 @@ public class MapShaderManager {
                 float sx = rainX[i] - camWX;
                 float sy = rainY[i] - camWY;
                 if (sy > gp.screenHeight + 20 || sx < -80 || sx > gp.screenWidth + 80) {
+                    if (sy > gp.screenHeight - 30 && sx >= 0 && sx <= gp.screenWidth) {
+                        spawnSplash(rainX[i], rainY[i]);
+                    }
                     resetRaindrop(i, false);
                 }
             }
@@ -376,6 +391,27 @@ public class MapShaderManager {
                 }
             }
         }
+
+        // Update splashes
+        for (int i = 0; i < MAX_SPLASHES; i++) {
+            if (!splashAlive[i]) continue;
+            splashRadius[i] += 0.9f;
+            splashAlpha[i]  *= 0.87f;
+            if (splashAlpha[i] < 0.02f) splashAlive[i] = false;
+        }
+    }
+
+    private void spawnSplash(float wx, float wy) {
+        for (int i = 0; i < MAX_SPLASHES; i++) {
+            if (!splashAlive[i]) {
+                splashX[i]      = wx;
+                splashY[i]      = wy;
+                splashRadius[i] = 1f;
+                splashAlpha[i]  = 0.55f + random.nextFloat() * 0.25f;
+                splashAlive[i]  = true;
+                return;
+            }
+        }
     }
 
     public void drawWeather(Graphics2D g2) {
@@ -399,17 +435,40 @@ public class MapShaderManager {
             int active = (int)(MAX_RAIN * intensity);
             if (gp.currentFPS > 0 && gp.currentFPS < 30) active = active / 4;
             else if (gp.currentFPS > 0 && gp.currentFPS < 45) active = active / 2;
-            // Set composite + color ONCE before the loop — was 250 setComposite calls, now 1
-            float rainA = Math.min(1f, 0.4f * intensity);
-            g2.setComposite(cachedAlpha(rainA));
-            g2.setColor(RAIN_DROP_COLOR);
-            // Convert world coords to screen coords for drawing
             float camWX = (gp.player != null) ? gp.player.worldX - gp.player.getCamScreenX() : 0f;
             float camWY = (gp.player != null) ? gp.player.worldY - gp.player.getCamScreenY() : 0f;
+
+            // Draw tails (dimmer, slightly transparent)
+            g2.setComposite(cachedAlpha(Math.min(1f, 0.28f * intensity)));
+            g2.setColor(RAIN_DROP_TAIL_COLOR);
             for (int i = 0; i < active; i++) {
-                int x1 = (int)(rainX[i] - camWX);
-                int y1 = (int)(rainY[i] - camWY);
-                g2.drawLine(x1, y1, x1 + 2, y1 - (int) rainLength[i]);
+                int hx = (int)(rainX[i] - camWX);
+                int hy = (int)(rainY[i] - camWY);
+                float windAngle = (float) Math.atan2(windStrength, rainSpeed[i]);
+                int tx = hx - (int)(Math.sin(windAngle) * rainLength[i]);
+                int ty = hy - (int)(Math.cos(windAngle) * rainLength[i]);
+                g2.drawLine(hx, hy, tx, ty);
+            }
+
+            // Draw bright heads (small oval at leading tip)
+            g2.setComposite(cachedAlpha(Math.min(1f, 0.55f * intensity)));
+            g2.setColor(RAIN_DROP_COLOR);
+            for (int i = 0; i < active; i++) {
+                int hx = (int)(rainX[i] - camWX);
+                int hy = (int)(rainY[i] - camWY);
+                g2.fillOval(hx - 1, hy - 1, 2, 2);
+            }
+
+            // Draw splashes
+            g2.setColor(RAIN_SPLASH_COLOR);
+            for (int i = 0; i < MAX_SPLASHES; i++) {
+                if (!splashAlive[i]) continue;
+                int sx = (int)(splashX[i] - camWX);
+                int sy = (int)(splashY[i] - camWY);
+                int r  = (int) splashRadius[i];
+                if (r < 1) continue;
+                g2.setComposite(cachedAlpha(Math.min(1f, splashAlpha[i] * intensity)));
+                g2.drawOval(sx - r, sy - r / 3, r * 2, Math.max(1, r * 2 / 3));
             }
 
             // Overlay tint

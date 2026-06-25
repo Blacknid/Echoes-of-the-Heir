@@ -57,6 +57,7 @@ public class DataDrivenMonster extends Entity {
         this.solidArea.height = template.solidArea.height;
         this.solidAreaDefaultX = template.solidAreaDefaultX;
         this.solidAreaDefaultY = template.solidAreaDefaultY;
+        this.hurtPolygon = template.hurtPolygon;
         this.walkFrames = template.walkFrames;
         this.projectile = template.projectile;
         this.frontalArmor = template.frontalArmor;
@@ -87,7 +88,8 @@ public class DataDrivenMonster extends Entity {
                 }
             }
             default -> {
-                onPath = true;
+                if (!everAggroed) { everAggroed = true; onPath = true; alertTick = 60; }
+                else onPath = true;
                 if (life <= maxLife * fleeThreshold) {
                     fleeing = true; onPath = false; fleeCounter = 0; speed = defaultSpeed + 1;
                 }
@@ -115,6 +117,7 @@ public class DataDrivenMonster extends Entity {
             int loseRange = gp.tileSize * 8;
             if (!isPlayerInRange(loseRange)) {
                 onPath = false;
+                everAggroed = false;
             } else {
                 int goalCol = gp.player.getTileCol();
                 int goalRow = gp.player.getTileRow();
@@ -122,8 +125,6 @@ public class DataDrivenMonster extends Entity {
                 int absDx = Math.abs(getCenterX() - gp.player.getCenterX());
                 int absDy = Math.abs(getCenterY() - gp.player.getCenterY());
                 if (absDx < closeDist && absDy < closeDist) {
-                    // Telegraph: monster is in melee range, flash red as warning
-                    if (attackWindupFlash < 15) attackWindupFlash = 15;
                     directChase(goalCol, goalRow);
                 } else {
                     searchPath(goalCol, goalRow);
@@ -132,6 +133,7 @@ public class DataDrivenMonster extends Entity {
         } else {
             if (isPlayerInRange(aggroRange)) {
                 onPath = true;
+                if (!everAggroed) { everAggroed = true; alertTick = 60; }
             } else {
                 randomMovement();
             }
@@ -158,6 +160,7 @@ public class DataDrivenMonster extends Entity {
 
         int aggroTiles = aggroRange / gp.tileSize;
         if (dist < aggroTiles) {
+            if (!everAggroed) { everAggroed = true; onPath = true; alertTick = 60; }
             if (dist < fleeDist) {
                 speed = defaultSpeed + 1;
                 setStrafeDirection(dx, dy);
@@ -168,11 +171,11 @@ public class DataDrivenMonster extends Entity {
             } else {
                 speed = defaultSpeed;
                 facePlayer(dx, dy);
-                onPath = true;
                 searchPath(gp.player.getTileCol(), gp.player.getTileRow());
             }
         } else {
             onPath = false;
+            everAggroed = false;
             speed = defaultSpeed;
             randomMovement();
         }

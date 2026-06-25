@@ -20,6 +20,7 @@ output/*
 jpackage_tmp/
 crash_log.txt
 *.log
+*.class
 
 # Server runtime files
 SERVERS/save_server/saves.db

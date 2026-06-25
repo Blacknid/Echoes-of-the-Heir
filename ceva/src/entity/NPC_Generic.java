@@ -92,6 +92,11 @@ public class NPC_Generic extends Entity {
         solidArea.height = gp.tileSize * 22 / 64;
         solidAreaDefaultX = solidArea.x;
         solidAreaDefaultY = solidArea.y;
+
+        int hcx = solidArea.x + solidArea.width  / 2;
+        int hcy = solidArea.y + solidArea.height / 2;
+        int hr  = Math.min(solidArea.width, solidArea.height) / 2;
+        setOctagonHurt(hcx, hcy, hr);
     }
 
     /** Cheama dupa setarea spritePath / idleSpritePath pentru a incarca foile. Sigur de apelat de mai multe ori. */
