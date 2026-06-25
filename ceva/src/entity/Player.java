@@ -34,13 +34,8 @@ public class Player extends Entity {
     private static final Color COLOR_DUST_LAND = new Color(150, 130, 100);
     private static final Color COLOR_DMG_RED = new Color(255, 80, 60);
     private static final Color COLOR_DMG_GRAY = new Color(180, 180, 180);
-    private static final Color COLOR_EVADE_FLASH = new Color(255, 245, 220);
     private static final Color COLOR_LEVELUP_MSG = new Color(255, 220, 110);
     private static final Color COLOR_LEVELUP_RING = new Color(160, 200, 255);
-
-    // Dash afterimage arrays (avoid per-frame allocation)
-    private static final float[] DASH_ALPHAS = {0.28f, 0.16f, 0.07f};
-    private static final int[] DASH_OFFSETS = {5, 10, 15};
 
     public BufferedImage[][] hitFrames;    // getHit sprite sheet [dir][frame]
     public BufferedImage[][] deathFrames;  // death sprite sheet  [dir][frame]
@@ -65,6 +60,8 @@ public class Player extends Entity {
     // Smooth camera: camScreenX/Y lerp toward the clamped target screenX/Y each tick
     private float camScreenX;
     private float camScreenY;
+
+    public float spawnFadeAlpha = 1.0f; // fades 0→1 on each map entrance
     private static final float CAM_LERP = 0.15f;
     public float getCamScreenX() { return camScreenX; }
     public float getCamScreenY() { return camScreenY; }
@@ -121,11 +118,10 @@ public class Player extends Entity {
     private int dashCounter = 0;
     private final int dashDuration = 10;  // frames (~0.17s — snappy burst)
     private int dashCooldown = 0;
-    private final int dashCooldownMax = 38; // ~0.63s cooldown
+    private final int dashCooldownMax = 60; // ~1s cooldown
     private boolean dashParticle = false;
     private int evadeRecovery = 0;         // brief post-evade slowdown (footing)
     private static final int EVADE_RECOVERY_FRAMES = 3;
-    private int evadeFlashTimer = 0;       // armor-glint flash on evade start
     private int shockwaveCooldown = 0;
     private int voidSnareCooldown = 0;
     private int frostNovaCooldown = 0;
@@ -260,16 +256,37 @@ public class Player extends Entity {
             worldY = (int)(gp.tileSize * 15.5);
         }
         direction = DIR_DOWN;
-        // Snap camera instantly to new spawn position (no lerp drift across map transitions)
-        camScreenX = 0f;
-        camScreenY = 0f;
+        snapCamera();
     }
 
     /** Instantly snaps the smooth camera to its default position — call after a window resize
      *  to avoid the camera lerping from the old position to the new screen centre. */
     public void snapCamera() {
-        camScreenX = 0f;
-        camScreenY = 0f;
+        int mapPixelW = gp.tileM.currentMapCols * gp.tileSize;
+        int mapPixelH = gp.tileM.currentMapRows * gp.tileSize;
+        int defaultScreenX = gp.screenWidth  / 2 - gp.tileSize / 2;
+        int defaultScreenY = gp.screenHeight / 2 - gp.tileSize / 2;
+
+        if (mapPixelW <= gp.screenWidth) {
+            camScreenX = worldX + (gp.screenWidth - mapPixelW) / 2f;
+        } else {
+            int offX = worldX - defaultScreenX;
+            if (offX < 0)                               camScreenX = worldX;
+            else if (offX > mapPixelW - gp.screenWidth) camScreenX = worldX - (mapPixelW - gp.screenWidth);
+            else                                         camScreenX = defaultScreenX;
+        }
+
+        if (mapPixelH <= gp.screenHeight) {
+            camScreenY = worldY + (gp.screenHeight - mapPixelH) / 2f;
+        } else {
+            int offY = worldY - defaultScreenY;
+            if (offY < 0)                                camScreenY = worldY;
+            else if (offY > mapPixelH - gp.screenHeight) camScreenY = worldY - (mapPixelH - gp.screenHeight);
+            else                                          camScreenY = defaultScreenY;
+        }
+
+        screenX = Math.round(camScreenX);
+        screenY = Math.round(camScreenY);
     }
 
     public void setPlayerStats(int life, int strenght, int dexterity, int speed, int mana) {
@@ -299,7 +316,7 @@ public class Player extends Entity {
      */
     public void getPlayerImages() {
         // Sheet order: down=row0, left=row1, right=row2, up=row3 — maps directly to DIR_DOWN=0,LEFT=1,RIGHT=2,UP=3
-        int[] framesPerRow = {7, 8, 8, 7};
+        int[] framesPerRow = {6, 7, 7, 6};
         walkFrames = loadSheetVariable("/res/player/Player_walking-sheet", framesPerRow);
     }
 
@@ -426,8 +443,8 @@ public class Player extends Entity {
             dashCounter = dashDuration;
             dashCooldown = getDashCooldownMax();
             invincible = true;
-            evadeFlashTimer = 3;  // brief armor glint
-            spawnDashBurst(true);
+            keyH.dashPressed = false;
+            spawnBobBurst();
             gp.playSE(SFX.WEAPON_SWING); // quick whoosh
         }
         if (dashing) {
@@ -437,14 +454,10 @@ public class Player extends Entity {
             invincible = true;
             invincibleCounter = 0;  // hold i-frames during evade
             dashCounter--;
-            if (dashCounter % 3 == 0) {
-                spawnDashTrail();
-            }
             if (dashCounter <= 0) {
                 dashing = false;
                 speed = Math.max(1, defaultSpeed - 1); // brief heavy landing
                 evadeRecovery = EVADE_RECOVERY_FRAMES;
-                spawnDashBurst(false);
                 invincibleCounter = 54;
                 if (shadowStepUnlocked) {
                     for (int si = 0; si < gp.monster.length; si++) {
@@ -477,8 +490,8 @@ public class Player extends Entity {
                 speed = defaultSpeed;
             }
         }
-        if (evadeFlashTimer > 0) evadeFlashTimer--;
         if (dashCooldown > 0) dashCooldown--;
+        if (spawnFadeAlpha < 1.0f) spawnFadeAlpha = Math.min(1.0f, spawnFadeAlpha + 0.025f);
 
         // (invincibility alpha handled in draw)
 
@@ -629,18 +642,21 @@ public class Player extends Entity {
                 attackCanceled = false;
                 attackBuffered = false;
                 keyH.enterPressed = false;
+                if (!wasMovingLastFrame) {
+                    spawnBobParticle(1);
+                    footstepParticleCounter = 0;
+                }
                 wasMovingLastFrame = true;
                 updateSprite();
-
-                if (gp.tileParticleEmitter != null) {
+                if (!dashing) {
                     footstepParticleCounter++;
-                    if (footstepParticleCounter >= gp.tileParticleEmitter.getEmitInterval()) {
+                    int bobInterval = Math.max(2, 48 / Math.max(1, speed)) * 4;
+                    if (footstepParticleCounter >= bobInterval) {
                         footstepParticleCounter = 0;
-                        int col = getCenterX() / gp.tileSize;
-                        int row = (worldY + gp.tileSize - 1) / gp.tileSize;
-                        gp.tileParticleEmitter.emit(worldX, worldY, gp.tileM.getTileType(col, row), direction);
+                        spawnBobParticle(1);
                     }
                 }
+
             } else {
                 footstepParticleCounter = 0;
 
@@ -655,8 +671,8 @@ public class Player extends Entity {
                 // Drift: glide to a stop after keys released
                 driftVx *= DRIFT_FRICTION;
                 driftVy *= DRIFT_FRICTION;
-                if (Math.abs(driftVx) < 0.1f) driftVx = 0f;
-                if (Math.abs(driftVy) < 0.1f) driftVy = 0f;
+                if (Math.abs(driftVx) < 0.2f) driftVx = 0f;
+                if (Math.abs(driftVy) < 0.2f) driftVy = 0f;
                 applyDrift(DIR_LEFT, DIR_RIGHT, true);
                 applyDrift(DIR_UP, DIR_DOWN, false);
 
@@ -736,10 +752,6 @@ public class Player extends Entity {
             else                                         targetScreenY = defaultScreenY;
         }
 
-        if (camScreenX == 0f && camScreenY == 0f) {
-            camScreenX = targetScreenX;
-            camScreenY = targetScreenY;
-        }
         final float CAM_DEADZONE = 24f;
         float dxCam = targetScreenX - camScreenX;
         float dyCam = targetScreenY - camScreenY;
@@ -815,10 +827,10 @@ public class Player extends Entity {
 
     private void updateSprite() {
         spriteCounter++;
-        // Tie animation cadence to movement speed so feet never slide:
-        // at defaultSpeed (5) interval = 40/5 = 8 ticks — same as before.
-        // During a dash speed rises to ~16 so interval drops to ~2 (snappy).
-        int interval = Math.max(1, 32 / Math.max(1, speed));
+        // Tie animation cadence to movement speed so feet never slide.
+        // At defaultSpeed (5) interval = 48/5 = 9 ticks (~6.7 frame-advances/sec).
+        // During a dash (speed ~16) interval = 3 ticks — snappy but not strobing.
+        int interval = Math.max(2, 48 / Math.max(1, speed));
         int frameCount = (walkFrames != null && walkFrames[direction] != null)
                 ? walkFrames[direction].length : 7;
         if (spriteCounter > interval) {
@@ -1419,64 +1431,67 @@ public class Player extends Entity {
         }
     }
 
-    private void spawnDashTrail() {
-        int dirX = 0;
-        int dirY = 0;
+
+    private void spawnBobBurst() {
+        // Semi-circle of 5 bobs fanning out behind/around the player on dash start.
+        // Base angle points opposite to movement direction; particles spread ±70° from it.
+        double baseAngle;
         switch (direction) {
-            case DIR_UP    -> dirY = -1;
-            case DIR_DOWN  -> dirY = 1;
-            case DIR_LEFT  -> dirX = -1;
-            case DIR_RIGHT -> dirX = 1;
+            case DIR_UP    -> baseAngle = Math.PI / 2;   // burst downward
+            case DIR_DOWN  -> baseAngle = -Math.PI / 2;  // burst upward
+            case DIR_LEFT  -> baseAngle = 0;              // burst rightward
+            default        -> baseAngle = Math.PI;        // burst leftward (DIR_RIGHT)
         }
+        int count = 5;
+        float cx = worldX + gp.tileSize / 2f;
+        float cy = worldY + gp.tileSize - 20f;
+        float spread = (float)(Math.PI * 0.7); // ±70° total spread (~140°)
+        for (int i = 0; i < count; i++) {
+            double angle = baseAngle + spread * (i / (float)(count - 1) - 0.5f);
+            float radius = 4 + (float)(Math.random() * 5); // 4–9 px offset
+            Particle p = gp.particlePool.get();
+            p.image = Particle.getRandomBob(gp);
+            p.fx = cx + (float)Math.cos(angle) * radius - 9;
+            p.fy = cy + (float)Math.sin(angle) * radius;
+            p.worldX = (int) p.fx;
+            p.worldY = (int) p.fy;
+            p.velocityX = (float)Math.cos(angle) * 0.9f;
+            p.velocityY = (float)Math.sin(angle) * 0.9f - 0.3f;
+            p.size = 26 + (int)(Math.random() * 8);
+            p.style = Particle.STYLE_BOB;
+            p.life = 22 + (int)(Math.random() * 10);
+            p.initialLife = p.life;
+            p.alive = true;
+            p.generator = this;
+            p.depthSortYOffset = -gp.tileSize * 2;
+            gp.particleList.add(p);
+        }
+    }
 
-        // Dirt wisps trailing behind (earth tones)
-        for (int i = 0; i < 2; i++) {
-            Particle trail = gp.particlePool.get();
-            int sideX = (int)((Math.random() - 0.5) * 3.0);
-            int sideY = (int)((Math.random() - 0.5) * 3.0);
-            // Earthy brown
-            Color dustColor = (i == 0) ? COLOR_DUST_LIGHT : COLOR_DUST_DARK;
-            trail.setWithPosition(this, this, dustColor, 3 + i, 1, 10,
-                    -dirX + sideX, -dirY + sideY, Particle.STYLE_DUST);
-            gp.particleList.add(trail);
+    private void spawnBobParticle(int count) {
+        for (int i = 0; i < count; i++) {
+            Particle p = gp.particlePool.get();
+            p.image = Particle.getRandomBob(gp);
+            float sideX = (float)((Math.random() - 0.5) * 10);
+            float sideY = (float)((Math.random() - 0.5) * 4);
+            // Feet position: bottom-center of tile, slightly raised from pixel-bottom so bobs sit at ankle level
+            p.fx = worldX + gp.tileSize / 2f - 9 + sideX;
+            p.fy = worldY + gp.tileSize - 12 + sideY;
+            p.worldX = (int) p.fx;
+            p.worldY = (int) p.fy;
+            p.velocityX = sideX * 0.06f;
+            p.velocityY = -0.25f - (float)(Math.random() * 0.15f);
+            p.size = 18;
+            p.style = Particle.STYLE_BOB;
+            p.life = 26 + (int)(Math.random() * 8);
+            p.initialLife = p.life;
+            p.alive = true;
+            p.generator = this;
+            p.depthSortYOffset = -gp.tileSize * 2;
+            gp.particleList.add(p);
         }
     }
 
-    private void spawnDashBurst(boolean start) {
-        if (start) {
-            // Ground dust cloud on evade start — earthy burst from feet
-            Color dustColor = COLOR_DUST_WARM;  // warm stone
-            for (int i = 0; i < 6; i++) {
-                double angle = (Math.PI * 2.0 * i) / 6;
-                int dx = (int)Math.round(Math.cos(angle));
-                int dy = (int)Math.round(Math.sin(angle));
-                Particle p = gp.particlePool.get();
-                p.setWithPosition(this, this, dustColor, 5, 2, 12,
-                        dx, dy, Particle.STYLE_DUST);
-                gp.particleList.add(p);
-            }
-            // 2 larger central dust puffs rising up
-            for (int i = 0; i < 2; i++) {
-                Particle puff = gp.particlePool.get();
-                int sx = (int)((Math.random() - 0.5) * 2);
-                puff.setWithPosition(this, this, COLOR_DUST_PUFF, 6, 1, 16,
-                        sx, -1, Particle.STYLE_DUST);
-                gp.particleList.add(puff);
-            }
-        } else {
-            // Landing dirt scatter — small stones/dust on arrival
-            Color landColor = COLOR_DUST_LAND;  // darker earth
-            for (int i = 0; i < 4; i++) {
-                double angle = (Math.PI * 2.0 * i) / 4 + Math.random() * 0.5;
-                int dx = (int)Math.round(Math.cos(angle));
-                int dy = (int)Math.round(Math.sin(angle));
-                Particle p = gp.particlePool.get();
-                p.setWithPosition(this, this, landColor, 3, 1, 8,
-                        dx, dy, Particle.STYLE_DUST);
-                gp.particleList.add(p);
-            }
-        }
-    }
 
     /** Spawn a floating damage number above the target. */
     private void spawnDamageNumber(Entity target, int damage, boolean critical) {
@@ -1872,39 +1887,11 @@ public class Player extends Entity {
             drawX = tempScreenX - (drawW - gp.tileSize) / 2;
             drawY = tempScreenY - (drawH - gp.tileSize) / 2;
 
-            // Tight motion-blur afterimages (3 closely spaced)
-            int dirX = 0, dirY = 0;
-            switch (direction) {
-                case DIR_UP    -> dirY = -1;
-                case DIR_DOWN  -> dirY = 1;
-                case DIR_LEFT  -> dirX = -1;
-                case DIR_RIGHT -> dirX = 1;
-            }
-            java.awt.Composite saved = g2.getComposite();
-            for (int i = 0; i < 3; i++) {
-                g2.setComposite(AlphaComposite.getInstance(AlphaComposite.SRC_OVER, DASH_ALPHAS[i]));
-                g2.drawImage(image,
-                    drawX - dirX * DASH_OFFSETS[i], drawY - dirY * DASH_OFFSETS[i],
-                    drawW, drawH, null);
-            }
-            g2.setComposite(saved);
         }
 
-        // Armor-glint flash on evade start
-        if (evadeFlashTimer > 0) {
-            float flashAlpha = evadeFlashTimer / 3f * 0.35f;
-            java.awt.Composite saved = g2.getComposite();
-            g2.setComposite(AlphaComposite.getInstance(AlphaComposite.SRC_OVER, flashAlpha));
-            g2.setColor(COLOR_EVADE_FLASH);
-            g2.fillRect(drawX + 8, drawY + 8, drawW - 16, drawH - 16);
-            g2.setComposite(saved);
-        }
-
-        if (invincible) {
-            // Simple flicker during i-frames — no lingering gray
-            float alpha = (invincibleCounter % 4 < 2) ? 0.5f : 0.85f;
-            g2.setComposite(AlphaComposite.getInstance(AlphaComposite.SRC_OVER, alpha));
-        }
+        float drawAlpha = spawnFadeAlpha;
+        if (invincible && !dashing) drawAlpha *= (invincibleCounter % 4 < 2) ? 0.5f : 0.85f;
+        if (drawAlpha < 1.0f) g2.setComposite(AlphaComposite.getInstance(AlphaComposite.SRC_OVER, Math.max(0f, drawAlpha)));
         g2.drawImage(image, drawX, drawY, drawW, drawH, null);
         g2.setComposite(AlphaComposite.getInstance(AlphaComposite.SRC_OVER, 1f));
     }

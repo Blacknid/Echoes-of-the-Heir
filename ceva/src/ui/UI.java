@@ -242,7 +242,7 @@ public class UI {
                     getClass().getResourceAsStream("/res/fonts/Pixeloid Sans.ttf"));
             java.awt.GraphicsEnvironment.getLocalGraphicsEnvironment().registerFont(pixelBase);
         } catch (Exception e) {
-            System.out.println("[UI] Pixeloid Sans not found, falling back to Segoe UI");
+            System.out.println("[UI] Pixeloid Sans font not found, falling back to Segoe UI");
             pixelBase = new Font("Segoe UI", Font.PLAIN, 12);
         }
         arial_40 = pixelBase.deriveFont(Font.PLAIN, 40);
@@ -335,13 +335,10 @@ public class UI {
 
         this.g2 = g2;
     
-        // Rendering hints for the logical back-buffer (1280×720 → scaled to screen):
-        // - ANTIALIAS OFF: sprites/shapes stay pixel-crisp
-        // - TEXT_ANTIALIAS ON: grayscale AA smooths small font edges without sub-pixel
-        //   colour fringing (LCD_HRGB causes coloured blur when the buffer is scaled up)
-        // - FRACTIONALMETRICS OFF: glyphs snap to integer pixel positions
+        // Pixel-sharp rendering for the entire game — Pixeloid Sans is a pixel font,
+        // antialiasing blurs it. FRACTIONALMETRICS OFF snaps glyphs to integer positions.
         g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING,      RenderingHints.VALUE_ANTIALIAS_OFF);
-        g2.setRenderingHint(RenderingHints.KEY_TEXT_ANTIALIASING, RenderingHints.VALUE_TEXT_ANTIALIAS_ON);
+        g2.setRenderingHint(RenderingHints.KEY_TEXT_ANTIALIASING, RenderingHints.VALUE_TEXT_ANTIALIAS_OFF);
         g2.setRenderingHint(RenderingHints.KEY_FRACTIONALMETRICS, RenderingHints.VALUE_FRACTIONALMETRICS_OFF);
 
         g2.setFont(arial_40);
@@ -956,7 +953,6 @@ public class UI {
             g2.setPaint(cachedGradient(0, vigTop, cachedColor(3, 1, 12, 0), 0, gp.screenHeight, cachedColor(3, 1, 12, 185)));
             g2.fillRect(0, vigTop, gp.screenWidth, 380);
 
-            g2.setRenderingHint(RenderingHints.KEY_TEXT_ANTIALIASING, RenderingHints.VALUE_TEXT_ANTIALIAS_ON);
             g2.setFont(cachedFont(Font.BOLD, 72F));
             String text = "Echoes of the Heir";
             FontMetrics titleFM = cachedFM();
@@ -1005,6 +1001,10 @@ public class UI {
             int menuStartY = (int)(gp.screenHeight * 0.77f);
             g2.setFont(cachedFont(Font.BOLD, 27F));
 
+            // Arrow nudge: 0→1→2→1→0 pixel slide, period ~1.2s at 60ups
+            int arrowNudge = (int)(Math.sin(animTick * 0.09) * 2.0);
+            int arrowAlpha = (int)(210 + pulse * 45);
+
             for (int i = 0; i < menuItems.length; i++) {
                 int iy = menuStartY + i * 40;
                 boolean sel = (commandNum == i);
@@ -1013,27 +1013,33 @@ public class UI {
                 tx = (gp.screenWidth - tw) / 2;
 
                 if (sel) {
-                    g2.setColor(cachedColor(75, 8, 32, 215));
-                    g2.drawString(text, tx + 2, iy + 2);
-                    // Cream-to-gold gradient text
-                    g2.setPaint(cachedGradient(tx, iy - 22, cachedColor(255, 246, 210), tx, iy + 5, cachedColor(228, 192, 102)));
+                    g2.setColor(cachedColor(255, 255, 255, 255));
                     g2.drawString(text, tx, iy);
-                    // Magenta/pink animated underline
-                    int ulA = (int)(85 + pulse * 108);
-                    g2.setColor(cachedColor(232, 52, 118, ulA));
-                    g2.setStroke(STROKE_2);
-                    g2.drawLine(tx, iy + 6, tx + tw, iy + 6);
-                    // Pulsing left-cursor â€” filled circle
-                    int curA = (int)(152 + pulse * 103);
-                    int circR = 6;
-                    g2.setColor(cachedColor(232, 52, 118, curA));
-                    g2.fillOval(tx - 26, iy - circR - 3, circR * 2, circR * 2);
+
+                    // Pixel-perfect right-pointing arrow (tip points RIGHT toward text).
+                    // Drawn as 7 rows; widths: 1,2,3,4,3,2,1 blocks.
+                    // Base (left edge) is fixed; tip = base + maxWidth on the centre row.
+                    // p=3: each logical pixel is a 3x3 square for a clean chunky look.
+                    int p = 3;
+                    int rows = 7;
+                    FontMetrics fm = cachedFM();
+                    int textMidY = iy - fm.getAscent() / 2;
+                    int arrowTopY = textMidY - (rows * p) / 2;
+                    // tipX is the rightmost edge of the arrow (the point), sits just left of text
+                    int tipX = tx - 14 + arrowNudge;
+                    g2.setColor(cachedColor(255, 255, 255, arrowAlpha));
+                    for (int r = 0; r < rows; r++) {
+                        int w = Math.min(r, rows - 1 - r) + 1; // 1,2,3,4,3,2,1
+                        int rowY = arrowTopY + r * p;
+                        // All rows anchored to tipX on the right; extend leftward by w blocks
+                        int rowX = tipX - w * p;
+                        g2.fillRect(rowX, rowY, w * p, p);
+                    }
                 } else {
-                    g2.setColor(cachedColor(163, 148, 118, 195));
+                    g2.setColor(cachedColor(180, 175, 165, 160));
                     g2.drawString(text, tx, iy);
                 }
             }
-
             // Username input box — top-right corner of title screen
             {
                 float pulse2 = fastPulse(animTick, 2);
@@ -1704,28 +1710,37 @@ public class UI {
             currentDialogue = (charIndex < fullLineLen) ? dialogueBuilder.toString() : fullLine;
 
             if (gp.keyH.enterPressed) {
-                charIndex = 0;
-                combinedText = "";
-                dialogueBuilder.setLength(0);
+                if (charIndex < fullLineLen) {
+                    // Typewriter still running — complete the line instantly, don't advance yet
+                    charIndex = fullLineLen;
+                    currentDialogue = fullLine;
+                    dialogueBuilder.setLength(0);
+                    gp.keyH.enterPressed = false;
+                } else {
+                    // Line already complete — advance to next
+                    charIndex = 0;
+                    combinedText = "";
+                    dialogueBuilder.setLength(0);
 
-                if (gp.gameState == GamePanel.dialogueState || gp.gameState == GamePanel.cutsceneState) {
-                    // Choice confirmation: if choices are showing, apply the selected choice
-                    if (npc.dialogueChoices != null && npc.dialogueChoices.length > 0) {
-                        if ("ending".equals(npc.choiceResultKey)) {
-                            gp.endingChosen = npc.selectedChoice + 1;
-                        }
-                        if (npc.choiceNextSet != null && npc.selectedChoice < npc.choiceNextSet.length) {
-                            npc.dialogueSet = npc.choiceNextSet[npc.selectedChoice];
-                            npc.dialogueIndex = 0;
+                    if (gp.gameState == GamePanel.dialogueState || gp.gameState == GamePanel.cutsceneState) {
+                        // Choice confirmation: if choices are showing, apply the selected choice
+                        if (npc.dialogueChoices != null && npc.dialogueChoices.length > 0) {
+                            if ("ending".equals(npc.choiceResultKey)) {
+                                gp.endingChosen = npc.selectedChoice + 1;
+                            }
+                            if (npc.choiceNextSet != null && npc.selectedChoice < npc.choiceNextSet.length) {
+                                npc.dialogueSet = npc.choiceNextSet[npc.selectedChoice];
+                                npc.dialogueIndex = 0;
+                            } else {
+                                npc.dialogueIndex++;
+                            }
+                            npc.dialogueChoices = null;
+                            npc.selectedChoice = 0;
                         } else {
                             npc.dialogueIndex++;
                         }
-                        npc.dialogueChoices = null;
-                        npc.selectedChoice = 0;
-                    } else {
-                        npc.dialogueIndex++;
+                        gp.keyH.enterPressed = false;
                     }
-                    gp.keyH.enterPressed = false;
                 }
             }
         } else {
@@ -2842,27 +2857,38 @@ public class UI {
             }
         }
     }
+    private int transitionHoldCounter = 0;
+    private static final int TRANSITION_HOLD_FRAMES = 10; // frames to stay fully black after map loads
+
     public void drawTransition(Graphics2D g2) {
-        // Phase 1: Fade to black
+        // Phase 0: Fade to black
         if (subState == 0) {
-            transitionAlpha += 0.02f; // Slower fade (50 frames)
+            transitionAlpha += 0.033f; // ~30 frames
             if (transitionAlpha >= 1.0f) {
                 transitionAlpha = 1.0f;
                 gp.changeMap();
-                subState = 1; // Move to fade-out phase
+                transitionHoldCounter = 0;
+                subState = 1;
             }
         }
-        // Phase 2: Fade from black
+        // Phase 1: Hold fully black — wait for player + camera to settle
         else if (subState == 1) {
-            transitionAlpha -= 0.02f;
+            transitionAlpha = 1.0f;
+            transitionHoldCounter++;
+            if (transitionHoldCounter >= TRANSITION_HOLD_FRAMES) {
+                subState = 2;
+            }
+        }
+        // Phase 2: Fade from black — slow cinematic reveal
+        else if (subState == 2) {
+            transitionAlpha -= 0.02f; // ~50 frames (~0.83s)
             if (transitionAlpha <= 0f) {
                 transitionAlpha = 0f;
-                subState = 0; // Reset for next transition
-                gp.gameState = GamePanel.playState; // Return to gameplay
+                subState = 0;
+                gp.gameState = GamePanel.playState;
             }
         }
 
-        // Draw the black rectangle with the current alpha
         g2.setColor(cachedColor(0, 0, 0, (int)(transitionAlpha * 255)));
         g2.fillRect(0, 0, gp.screenWidth, gp.screenHeight);
     }

@@ -667,7 +667,8 @@ public class Entity {
             activitySpriteCounter = 0;
             activityFrameDirection = 1;
             spriteCounter++;
-            if (spriteCounter > animationFrameInterval) {
+            int walkInterval = Math.max(2, 48 / Math.max(1, speed));
+            if (spriteCounter > walkInterval) {
                 int maxWalkFrames = Math.max(1, Math.min(walkFrameCount, 8));
 
                 if (maxWalkFrames == 1) {

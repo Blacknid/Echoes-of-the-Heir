@@ -13,6 +13,7 @@ public class KeyHandler implements KeyListener {
     public boolean upPressed, downPressed, leftPressed, rightPressed, shotKeyPressed;
 
     public boolean enterPressed, dashPressed;
+    private boolean dashKeyHeld = false;
 
     public boolean shockwavePressed, voidSnarePressed, frostNovaPressed, overdrivePressed;
 
@@ -110,7 +111,7 @@ public class KeyHandler implements KeyListener {
             case KeyEvent.VK_A, KeyEvent.VK_LEFT -> { leftPressed = false; menuLeft = false; }
             case KeyEvent.VK_D, KeyEvent.VK_RIGHT -> { rightPressed = false; menuRight = false; }
             case KeyEvent.VK_F -> shotKeyPressed = false;
-            case KeyEvent.VK_SPACE, KeyEvent.VK_SHIFT -> dashPressed = false;
+            case KeyEvent.VK_SPACE, KeyEvent.VK_SHIFT -> { dashPressed = false; dashKeyHeld = false; }
             case KeyEvent.VK_Z -> shockwavePressed = false;
             case KeyEvent.VK_X -> voidSnarePressed = false;
             case KeyEvent.VK_C -> frostNovaPressed = false;
@@ -544,8 +545,10 @@ public class KeyHandler implements KeyListener {
         if (code == KeyEvent.VK_ENTER) { enterPressed = true; }
         if (code == KeyEvent.VK_F) { shotKeyPressed = true; }
 
-        if ( (code == KeyEvent.VK_SHIFT ) && ( leftPressed || rightPressed
-                        || upPressed || downPressed ) ) { dashPressed = true; }
+        if (code == KeyEvent.VK_SHIFT && !dashKeyHeld && (leftPressed || rightPressed || upPressed || downPressed)) {
+            dashPressed = true;
+            dashKeyHeld = true;
+        }
 
         if (gp.debugModeEnabled) {
             if (code == KeyEvent.VK_T) { showDebugText = !showDebugText; }

@@ -1,5 +1,5 @@
 {
-    "activeFile": "maps/Shattered_Lake.tmx",
+    "activeFile": "maps/Awakening_Cave.tmx",
     "expandedProjectPaths": [
     ],
     "file.lastUsedOpenFilter": "All Files (*)",
@@ -1574,7 +1574,7 @@
             "selectedLayer": 21,
             "viewCenter": {
                 "x": 334.66666666666663,
-                "y": 480
+                "y": 651.3333333333333
             }
         },
         "maps/Awakening_Cave.tmx#Details": {
@@ -2005,8 +2005,8 @@
     "recentFiles": [
         "maps/Canvas_Village.tmx",
         "maps/Tavern_interior.tmx",
-        "maps/Awakening_Cave.tmx",
         "maps/Shattered_Lake.tmx",
+        "maps/Awakening_Cave.tmx",
         "C:/Users/cstyl/Downloads/craftpix-net-471853-top-down-farm-with-animals-pixel-art-asset-pack (1)/Tiled_files/Farm.tmx",
         "C:/Users/cstyl/Downloads/craftpix-net-624156-swamp-top-down-tileset-pixel-art/Tiled_files/Swamp.tmx",
         "C:/Users/cstyl/Downloads/craftpix-net-666104-tavern-top-down-pixel-rpg-asset-pack/Tiled_files/Tavern_interior_1nd_floor.tmx",

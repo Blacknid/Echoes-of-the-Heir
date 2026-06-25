@@ -59,9 +59,9 @@ public class RenderPipeline {
         this.gp = gp;
         ensureWorldFrame();
         agroIndicator = util.ResourceCache.loadScaledImageIfPresent(
-            "/res/effects/agro_indicator.png", gp.tileSize / 2, gp.tileSize / 2);
+            "/res/effects/aggro_indicator.png", gp.tileSize / 2, gp.tileSize / 2);
         agroEnemyIndicator = util.ResourceCache.loadScaledImageIfPresent(
-            "/res/effects/agro_enemy.png", gp.tileSize, gp.tileSize);
+            "/res/effects/aggro_enemy.png", gp.tileSize, gp.tileSize);
     }
 
     private void ensureWorldFrame() {
@@ -225,13 +225,17 @@ public class RenderPipeline {
             g2.translate(-shakeX, -shakeY);
         }
 
-        gp.eManager.draw(g2);
+        boolean suppressLights = gp.gameState == GamePanel.cutsceneState
+                && gp.csManager.suppressAmbientLights();
+        if (!suppressLights) {
+            gp.eManager.draw(g2);
 
-        if (gp.mapShader != null) {
-            gp.mapShader.drawAmbientParticles(g2);
-            gp.mapShader.drawWeather(g2);
-            gp.mapShader.drawColorGrading(g2);
-            gp.mapShader.drawVignette(g2);
+            if (gp.mapShader != null) {
+                gp.mapShader.drawAmbientParticles(g2);
+                gp.mapShader.drawWeather(g2);
+                gp.mapShader.drawColorGrading(g2);
+                gp.mapShader.drawVignette(g2);
+            }
         }
     }
 

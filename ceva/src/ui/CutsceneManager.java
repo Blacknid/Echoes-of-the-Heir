@@ -31,6 +31,11 @@ public class CutsceneManager {
     public final int awakening = 1;
     public final int ending = 2;
     public int counter = 0;
+
+    /** Returns true when ambient lights/mapShader should be suppressed (text-only phases). */
+    public boolean suppressAmbientLights() {
+        return sceneNum == awakening && scenePhase >= 1 && scenePhase <= 5;
+    }
     float alpha = 0f;
     int y;
     String endCredit;
@@ -131,32 +136,31 @@ public class CutsceneManager {
             scenePhase = 1;
         }
 
-        // Phase 1: FADE TO WHITE from black (title screen)
+        // Phase 1: FADE IN from black to dark background
         if (scenePhase == 1) {
             drawBlackBackground(1f);
-            alpha += 0.012f;
+            alpha += 0.018f;
             if (alpha > 1f) alpha = 1f;
-            drawWhiteBackground(alpha);
+            drawDarkBackground(alpha);
             if (alpha >= 1f) {
-                alpha = 1f;
                 counter = 0;
                 scenePhase = 2;
             }
         }
 
-        // Phase 2: HOLD WHITE SCREEN (60 frames = 1 second)
+        // Phase 2: HOLD dark screen briefly
         if (scenePhase == 2) {
-            drawWhiteBackground(1f);
-            if (counterReached(60)) {
+            drawDarkBackground(1f);
+            if (counterReached(40)) {
                 scenePhase = 3;
             }
         }
 
-        // Phase 3: SHOW "..." with typewriter on white
+        // Phase 3: SHOW "..." typewriter on dark background
         if (scenePhase == 3) {
-            drawWhiteBackground(1f);
+            drawDarkBackground(1f);
             String text = "...";
-            drawTypewriterText(text, 0.5f, 42f);
+            drawTypewriterText(text, 0.5f, 38f);
             typewriterCounter++;
             if (typewriterCounter >= TYPEWRITER_SPEED) {
                 typewriterCounter = 0;
@@ -169,11 +173,11 @@ public class CutsceneManager {
             }
         }
 
-        // Phase 4: SHOW "Where... am I?" with typewriter on white
+        // Phase 4: SHOW "Where... am I?"
         if (scenePhase == 4) {
-            drawWhiteBackground(1f);
+            drawDarkBackground(1f);
             String text = "Where... am I?";
-            drawTypewriterText(text, 0.5f, 48f);
+            drawTypewriterText(text, 0.5f, 42f);
             typewriterCounter++;
             if (typewriterCounter >= TYPEWRITER_SPEED) {
                 typewriterCounter = 0;
@@ -186,11 +190,11 @@ public class CutsceneManager {
             }
         }
 
-        // Phase 5: SHOW "I can't remember anything..." with typewriter on white
+        // Phase 5: SHOW "ACT I: The Awakening" — larger, centred
         if (scenePhase == 5) {
-            drawWhiteBackground(1f);
+            drawDarkBackground(1f);
             String text = "ACT I: The Awakening";
-            drawTypewriterText(text, 0.5f, 52f);
+            drawTypewriterText(text, 0.5f, 46f);
             typewriterCounter++;
             if (typewriterCounter >= TYPEWRITER_SPEED) {
                 typewriterCounter = 0;
@@ -202,9 +206,9 @@ public class CutsceneManager {
             }
         }
 
-        // Phase 6: WHITE FADES OUT — reveal game world + start music
+        // Phase 6: DARK FADES OUT — reveal game world + start music
         if (scenePhase == 6) {
-            alpha -= 0.008f;
+            alpha -= 0.010f;
             if (alpha <= 0f) {
                 alpha = 0f;
                 gp.playMusic(SFX.AWAKENING_CAVE);
@@ -214,7 +218,7 @@ public class CutsceneManager {
                 cameraPanY = gp.cameraWorldY;
                 counter = 0;
             }
-            drawWhiteBackground(alpha);
+            drawDarkBackground(alpha);
         }
 
         // Phase 7: CAMERA PANS smoothly toward player position
@@ -323,23 +327,47 @@ public class CutsceneManager {
 
     private void drawWhiteBackground(float a) {
         float clamped = Math.max(0f, Math.min(1f, a));
-        g2.setComposite(AlphaComposite.getInstance(AlphaComposite.SRC_OVER, clamped));
+        // SRC composite at full alpha completely replaces whatever is beneath —
+        // prevents game-world lights/glows from bleeding through the cutscene overlay.
+        if (clamped >= 1f) {
+            g2.setComposite(AlphaComposite.getInstance(AlphaComposite.SRC));
+        } else {
+            g2.setComposite(AlphaComposite.getInstance(AlphaComposite.SRC_OVER, clamped));
+        }
         g2.setColor(Color.white);
         g2.fillRect(0, 0, gp.screenWidth, gp.screenHeight);
         g2.setComposite(AlphaComposite.getInstance(AlphaComposite.SRC_OVER, 1f));
     }
 
-    /** Draw typewriter text centered on a white-background cutscene. */
+    // Deep dark warm background — like waking in near-darkness
+    private static final Color DARK_BG = new Color(8, 5, 12);
+
+    private void drawDarkBackground(float a) {
+        float clamped = Math.max(0f, Math.min(1f, a));
+        if (clamped >= 1f) {
+            g2.setComposite(AlphaComposite.getInstance(AlphaComposite.SRC));
+        } else {
+            g2.setComposite(AlphaComposite.getInstance(AlphaComposite.SRC_OVER, clamped));
+        }
+        g2.setColor(DARK_BG);
+        g2.fillRect(0, 0, gp.screenWidth, gp.screenHeight);
+        g2.setComposite(AlphaComposite.getInstance(AlphaComposite.SRC_OVER, 1f));
+    }
+
+    /** Draw typewriter text centered on the dark cutscene background. */
     private void drawTypewriterText(String fullText, float yFraction, float fontSize) {
         String visible = fullText.substring(0, Math.min(typewriterIndex, fullText.length()));
-        g2.setRenderingHint(RenderingHints.KEY_TEXT_ANTIALIASING, RenderingHints.VALUE_TEXT_ANTIALIAS_LCD_HRGB);
+        g2.setRenderingHint(RenderingHints.KEY_TEXT_ANTIALIASING, RenderingHints.VALUE_TEXT_ANTIALIAS_OFF);
+        g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_OFF);
         g2.setFont(getCutsceneFont((int) fontSize));
-        g2.setColor(new Color(60, 50, 50));
         FontMetrics fm = g2.getFontMetrics();
         int tx = (gp.screenWidth - fm.stringWidth(visible)) / 2;
         int ty = (int) (gp.screenHeight * yFraction);
+        // Subtle shadow then warm cream text
+        g2.setColor(new Color(0, 0, 0, 120));
+        g2.drawString(visible, tx + 2, ty + 2);
+        g2.setColor(new Color(220, 205, 175));
         g2.drawString(visible, tx, ty);
-        g2.setRenderingHint(RenderingHints.KEY_TEXT_ANTIALIASING, RenderingHints.VALUE_TEXT_ANTIALIAS_LCD_HRGB);
     }
 
     /** Draw semi-transparent overlay text at the bottom of the screen during gameplay reveal. */
@@ -525,17 +553,22 @@ public class CutsceneManager {
         return counterReached;
     }
     public void drawBlackBackground ( float alpha ) {
-
-        g2.setComposite(AlphaComposite.getInstance(AlphaComposite.SRC_OVER, alpha));
+        float clamped = Math.max(0f, Math.min(1f, alpha));
+        if (clamped >= 1f) {
+            g2.setComposite(AlphaComposite.getInstance(AlphaComposite.SRC));
+        } else {
+            g2.setComposite(AlphaComposite.getInstance(AlphaComposite.SRC_OVER, clamped));
+        }
         g2.setColor(Color.black);
         g2.fillRect(0, 0, gp.screenWidth, gp.screenHeight);
         g2.setComposite(AlphaComposite.getInstance(AlphaComposite.SRC_OVER, 1f));
     }
-    public void drawString( float alpha, float fontSize, int y, String text, int lineHeigh) {
 
+    public void drawString( float alpha, float fontSize, int y, String text, int lineHeigh) {
         g2.setComposite(AlphaComposite.getInstance(AlphaComposite.SRC_OVER, alpha));
         g2.setFont(fontCache.computeIfAbsent(fontSize, s -> pixelFont.deriveFont(Font.PLAIN, s)));
-        g2.setRenderingHint(RenderingHints.KEY_TEXT_ANTIALIASING, RenderingHints.VALUE_TEXT_ANTIALIAS_ON);
+        g2.setRenderingHint(RenderingHints.KEY_TEXT_ANTIALIASING, RenderingHints.VALUE_TEXT_ANTIALIAS_OFF);
+        g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_OFF);
         FontMetrics fm = g2.getFontMetrics();
         for ( String line: text.split("\n")) {
             int x = (gp.screenWidth - fm.stringWidth(line)) / 2;
