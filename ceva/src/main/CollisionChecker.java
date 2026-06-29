@@ -386,11 +386,24 @@ public class CollisionChecker {
                     case Entity.DIR_RIGHT -> entityX += entity.speed;
                 }
 
-                // Check intersection
-                if (entityX < targetX + target[i].solidArea.width &&
-                    entityX + entity.solidArea.width > targetX &&
-                    entityY < targetY + target[i].solidArea.height &&
-                    entityY + entity.solidArea.height > targetY) {
+                // Check intersection — use hurtPolygon on the target if present, else fall back to AABB
+                boolean hit;
+                if (target[i].hurtPolygon != null) {
+                    // Translate the local-space polygon to world space for this check
+                    java.awt.Polygon wp = target[i].hurtPolygon;
+                    java.awt.Rectangle attackRect = new java.awt.Rectangle(
+                        entityX, entityY, entity.solidArea.width, entity.solidArea.height);
+                    // Temporarily translate polygon to world coords
+                    wp.translate(target[i].worldX, target[i].worldY);
+                    hit = wp.intersects(attackRect);
+                    wp.translate(-target[i].worldX, -target[i].worldY);
+                } else {
+                    hit = entityX < targetX + target[i].solidArea.width &&
+                          entityX + entity.solidArea.width > targetX &&
+                          entityY < targetY + target[i].solidArea.height &&
+                          entityY + entity.solidArea.height > targetY;
+                }
+                if (hit) {
                     if (target[i].collision) {
                         entity.collisionOn = true;
                     }

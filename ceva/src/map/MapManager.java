@@ -274,6 +274,8 @@ public class MapManager {
 
         gp.player.worldX = spawnCol * gp.tileSize;
         gp.player.worldY = spawnRow * gp.tileSize;
+        gp.player.snapCamera();
+        gp.player.spawnFadeAlpha = 0f;
 
         // Remember where the player entered so death-retry respawns here
         retrySpawnCol = spawnCol;

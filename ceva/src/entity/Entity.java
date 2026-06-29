@@ -135,6 +135,26 @@ public class Entity {
     public Rectangle solidArea = new Rectangle(0, 0, 48, 48);
     public Rectangle attackArea = new Rectangle(0, 0, 0, 0);
     public int solidAreaDefaultX, solidAreaDefaultY;
+
+    // Optional polygon hurtbox for hit-detection only (tile/movement collision still uses solidArea).
+    // Set via setOctagonHurt() in subclass constructors. Stored in local entity space (origin = worldX/worldY).
+    public java.awt.Polygon hurtPolygon = null;
+
+    /** Replace hurtPolygon with a regular octagon. cx/cy are the center offset from worldX/worldY; r is the radius. */
+    public void setOctagonHurt(int cx, int cy, int r) {
+        int[] xs = new int[8];
+        int[] ys = new int[8];
+        int cut = (int) Math.round(r * 0.2);
+        xs[0] = cx - r + cut; ys[0] = cy - r;
+        xs[1] = cx + r - cut; ys[1] = cy - r;
+        xs[2] = cx + r;       ys[2] = cy - r + cut;
+        xs[3] = cx + r;       ys[3] = cy + r - cut;
+        xs[4] = cx + r - cut; ys[4] = cy + r;
+        xs[5] = cx - r + cut; ys[5] = cy + r;
+        xs[6] = cx - r;       ys[6] = cy + r - cut;
+        xs[7] = cx - r;       ys[7] = cy - r + cut;
+        hurtPolygon = new java.awt.Polygon(xs, ys, 8);
+    }
     public boolean collisionOn = false;
     public boolean invincible = false;
     public boolean attacking = false;
@@ -153,6 +173,8 @@ public class Entity {
     public int fleeDuration = 60;
     public boolean frontalArmor = false;       // blocks 50% of frontal hits (Painted Guard, Painted Crab)
     public int     rootOnContactDuration = 0; // roots the player on contact for N frames (Hollow Stump)
+    public int alertTick = 0;                 // counts down from ALERT_DURATION when monster first spots player
+    public boolean everAggroed = false;       // true once monster has spotted player; resets only when it loses the player
     public Entity loot;
     public boolean opened = false;
 
@@ -645,7 +667,8 @@ public class Entity {
             activitySpriteCounter = 0;
             activityFrameDirection = 1;
             spriteCounter++;
-            if (spriteCounter > animationFrameInterval) {
+            int walkInterval = Math.max(2, 48 / Math.max(1, speed));
+            if (spriteCounter > walkInterval) {
                 int maxWalkFrames = Math.max(1, Math.min(walkFrameCount, 8));
 
                 if (maxWalkFrames == 1) {
@@ -736,6 +759,7 @@ public class Entity {
             }
         }
         if (hitFlashCounter > 0) hitFlashCounter--;
+        if (alertTick > 0) alertTick--;
         if (shotAvailableCounter < 30) {
             shotAvailableCounter++;
         }

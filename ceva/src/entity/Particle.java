@@ -2,6 +2,7 @@ package entity;
 
 import java.awt.Color;
 import java.awt.Graphics2D;
+import java.awt.image.BufferedImage;
 
 import main.GamePanel;
 import util.ObjectPool.Poolable;
@@ -26,6 +27,22 @@ public class Particle extends Entity implements Poolable {
     public static final int STYLE_DUST = 3;
     public static final int STYLE_SPARK = 4;
     public static final int STYLE_TRAIL = 5;
+    public static final int STYLE_BOB = 6;
+
+    public BufferedImage image;
+
+    private static BufferedImage[] BOB_IMAGES = null;
+    static BufferedImage getRandomBob(GamePanel gp) {
+        if (BOB_IMAGES == null) {
+            int sz = gp.tileSize;
+            BOB_IMAGES = new BufferedImage[] {
+                util.ResourceCache.loadScaledImageIfPresent("/res/effects/bob1.png", sz, sz),
+                util.ResourceCache.loadScaledImageIfPresent("/res/effects/bob2.png", sz, sz),
+                util.ResourceCache.loadScaledImageIfPresent("/res/effects/bob3.png", sz, sz)
+            };
+        }
+        return BOB_IMAGES[(int)(Math.random() * 3)];
+    }
 
     private static final Color BLOOD_OUTER = new Color(120, 15, 20);
     private static final Color HIT_GLOW = new Color(255, 220, 120);
@@ -84,6 +101,10 @@ public class Particle extends Entity implements Poolable {
                 velocityX *= 0.92f;
                 velocityY = velocityY * 0.92f - 0.04f; // rises slightly
                 break;
+            case STYLE_BOB:
+                velocityX *= 0.88f;
+                velocityY = velocityY * 0.90f - 0.06f; // gentle rise
+                break;
             default:
                 velocityY += 0.09f;
                 break;
@@ -139,6 +160,23 @@ public class Particle extends Entity implements Poolable {
             case STYLE_TRAIL:
                 g2.setColor(TRAIL_COLOR);
                 g2.fillOval(screenX, screenY, size, size);
+                break;
+            case STYLE_BOB:
+                if (image != null) {
+                    // progress 1→0 as particle ages
+                    float progress = (float) life / initialLife;
+                    // size: grows from 0.35 to 1.0 in the first 40% of life, then holds at 1.0
+                    float sizeScale = progress > 0.6f
+                        ? 0.35f + (1.0f - progress) / 0.4f * 0.65f
+                        : 1.0f;
+                    // opacity: full for first 30%, then linear fade to 0
+                    float bobAlpha = progress > 0.7f ? 0.55f : (progress / 0.7f) * 0.55f;
+                    int drawSize = Math.max(1, (int)(size * sizeScale));
+                    int cx = screenX + size / 2 - drawSize / 2;
+                    int cy = screenY + size / 2 - drawSize / 2;
+                    changeAlpha(g2, bobAlpha);
+                    g2.drawImage(image, cx, cy, drawSize, drawSize, null);
+                }
                 break;
             default:
                 g2.setColor(color);
@@ -201,6 +239,7 @@ public class Particle extends Entity implements Poolable {
         life = 0;
         worldX = 0;
         worldY = 0;
+        image = null;
     }
 
 }

@@ -75,15 +75,22 @@ public class Main {
         gamePanel.config.loadConfig();
         gamePanel.applyFpsTarget(gamePanel.config.fpsTarget);
 
-        window.pack();
-
         if (gamePanel.fullScreenOn) {
-            // Pre-size the window to the full screen BEFORE setVisible so the panel
-            // is laid out at the right resolution on the very first paint. With the
-            // OpenGL pipeline disabled (see top of main), plain setBounds is safe.
             java.awt.Rectangle sb = window.getGraphicsConfiguration().getBounds();
             window.setBounds(sb.x, sb.y, sb.width, sb.height);
+        } else if (!Config.stretchToFill) {
+            // Dynamic viewport: size window to 80% of screen; panel fills it via BorderLayout.
+            java.awt.Dimension screen = java.awt.Toolkit.getDefaultToolkit().getScreenSize();
+            int w = (int)(screen.width  * 0.80);
+            int h = (int)(screen.height * 0.80);
+            window.setSize(w, h);
+            if (gamePanel.config.windowX >= 0 && gamePanel.config.windowY >= 0) {
+                window.setLocation(gamePanel.config.windowX, gamePanel.config.windowY);
+            } else {
+                window.setLocationRelativeTo(null);
+            }
         } else {
+            window.pack();
             if (gamePanel.config.windowX >= 0 && gamePanel.config.windowY >= 0) {
                 window.setLocation(gamePanel.config.windowX, gamePanel.config.windowY);
             } else {

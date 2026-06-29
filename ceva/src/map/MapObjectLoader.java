@@ -27,6 +27,7 @@ import object.OBJ_Tent;
 import object.OBJ_Torch;
 import object.OBJ_Tower;
 import tile.IT_Coins;
+import tile.IT_Grass;
 import tile.IT_Pot;
 import util.ResourceCache;
 
@@ -926,6 +927,7 @@ public class MapObjectLoader {
                                                                      Element obj) {
         switch (type) {
             case "IT_Pot"   -> { return new IT_Pot(gp, col, row); }
+            case "IT_Grass" -> { return new IT_Grass(gp, col, row); }
             case "IT_Coins" -> {
                 IT_Coins ic = new IT_Coins(gp, col, row);
                 ic.coinValue = getIntProperty(obj, "amount", 1);

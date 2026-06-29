@@ -13,6 +13,7 @@ public class KeyHandler implements KeyListener {
     public boolean upPressed, downPressed, leftPressed, rightPressed, shotKeyPressed;
 
     public boolean enterPressed, dashPressed;
+    private boolean dashKeyHeld = false;
 
     public boolean shockwavePressed, voidSnarePressed, frostNovaPressed, overdrivePressed;
 
@@ -62,7 +63,7 @@ public class KeyHandler implements KeyListener {
             handleTitleState(code);
         }
         else if (gp.gameState == GamePanel.playState) {
-            handlePlayState(code);
+            handlePlayState(e, code);
         }
         else if (gp.gameState == GamePanel.pauseState) {
             if (code == KeyEvent.VK_P) gp.gameState = GamePanel.playState;
@@ -110,7 +111,7 @@ public class KeyHandler implements KeyListener {
             case KeyEvent.VK_A, KeyEvent.VK_LEFT -> { leftPressed = false; menuLeft = false; }
             case KeyEvent.VK_D, KeyEvent.VK_RIGHT -> { rightPressed = false; menuRight = false; }
             case KeyEvent.VK_F -> shotKeyPressed = false;
-            case KeyEvent.VK_SPACE, KeyEvent.VK_SHIFT -> dashPressed = false;
+            case KeyEvent.VK_SPACE, KeyEvent.VK_SHIFT -> { dashPressed = false; dashKeyHeld = false; }
             case KeyEvent.VK_Z -> shockwavePressed = false;
             case KeyEvent.VK_X -> voidSnarePressed = false;
             case KeyEvent.VK_C -> frostNovaPressed = false;
@@ -230,7 +231,7 @@ public class KeyHandler implements KeyListener {
         gp.mapObjectLoader.loadMapProperties(path);
     }
 
-    private void startNewGame() {
+    public void startNewGame() {
         // Wipe all leftover world / player / map state from any previous run.
         // Without this, choosing NEW GAME after an End-Game-to-title (or after a
         // LOAD) keeps the old inventory, opened chests, story flags, etc.
@@ -491,11 +492,17 @@ public class KeyHandler implements KeyListener {
         }
     }
 
-    private void handlePlayState(int code) {
+    private void handlePlayState(KeyEvent e, int code) {
+        // Ctrl+D — enable / disable debug mode entirely
+        if (e != null && e.isControlDown() && code == KeyEvent.VK_D) {
+            gp.debugModeEnabled = !gp.debugModeEnabled;
+            if (!gp.debugModeEnabled && gp.debugMenuOpen) gp.toggleDebugMenu();
+            return;
+        }
+
+        // F9 — open / close debug panel (only when debug mode is on)
         if (code == KeyEvent.VK_F9) {
-            if (gp.debugMenuOpen || !isOverlayOpen()) {
-                gp.toggleDebugMenu();
-            }
+            if (gp.debugModeEnabled && (gp.debugMenuOpen || !isOverlayOpen())) gp.toggleDebugMenu();
             return;
         }
 
@@ -538,26 +545,21 @@ public class KeyHandler implements KeyListener {
         if (code == KeyEvent.VK_ENTER) { enterPressed = true; }
         if (code == KeyEvent.VK_F) { shotKeyPressed = true; }
 
-        if ( (code == KeyEvent.VK_SHIFT ) && ( leftPressed || rightPressed
-                        || upPressed || downPressed ) ) { dashPressed = true; }
+        if (code == KeyEvent.VK_SHIFT && !dashKeyHeld && (leftPressed || rightPressed || upPressed || downPressed)) {
+            dashPressed = true;
+            dashKeyHeld = true;
+        }
 
-        if (code == KeyEvent.VK_T) { showDebugText = !showDebugText; }
-
-        // [DEBUG] F5 = toggle persistent sepia overlay (MapShaderManager.sepiaMode)
-        if (code == KeyEvent.VK_F5) { gp.toggleDebugSepia(); }
-
-        // [DEBUG] F7 = collect all registered test fragments (visible in journal via J)
-        if (code == KeyEvent.VK_F7) { gp.collectDebugFragments(); }
-
-        // [DEBUG] F8 = teleport to Awakening Cave
-        if (code == KeyEvent.VK_F8) { gp.teleportToAwakeningDebug(); }
-
-        // [DEBUG] F6 = trigger a test MemoryFlashback sequence
-        if (code == KeyEvent.VK_F6) { gp.triggerDebugFlashback(); }
-
-        if (code == KeyEvent.VK_H) { gp.HitBoxes = !gp.HitBoxes; }
-        if (code == KeyEvent.VK_R) { gp.reloadCurrentMapDebug(); }
-        if (code == KeyEvent.VK_Y) { gp.drawPath = !gp.drawPath; }
+        if (gp.debugModeEnabled) {
+            if (code == KeyEvent.VK_T) { showDebugText = !showDebugText; }
+            if (code == KeyEvent.VK_F5) { gp.toggleDebugSepia(); }
+            if (code == KeyEvent.VK_F7) { gp.collectDebugFragments(); }
+            if (code == KeyEvent.VK_F8) { gp.teleportToAwakeningDebug(); }
+            if (code == KeyEvent.VK_F6) { gp.triggerDebugFlashback(); }
+            if (code == KeyEvent.VK_H) { gp.HitBoxes = !gp.HitBoxes; }
+            if (code == KeyEvent.VK_R) { gp.reloadCurrentMapDebug(); }
+            if (code == KeyEvent.VK_Y) { gp.drawPath = !gp.drawPath; }
+        }
 
         if (code == KeyEvent.VK_Q && gp.questManager != null) {
             if (gp.questManager.isLogOpen()) {
@@ -683,7 +685,7 @@ public class KeyHandler implements KeyListener {
         if (code == KeyEvent.VK_ENTER) enterPressed = true;
 
         int maxCommandNum = switch (gp.ui.subState) {
-            case 0 -> 9;
+            case 0 -> 10;
             case 3 -> 2;
             default -> 0;
         };

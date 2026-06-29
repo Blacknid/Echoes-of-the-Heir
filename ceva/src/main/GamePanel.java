@@ -50,12 +50,17 @@ public class GamePanel extends JPanel implements Runnable{
     public final double scale = Config.scale;
 
     public final int tileSize = Config.tileSize; // runtime tile size (originalTileSize * scale)
-    // Fixed display resolution — independent of tile size so zooming in doesn't change window size
-    public final int screenWidth = 1280;
-    public final int screenHeight = 720; // 16:9
-    // Visible tile counts derived from resolution + tile size (+1 to cover partial edge tiles)
-    public final int maxScreenCol = (int)Math.ceil((double)screenWidth / tileSize) + 1;
-    public final int maxScreenRow = (int)Math.ceil((double)screenHeight / tileSize) + 1;
+    // Logical resolution — matches the panel size in dynamic-viewport mode (stretchToFill=false),
+    // or stays fixed at 1280×720 in legacy scaled mode (stretchToFill=true).
+    public int screenWidth  = 1280;
+    public int screenHeight = 720;
+    // Display transform — 1:1 in dynamic mode; populated for legacy scaled mode
+    private float displayScaleF  = 1f;
+    private int   displayOffsetX = 0;
+    private int   displayOffsetY = 0;
+    // Visible tile counts — recalculated whenever the resolution changes
+    public int maxScreenCol = (int)Math.ceil((double)screenWidth / tileSize) + 1;
+    public int maxScreenRow = (int)Math.ceil((double)screenHeight / tileSize) + 1;
     /** UI horizontal scale factor: how much bigger the screen is than the 1280-wide reference. */
     public float uiSf()  { return screenWidth  / (float) Config.UI_BASE_W; }
     /** UI vertical scale factor: how much bigger the screen is than the 768-high reference. */
@@ -63,6 +68,7 @@ public class GamePanel extends JPanel implements Runnable{
 
     public boolean HitBoxes = false;
     public boolean drawPath = false;
+    public boolean debugModeEnabled = false;
     public boolean debugMenuOpen = false;
     // Pending debug reload — set from EDT, consumed by the game-loop thread at the start of update()
     private volatile boolean pendingReloadAll     = false;
@@ -102,6 +108,7 @@ public class GamePanel extends JPanel implements Runnable{
 
     public TileManager tileM = new TileManager(this);
     public KeyHandler keyH = new KeyHandler(this);
+    public MouseHandler mouseH = new MouseHandler(this);
     public AudioManager audio = new AudioManager();
     public CollisionChecker cChecker = new CollisionChecker(this);
     public AssetSetter aSetter = new AssetSetter(this);
@@ -186,6 +193,15 @@ public class GamePanel extends JPanel implements Runnable{
     public int getCamWorldY() { return cameraLocked ? cameraWorldY : player.worldY; }
     public int getCamScreenX() { return player.screenX; }
     public int getCamScreenY() { return player.screenY; }
+    /** Map a raw panel-space point (mouse event coords) to game-space (logical back-buffer) coords. */
+    public java.awt.Point panelToGame(int px, int py) {
+        if (displayScaleF <= 0f) return new java.awt.Point(px, py);
+        int gx = (int)((px - displayOffsetX) / displayScaleF);
+        int gy = (int)((py - displayOffsetY) / displayScaleF);
+        gx = Math.max(0, Math.min(screenWidth  - 1, gx));
+        gy = Math.max(0, Math.min(screenHeight - 1, gy));
+        return new java.awt.Point(gx, gy);
+    }
     public void lockCamera(int tileCol, int tileRow) {
         cameraWorldX = tileCol * tileSize;
         cameraWorldY = tileRow * tileSize;
@@ -246,12 +262,31 @@ public class GamePanel extends JPanel implements Runnable{
         this.setBackground(Color.black);
         this.setDoubleBuffered(true);
         this.addKeyListener(keyH);
+        this.addMouseListener(mouseH);
+        this.addMouseMotionListener(mouseH);
+        this.addMouseWheelListener(mouseH);
         this.setFocusable(true);
 
-        // Window drag — the window is always undecorated (no title bar), so we let
-        // the player drag it by clicking anywhere on the panel when in windowed mode.
-        // Ignored in fullscreen (dragging a maximized window does nothing anyway).
-        java.awt.Point[] dragStart = {null};
+        // Dynamic viewport: immediately adapt resolution when the panel is resized.
+        addComponentListener(new java.awt.event.ComponentAdapter() {
+            @Override public void componentResized(java.awt.event.ComponentEvent e) {
+                if (!Config.stretchToFill) {
+                    int w = getWidth();
+                    int h = getHeight();
+                    if (w > 0 && h > 0 && (w != screenWidth || h != screenHeight)) {
+                        applyNewResolution(w, h);
+                    }
+                }
+            }
+        });
+
+        // Window drag & resize — the window is always undecorated (no title bar).
+        // Dragging the panel body moves the window; dragging within RESIZE_BORDER pixels
+        // of any edge or corner resizes it. Both are disabled in fullscreen mode.
+        java.awt.Point[]     dragStart = {null};
+        int[]                rDir      = {0};    // active resize direction bitmask (0 = none)
+        java.awt.Rectangle[] rBounds   = {null}; // window bounds at resize start
+        java.awt.Point[]     rScreen   = {null}; // screen cursor pos at resize start
         addMouseListener(new java.awt.event.MouseAdapter() {
             @Override public void mousePressed(java.awt.event.MouseEvent e) {
                 java.awt.Rectangle[] btns = getWCBRects();
@@ -260,21 +295,60 @@ public class GamePanel extends JPanel implements Runnable{
                 if (btns[2].contains(e.getPoint())) {
                     if (Main.window != null) Main.window.setExtendedState(JFrame.ICONIFIED); return;
                 }
-                if (!fullScreenOn) dragStart[0] = e.getLocationOnScreen();
+                if (fullScreenOn || Main.window == null) return;
+                int dir = calcResizeDir(e.getX(), e.getY());
+                if (dir != 0) {
+                    rDir[0]    = dir;
+                    rBounds[0] = Main.window.getBounds();
+                    rScreen[0] = e.getLocationOnScreen();
+                } else {
+                    dragStart[0] = e.getLocationOnScreen();
+                }
             }
             @Override public void mouseReleased(java.awt.event.MouseEvent e) {
                 dragStart[0] = null;
+                rDir[0] = 0; rBounds[0] = null; rScreen[0] = null;
+                setCursor(java.awt.Cursor.getDefaultCursor());
             }
             @Override public void mouseExited(java.awt.event.MouseEvent e) {
                 wcbHover = null;
+                if (rDir[0] == 0) setCursor(java.awt.Cursor.getDefaultCursor());
             }
         });
         addMouseMotionListener(new java.awt.event.MouseMotionAdapter() {
             @Override public void mouseMoved(java.awt.event.MouseEvent e) {
                 wcbHover = e.getPoint();
+                if (!fullScreenOn) {
+                    int dir = calcResizeDir(e.getX(), e.getY());
+                    setCursor(dir != 0 ? resizeCursor(dir) : java.awt.Cursor.getDefaultCursor());
+                }
             }
             @Override public void mouseDragged(java.awt.event.MouseEvent e) {
-                if (!fullScreenOn && dragStart[0] != null && Main.window != null) {
+                if (fullScreenOn || Main.window == null) return;
+                // RESIZE: adjust window bounds based on which edge/corner is being dragged
+                if (rDir[0] != 0 && rBounds[0] != null && rScreen[0] != null) {
+                    java.awt.Point cur = e.getLocationOnScreen();
+                    int dx = cur.x - rScreen[0].x;
+                    int dy = cur.y - rScreen[0].y;
+                    java.awt.Rectangle nb = new java.awt.Rectangle(rBounds[0]);
+                    final int MIN_W = 480, MIN_H = 270;
+                    if ((rDir[0] & 2) != 0) { nb.width  = Math.max(MIN_W, rBounds[0].width  + dx); } // E
+                    if ((rDir[0] & 8) != 0) { nb.height = Math.max(MIN_H, rBounds[0].height + dy); } // S
+                    if ((rDir[0] & 1) != 0) { // W: move left edge
+                        int newW = Math.max(MIN_W, rBounds[0].width - dx);
+                        nb.x     = rBounds[0].x + (rBounds[0].width - newW);
+                        nb.width = newW;
+                    }
+                    if ((rDir[0] & 4) != 0) { // N: move top edge
+                        int newH = Math.max(MIN_H, rBounds[0].height - dy);
+                        nb.y      = rBounds[0].y + (rBounds[0].height - newH);
+                        nb.height = newH;
+                    }
+                    Main.window.setBounds(nb);
+                    return;
+                }
+                // DRAG: move the window
+                if (dragStart[0] != null) {
                     java.awt.Point cur = e.getLocationOnScreen();
                     java.awt.Point loc = Main.window.getLocation();
                     Main.window.setLocation(loc.x + cur.x - dragStart[0].x,
@@ -480,6 +554,27 @@ public class GamePanel extends JPanel implements Runnable{
         }
     }
 
+    /**
+     * Adapts the logical resolution to the given panel dimensions.
+     * In dynamic-viewport mode (stretchToFill=false) this is called whenever the window
+     * is resized — more or fewer world tiles become visible; no black bars, no scaling.
+     */
+    private void applyNewResolution(int w, int h) {
+        screenWidth  = w;
+        screenHeight = h;
+        maxScreenCol = (int)Math.ceil((double)screenWidth  / tileSize) + 1;
+        maxScreenRow = (int)Math.ceil((double)screenHeight / tileSize) + 1;
+        recreateBackBuffer();
+        if (player != null) {
+            player.screenX = screenWidth  / 2 - tileSize / 2;
+            player.screenY = screenHeight / 2 - tileSize / 2;
+            player.snapCamera();
+        }
+        vpCacheValid = false;
+        if (mapShader != null) mapShader.setup();
+        if (ui       != null) ui.onResolutionChanged();
+    }
+
     private java.awt.Rectangle[] getWCBRects() {
         int pw = getWidth();
         int closeX = pw - WCB_GAP - WCB_SIZE;
@@ -489,6 +584,40 @@ public class GamePanel extends JPanel implements Runnable{
             new java.awt.Rectangle(closeX, WCB_TOP, WCB_SIZE, WCB_SIZE),
             new java.awt.Rectangle(fullX,  WCB_TOP, WCB_SIZE, WCB_SIZE),
             new java.awt.Rectangle(minX,   WCB_TOP, WCB_SIZE, WCB_SIZE),
+        };
+    }
+
+    /** Pixels from each window edge that trigger the resize cursor / resize drag. */
+    private static final int RESIZE_BORDER = 8;
+
+    /**
+     * Returns a direction bitmask for a panel-relative mouse position near the window border.
+     * Bit 0 = W (left edge), bit 1 = E (right edge), bit 2 = N (top edge), bit 3 = S (bottom edge).
+     * Returns 0 when not in any resize zone or when fullscreen.
+     */
+    private int calcResizeDir(int mx, int my) {
+        if (fullScreenOn) return 0;
+        int dir = 0;
+        int pw = getWidth(), ph = getHeight();
+        if (mx <= RESIZE_BORDER)        dir |= 1; // W
+        if (mx >= pw - RESIZE_BORDER)   dir |= 2; // E
+        if (my <= RESIZE_BORDER)        dir |= 4; // N
+        if (my >= ph - RESIZE_BORDER)   dir |= 8; // S
+        return dir;
+    }
+
+    /** Maps a resize direction bitmask to the appropriate AWT resize cursor. */
+    private java.awt.Cursor resizeCursor(int dir) {
+        return switch (dir) {
+            case 1  -> java.awt.Cursor.getPredefinedCursor(java.awt.Cursor.W_RESIZE_CURSOR);
+            case 2  -> java.awt.Cursor.getPredefinedCursor(java.awt.Cursor.E_RESIZE_CURSOR);
+            case 4  -> java.awt.Cursor.getPredefinedCursor(java.awt.Cursor.N_RESIZE_CURSOR);
+            case 8  -> java.awt.Cursor.getPredefinedCursor(java.awt.Cursor.S_RESIZE_CURSOR);
+            case 5  -> java.awt.Cursor.getPredefinedCursor(java.awt.Cursor.NW_RESIZE_CURSOR); // N+W
+            case 6  -> java.awt.Cursor.getPredefinedCursor(java.awt.Cursor.NE_RESIZE_CURSOR); // N+E
+            case 9  -> java.awt.Cursor.getPredefinedCursor(java.awt.Cursor.SW_RESIZE_CURSOR); // S+W
+            case 10 -> java.awt.Cursor.getPredefinedCursor(java.awt.Cursor.SE_RESIZE_CURSOR); // S+E
+            default -> java.awt.Cursor.getDefaultCursor();
         };
     }
 
@@ -583,6 +712,7 @@ public class GamePanel extends JPanel implements Runnable{
     public void startGameThread(){
 
         gameThread = new Thread(this);
+        gameThread.setDaemon(true);
         gameThread.start();
     }
 
@@ -683,22 +813,33 @@ public class GamePanel extends JPanel implements Runnable{
             g2d.fillRect(0, 0, panelW, panelH);
 
             if (tempScreen != null) {
-                float scaleX = (float) panelW / screenWidth;
-                float scaleY = (float) panelH / screenHeight;
-                float scale  = Math.min(scaleX, scaleY);
-
-                int dstW = (int)(screenWidth  * scale);
-                int dstH = (int)(screenHeight * scale);
-                int dstX = (panelW - dstW) / 2;
-                int dstY = (panelH - dstH) / 2;
-
-                g2d.setRenderingHint(java.awt.RenderingHints.KEY_INTERPOLATION,
-                        java.awt.RenderingHints.VALUE_INTERPOLATION_NEAREST_NEIGHBOR);
-                g2d.drawImage(tempScreen, dstX, dstY, dstW, dstH, null);
-
-                if (dstX > 0 || dstY > 0) {
-                    g2d.setColor(new java.awt.Color(55, 45, 35, 110));
-                    g2d.drawRect(dstX, dstY, dstW - 1, dstH - 1);
+                if (Config.stretchToFill) {
+                    // Fixed-resolution mode: scale the 1280×720 back-buffer to fill the window
+                    float sx = (float) panelW / screenWidth;
+                    float sy = (float) panelH / screenHeight;
+                    float usedScale = Math.min(sx, sy);
+                    int dstW = (int)(screenWidth  * usedScale);
+                    int dstH = (int)(screenHeight * usedScale);
+                    int dstX = (panelW - dstW) / 2;
+                    int dstY = (panelH - dstH) / 2;
+                    displayScaleF  = usedScale;
+                    displayOffsetX = dstX;
+                    displayOffsetY = dstY;
+                    g2d.setRenderingHint(java.awt.RenderingHints.KEY_INTERPOLATION,
+                            java.awt.RenderingHints.VALUE_INTERPOLATION_NEAREST_NEIGHBOR);
+                    g2d.drawImage(tempScreen, dstX, dstY, dstX + dstW, dstY + dstH,
+                            0, 0, screenWidth, screenHeight, null);
+                    if (dstX > 0 || dstY > 0) {
+                        g2d.setColor(new java.awt.Color(55, 45, 35, 110));
+                        g2d.drawRect(dstX, dstY, dstW - 1, dstH - 1);
+                    }
+                } else {
+                    // Dynamic-viewport mode (default): tempScreen = panel size → draw 1:1
+                    // Larger window = more world tiles visible; no scaling, no black bars
+                    displayScaleF  = 1f;
+                    displayOffsetX = 0;
+                    displayOffsetY = 0;
+                    g2d.drawImage(tempScreen, 0, 0, null);
                 }
             }
         }
@@ -944,6 +1085,19 @@ public class GamePanel extends JPanel implements Runnable{
     }
 
     public void drawToTempScreen() {
+
+    // Dynamic-viewport resize: adapt the logical resolution to the current panel size so that
+    // a bigger window shows more world tiles (1:1 pixels, no scaling, no black bars).
+    // In fixed-resolution mode (stretchToFill=true) the back-buffer stays at 1280×720.
+    if (!Config.stretchToFill) {
+        int panelW = getWidth();
+        int panelH = getHeight();
+        if (panelW > 0 && panelH > 0 && (panelW != screenWidth || panelH != screenHeight)) {
+            applyNewResolution(panelW, panelH);
+        }
+    } else if (screenWidth != 1280 || screenHeight != 720) {
+        applyNewResolution(1280, 720);
+    }
 
     // Reset the Graphics2D transform to identity each frame — prevents AffineTransform
     // accumulation if any drawing code forgets to undo a translate/rotate.

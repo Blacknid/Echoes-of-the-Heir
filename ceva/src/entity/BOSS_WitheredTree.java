@@ -203,6 +203,7 @@ public class BOSS_WitheredTree extends Entity {
         solidArea.height = gp.tileSize;         // 64 at 64px tile
         solidAreaDefaultX = solidArea.x;
         solidAreaDefaultY = solidArea.y;
+        setOctagonHurt(solidArea.width / 2, solidArea.height / 2, solidArea.width / 2);
 
         attackArea.width  = gp.tileSize * 5 / 4; // 80 at 64px tile
         attackArea.height = gp.tileSize * 5 / 4; // 80 at 64px tile

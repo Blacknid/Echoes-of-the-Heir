@@ -32,6 +32,9 @@ public class RenderPipeline {
     private Graphics2D worldGraphics;
     private boolean worldCacheValid = false;
 
+    private BufferedImage agroIndicator;
+    private BufferedImage agroEnemyIndicator;
+
     ArrayList<Entity> entityList = new ArrayList<>(150);
     int entityListIndex = 0;
 
@@ -55,6 +58,10 @@ public class RenderPipeline {
     public RenderPipeline(GamePanel gp) {
         this.gp = gp;
         ensureWorldFrame();
+        agroIndicator = util.ResourceCache.loadScaledImageIfPresent(
+            "/res/effects/aggro_indicator.png", gp.tileSize / 2, gp.tileSize / 2);
+        agroEnemyIndicator = util.ResourceCache.loadScaledImageIfPresent(
+            "/res/effects/aggro_enemy.png", gp.tileSize, gp.tileSize);
     }
 
     private void ensureWorldFrame() {
@@ -200,6 +207,9 @@ public class RenderPipeline {
 
         clearRenderableEntities();
 
+        drawNPCInteractIndicators(g2);
+        drawEnemyAlertIndicators(g2);
+
         for (int i = 0; i < gp.damageNumbers.size(); i++) {
             entity.DamageNumber dn = gp.damageNumbers.get(i);
             if (dn.alive) dn.draw(g2);
@@ -215,13 +225,17 @@ public class RenderPipeline {
             g2.translate(-shakeX, -shakeY);
         }
 
-        gp.eManager.draw(g2);
+        boolean suppressLights = gp.gameState == GamePanel.cutsceneState
+                && gp.csManager.suppressAmbientLights();
+        if (!suppressLights) {
+            gp.eManager.draw(g2);
 
-        if (gp.mapShader != null) {
-            gp.mapShader.drawAmbientParticles(g2);
-            gp.mapShader.drawWeather(g2);
-            gp.mapShader.drawColorGrading(g2);
-            gp.mapShader.drawVignette(g2);
+            if (gp.mapShader != null) {
+                gp.mapShader.drawAmbientParticles(g2);
+                gp.mapShader.drawWeather(g2);
+                gp.mapShader.drawColorGrading(g2);
+                gp.mapShader.drawVignette(g2);
+            }
         }
     }
 
@@ -241,6 +255,41 @@ public class RenderPipeline {
         }
     }
 
+    /** Draw a filled+outlined octagon for entity e at its screen position. Uses hurtPolygon if set, else builds one from solidArea. */
+    private void drawEntityOctagon(Graphics2D g2, Entity e, int offX, int offY, Color fill, Color border, String label) {
+        java.awt.Polygon poly = e.hurtPolygon;
+        if (poly != null) {
+            poly.translate(e.worldX + offX, e.worldY + offY);
+            g2.setColor(fill);
+            g2.fill(poly);
+            g2.setColor(border);
+            g2.draw(poly);
+            poly.translate(-(e.worldX + offX), -(e.worldY + offY));
+        } else {
+            Rectangle r = e.solidArea;
+            int cx = e.worldX + offX + r.x + r.width  / 2;
+            int cy = e.worldY + offY + r.y + r.height / 2;
+            int rx = r.width  / 2;
+            int ry = r.height / 2;
+            int cutX = (int)(rx * 0.5);
+            int cutY = (int)(ry * 0.5);
+            int[] xs = { cx-rx+cutX, cx+rx-cutX, cx+rx,       cx+rx,       cx+rx-cutX, cx-rx+cutX, cx-rx,       cx-rx       };
+            int[] ys = { cy-ry,      cy-ry,      cy-ry+cutY,  cy+ry-cutY,  cy+ry,      cy+ry,      cy+ry-cutY,  cy-ry+cutY  };
+            java.awt.Polygon tmp = new java.awt.Polygon(xs, ys, 8);
+            g2.setColor(fill);
+            g2.fill(tmp);
+            g2.setColor(border);
+            g2.draw(tmp);
+        }
+        if (label != null) {
+            Rectangle r = e.solidArea;
+            int lx = e.worldX + offX + r.x;
+            int ly = e.worldY + offY + r.y;
+            g2.setColor(fill);
+            dbgLabel(g2, label, lx, ly, r.width);
+        }
+    }
+
     void drawHitboxDebug(Graphics2D g2) {
         g2.setFont(DBG_FONT);
         Stroke    oldStroke = g2.getStroke();
@@ -252,19 +301,14 @@ public class RenderPipeline {
         int psx = gp.player.screenX;
         int psy = gp.player.screenY;
 
+        // Player
         {
-            Rectangle r = gp.player.solidArea;
-            int px = psx + r.x;
-            int py = psy + r.y;
-            g2.setColor(DBG_PLAYER);
-            g2.fillRect(px, py, r.width, r.height);
-            g2.setColor(DBG_PLAYER.darker());
-            g2.drawRect(px, py, r.width, r.height);
-            dbgLabel(g2, "PLAYER", px, py, r.width);
-
+            drawEntityOctagon(g2, gp.player, -pwx + psx, -pwy + psy, DBG_PLAYER, DBG_PLAYER.darker(), "PLAYER");
             if (gp.player.knockBack) {
+                Rectangle r = gp.player.solidArea;
+                int px = psx + r.x;
+                int py = psy + r.y;
                 g2.setColor(DBG_KNOCK);
-                g2.fillRect(px, py, r.width, r.height);
                 g2.setColor(Color.WHITE);
                 g2.drawString("KB:" + gp.player.knockBackPower, px, py - 4);
                 int cx = px + r.width / 2;
@@ -298,18 +342,10 @@ public class RenderPipeline {
             g2.drawString("ATTACK", asx, asy - 3);
         }
 
-        g2.setColor(DBG_NPC);
+        // NPCs
         for (Entity n : gp.npc) {
             if (n == null) continue;
-            Rectangle r = n.solidArea;
-            int nx = n.worldX - pwx + psx + r.x;
-            int ny = n.worldY - pwy + psy + r.y;
-            g2.fillRect(nx, ny, r.width, r.height);
-            g2.setColor(DBG_NPC.darker());
-            g2.drawRect(nx, ny, r.width, r.height);
-            g2.setColor(DBG_NPC);
-            dbgLabel(g2, n.name != null ? n.name : "NPC", nx, ny, r.width);
-
+            drawEntityOctagon(g2, n, -pwx + psx, -pwy + psy, DBG_NPC, DBG_NPC.darker(), n.name != null ? n.name : "NPC");
             if (n.interactRange > 0) {
                 int ncx = n.worldX - pwx + psx + n.solidArea.x + n.solidArea.width  / 2;
                 int ncy = n.worldY - pwy + psy + n.solidArea.y + n.solidArea.height / 2;
@@ -330,20 +366,15 @@ public class RenderPipeline {
             }
         }
 
+        // Monsters
         for (Entity m : gp.monster) {
             if (m == null) continue;
-            Rectangle r = m.solidArea;
-            int mx = m.worldX - pwx + psx + r.x;
-            int my = m.worldY - pwy + psy + r.y;
-            g2.setColor(DBG_MONSTER);
-            g2.fillRect(mx, my, r.width, r.height);
-            g2.setColor(DBG_MONSTER.darker());
-            g2.drawRect(mx, my, r.width, r.height);
-            g2.setColor(DBG_MONSTER);
-            dbgLabel(g2, m.name != null ? m.name : "MON", mx, my, r.width);
+            drawEntityOctagon(g2, m, -pwx + psx, -pwy + psy, DBG_MONSTER, DBG_MONSTER.darker(), m.name != null ? m.name : "MON");
             if (m.knockBack) {
+                Rectangle r = m.solidArea;
+                int mx = m.worldX - pwx + psx + r.x;
+                int my = m.worldY - pwy + psy + r.y;
                 g2.setColor(DBG_KNOCK);
-                g2.fillRect(mx, my, r.width, r.height);
                 g2.setColor(Color.WHITE);
                 g2.drawString("KB:" + m.knockBackPower, mx, my - 4);
                 int cx = mx + r.width / 2;
@@ -357,44 +388,23 @@ public class RenderPipeline {
             }
         }
 
-        g2.setColor(DBG_OBJECT);
+        // Objects
         for (Entity o : gp.obj) {
             if (o == null) continue;
-            Rectangle r = o.solidArea;
-            int ox = o.worldX - pwx + psx + r.x;
-            int oy = o.worldY - pwy + psy + r.y;
-            g2.fillRect(ox, oy, r.width, r.height);
-            g2.setColor(DBG_OBJECT.darker());
-            g2.drawRect(ox, oy, r.width, r.height);
-            g2.setColor(DBG_OBJECT);
-            dbgLabel(g2, o.name != null ? o.name : "OBJ", ox, oy, r.width);
+            drawEntityOctagon(g2, o, -pwx + psx, -pwy + psy, DBG_OBJECT, DBG_OBJECT.darker(), o.name != null ? o.name : "OBJ");
         }
 
-        g2.setColor(DBG_ITILE);
+        // Interactive tiles
         for (int i = 0; i < gp.iTile.length; i++) {
             if (gp.iTile[i] == null) continue;
-            Rectangle r = gp.iTile[i].solidArea;
-            int ix = gp.iTile[i].worldX - pwx + psx + r.x;
-            int iy = gp.iTile[i].worldY - pwy + psy + r.y;
-            g2.fillRect(ix, iy, r.width, r.height);
-            g2.setColor(DBG_ITILE.darker());
-            g2.drawRect(ix, iy, r.width, r.height);
-            g2.setColor(DBG_ITILE);
-            dbgLabel(g2, gp.iTile[i].name != null ? gp.iTile[i].name : "iTILE", ix, iy, r.width);
+            drawEntityOctagon(g2, gp.iTile[i], -pwx + psx, -pwy + psy, DBG_ITILE, DBG_ITILE.darker(), gp.iTile[i].name != null ? gp.iTile[i].name : "iTILE");
         }
 
-        g2.setColor(DBG_PROJ);
+        // Projectiles
         for (int i = 0; i < gp.projectilesList.size(); i++) {
             Entity proj = gp.projectilesList.get(i);
             if (proj == null) continue;
-            Rectangle r = proj.solidArea;
-            int prx = proj.worldX - pwx + psx + r.x;
-            int pry = proj.worldY - pwy + psy + r.y;
-            g2.fillRect(prx, pry, r.width, r.height);
-            g2.setColor(DBG_PROJ.darker());
-            g2.drawRect(prx, pry, r.width, r.height);
-            g2.setColor(DBG_PROJ);
-            dbgLabel(g2, proj.name != null ? proj.name : "PROJ", prx, pry, r.width);
+            drawEntityOctagon(g2, proj, -pwx + psx, -pwy + psy, DBG_PROJ, DBG_PROJ.darker(), proj.name != null ? proj.name : "PROJ");
         }
 
         if (gp.tileM.collisionShapes != null && !gp.tileM.collisionShapes.isEmpty()) {
@@ -529,6 +539,61 @@ public class RenderPipeline {
     private void clearRenderableEntities() {
         for (int i = 0; i < entityListIndex; i++) {
             entityList.set(i, null);
+        }
+    }
+
+    private static final int ALERT_DURATION = 60;
+
+    private void drawEnemyAlertIndicators(Graphics2D g2) {
+        if (agroEnemyIndicator == null || gp.gameState != GamePanel.playState) return;
+        int pwx = gp.player.worldX, pwy = gp.player.worldY;
+        int psx = gp.player.screenX, psy = gp.player.screenY;
+        int iw = agroEnemyIndicator.getWidth(), ih = agroEnemyIndicator.getHeight();
+        for (Entity m : gp.monster) {
+            if (m == null || m.alertTick <= 0 || m.dying) continue;
+            float progress = m.alertTick / (float) ALERT_DURATION; // 1.0 → 0.0
+            // Pop-out: grow 0→1.3 in first 30%, hold at 1.0 until 80%, fade out last 20%
+            float scale;
+            if (progress > 0.7f)      scale = (1.0f - progress) / 0.3f * 1.3f;  // grow in (progress 1→0.7)
+            else if (progress > 0.2f) scale = 1.0f;                               // hold
+            else                       scale = progress / 0.2f;                    // shrink out (progress 0.2→0)
+            float alpha = progress < 0.15f ? progress / 0.15f : 1f;               // fade out last 15%
+            if (scale <= 0f || alpha <= 0f) continue;
+            int drawW = Math.max(1, (int)(iw * scale));
+            int drawH = Math.max(1, (int)(ih * scale));
+            int sx = m.worldX - pwx + psx;
+            int sy = m.worldY - pwy + psy;
+            int drawX = sx + (gp.tileSize - drawW) / 2;
+            int drawY = sy - drawH - 6;
+            java.awt.Composite prev = g2.getComposite();
+            g2.setComposite(AlphaComposite.getInstance(AlphaComposite.SRC_OVER, alpha));
+            g2.drawImage(agroEnemyIndicator, drawX, drawY, drawW, drawH, null);
+            g2.setComposite(prev);
+        }
+    }
+
+    private void drawNPCInteractIndicators(Graphics2D g2) {
+        if (agroIndicator == null || gp.gameState != GamePanel.playState) return;
+        int pwx = gp.player.worldX;
+        int pwy = gp.player.worldY;
+        int psx = gp.player.screenX;
+        int psy = gp.player.screenY;
+        int pcx = gp.player.getCenterX();
+        int pcy = gp.player.getCenterY();
+        int iw  = agroIndicator.getWidth();
+        int ih  = agroIndicator.getHeight();
+        for (Entity n : gp.npc) {
+            if (n == null || n.interactRange <= 0) continue;
+            int dx     = n.getCenterX() - pcx;
+            int dy     = n.getCenterY() - pcy;
+            boolean inRange = (dx * dx + dy * dy) <= (long) n.interactRange * n.interactRange;
+            if (!inRange) continue;
+            int sx = n.worldX - pwx + psx;
+            int sy = n.worldY - pwy + psy;
+            // centre the indicator horizontally above the NPC sprite, bobbing slightly
+            int drawX = sx + (gp.tileSize - iw) / 2;
+            int drawY = sy - ih - 4 + (int)(Math.sin(System.currentTimeMillis() / 300.0) * 3);
+            g2.drawImage(agroIndicator, drawX, drawY, null);
         }
     }
 }

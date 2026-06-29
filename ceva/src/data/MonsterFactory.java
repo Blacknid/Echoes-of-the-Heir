@@ -100,6 +100,12 @@ public class MonsterFactory {
         m.solidAreaDefaultX = m.solidArea.x;
         m.solidAreaDefaultY = m.solidArea.y;
 
+        // Octagon hurtbox — inscribed in the solidArea, centered on it
+        int hcx = m.solidArea.x + m.solidArea.width  / 2;
+        int hcy = m.solidArea.y + m.solidArea.height / 2;
+        int hr  = Math.min(m.solidArea.width, m.solidArea.height) / 2;
+        m.setOctagonHurt(hcx, hcy, hr);
+
         // Sprites
         String sheet = def.get("spriteSheet");
         if (sheet != null) {

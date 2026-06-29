@@ -7,6 +7,7 @@ import java.awt.Font;
 import java.awt.FontMetrics;
 import java.awt.Graphics2D;
 import java.awt.RenderingHints;
+import java.awt.Shape;
 import java.awt.image.BufferedImage;
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -32,6 +33,7 @@ public class UI {
     BufferedImage Hearts_Full, Hearts_Empty, Key, Crystal_Full, Crystal_Empty;
     public BufferedImage Compas;
     public BufferedImage titleBackground;
+    private BufferedImage titleBackgroundRaw;
     public boolean messageOn = false;
     ArrayList<String> message = new ArrayList<>();
     ArrayList<Integer> messageCounter = new ArrayList<>();
@@ -45,6 +47,7 @@ public class UI {
     public int slotCol = 0;
     public int slotRow = 0;
     public int subState = 0;
+    public int controlScroll = 0;
     int counter = 0;
     public Entity npc;
     int charIndex = 0;
@@ -239,7 +242,7 @@ public class UI {
                     getClass().getResourceAsStream("/res/fonts/Pixeloid Sans.ttf"));
             java.awt.GraphicsEnvironment.getLocalGraphicsEnvironment().registerFont(pixelBase);
         } catch (Exception e) {
-            System.out.println("[UI] Pixeloid Sans not found, falling back to Segoe UI");
+            System.out.println("[UI] Pixeloid Sans font not found, falling back to Segoe UI");
             pixelBase = new Font("Segoe UI", Font.PLAIN, 12);
         }
         arial_40 = pixelBase.deriveFont(Font.PLAIN, 40);
@@ -258,9 +261,9 @@ public class UI {
         Key = key.down1;
 
         try {
-            titleBackground = ImageIO.read(getClass().getResourceAsStream(getTitleScreenBackgroundImage()));
-            if (titleBackground != null) {
-                titleBackground = UtilityTool.scaleImage(titleBackground, gp.screenWidth, gp.screenHeight);
+            titleBackgroundRaw = ImageIO.read(getClass().getResourceAsStream(getTitleScreenBackgroundImage()));
+            if (titleBackgroundRaw != null) {
+                titleBackground = UtilityTool.scaleImage(titleBackgroundRaw, gp.screenWidth, gp.screenHeight);
                 System.out.println("Title background loaded successfully!");
             } else {
                 System.out.println("Title background file found but could not be loaded");
@@ -300,6 +303,15 @@ public class UI {
         hudFont_prompt  = arial_40.deriveFont(Font.BOLD,  (float) Math.round(14f * sf));
     }
 
+    /** Rescales HUD fonts and title background when the logical resolution changes. */
+    public void onResolutionChanged() {
+        initHudFonts();
+        fmCache.clear();
+        if (titleBackgroundRaw != null) {
+            titleBackground = UtilityTool.scaleImage(titleBackgroundRaw, gp.screenWidth, gp.screenHeight);
+        }
+    }
+
     public void addMessage(String text, Color color) {
         addMessage(text, color, (BufferedImage) null, 180);
     }
@@ -323,10 +335,11 @@ public class UI {
 
         this.g2 = g2;
     
-        // Crisp pixel art: shapes rendered without shape AA, text with LCD sub-pixel AA
-        // (LCD gives sharp edges on modern monitors without the blurry halo of regular AA)
-        g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_OFF);
-        g2.setRenderingHint(RenderingHints.KEY_TEXT_ANTIALIASING, RenderingHints.VALUE_TEXT_ANTIALIAS_LCD_HRGB);
+        // Pixel-sharp rendering for the entire game — Pixeloid Sans is a pixel font,
+        // antialiasing blurs it. FRACTIONALMETRICS OFF snaps glyphs to integer positions.
+        g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING,      RenderingHints.VALUE_ANTIALIAS_OFF);
+        g2.setRenderingHint(RenderingHints.KEY_TEXT_ANTIALIASING, RenderingHints.VALUE_TEXT_ANTIALIAS_OFF);
+        g2.setRenderingHint(RenderingHints.KEY_FRACTIONALMETRICS, RenderingHints.VALUE_FRACTIONALMETRICS_OFF);
 
         g2.setFont(arial_40);
         g2.setColor(Color.white);
@@ -940,7 +953,6 @@ public class UI {
             g2.setPaint(cachedGradient(0, vigTop, cachedColor(3, 1, 12, 0), 0, gp.screenHeight, cachedColor(3, 1, 12, 185)));
             g2.fillRect(0, vigTop, gp.screenWidth, 380);
 
-            g2.setRenderingHint(RenderingHints.KEY_TEXT_ANTIALIASING, RenderingHints.VALUE_TEXT_ANTIALIAS_ON);
             g2.setFont(cachedFont(Font.BOLD, 72F));
             String text = "Echoes of the Heir";
             FontMetrics titleFM = cachedFM();
@@ -989,6 +1001,10 @@ public class UI {
             int menuStartY = (int)(gp.screenHeight * 0.77f);
             g2.setFont(cachedFont(Font.BOLD, 27F));
 
+            // Arrow nudge: 0→1→2→1→0 pixel slide, period ~1.2s at 60ups
+            int arrowNudge = (int)(Math.sin(animTick * 0.09) * 2.0);
+            int arrowAlpha = (int)(210 + pulse * 45);
+
             for (int i = 0; i < menuItems.length; i++) {
                 int iy = menuStartY + i * 40;
                 boolean sel = (commandNum == i);
@@ -997,27 +1013,33 @@ public class UI {
                 tx = (gp.screenWidth - tw) / 2;
 
                 if (sel) {
-                    g2.setColor(cachedColor(75, 8, 32, 215));
-                    g2.drawString(text, tx + 2, iy + 2);
-                    // Cream-to-gold gradient text
-                    g2.setPaint(cachedGradient(tx, iy - 22, cachedColor(255, 246, 210), tx, iy + 5, cachedColor(228, 192, 102)));
+                    g2.setColor(cachedColor(255, 255, 255, 255));
                     g2.drawString(text, tx, iy);
-                    // Magenta/pink animated underline
-                    int ulA = (int)(85 + pulse * 108);
-                    g2.setColor(cachedColor(232, 52, 118, ulA));
-                    g2.setStroke(STROKE_2);
-                    g2.drawLine(tx, iy + 6, tx + tw, iy + 6);
-                    // Pulsing left-cursor â€” filled circle
-                    int curA = (int)(152 + pulse * 103);
-                    int circR = 6;
-                    g2.setColor(cachedColor(232, 52, 118, curA));
-                    g2.fillOval(tx - 26, iy - circR - 3, circR * 2, circR * 2);
+
+                    // Pixel-perfect right-pointing arrow (tip points RIGHT toward text).
+                    // Drawn as 7 rows; widths: 1,2,3,4,3,2,1 blocks.
+                    // Base (left edge) is fixed; tip = base + maxWidth on the centre row.
+                    // p=3: each logical pixel is a 3x3 square for a clean chunky look.
+                    int p = 3;
+                    int rows = 7;
+                    FontMetrics fm = cachedFM();
+                    int textMidY = iy - fm.getAscent() / 2;
+                    int arrowTopY = textMidY - (rows * p) / 2;
+                    // tipX is the rightmost edge of the arrow (the point), sits just left of text
+                    int tipX = tx - 14 + arrowNudge;
+                    g2.setColor(cachedColor(255, 255, 255, arrowAlpha));
+                    for (int r = 0; r < rows; r++) {
+                        int w = Math.min(r, rows - 1 - r) + 1; // 1,2,3,4,3,2,1
+                        int rowY = arrowTopY + r * p;
+                        // All rows anchored to tipX on the right; extend leftward by w blocks
+                        int rowX = tipX - w * p;
+                        g2.fillRect(rowX, rowY, w * p, p);
+                    }
                 } else {
-                    g2.setColor(cachedColor(163, 148, 118, 195));
+                    g2.setColor(cachedColor(180, 175, 165, 160));
                     g2.drawString(text, tx, iy);
                 }
             }
-
             // Username input box — top-right corner of title screen
             {
                 float pulse2 = fastPulse(animTick, 2);
@@ -1688,28 +1710,37 @@ public class UI {
             currentDialogue = (charIndex < fullLineLen) ? dialogueBuilder.toString() : fullLine;
 
             if (gp.keyH.enterPressed) {
-                charIndex = 0;
-                combinedText = "";
-                dialogueBuilder.setLength(0);
+                if (charIndex < fullLineLen) {
+                    // Typewriter still running — complete the line instantly, don't advance yet
+                    charIndex = fullLineLen;
+                    currentDialogue = fullLine;
+                    dialogueBuilder.setLength(0);
+                    gp.keyH.enterPressed = false;
+                } else {
+                    // Line already complete — advance to next
+                    charIndex = 0;
+                    combinedText = "";
+                    dialogueBuilder.setLength(0);
 
-                if (gp.gameState == GamePanel.dialogueState || gp.gameState == GamePanel.cutsceneState) {
-                    // Choice confirmation: if choices are showing, apply the selected choice
-                    if (npc.dialogueChoices != null && npc.dialogueChoices.length > 0) {
-                        if ("ending".equals(npc.choiceResultKey)) {
-                            gp.endingChosen = npc.selectedChoice + 1;
-                        }
-                        if (npc.choiceNextSet != null && npc.selectedChoice < npc.choiceNextSet.length) {
-                            npc.dialogueSet = npc.choiceNextSet[npc.selectedChoice];
-                            npc.dialogueIndex = 0;
+                    if (gp.gameState == GamePanel.dialogueState || gp.gameState == GamePanel.cutsceneState) {
+                        // Choice confirmation: if choices are showing, apply the selected choice
+                        if (npc.dialogueChoices != null && npc.dialogueChoices.length > 0) {
+                            if ("ending".equals(npc.choiceResultKey)) {
+                                gp.endingChosen = npc.selectedChoice + 1;
+                            }
+                            if (npc.choiceNextSet != null && npc.selectedChoice < npc.choiceNextSet.length) {
+                                npc.dialogueSet = npc.choiceNextSet[npc.selectedChoice];
+                                npc.dialogueIndex = 0;
+                            } else {
+                                npc.dialogueIndex++;
+                            }
+                            npc.dialogueChoices = null;
+                            npc.selectedChoice = 0;
                         } else {
                             npc.dialogueIndex++;
                         }
-                        npc.dialogueChoices = null;
-                        npc.selectedChoice = 0;
-                    } else {
-                        npc.dialogueIndex++;
+                        gp.keyH.enterPressed = false;
                     }
-                    gp.keyH.enterPressed = false;
                 }
             }
         } else {
@@ -1856,7 +1887,7 @@ public class UI {
         }
     }
 
-    private int journalScroll = 0;
+    public int journalScroll = 0;
     public int journalSelectedIndex = 0;
 
     public void drawJournalScreen() {
@@ -2057,11 +2088,11 @@ public class UI {
         g2.setColor(Color.white);
         g2.setFont(cachedFont(Font.PLAIN, 32F));
 
-        // SUB WINDOW
-        int frameX = gp.tileSize * 6;
-        int frameY = gp.tileSize;
-        int frameWidth = gp.tileSize * 8;
-        int frameHeight = gp.tileSize * 10;
+        // SUB WINDOW — centered at any resolution
+        int frameWidth  = Math.min(520, (int)(gp.screenWidth * 0.42f));
+        int frameHeight = Math.min(660, (int)(gp.screenHeight * 0.92f));
+        int frameX = (gp.screenWidth  - frameWidth)  / 2;
+        int frameY = (gp.screenHeight - frameHeight) / 2;
         drawSubWindow(frameX, frameY, frameWidth, frameHeight);
 
         switch (subState) {
@@ -2078,10 +2109,10 @@ public class UI {
         float pulse = fastPulse(animTick, 1);
         float leafSway = fastSin(animTick, 1) * 3f;
 
-        final int frameX = gp.tileSize + gp.tileSize / 2;
-        final int frameY = 12;
-        final int frameWidth = gp.tileSize * 6;
+        final int frameWidth  = Math.min(384, (int)(gp.screenWidth * 0.30f));
         final int frameHeight = gp.screenHeight - 24;
+        final int frameX = (int)(gp.screenWidth * 0.02f);
+        final int frameY = 12;
         drawSubWindow(frameX, frameY, frameWidth, frameHeight);
 
         final int pad = 16;
@@ -2239,7 +2270,7 @@ public class UI {
     }
     public void drawInventory() {
 
-        int frameWidth  = gp.tileSize * 6;
+        int frameWidth  = Math.min(384, (int)(gp.screenWidth * 0.30f));
         int frameHeight = gp.tileSize * 5;
         int frameX = gp.screenWidth - frameWidth - 16;  // right-aligned: works at any tileSize/resolution
         int frameY = gp.tileSize;
@@ -2412,7 +2443,7 @@ public class UI {
 
     public void options_top( int frameX, int frameY ) {
 
-        int fw = gp.tileSize * 8;
+        int fw = Math.min(520, (int)(gp.screenWidth * 0.42f));
         int pad = 20;                   // inner padding
         int lineH = 46;                 // row height for menu items
         int rightCol = frameX + fw - pad - 155; // right column for controls/sliders
@@ -2434,13 +2465,13 @@ public class UI {
         int startY = titleY + 42;       // first item Y baseline
         int textX = frameX + pad + 15;
 
-        String[] labels = { "Full Screen", "V-Sync", "Perf Mode", "Graphics", "Music", "Sound FX", "Controls", "End Game", "Save Game", "Back" };
-        int totalItems = labels.length;  // 10 items, indices 0-9
+        String[] labels = { "Full Screen", "V-Sync", "Perf Mode", "Graphics", "Music", "Sound FX", "Controls", "End Game", "Save Game", "Dynamic View", "Back" };
+        int totalItems = labels.length;  // 11 items, indices 0-10
 
         for (int i = 0; i < totalItems; i++) {
             int itemY = startY + i * lineH;
             boolean selected = (commandNum == i);
-            boolean isBack = (i == 9);
+            boolean isBack = (i == 10);
 
             // draw separator before "Back"
             if (isBack) {
@@ -2540,7 +2571,16 @@ public class UI {
                     gp.keyH.enterPressed = false;
                 }
             }
-            else if (i == 9) { // Back
+            else if (i == 9) { // Dynamic View: ON = dynamic viewport (more tiles), OFF = fixed 1280×720 scaled
+                drawMedievalToggle(rightCol + 100, ctrlY, !Config.stretchToFill); // lit when dynamic ON
+                if (selected && gp.keyH.enterPressed) {
+                    Config.stretchToFill = !Config.stretchToFill;
+                    gp.playSE(SFX.MENU_SELECT);
+                    gp.keyH.enterPressed = false;
+                    gp.config.saveConfig();
+                }
+            }
+            else if (i == 10) { // Back
                 if (selected && gp.keyH.enterPressed) { gp.gameState = GamePanel.playState; commandNum = 0; gp.config.saveConfig(); }
             }
         }
@@ -2618,7 +2658,7 @@ public class UI {
     }
     public void options_fullScreenNotification ( int frameX, int frameY ) {
 
-        int fw = gp.tileSize * 8;
+        int fw = Math.min(520, (int)(gp.screenWidth * 0.42f));
         g2.setFont(cachedFont(Font.BOLD, 30F));
         g2.setColor(OPT_GOLD);
         String noteTitle = "Notice";
@@ -2659,7 +2699,8 @@ public class UI {
     }
     public void options_control ( int frameX, int frameY ) {
 
-        int fw = gp.tileSize * 8;
+        int fw  = Math.min(520, (int)(gp.screenWidth  * 0.42f));
+        int fh  = Math.min(660, (int)(gp.screenHeight * 0.92f));
         int pad = 30;
 
         g2.setFont(cachedFont(Font.BOLD, 34F));
@@ -2667,73 +2708,72 @@ public class UI {
         String ctrlTitle = "Controls";
         int ctw = (int) cachedFM().getStringBounds(ctrlTitle, g2).getWidth();
         g2.drawString(ctrlTitle, frameX + fw / 2 - ctw / 2, frameY + 48);
-        // decorative line
         g2.setColor(OPT_SEPARATOR);
         g2.fillRect(frameX + pad, frameY + 58, fw - pad * 2, 2);
 
         // Key bindings table
         g2.setFont(cachedFont(Font.PLAIN, 19F));
         String[] actions = {
-            "Move",
-            "Attack / Confirm",
-            "Shoot",
-            "Dodge Roll",
-            "Blink",
-            "Shockwave",
-            "Void Snare",
-            "Frost Nova",
-            "Overdrive",
-            "Inventory",
-            "Skill Tree",
-            "Quest Log",
-            "Pause",
-            "Options",
-            "Debug Tools"
+            "Move", "Attack / Confirm", "Shoot", "Dodge Roll", "Blink",
+            "Shockwave", "Void Snare", "Frost Nova", "Overdrive",
+            "Inventory", "Skill Tree", "Quest Log", "Pause", "Options", "Debug Tools"
         };
-        String[] keys    = {
-            "W A S D",
-            "ENTER",
-            "F",
-            "SHIFT + Move",
-            "SPACE",
-            "Z",
-            "X",
-            "C",
-            "V",
-            "E",
-            "K",
-            "Q",
-            "P",
-            "ESC",
-            "T / H / R / Y"
+        String[] keys = {
+            "W A S D", "ENTER", "F", "SHIFT + Move", "SPACE",
+            "Z", "X", "C", "V", "E", "K", "Q", "P", "ESC", "Ctrl+D / F9"
         };
-        int textX = frameX + pad;
-        int keyX  = frameX + fw - pad;
-        int textY = frameY + 92;
-        int rowH  = 34;
 
-        for (int i = 0; i < actions.length; i++) {
-            int ry = textY + i * rowH;
-            // zebra stripe
+        int textX   = frameX + pad;
+        int keyX    = frameX + fw - pad;
+        int rowH    = 34;
+        // reserve space at the bottom for the Back button (36px button + 16px margin each side)
+        int backAreaH = 68;
+        int listTop   = frameY + 70;
+        int listH     = fh - (listTop - frameY) - backAreaH;
+        int maxVis    = listH / rowH;
+
+        // clamp scroll
+        int maxScroll = Math.max(0, actions.length - maxVis);
+        controlScroll = Math.max(0, Math.min(controlScroll, maxScroll));
+
+        // clip to list area so rows don't bleed into the Back button
+        Shape oldClip = g2.getClip();
+        g2.setClip(frameX, listTop, fw, listH);
+
+        for (int i = controlScroll; i < actions.length && i < controlScroll + maxVis; i++) {
+            int ry = listTop + (i - controlScroll) * rowH + rowH - 6;
             if (i % 2 == 0) {
                 g2.setColor(cachedColor(40, 35, 25, 60));
                 g2.fillRoundRect(frameX + 12, ry - 26, fw - 24, rowH - 4, 8, 8);
             }
-            // action label
             g2.setColor(OPT_TEXT);
             g2.drawString(actions[i], textX + 5, ry);
-            // key label right-aligned in gold
             g2.setColor(OPT_GOLD_DIM);
             int kw = (int) cachedFM().getStringBounds(keys[i], g2).getWidth();
             g2.drawString(keys[i], keyX - kw - 5, ry);
         }
 
-        // BACK button centered
+        g2.setClip(oldClip);
+
+        // scroll hint if there are more rows above or below
+        if (maxScroll > 0) {
+            g2.setFont(cachedFont(Font.PLAIN, 13F));
+            g2.setColor(cachedColor(120, 115, 105));
+            String hint = (controlScroll > 0 ? "▲ " : "  ") + "Scroll" + (controlScroll < maxScroll ? " ▼" : "");
+            int hw = (int) cachedFM().getStringBounds(hint, g2).getWidth();
+            g2.drawString(hint, frameX + fw / 2 - hw / 2, frameY + fh - backAreaH + 2);
+        }
+
+        // separator above Back button
+        g2.setColor(OPT_SEPARATOR);
+        g2.fillRect(frameX + pad, frameY + fh - backAreaH + 6, fw - pad * 2, 1);
+
+        // BACK button — always at fixed position inside the reserved area
         g2.setFont(cachedFont(Font.PLAIN, 26F));
         String back = "Back";
-        int bw = (int) cachedFM().getStringBounds(back, g2).getWidth();
+        int bw   = (int) cachedFM().getStringBounds(back, g2).getWidth();
         int backX = frameX + fw / 2 - bw / 2;
-        int backY = frameY + gp.tileSize * 9 - 20;
+        int backY = frameY + fh - backAreaH + 46;
         boolean sel = (commandNum == 0);
         if (sel) {
             g2.setColor(OPT_SEL_BG);
@@ -2744,14 +2784,14 @@ public class UI {
         }
         g2.setColor(sel ? OPT_GOLD : OPT_BACK_TEXT);
         g2.drawString(back, backX, backY);
-        if ( sel && gp.keyH.enterPressed ) {
+        if (sel && gp.keyH.enterPressed) {
             subState = 0;
             commandNum = 4;
         }
     }
     public void options_endGameConfirmation( int frameX, int frameY  ) {
 
-        int fw = gp.tileSize * 8;
+        int fw = Math.min(520, (int)(gp.screenWidth * 0.42f));
 
         // Warning title
         g2.setFont(cachedFont(Font.BOLD, 30F));
@@ -2817,27 +2857,38 @@ public class UI {
             }
         }
     }
+    private int transitionHoldCounter = 0;
+    private static final int TRANSITION_HOLD_FRAMES = 10; // frames to stay fully black after map loads
+
     public void drawTransition(Graphics2D g2) {
-        // Phase 1: Fade to black
+        // Phase 0: Fade to black
         if (subState == 0) {
-            transitionAlpha += 0.02f; // Slower fade (50 frames)
+            transitionAlpha += 0.033f; // ~30 frames
             if (transitionAlpha >= 1.0f) {
                 transitionAlpha = 1.0f;
                 gp.changeMap();
-                subState = 1; // Move to fade-out phase
+                transitionHoldCounter = 0;
+                subState = 1;
             }
         }
-        // Phase 2: Fade from black
+        // Phase 1: Hold fully black — wait for player + camera to settle
         else if (subState == 1) {
-            transitionAlpha -= 0.02f;
+            transitionAlpha = 1.0f;
+            transitionHoldCounter++;
+            if (transitionHoldCounter >= TRANSITION_HOLD_FRAMES) {
+                subState = 2;
+            }
+        }
+        // Phase 2: Fade from black — slow cinematic reveal
+        else if (subState == 2) {
+            transitionAlpha -= 0.02f; // ~50 frames (~0.83s)
             if (transitionAlpha <= 0f) {
                 transitionAlpha = 0f;
-                subState = 0; // Reset for next transition
-                gp.gameState = GamePanel.playState; // Return to gameplay
+                subState = 0;
+                gp.gameState = GamePanel.playState;
             }
         }
 
-        // Draw the black rectangle with the current alpha
         g2.setColor(cachedColor(0, 0, 0, (int)(transitionAlpha * 255)));
         g2.fillRect(0, 0, gp.screenWidth, gp.screenHeight);
     }
