@@ -2,38 +2,33 @@
 """
 Michi's Adventure - Multiplayer Server v2
 
-Format comunicare:
+Handshake (first message C->S):
+    C -> "HELLO v2 <base64(client_nonce_16)>"
+    S -> "OK <base64(server_nonce_16)>"
+    C -> "AUTH <base64(rsa_oaep_sha256(handshake_json))> <machine_fp> <sig_b64>"
+        handshake_json = {
+          "license":      "XXXXXXXX-YYYY",
+          "ts":           <unix epoch s>,
+          "client_nonce": <hex>,
+          "server_nonce": <hex>,
+          "name":         "<player display name>",
+          "class":        "<player class>"
+        }
+    S -> "AUTH_OK <base64(aesgcm(session_key, key=delivery_key,
+                                 nonce=client_nonce[:12],
+                                 aad='MichiMpSession'))>"
 
-    Handshake (first message C->S; last is server-encrypted session key):
-        C -> "HELLO v2 <base64(client_nonce_16)>"
-        S -> "OK <base64(server_nonce_16)>"
-        C -> "AUTH <base64(rsa_oaep_sha256(handshake_json))>"
-            handshake_json = {
-              "license":      "XXXXXXXX-YYYY",
-              "ts":           <unix epoch s>,
-              "client_nonce": <hex>,
-              "server_nonce": <hex>,
-              "name":         "<player display name>",
-              "class":        "<player class>"
-            }
-        S -> "AUTH_OK <base64(aesgcm(session_key, key=delivery_key,
-                                     nonce=client_nonce[:12],
-                                     aad='MichiMpSession'))>"
-
-    Session frames (after handshake), each direction has its own counter:
-        wire = "DATA <base64(seq_8 || nonce_12 || ciphertext || tag_16)>"
-        AAD  = direction_byte (0x01 server->client, 0x02 client->server) || seq_8
-
-    Plaintext payloads are JSON. Same envelope as the legacy MP server, so
-    the surface contract stays familiar.
+Session frames (after handshake), each direction has its own counter:
+    wire = "DATA <base64(seq_8 || nonce_12 || ciphertext || tag_16)>"
+    AAD  = direction_byte (0x01 server->client, 0x02 client->server) || seq_8
 """
 from __future__ import annotations
 
 import argparse
-import asyncio #pentru citire/scriere intr-o conexiune TCP, am renuntat la sockets
+import asyncio
 import base64
 import collections
-import hashlib #momentan nefolosit...
+import hashlib
 import hmac
 import ipaddress
 import json
@@ -59,13 +54,13 @@ import license_verify
 
 
 BASE_DIR = Path(__file__).resolve().parent
-CONFIG_PATH = BASE_DIR / "mp_config.json" #config file
+CONFIG_PATH = BASE_DIR / "mp_config.json"
 
 PROTOCOL_TAG = "v2"
 HANDSHAKE_TS_WINDOW = 60
 NONCE_REPLAY_WINDOW = 300
 
-DEFAULT_PORT = 7777 #INTRE 0 SI 65535
+DEFAULT_PORT = 7777
 DEFAULT_PRIVATE_KEY = "server_private_key.pem"
 DEFAULT_MAPS_DIR = "maps"
 DEFAULT_CHUNK_SIZE = 32
@@ -73,8 +68,8 @@ DEFAULT_MAX_CHUNKS_PER_TICK = 4
 
 DEFAULT_MAX_TILE_STEP = 4
 
-DEFAULT_HITBOX_W = 24 #latimea playerului, echivalenta cu cea din client
-DEFAULT_HITBOX_H = 24 #inaltimea playerului
+DEFAULT_HITBOX_W = 24
+DEFAULT_HITBOX_H = 24
 
 MAX_LINE_BYTES = 64 * 1024
 MAX_CHAT_LEN = 200
@@ -90,50 +85,35 @@ RATE_LIMIT_PER_IP_PER_MIN = 30
 MAX_CHAT_PER_10S = 5
 
 
-'''
-======================================
-initializare
-======================================
-'''
-
 INITIAL_CONFIG = {
     "host": None,
     "port": None,
-    "private_key_path": DEFAULT_PRIVATE_KEY, #cheia publica primita la instalare. criptata cu RSA-2048, cheia care a fost folosita pentru a semna license.proprieties. TREBUIE sa se potriveasca cu LicenseManager.PUBLIC_KEY_B64.
+    "private_key_path": DEFAULT_PRIVATE_KEY,
     "license_public_key_b64": "REPLACE_WITH_PUBLIC_KEY_FROM_generate_license_keys.py",
-    #aici tinem locul de citire licenses.json, am renuntat la lista
-    "dev_mode": False, #MOD DE DEBUG. NU PORNI DECAT IN CAZ DE SERVER HOSTUIT LA LOOPBACK. opreste verificarea de licenta
+    "dev_mode": False,
     "max_players": MAX_PLAYERS,
     "rate_limit_per_ip_per_minute": RATE_LIMIT_PER_IP_PER_MIN,
 
-    # ---- World streaming ----
     "maps_dir": DEFAULT_MAPS_DIR,
-    "active_map": None,                   # required — chosen by server operator
+    "active_map": None,
     "chunk_size_tiles": DEFAULT_CHUNK_SIZE,
     "max_chunks_per_tick": DEFAULT_MAX_CHUNKS_PER_TICK,
     "max_tile_step_per_move": DEFAULT_MAX_TILE_STEP,
     "player_hitbox_w": DEFAULT_HITBOX_W,
     "player_hitbox_h": DEFAULT_HITBOX_H,
-    # Optional declared dimensions per map id — used to cross-check TMX files.
-    # "maps": { "harta": { "width": 100, "height": 100 }, ... }
     "maps": {},
+
+    "dashboard_port": 8888,
+    "admin_password": "",
+    "saves_db_path": "",
 }
 
+# Characters allowed in player display names.
 ALLOWED_NAME = set(
     "abcdefghijklmnopqrstuvwxyz"
     "ABCDEFGHIJKLMNOPQRSTUVWXYZ"
     "0123456789_-. "
-) #caractere care pot aparea in numele playerului.
-
-# ── Save-server username check ─────────────────────────────────────────────
-# The MP server calls the save server synchronously (in an executor thread)
-# during the handshake to verify that the requested username is not already
-# owned by a different license.  This is the *same* TCP+RSA+AES-GCM protocol
-# the Java client uses, but we reuse the server's own private key so we don't
-# need to distribute a second key-pair.
-#
-# To enable: set "save_server_host" and "save_server_port" in mp_config.json.
-# If those keys are absent the check is skipped (useful for local dev).
+)
 
 import re as _re
 import socket as _socket
@@ -146,31 +126,23 @@ def _username_valid(name: str) -> bool:
 
 def _save_server_check_username(cfg: dict, private_key, license_key: str,
                                 username: str) -> str:
-    """Contact the save server and run CHECK_USERNAME via the internal API.
-
-    Returns one of: "AVAILABLE", "TAKEN", "INVALID", "SKIP".
-    Runs in a thread-pool executor — does NOT block the async event loop.
-    """
+    """Returns "AVAILABLE", "TAKEN", "INVALID", or "SKIP"."""
     return _save_server_internal(cfg, "CHECK_USERNAME", license_key, username)
 
 
 def _save_server_claim_username(cfg: dict, private_key, license_key: str,
                                 username: str) -> str:
-    """Contact the save server and run CLAIM_USERNAME via the internal API.
-
-    Returns: "CLAIMED", "TAKEN", "INVALID", "SKIP".
-    """
+    """Returns "CLAIMED", "TAKEN", "INVALID", or "SKIP"."""
     return _save_server_internal(cfg, "CLAIM_USERNAME", license_key, username)
 
 
 def _save_server_internal(cfg: dict, cmd: str, license_key: str, username: str,
                            timeout: float = 5.0) -> str:
-    """Send a single internal command to the save server over a lightweight
-    pre-shared-key path (no RSA handshake).
+    """Send a single internal command to the save server.
 
-    The save server accepts "INTERNAL <api_key> <json>" from 127.0.0.1 only.
-    Both servers must have the same "internal_api_key" in their config files.
-    If save_server_host/port or internal_api_key are not configured, returns "SKIP".
+    Both servers must share the same "internal_api_key" in their configs.
+    Returns "SKIP" if save_server_host/port/internal_api_key aren't set.
+    Runs in a thread-pool executor so it doesn't block the event loop.
     """
     host = cfg.get("save_server_host")
     port = cfg.get("save_server_port")
@@ -201,15 +173,14 @@ def _save_server_internal(cfg: dict, cmd: str, license_key: str, username: str,
         return "SKIP"
 
 
-#definim configul
 def load_config() -> dict:
     cfg = dict(INITIAL_CONFIG)
     if CONFIG_PATH.exists():
         try:
-            cfg.update(json.loads(CONFIG_PATH.read_text(encoding="utf-8"))) #marea citire
+            cfg.update(json.loads(CONFIG_PATH.read_text(encoding="utf-8")))
         except Exception as exc:
             print(f"[WARN] Could not parse {CONFIG_PATH}: {exc} — using defaults")
-    cfg["host"] = os.environ.get("MICHI_MP_HOST") or cfg["host"] #ia din environment variable sau din config file
+    cfg["host"] = os.environ.get("MICHI_MP_HOST") or cfg["host"]
     raw_port = os.environ.get("MICHI_MP_PORT")
     if raw_port:
         try:
@@ -219,7 +190,6 @@ def load_config() -> dict:
     return cfg
 
 
-#loguri, nu logging :)). engleza asta...
 logging.basicConfig(
     level=logging.INFO,
     format="[%(asctime)s] %(levelname)s  %(message)s",
@@ -228,9 +198,6 @@ logging.basicConfig(
 log = logging.getLogger("michi-mp")
 
 
-# ── Helpers ────────────────────────────────────────────────────────────────
-# Cheap structural pre-filter — real trust comes from RSA signature.
-# Accepts any printable alphanumeric/dash token.
 _LICENSE_KEY_RE = __import__("re").compile(r"^[A-Z0-9][A-Z0-9\-]{3,63}$")
 
 def license_is_well_formed(license_key: str) -> bool:
@@ -262,8 +229,8 @@ def clamp_int(value, lo: int, hi: int, default: int) -> int:
     return v
 
 
-#Anti-replay nonce cache. iubim playerii, iubim si atacatorii.... . Dar nu se poate cu amandoi...
 class NonceCache:
+    """Keeps seen nonces for NONCE_REPLAY_WINDOW seconds to reject replays."""
     def __init__(self, ttl: int = NONCE_REPLAY_WINDOW):
         self.ttl = ttl
         self._seen: dict[bytes, float] = {}
@@ -281,7 +248,6 @@ class NonceCache:
             return True
 
 
-#Rate limiter pe ip. In caz de orice atac ddos/dos
 class IpRateLimiter:
     def __init__(self, max_per_minute: int):
         self.max_per_minute = max_per_minute
@@ -299,27 +265,49 @@ class IpRateLimiter:
         return True
 
 
-#Player state
+# Default starting stats — must match Player.java setDefaultValues()
+DEFAULT_LEVEL       = 1
+DEFAULT_MAX_LIFE    = 4
+DEFAULT_STRENGTH    = 2
+DEFAULT_DEXTERITY   = 1
+DEFAULT_MAX_MANA    = 3
+DEFAULT_EXP         = 0
+DEFAULT_NEXT_LVL    = 5
+DEFAULT_COIN        = 0
+DEFAULT_SKILL_PTS   = 100
+
+
 @dataclass
 class PlayerState:
     player_id: int
     name: str = "Player"
     player_class: str = "Fighter"
-    license_key: str = ""   # stored for ban enforcement
+    license_key: str = ""
     x: int = 0
     y: int = 0
     direction: int = 0
     sprite_num: int = 1
     attacking: bool = False
-    life: int = 6
-    max_life: int = 6
+    level: int = DEFAULT_LEVEL
+    life: int = DEFAULT_MAX_LIFE
+    max_life: int = DEFAULT_MAX_LIFE
+    strength: int = DEFAULT_STRENGTH
+    dexterity: int = DEFAULT_DEXTERITY
+    mana: int = DEFAULT_MAX_MANA
+    max_mana: int = DEFAULT_MAX_MANA
+    exp: int = DEFAULT_EXP
+    next_level_exp: int = DEFAULT_NEXT_LVL
+    coin: int = DEFAULT_COIN
+    skill_points: int = DEFAULT_SKILL_PTS
     last_seen: float = field(default_factory=time.time)
-    # World-streaming state
+    connect_time: float = field(default_factory=time.time)
     map_id: str = ""
-    chunks_sent: set = field(default_factory=set)   # {(layer_idx, cx, cy)}
+    chunks_sent: set = field(default_factory=set)
     chunk_requests: collections.deque = field(default_factory=collections.deque)
     last_valid_x: int = 0
     last_valid_y: int = 0
+    vx: float = 0.0  # velocity in px/tick at last broadcast
+    vy: float = 0.0
 
     def to_dict(self) -> dict:
         return {
@@ -338,14 +326,42 @@ class PlayerState:
             "x": self.x, "y": self.y, "dir": self.direction,
             "sprite": self.sprite_num, "attacking": self.attacking,
             "life": self.life, "maxLife": self.max_life,
+            "vx": round(self.vx, 2), "vy": round(self.vy, 2),
         }
 
+    def stats_to_dict(self) -> dict:
+        return {
+            "level":        self.level,
+            "life":         self.life,
+            "maxLife":      self.max_life,
+            "strength":     self.strength,
+            "dexterity":    self.dexterity,
+            "mana":         self.mana,
+            "maxMana":      self.max_mana,
+            "exp":          self.exp,
+            "nextLevelExp": self.next_level_exp,
+            "coin":         self.coin,
+            "skillPoints":  self.skill_points,
+        }
 
-# Mob state for multiplayer synchronization
+    def load_from_dict(self, d: dict) -> None:
+        self.level         = clamp_int(d.get("level"),         1,    9999, DEFAULT_LEVEL)
+        self.max_life      = clamp_int(d.get("maxLife"),       1,    9999, DEFAULT_MAX_LIFE)
+        self.life          = clamp_int(d.get("life"),          0,    self.max_life, self.max_life)
+        self.strength      = clamp_int(d.get("strength"),      1,    9999, DEFAULT_STRENGTH)
+        self.dexterity     = clamp_int(d.get("dexterity"),     1,    9999, DEFAULT_DEXTERITY)
+        self.max_mana      = clamp_int(d.get("maxMana"),       1,    9999, DEFAULT_MAX_MANA)
+        self.mana          = clamp_int(d.get("mana"),          0,    self.max_mana, self.max_mana)
+        self.exp           = clamp_int(d.get("exp"),           0,    999999999, DEFAULT_EXP)
+        self.next_level_exp= clamp_int(d.get("nextLevelExp"),  1,    999999999, DEFAULT_NEXT_LVL)
+        self.coin          = clamp_int(d.get("coin"),          0,    999999999, DEFAULT_COIN)
+        self.skill_points  = clamp_int(d.get("skillPoints"),   0,    9999,      DEFAULT_SKILL_PTS)
+
+
 @dataclass
 class MobState:
-    mob_id: int           # Array index on client
-    mob_type: str         # Monster type identifier
+    mob_id: int
+    mob_type: str
     life: int
     max_life: int
     alive: bool = True
@@ -373,12 +389,9 @@ class MobState:
         }
 
 
-#Encrypted client connection
-
-#da wrap la conexiunea tcp si are grija de comunicarea post-handshake
 class ClientConnection:
-    DIR_S2C = b"\x01" #Server to Client. Semnifica directional tags. Previne unele replay/reflect attacks destul de eficient
-    DIR_C2S = b"\x02" #Client to Server
+    DIR_S2C = b"\x01"
+    DIR_C2S = b"\x02"
 
     def __init__(self, reader: asyncio.StreamReader, writer: asyncio.StreamWriter,
                  session_key: bytes, player: PlayerState):
@@ -455,7 +468,6 @@ class ClientConnection:
             raise ValueError("payload too big")
         return json.loads(plaintext.decode("utf-8"))
 
-#for future development: se poate folosi functia de chat. se va lansa in urmatorul client update. am declarat mai jos ce inseamna un frame de chat
     def chat_allowed_now(self) -> bool:
         now = time.monotonic()
         cutoff = now - 10.0
@@ -467,8 +479,6 @@ class ClientConnection:
         return True
 
 
-
-#Game Server
 class GameServer:
     def __init__(self, host: str, port: int, max_players: int,
                  private_key, nonce_cache: NonceCache,
@@ -481,7 +491,7 @@ class GameServer:
         self.nonce_cache = nonce_cache
         self.rate_limiter = rate_limiter
         self.cfg = cfg
-        self.maps = maps # foloseste world.py, aici e integrarea dintre serverul efectiv si world.py
+        self.maps = maps
         self.active_map_id = active_map_id
         self.world: TmxMap = maps.get(active_map_id)
         if self.world is None:
@@ -493,23 +503,48 @@ class GameServer:
         self._next_id = 1
         self._running = False
         self._server: Optional[asyncio.AbstractServer] = None
-        # Mob tracking for multiplayer synchronization
         self.mobs: dict[int, MobState] = {}
-        # Ban list: license_key → expiry timestamp (float, 0 = permanent)
         self._bans: dict[str, float] = {}
         self._bans_lock = asyncio.Lock()
+        self._player_data_path = BASE_DIR / "player_data.json"
+        self._player_data: dict[str, dict] = self._load_player_data()
+        self._player_data_lock = asyncio.Lock()
 
     def _allocate_id(self) -> int:
         pid = self._next_id
         self._next_id += 1
         return pid
 
+    def _load_player_data(self) -> dict:
+        try:
+            if self._player_data_path.exists():
+                return json.loads(self._player_data_path.read_text(encoding="utf-8"))
+        except Exception as exc:
+            log.warning("Could not load player_data.json: %s", exc)
+        return {}
+
+    async def _save_player_data(self) -> None:
+        async with self._player_data_lock:
+            try:
+                self._player_data_path.write_text(
+                    json.dumps(self._player_data, indent=2), encoding="utf-8"
+                )
+            except Exception as exc:
+                log.warning("Could not save player_data.json: %s", exc)
+
+    def _apply_saved_stats(self, player: PlayerState) -> None:
+        saved = self._player_data.get(player.license_key)
+        if saved:
+            player.load_from_dict(saved)
+
+    async def _persist_stats(self, player: PlayerState) -> None:
+        self._player_data[player.license_key] = player.stats_to_dict()
+        await self._save_player_data()
+
     def broadcast_json(self, obj: dict, exclude_id: int = -1) -> None:
         for pid, client in self.clients.items():
             if pid != exclude_id:
                 client.send_json(obj)
-
-    # ── Admin helpers ───────────────────────────────────────────────────────
 
     async def is_banned(self, license_key: str) -> bool:
         async with self._bans_lock:
@@ -565,7 +600,7 @@ class GameServer:
         return "\n".join(lines)
 
     def _find_client(self, target: str) -> "Optional[ClientConnection]":
-        """Find a client by numeric id or name (case-insensitive prefix match)."""
+        """Find by numeric id or name (case-insensitive prefix match)."""
         try:
             pid = int(target)
             return self.clients.get(pid)
@@ -576,7 +611,6 @@ class GameServer:
                     return c
             return None
 
-    #Handshake
     async def _handshake(self, reader: asyncio.StreamReader,
                          writer: asyncio.StreamWriter,
                          peer: tuple[str, int]) -> Optional[tuple[bytes, dict]]:
@@ -613,8 +647,6 @@ class GameServer:
             await writer.drain()
             return None
         # Format: "AUTH <enc_b64> <machine_fp> <sig_b64>"
-        # machine_fp and sig are outside the OAEP envelope (plaintext is fine —
-        # sig is already in license.properties on the client machine).
         auth_parts = text.split(" ")
         if len(auth_parts) != 4:
             writer.write(b"AUTH_FAIL\n")
@@ -640,22 +672,18 @@ class GameServer:
             return None
 
         license_key = str(payload.get("license", ""))[:32]
-        ts = int(payload.get("ts", 0)) #folosim Unix timestamps
+        ts = int(payload.get("ts", 0))
         cn_check = bytes.fromhex(str(payload.get("client_nonce", "")) or "")
         sn_check = bytes.fromhex(str(payload.get("server_nonce", "")) or "")
 
-        # Server-side dev_mode (ONLY localhost dev): bypass all license checks.
         dev_mode = bool(self.cfg.get("dev_mode", False))
 
-        #FARA DEV
         if not dev_mode:
-            # Step 1: structural sanity check
             if not license_is_well_formed(license_key):
                 writer.write(b"AUTH_FAIL\n")
                 await writer.drain()
                 log.info("AUTH bad license format from %s", peer)
                 return None
-            # Step 2: RSA signature over "license|machine_fp" (if pubkey configured).
             if self.license_pub is not None:
                 if not license_verify.verify_license_signature(
                         self.license_pub, license_key, machine_fp, license_sig):
@@ -683,14 +711,12 @@ class GameServer:
             log.info("AUTH replay rejected from %s", peer)
             return None
 
-        # ── Ban check ───────────────────────────────────────────────────────
         if await self.is_banned(license_key):
             writer.write(b"BANNED\n")
             await writer.drain()
             log.info("AUTH rejected banned license %s from %s", license_key, peer)
             return None
 
-        # ── Username uniqueness check (via save server) ─────────────────────
         requested_name = str(payload.get("name", ""))[:MAX_NAME_LEN]
         if _username_valid(requested_name):
             username_status = await asyncio.get_event_loop().run_in_executor(
@@ -704,15 +730,12 @@ class GameServer:
                 log.info("AUTH rejected: username %r already taken (license=%s from %s)",
                          requested_name, license_key, peer)
                 return None
-            # If AVAILABLE or SKIP, claim it now (best-effort, non-fatal)
             if username_status == "AVAILABLE":
                 await asyncio.get_event_loop().run_in_executor(
                     None,
                     lambda: _save_server_claim_username(self.cfg, self.private_key,
                                                         license_key, requested_name)
                 )
-
-        #CU DEV
 
         if dev_mode:
             log.warning("dev_mode auth bypass accepted from %s", peer)
@@ -731,7 +754,6 @@ class GameServer:
 
         return session_key, payload
 
-    #Per-client lifecycle
     async def handle_client(self, reader: asyncio.StreamReader,
                             writer: asyncio.StreamWriter):
         peer = writer.get_extra_info("peername") or ("?", 0)
@@ -793,8 +815,6 @@ class GameServer:
         player.player_class = "".join(c for c in cls_raw if c.isalnum()) or "Fighter"
         player.map_id = self.active_map_id
 
-        # Spawn arbitrar din TMX — validated against collision so the player
-        # never appears inside a wall or object hitbox.
         spawn_col, spawn_row = self.world.default_spawn
         hb_w = int(self.cfg.get("player_hitbox_w", DEFAULT_HITBOX_W))
         hb_h = int(self.cfg.get("player_hitbox_h", DEFAULT_HITBOX_H))
@@ -804,6 +824,8 @@ class GameServer:
         player.last_valid_x = player.x
         player.last_valid_y = player.y
 
+        self._apply_saved_stats(player)
+
         client = ClientConnection(reader, writer, session_key, player)
         client.start_writer()
         self.clients[player.player_id] = client
@@ -811,7 +833,6 @@ class GameServer:
                  player.player_id, player.name, ip,
                  len(self.clients), self.max_players)
 
-        # 1) Welcome (id, existing players, spawn)
         existing = [c.player.to_dict() for pid, c in self.clients.items()
                     if pid != player.player_id]
         client.send_json({
@@ -823,13 +844,11 @@ class GameServer:
             "map_id": self.active_map_id,
         })
 
-        # 2) World info — sent immediately so the client can begin loading
-        #    its TMX skeleton and start requesting chunks. The skeleton is
-        #    typically a few KB; chunks follow on demand.
+        # Server is authoritative on stats — client must use these, not its singleplayer values.
+        client.send_json({"type": "player_stats", **player.stats_to_dict()})
+
         client.send_json(self.world.info_message())
 
-        # Notify others — include current position so joining clients can
-        # render the new player immediately without waiting for the first tick.
         self.broadcast_json({
             "type": "player_join",
             "id": player.player_id,
@@ -860,7 +879,6 @@ class GameServer:
                     self._handle_chunk_request(client, msg)
 
                 elif t == "world_ready":
-                    # Client has finished loading the skeleton TMX; record it.
                     log.info("Player %d ready in world '%s'",
                              player.player_id, player.map_id)
 
@@ -888,7 +906,6 @@ class GameServer:
                     self._handle_mob_death(client, msg)
 
                 else:
-                    # Ignore unknown messages, do not punish — protocol may grow
                     log.debug("Unknown msg type from pid=%s: %s",
                               player.player_id, t)
 
@@ -898,6 +915,7 @@ class GameServer:
             if player.player_id in self.clients:
                 del self.clients[player.player_id]
             await client.close()
+            await self._persist_stats(player)
             log.info("Player %d (%s) disconnected — %d/%d",
                      player.player_id, player.name,
                      len(self.clients), self.max_players)
@@ -906,26 +924,22 @@ class GameServer:
                 "id": player.player_id,
             })
 
-    # ── Tick loop (broadcasts positions + drains chunk requests) ──
     async def tick_loop(self) -> None:
         interval = 1.0 / TICK_RATE
         max_chunks = max(1, int(self.cfg.get("max_chunks_per_tick",
                                              DEFAULT_MAX_CHUNKS_PER_TICK)))
         while self._running:
             start = time.monotonic()
-            # Player position broadcast
             for pid, client in list(self.clients.items()):
                 update = client.player.to_update_dict()
                 for other_pid, other_client in self.clients.items():
                     if other_pid != pid:
                         other_client.send_json(update)
-            #stergem chunk-ul din coada, limitam rata pentru a opri un singur client de a da flood la toata coada criptata 
             for pid, client in list(self.clients.items()):
                 self._drain_chunks(client, max_chunks)
             elapsed = time.monotonic() - start
             await asyncio.sleep(max(0.0, interval - elapsed))
 
-    #Authoritative move validation
     def _handle_move(self, client: "ClientConnection", msg: dict) -> None:
         player = client.player
         world = self.world
@@ -935,7 +949,6 @@ class GameServer:
         new_x = clamp_int(msg.get("x"), 0, world.width  * world.tilewidth  - 1, player.x)
         new_y = clamp_int(msg.get("y"), 0, world.height * world.tileheight - 1, player.y)
 
-        #Anti-teleport: cap the per-packet displacement.
         dx = new_x - player.last_valid_x
         dy = new_y - player.last_valid_y
         if abs(dx) > max_step_px or abs(dy) > max_step_px:
@@ -943,17 +956,14 @@ class GameServer:
             new_y = player.last_valid_y + clamp_int(dy, -max_step_px, max_step_px, 0)
             log.debug("Player %d step exceeded cap; clamped", player.player_id)
 
-        #Collision: validate the destination box.
         hb_w = int(self.cfg.get("player_hitbox_w", DEFAULT_HITBOX_W))
         hb_h = int(self.cfg.get("player_hitbox_h", DEFAULT_HITBOX_H))
-        #Player coords are top-left of sprite; hitbox is centred horizontally
-        #and aligned to the bottom 75% of the sprite (matches client default).
+        # Hitbox is centred horizontally, aligned to the bottom 75% of the sprite.
         hb_off_x = (world.tilewidth - hb_w) // 2
         hb_off_y = world.tileheight - hb_h
         bx = new_x + hb_off_x
         by = new_y + hb_off_y
         if not world.is_box_walkable(bx, by, hb_w, hb_h):
-            # Snap back to last valid pos and notify the client.
             new_x, new_y = player.last_valid_x, player.last_valid_y
             client.send_json({
                 "type": "pos_correction",
@@ -961,7 +971,6 @@ class GameServer:
                 "reason": "collision",
             })
 
-        # Triggers — only fire on freshly-entered rectangles.
         triggers = world.find_triggers(
             player.last_valid_x + hb_off_x, player.last_valid_y + hb_off_y,
             new_x + hb_off_x, new_y + hb_off_y,
@@ -970,6 +979,12 @@ class GameServer:
         for trig in triggers:
             self._dispatch_trigger(client, trig)
 
+        # Compute velocity (px per server tick) from displacement since last accepted position.
+        # Alpha-blended to smooth out jitter between move messages.
+        alpha = 0.6
+        player.vx = alpha * (new_x - player.x) + (1.0 - alpha) * player.vx
+        player.vy = alpha * (new_y - player.y) + (1.0 - alpha) * player.vy
+
         player.x = new_x
         player.y = new_y
         player.last_valid_x = new_x
@@ -977,12 +992,9 @@ class GameServer:
         player.direction = clamp_int(msg.get("dir"), 0, 7, player.direction)
         player.sprite_num = clamp_int(msg.get("sprite"), 0, 32, player.sprite_num)
         player.attacking = bool(msg.get("attacking", False))
-        player.life = clamp_int(msg.get("life"), 0, MAX_LIFE_CAP, player.life)
-        player.max_life = clamp_int(msg.get("maxLife"), 1, MAX_LIFE_CAP, player.max_life)
 
     def _dispatch_trigger(self, client: "ClientConnection", trig) -> None:
-        """Send a trigger event to the client. Server enforces map
-        transitions to known maps; everything else is informational."""
+        """Forward trigger data to the client; enforce map transitions on our side."""
         out = {
             "type": "trigger",
             "id": trig.obj_id,
@@ -993,8 +1005,6 @@ class GameServer:
             "props": trig.properties,
         }
         client.send_json(out)
-        # If this is a map-transition pointing to a map we host, broadcast
-        # the change for the player and load it server-side.
         target = trig.properties.get("targetMap") or trig.properties.get("target_map")
         if target:
             target_id = str(target).lower()
@@ -1004,12 +1014,8 @@ class GameServer:
 
     def _move_player_to_map(self, client: "ClientConnection", new_world: TmxMap, trig) -> None:
         """
-        Switch this player's authoritative world. We do NOT change the
-        server's globally active map: a single MP server hosts ONE world at a
-        time in this version. Cross-map transitions are recognised but the
-        client is informed via a 'map_change' message and is expected to
-        disconnect / reconnect to the appropriate server. (Multi-world per
-        server is a future extension.)
+        This server hosts one world at a time. Cross-map transitions tell the client to
+        reconnect to the right server; multi-world per server is a future thing.
         """
         client.send_json({
             "type": "map_change",
@@ -1020,9 +1026,7 @@ class GameServer:
         log.info("Player %d hit cross-map trigger -> %s",
                  client.player.player_id, new_world.map_id)
 
-    #Mob synchronization handlers
     def _handle_mob_damage(self, client: "ClientConnection", msg: dict) -> None:
-        """Process mob damage from a client and broadcast to all other clients."""
         mob_id = clamp_int(msg.get("mob_id"), 0, 999, -1)
         damage = clamp_int(msg.get("damage"), 0, 9999, 0)
         life = clamp_int(msg.get("life"), 0, 9999, 0)
@@ -1032,17 +1036,14 @@ class GameServer:
         if mob_id < 0 or damage <= 0:
             return
 
-        # Get or create mob state
         mob = self.mobs.get(mob_id)
         if mob is None:
             mob = MobState(mob_id=mob_id, mob_type=mob_type, life=max_life, max_life=max_life)
             self.mobs[mob_id] = mob
 
-        # Update mob state from client report
         mob.life = life
         mob.last_attacker_pid = client.player.player_id
 
-        # Broadcast damage to all other clients
         self.broadcast_json({
             "type": "mob_damage",
             "mob_id": mob_id,
@@ -1054,14 +1055,12 @@ class GameServer:
         }, exclude_id=client.player.player_id)
 
     def _handle_mob_death(self, client: "ClientConnection", msg: dict) -> None:
-        """Process mob death from a client and broadcast to all other clients."""
         mob_id = clamp_int(msg.get("mob_id"), 0, 999, -1)
         mob_type = str(msg.get("mob_type", "unknown"))[:32]
 
         if mob_id < 0:
             return
 
-        # Update mob state
         mob = self.mobs.get(mob_id)
         if mob is None:
             mob = MobState(mob_id=mob_id, mob_type=mob_type, life=0, max_life=1)
@@ -1072,7 +1071,6 @@ class GameServer:
         mob.life = 0
         mob.last_attacker_pid = client.player.player_id
 
-        # Broadcast death to all clients (including sender for confirmation)
         self.broadcast_json({
             "type": "mob_death",
             "mob_id": mob_id,
@@ -1080,13 +1078,9 @@ class GameServer:
             "mob_type": mob.mob_type,
         })
 
-        # Clean up dead mob after a delay (keep for respawn logic)
-        # For now, just mark as dead; respawn logic can be added later
         log.debug("Mob %d (%s) killed by player %d", mob_id, mob.mob_type, client.player.player_id)
 
-    #Chunk delivery
     def _handle_chunk_request(self, client: "ClientConnection", msg: dict) -> None:
-        """Queue a (layer_idx, cx, cy) request for the per-player drainer."""
         layer_idx = clamp_int(msg.get("layer_idx"), 0, len(self.world.layers) - 1, -1)
         cx = clamp_int(msg.get("cx"), 0, self.world.num_chunks_x - 1, -1)
         cy = clamp_int(msg.get("cy"), 0, self.world.num_chunks_y - 1, -1)
@@ -1095,8 +1089,7 @@ class GameServer:
         key = (layer_idx, cx, cy)
         if key in client.player.chunks_sent:
             return
-        # Cap the queue length to prevent a malicious client from making the
-        # server hold an unbounded backlog.
+        # Cap the backlog so a misbehaving client can't make us hold unbounded state.
         if len(client.player.chunk_requests) >= 4096:
             return
         client.player.chunk_requests.append(key)
@@ -1116,7 +1109,6 @@ class GameServer:
             client.player.chunks_sent.add(key)
             sent += 1
 
-    #Server start/stop
     async def start(self) -> None:
         self._running = True
         self._server = await asyncio.start_server(
@@ -1139,7 +1131,6 @@ class GameServer:
             self._server.close()
 
 
-#STARTUP MESSAGES and helpers
 def prompt_bind_address(default_host: str, default_port: int) -> tuple[str, int]:
     print("══════════════════════════════════════════════════════")
     print("  Michi's Adventure — Multiplayer Server v2")
@@ -1183,7 +1174,6 @@ def load_private_key(path: Path):
     return key
 
 
-# ── Entry point ────────────────────────────────────────────────────────────
 def parse_args() -> argparse.Namespace:
     p = argparse.ArgumentParser(description="Michi's Adventure multiplayer server v2")
     p.add_argument("--host", help="Bind IP (skips prompt).")
@@ -1201,8 +1191,6 @@ async def amain(host: str, port: int, max_players: int, private_key, cfg: dict) 
     nonce_cache = NonceCache()
     rate_limiter = IpRateLimiter(cfg.get("rate_limit_per_ip_per_minute", RATE_LIMIT_PER_IP_PER_MIN))
 
-    # Load the map collection. Failure here is fatal — a multiplayer server
-    # without a world is meaningless.
     maps_dir = Path(cfg.get("maps_dir", DEFAULT_MAPS_DIR))
     if not maps_dir.is_absolute():
         maps_dir = BASE_DIR / maps_dir
@@ -1213,14 +1201,10 @@ async def amain(host: str, port: int, max_players: int, private_key, cfg: dict) 
     )
     active_map_id = (cfg.get("active_map") or "").lower().strip()
     if not active_map_id:
-        # Fall back to the first map in alphabetical order so the server
-        # still boots in a development environment without an explicit pick.
         active_map_id = map_collection.list_ids()[0]
         log.warning("active_map not set in mp_config.json — defaulting to '%s'",
                     active_map_id)
 
-    # Load license public key. Stored on GameServer so the per-connection
-    # handshake can reach it. No allow-list — RSA signature is the sole trust.
     license_pub = license_verify.load_public_key(cfg.get("license_public_key_b64", ""))
     if license_pub is None and not cfg.get("dev_mode", False):
         log.warning(
@@ -1249,6 +1233,13 @@ async def amain(host: str, port: int, max_players: int, private_key, cfg: dict) 
         except NotImplementedError:
             signal.signal(sig, lambda s, f: shutdown_handler())
 
+    if cfg.get("admin_password"):
+        from dashboard import AdminDashboard
+        dash = AdminDashboard(server, cfg)
+        await dash.start()
+    else:
+        log.warning("admin_password not set in mp_config.json — dashboard disabled")
+
     asyncio.create_task(_admin_console(server))
 
     try:
@@ -1260,14 +1251,14 @@ async def amain(host: str, port: int, max_players: int, private_key, cfg: dict) 
 
 
 async def _admin_console(server: "GameServer") -> None:
-    """Async stdin loop for server admin commands.
+    """Stdin loop for admin commands.
 
     Commands:
-      list                        — show connected players
-      kick  <name|id> [reason]    — kick a player
-      ban   <name|id> <seconds>   — ban for N seconds (0 = permanent)
+      list                           — show connected players
+      kick  <name|id> [reason]       — disconnect a player
+      ban   <name|id> <seconds>      — ban for N seconds (0 = permanent)
       teleport <name|id> <col> <row> — move player to tile col,row
-      help                        — show this list
+      help                           — show this list
     """
     print("[Admin] Console ready. Type 'help' for commands.")
     loop = asyncio.get_event_loop()
@@ -1345,14 +1336,12 @@ def main() -> None:
     args = parse_args()
     cfg = load_config()
 
-    # Resolve private key path (argv > config > default)
     pk_path = Path(args.private_key if args.private_key != DEFAULT_PRIVATE_KEY
                    else cfg.get("private_key_path", DEFAULT_PRIVATE_KEY))
     if not pk_path.is_absolute():
         pk_path = BASE_DIR / pk_path
     private_key = load_private_key(pk_path)
 
-    # Resolve host/port — argv > env (already in cfg) > config file > prompt
     host = args.host or cfg.get("host")
     port = args.port or cfg.get("port")
 

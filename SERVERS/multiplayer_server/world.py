@@ -1,28 +1,12 @@
 #!/usr/bin/env python3
 """
-World streaming module for Michi's Adventure multiplayer server.
+World streaming for the Michi MP server.
 
-Responsabilitati
-----------------
-1. Incarca o mapa/colectie de mape de pe disk (director mentionat in mp_config.json).
-2. Parse each TMX into:
-     - dimensions      (width × height in tiles, tilewidth/tileheight in px)
-     - tile layers     (raw uint32 GIDs preserving Tiled flip-flags)
-     - object groups   (Collision, Events, NPCs, Monsters, Objects, …)
-3. Pre-imparte fiecare tile layer in chunkuri de `chunk_size` tiles pe
-   fiecare parte. Chunkurile sunt gzipped+base64-encoded pentru livrare fara prea multe resurse.
-4. construieste un collision oracle rapid (rect-based + tile-layer based) ca serverul
-   sa detecteze autoritar miscari ilegale.
-5. Construieste un trigger index (rectangles in objectgroup name="Events") pentru ca
-   serverul sa poata detecta cand un player calca pe o zona de tranzitie mapa/spawn/
-   dialogue trigger si informeaza clientul.
-6. Genereaza un "schelet" al TMX-ului, unde fiecare bloc <data> a fost
-   inlocuit cu o forma echivalenta CSV din zero-uri. Scheletul este mic
-   (no tile data) si este trimis clientului inainte pentru ca TileManager
-   sa poata aloca structurile corespunzatare. Adevarata harta va fi trimisa in chunkuri pe parcurs.
+Loads TMX maps, chops each tile layer into gzipped chunks for on-demand delivery,
+builds a server-side collision oracle, and indexes trigger rectangles so the server
+can fire map-transition / spawn events authoritatively.
 
-The module is pure Python + stdlib (xml.etree, gzip, base64, struct).
-No external deps beyond the cryptography lib already used by the server.
+Pure Python + stdlib (xml.etree, gzip, base64, struct). No extra deps.
 """
 from __future__ import annotations
 
@@ -40,19 +24,18 @@ from typing import Optional
 
 log = logging.getLogger("michi-mp.world")
 
-# Tiled flip-flag bits live in the top 3 bits of the 32-bit GID.
+# Top 3 bits of a 32-bit GID are Tiled flip flags — mask them off for tile lookups.
 GID_MASK = 0x1FFFFFFF
 FLIP_BITS = 0xE0000000
 
 
-# Data classes
 @dataclass
 class TmxObject:
-    """Mirrors a Tiled <object> entry — typed properties already coerced."""
+    """One <object> from a Tiled objectgroup, with properties already coerced."""
     obj_id: int
     name: str
-    obj_type: str           # Tiled "type" / "class" attribute
-    x: float                # pixel coords (top-left of the rectangle/point)
+    obj_type: str
+    x: float
     y: float
     w: float
     h: float
@@ -64,18 +47,16 @@ class TmxObject:
 
 @dataclass
 class TmxLayer:
-    """A single tile layer with its raw 32-bit grid (flip bits preserved)."""
+    """A tile layer with its raw 32-bit GID grid (flip bits intact)."""
     name: str
     width: int
     height: int
-    raw: list[list[int]]    # [row][col] — flip bits intact
+    raw: list[list[int]]    # [row][col]
     properties: dict = field(default_factory=dict)
 
 
-# ── Map ────────────────────────────────────────────────────────────────────
 class TmxMap:
-    """o harta din TMX impartita pe bucatele. dimensiunea o vom declara la apel, pentru a permite
-       mai mult customization din partea comunitatii (ma rog, viitoarei comunitati...)"""
+    """A TMX map split into fixed-size chunks for streaming."""
 
     def __init__(self, map_id: str, path: Path, chunk_size: int = 32):
         self.map_id = map_id
@@ -88,7 +69,6 @@ class TmxMap:
         self.tree = ET.ElementTree(ET.fromstring(self.raw_bytes))
         root = self.tree.getroot()
 
-
         if root.tag != "map":
             raise ValueError(f"{path}: root is <{root.tag}>, expected <map>")
 
@@ -99,12 +79,9 @@ class TmxMap:
         if self.width <= 0 or self.height <= 0:
             raise ValueError(f"{path}: invalid dimensions {self.width}x{self.height}")
 
-
         self.properties: dict = self._parse_properties(root)
         self.layers: list[TmxLayer] = []
         self.object_groups: dict[str, list[TmxObject]] = {}
-
-
 
         for child in list(root):
             if child.tag == "layer":
@@ -113,8 +90,6 @@ class TmxMap:
                 gname = child.get("name", "")
                 self.object_groups[gname] = self._parse_object_group(child)
 
-        # Chunk index — lazily filled. Maps (layer_idx, cx, cy) → encoded blob.
-        
         self._chunk_cache: dict[tuple[int, int, int], dict] = {}
         self.num_chunks_x = (self.width + self.chunk_size - 1) // self.chunk_size
         self.num_chunks_y = (self.height + self.chunk_size - 1) // self.chunk_size
@@ -123,7 +98,6 @@ class TmxMap:
         self.skeleton_bytes: bytes = self.skeleton_xml.encode("utf-8")
         self.skeleton_sha256: str = hashlib.sha256(self.skeleton_bytes).hexdigest()
 
-        # Authoritative collision + triggers
         self.collision_rects: list[tuple[float, float, float, float]] = []
         self.collision_tile_layer_indices: list[int] = []
         self._build_collision()
@@ -143,7 +117,6 @@ class TmxMap:
             len(self.spawns), len(self.collision_rects),
         )
 
-    # ── XML parsing helpers ────────────────────────────────────────────────
     @staticmethod
     def _parse_properties(node: ET.Element) -> dict:
         props: dict = {}
@@ -180,7 +153,6 @@ class TmxMap:
         encoding = (data.get("encoding") or "").lower()
         compression = (data.get("compression") or "").lower()
 
-        # Row-major raw[ row ][ col ]
         raw: list[list[int]] = [[0] * lw for _ in range(lh)]
 
         if encoding == "csv":
@@ -202,7 +174,6 @@ class TmxMap:
                 import zlib
                 blob = zlib.decompress(blob)
             elif compression == "zstd":
-                # Optional. Server requires the lib only if a map uses it.
                 import zstandard
                 blob = zstandard.ZstdDecompressor().decompress(blob)
             count = lw * lh
@@ -242,10 +213,9 @@ class TmxMap:
                 log.warning("Skipping malformed object in %s: %s", self.path, exc)
         return out
 
-    # ── Skeleton TMX (data blocks zeroed) ───────────────────────────────────
     def _build_skeleton_xml(self) -> str:
-        # Re-serialize the parsed tree, but with each <data> body replaced by
-        # zeros of the right shape. We mutate a copy to avoid touching self.tree.
+        # Clone the tree and zero out all <data> blocks so the client gets
+        # map structure without tile data (chunks are sent separately on demand).
         clone_root = ET.fromstring(self.raw_bytes)
         for layer_node in clone_root.findall("layer"):
             data = layer_node.find("data")
@@ -260,20 +230,17 @@ class TmxMap:
                 data.remove(child)
             row = ",".join(["0"] * lw)
             data.text = "\n" + ("\n".join([row] * lh)) + "\n"
-        # Pretty newline so the client's parser is happy
         xml_bytes = ET.tostring(clone_root, encoding="utf-8", xml_declaration=True)
         return xml_bytes.decode("utf-8")
 
-    # ── Collision + events ─────────────────────────────────────────────────
     def _build_collision(self) -> None:
-        # Rect-based collision: any object in a group named "Collision".
+        # Rect-based: objects in the "Collision" objectgroup.
         group = self.object_groups.get("Collision", [])
         for o in group:
             if o.w > 0 and o.h > 0:
                 self.collision_rects.append((o.x, o.y, o.w, o.h))
 
-        # Tile-layer collision: any layer with property collision=true OR a
-        # layer literally named "Collision" treats every nonzero GID as blocked.
+        # Tile-based: any layer with property collision=true or named "Collision".
         for idx, layer in enumerate(self.layers):
             if layer.properties.get("collision") is True or layer.name == "Collision":
                 self.collision_tile_layer_indices.append(idx)
@@ -287,16 +254,13 @@ class TmxMap:
                 row = int(o.y // self.tileheight)
                 key = o.name or f"_obj{o.obj_id}"
                 self.spawns[key] = (col, row)
-                # Fall through: SpawnZone is also a trigger? No, just register.
                 continue
-            # Everything else in Events becomes a trigger. The client decides
-            # what to do with it (dialogue, level-gate, transition…). The
-            # server only enforces map transitions to known maps.
+            # Everything else in Events is a trigger the client acts on.
+            # Server only enforces map transitions.
             if o.w > 0 and o.h > 0:
                 self.triggers.append(o)
 
     def _resolve_default_spawn(self) -> tuple[int, int]:
-        # Map-level property wins
         if "defaultSpawnCol" in self.properties and "defaultSpawnRow" in self.properties:
             try:
                 return int(self.properties["defaultSpawnCol"]), int(self.properties["defaultSpawnRow"])
@@ -309,22 +273,15 @@ class TmxMap:
                 return int(m.group(1)), int(m.group(2))
             if raw in self.spawns:
                 return self.spawns[raw]
-        # First named spawn we know about
         for name in ("default", "spawn", "start"):
             if name in self.spawns:
                 return self.spawns[name]
         if self.spawns:
             return next(iter(self.spawns.values()))
-        # Fallback: map center
         return self.width // 2, self.height // 2
 
-    # ── Public API: chunk delivery ─────────────────────────────────────────
     def get_chunk(self, layer_idx: int, cx: int, cy: int) -> Optional[dict]:
-        """
-        Return a dict ready for JSON serialization:
-            { layer: name, cx, cy, w, h, data: "<base64 gzip uint32>" }
-        Or None if the chunk is out of range.
-        """
+        """Return a serializable chunk dict, or None if out of range."""
         if layer_idx < 0 or layer_idx >= len(self.layers):
             return None
         if cx < 0 or cx >= self.num_chunks_x:
@@ -358,7 +315,7 @@ class TmxMap:
         return payload
 
     def info_message(self) -> dict:
-        """Top-level map info delivered immediately on join."""
+        """Top-level map info sent immediately on player join."""
         return {
             "type": "world_info",
             "map_id": self.map_id,
@@ -380,16 +337,8 @@ class TmxMap:
             "spawns": {k: list(v) for k, v in self.spawns.items()},
         }
 
-    # ── Public API: collision oracle ──────────────────────────────────────
     def is_walkable(self, px: float, py: float) -> bool:
-        """
-        Return True iff the *pixel* point (px, py) is inside the map bounds
-        AND not inside any collision rectangle AND not on a blocked tile in
-        a collision-tile layer.
-
-        Server-authoritative: clients lie, this is the source of truth for
-        anti-teleport / anti-clip checks.
-        """
+        """Return True iff the pixel point is inside map bounds and not blocked."""
         if px < 0 or py < 0:
             return False
         if px >= self.width * self.tilewidth or py >= self.height * self.tileheight:
@@ -408,7 +357,7 @@ class TmxMap:
         return True
 
     def is_box_walkable(self, px: float, py: float, w: float, h: float) -> bool:
-        """Sample the four corners + centre — cheap and good enough for v1."""
+        """Sample four corners + centre — cheap and good enough."""
         samples = (
             (px,           py),
             (px + w - 1.0, py),
@@ -418,15 +367,9 @@ class TmxMap:
         )
         return all(self.is_walkable(sx, sy) for sx, sy in samples)
 
-    # ── Public API: safe spawn ────────────────────────────────────────────
     def safe_spawn(self, col: int, row: int,
                    hb_w: int = 24, hb_h: int = 24) -> tuple[int, int]:
-        """Return a collision-free (col, row) near (col, row).
-
-        Uses the same hitbox geometry as the server's move validator so that
-        the chosen tile is guaranteed not to trigger an immediate correction.
-        Searches in expanding square rings up to 20 tiles from the candidate.
-        """
+        """Return a collision-free tile near (col, row), searching in expanding rings."""
         hb_off_x = (self.tilewidth - hb_w) // 2
         hb_off_y = self.tileheight - hb_h
 
@@ -444,30 +387,24 @@ class TmxMap:
             for dc in range(-radius, radius + 1):
                 for dr in range(-radius, radius + 1):
                     if abs(dc) != radius and abs(dr) != radius:
-                        continue  # only the outermost ring
+                        continue
                     if _clear(col + dc, row + dr):
                         log.warning(
-                            "Spawn (%d, %d) is inside collision; "
-                            "relocated to (%d, %d)",
+                            "Spawn (%d, %d) is inside collision; relocated to (%d, %d)",
                             col, row, col + dc, row + dr,
                         )
                         return col + dc, row + dr
 
         log.error(
-            "No collision-free spawn found within 20 tiles of (%d, %d); "
-            "using original position",
+            "No collision-free spawn within 20 tiles of (%d, %d); using original",
             col, row,
         )
         return col, row
 
-    # ── Public API: trigger detection ─────────────────────────────────────
     def find_triggers(self, prev_x: float, prev_y: float,
                       new_x: float, new_y: float,
                       hitbox_w: float, hitbox_h: float) -> list[TmxObject]:
-        """
-        Return triggers entered on this step (rectangles that the player
-        hitbox now intersects but didn't on the previous tick).
-        """
+        """Return triggers entered on this step (newly intersecting, not previously)."""
         out: list[TmxObject] = []
         for trig in self.triggers:
             if _rects_intersect(new_x, new_y, hitbox_w, hitbox_h,
@@ -483,9 +420,8 @@ def _rects_intersect(ax: float, ay: float, aw: float, ah: float,
     return ax < bx + bw and ax + aw > bx and ay < by + bh and ay + ah > by
 
 
-# ── Map collection (per-server library of TMX files) ──────────────────────
 class MapCollection:
-    """Indexes all maps in a directory by id (filename stem, lowercased)."""
+    """All TMX maps in a directory, indexed by lowercased filename stem."""
 
     def __init__(self, maps_dir: Path, chunk_size: int,
                  declared: Optional[dict] = None):
@@ -504,8 +440,6 @@ class MapCollection:
             except Exception:
                 log.exception("Failed to load map %s — skipping", tmx_file)
                 continue
-            # Optional: check that declared dimensions match (catches the
-            # "config out of sync with TMX" foot-gun the operator asked for).
             decl = self.declared.get(map_id)
             if decl:
                 exp_w = int(decl.get("width", mp.width))

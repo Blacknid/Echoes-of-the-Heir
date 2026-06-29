@@ -58,7 +58,6 @@ MAX_LINE_BYTES = 4096
 log = logging.getLogger("patch")
 
 
-# ── Config / key loading ────────────────────────────────────────────────────
 def load_config() -> dict:
     cfg = dict(DEFAULT_CONFIG)
     if CONFIG_PATH.exists():
@@ -87,11 +86,8 @@ def load_manifest(path: Path) -> dict:
         return {"latest_version": "0.0.0", "patches": []}
 
 
-# ── Helpers ────────────────────────────────────────────────────────────────
 def find_patch(manifest: dict, from_version: str) -> Optional[dict]:
-    """Return the patch entry that takes the client from `from_version`
-    to `latest_version`. We support a single direct hop for simplicity:
-    publish a fresh full-jump patch for every release."""
+    """Return the patch entry for from_version -> latest, or None if up-to-date."""
     latest = manifest.get("latest_version", "0.0.0")
     if from_version == latest:
         return None
@@ -105,7 +101,6 @@ def signature_payload(patch_sha256: bytes, from_version: str, to_version: str) -
     return patch_sha256 + b"|" + from_version.encode("ascii") + b"|" + to_version.encode("ascii")
 
 
-# ── Rate limiter ───────────────────────────────────────────────────────────
 class IpRateLimiter:
     def __init__(self, max_per_minute: int):
         self.max = max_per_minute
@@ -125,7 +120,6 @@ class IpRateLimiter:
             return True
 
 
-# ── Networking primitives ──────────────────────────────────────────────────
 def recv_line(conn: socket.socket, max_bytes: int = MAX_LINE_BYTES) -> str:
     buf = bytearray()
     while len(buf) < max_bytes:
@@ -147,7 +141,6 @@ def send_blob(conn: socket.socket, data: bytes) -> None:
     conn.sendall(data)
 
 
-# ── Per-connection handler ─────────────────────────────────────────────────
 def handle_client(conn: socket.socket, addr: tuple[str, int],
                   cfg: dict, private_key: RSAPrivateKey,
                   semaphore: threading.BoundedSemaphore) -> None:
@@ -229,7 +222,6 @@ def handle_client(conn: socket.socket, addr: tuple[str, int],
             pass
 
 
-# ── Bootstrap on first run: sign any patches missing signatures ────────────
 def maybe_sign_unsigned_patches(cfg: dict, private_key: RSAPrivateKey) -> None:
     manifest_path = BASE_DIR / cfg["manifest_path"]
     if not manifest_path.exists():
@@ -265,7 +257,6 @@ def maybe_sign_unsigned_patches(cfg: dict, private_key: RSAPrivateKey) -> None:
         )
 
 
-# ── Main loop ──────────────────────────────────────────────────────────────
 def serve_forever() -> None:
     logging.basicConfig(
         level=logging.INFO,

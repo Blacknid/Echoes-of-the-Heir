@@ -16,6 +16,10 @@
   "save_server_host": "127.0.0.1",
   "save_server_port": 5005,
   "internal_api_key": "CHANGE_THIS_TO_A_RANDOM_SECRET",
+  "dashboard_port": 8888,
+  "admin_password": "CHANGE_ME_BEFORE_DEPLOYING",
+  "saves_db_path": "",
+
   "maps": {
     "canvas_village": {
       "width": 100,

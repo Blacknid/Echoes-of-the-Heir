@@ -154,6 +154,14 @@ public class Player extends Entity {
     private int idleDelayCounter = 0;
     private boolean movingThisFrame = false;
 
+    // Acceleration / inertia
+    private float player_weight = 65f; //kg, basically the mass of the player on which we calculate the inertia
+    private float currentSpeed = 0f;
+    private float inertiaVelX = 0f;
+    private float inertiaVelY = 0f;
+    private static final float ACCEL_RATE   = 0.4f; // speed gained per frame while key held
+    private static final float DECEL_RATE   = 0.55f; // speed lost per frame after key released (inertia)
+
     public Player(GamePanel gp, KeyHandler keyH) {
         super(gp);
         this.keyH = keyH;
@@ -174,6 +182,9 @@ public class Player extends Entity {
         worldY = 0;
         defaultSpeed = 5;
         speed = defaultSpeed;
+        currentSpeed = 0f;
+        inertiaVelX = 0f;
+        inertiaVelY = 0f;
         direction = DIR_DOWN;
         level = 1;
         maxLife = 4;
@@ -247,6 +258,9 @@ public class Player extends Entity {
             worldY = (int)(gp.tileSize * 15.5);
         }
         direction = DIR_DOWN;
+        currentSpeed = 0f;
+        inertiaVelX = 0f;
+        inertiaVelY = 0f;
         // Snap camera instantly to new spawn position (no lerp drift across map transitions)
         camScreenX = 0f;
         camScreenY = 0f;
@@ -409,6 +423,9 @@ public class Player extends Entity {
             evadeFlashTimer = 3;  // brief armor glint
             spawnDashBurst(true);
             gp.playSE(SFX.WEAPON_SWING); // quick whoosh
+            currentSpeed = defaultSpeed; // start dash from full speed, bypassing ramp-up
+            inertiaVelX = 0f;
+            inertiaVelY = 0f;
         }
         if (dashing) {
             float t = Math.max(0f, Math.min(1f, (dashDuration - dashCounter) / (float)Math.max(1, dashDuration)));
@@ -556,27 +573,29 @@ public class Player extends Entity {
                 idleFrameDirection = 1;
                 idleDelayCounter = 0;
 
-                // Diagonal movement: use 1/sqrt(2) ≈ 0.7071 per axis
-                // This ensures total diagonal distance = cardinal distance (standard in Zelda, Diablo, Stardew Valley)
-                int moveSpeedX = speed;
-                int moveSpeedY = speed;
-                if (diagonal) {
-                    // 70.71% per axis — total vector equals cardinal speed, balanced feel
-                    moveSpeedX = Math.max(1, Math.round(speed * 0.7071f));
-                    moveSpeedY = Math.max(1, Math.round(speed * 0.7071f));
-                }
-                // Slowed: halve effective movement speed (e.g. Canvas Moth dust debuff)
-                if (slowed && !dashing) {
-                    moveSpeedX = Math.max(1, moveSpeedX / 2);
-                    moveSpeedY = Math.max(1, moveSpeedY / 2);
-                }
-                // Water terrain: wading slows movement to ~60% when inside a WaterZone rectangle
+                // Accelerate currentSpeed toward target speed
+                float targetSpeed = speed;
+                if (slowed && !dashing) targetSpeed *= 0.5f;
                 if (!dashing && gp.eHandler.isInWaterZone(
                         worldX + solidArea.x, worldY + solidArea.y,
                         solidArea.width, solidArea.height)) {
-                    moveSpeedX = Math.max(1, moveSpeedX * 3 / 5);
-                    moveSpeedY = Math.max(1, moveSpeedY * 3 / 5);
+                    targetSpeed *= 0.6f;
                 }
+                currentSpeed = Math.min(targetSpeed, currentSpeed + ACCEL_RATE);
+
+                // Build velocity vector from current keys
+                float csX = currentSpeed;
+                float csY = currentSpeed;
+                if (diagonal) {
+                    csX = Math.max(0.5f, csX * 0.7071f);
+                    csY = Math.max(0.5f, csY * 0.7071f);
+                }
+
+                inertiaVelX = movingLeft ? -csX : movingRight ? csX : 0f;
+                inertiaVelY = movingUp   ? -csY : movingDown  ? csY : 0f;
+
+                int moveSpeedX = Math.max(1, Math.round(Math.abs(inertiaVelX)));
+                int moveSpeedY = Math.max(1, Math.round(Math.abs(inertiaVelY)));
 
                 if (movingHorizontal && !keyH.enterPressed) {
                     int savedDir = direction;
@@ -655,6 +674,45 @@ public class Player extends Entity {
             } else {
                 footstepParticleCounter = 0;
                 idleDelayCounter++;
+
+                // Inertia: keep sliding in last direction, decelerating each frame
+                if (currentSpeed > 0f) {
+                    currentSpeed = Math.max(0f, currentSpeed - DECEL_RATE);
+                    if (currentSpeed > 0f && (Math.abs(inertiaVelX) > 0f || Math.abs(inertiaVelY) > 0f)) {
+                        float mag = (float) Math.sqrt(inertiaVelX * inertiaVelX + inertiaVelY * inertiaVelY);
+                        float nx = inertiaVelX / mag;
+                        float ny = inertiaVelY / mag;
+                        int ivx = Math.round(nx * currentSpeed);
+                        int ivy = Math.round(ny * currentSpeed);
+
+                        if (ivx != 0) {
+                            int savedDir = direction;
+                            direction = ivx < 0 ? DIR_LEFT : DIR_RIGHT;
+                            collisionOn = false;
+                            gp.cChecker.checkTile(this);
+                            gp.cChecker.checkObject(this, false);
+                            gp.cChecker.checkEntity(this, gp.npc);
+                            gp.cChecker.checkEntity(this, gp.monster);
+                            gp.cChecker.checkEntity(this, gp.iTile);
+                            if (!collisionOn) worldX += ivx;
+                            else { inertiaVelX = 0f; }
+                            direction = savedDir;
+                        }
+                        if (ivy != 0) {
+                            int savedDir = direction;
+                            direction = ivy < 0 ? DIR_UP : DIR_DOWN;
+                            collisionOn = false;
+                            gp.cChecker.checkTile(this);
+                            gp.cChecker.checkObject(this, false);
+                            gp.cChecker.checkEntity(this, gp.npc);
+                            gp.cChecker.checkEntity(this, gp.monster);
+                            gp.cChecker.checkEntity(this, gp.iTile);
+                            if (!collisionOn) worldY += ivy;
+                            else { inertiaVelY = 0f; }
+                            direction = savedDir;
+                        }
+                    }
+                }
 
                 if (idleDelayCounter >= idleStartDelayFrames) {
                     updateIdleSprite();

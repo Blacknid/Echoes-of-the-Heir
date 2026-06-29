@@ -19,6 +19,11 @@
   "player_hitbox_w": 24,
   "player_hitbox_h": 24,
 
+  "_comment_dashboard": "Admin dashboard (HTTP) — set admin_password to enable. Access at http://<server-ip>:8888/",
+  "dashboard_port": 8888,
+  "admin_password": "CHANGE_ME_BEFORE_DEPLOYING",
+  "saves_db_path": "",
+
   "maps": {
     "harta":          { "width": 100, "height": 100 },
     "awakening_cave": { "width": 50,  "height": 50  }

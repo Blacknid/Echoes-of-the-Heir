@@ -1335,10 +1335,12 @@ public class GamePanel extends JPanel implements Runnable{
      * Uses the local player's sprite frames when available.
      */
     public void drawRemotePlayers(Graphics2D g2) {
-        for (var entry : mpClient.remotePlayers.entrySet()) {
+        long nowNs = System.nanoTime();
+        for (java.util.Map.Entry<Integer, MultiplayerClient.RemotePlayerState> entry : mpClient.remotePlayers.entrySet()) {
             MultiplayerClient.RemotePlayerState rp = entry.getValue();
-            int screenPosX = rp.worldX - player.worldX + player.screenX;
-            int screenPosY = rp.worldY - player.worldY + player.screenY;
+            float[] interp = rp.evalSpline(nowNs);
+            int screenPosX = Math.round(interp[0]) - player.worldX + player.screenX;
+            int screenPosY = Math.round(interp[1]) - player.worldY + player.screenY;
 
             // Skip if off-screen
             if (screenPosX + tileSize < -tileSize || screenPosX > screenWidth + tileSize) continue;

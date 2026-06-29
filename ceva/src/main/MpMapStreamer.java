@@ -263,6 +263,8 @@ public class MpMapStreamer {
     private void finishWorldLoad() {
         if (!worldReady.compareAndSet(false, true)) return;
         try {
+            // Reset all player state so singleplayer stats/inventory cannot carry over.
+            gp.player.setDefaultValues();
             // Refresh derived caches that rely on tile data (collision rect
             // cache is built from objectgroups already; this is here in case
             // future caches depend on the now-populated tile grids).

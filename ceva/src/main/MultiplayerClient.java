@@ -219,9 +219,7 @@ public class MultiplayerClient {
                     + "\"y\":"        + sy          + ","
                     + "\"dir\":"      + p.direction + ","
                     + "\"sprite\":"   + p.spriteNum + ","
-                    + "\"attacking\":" + p.attacking + ","
-                    + "\"life\":"     + p.life      + ","
-                    + "\"maxLife\":"  + p.maxLife
+                    + "\"attacking\":" + p.attacking
                     + "}";
             sendEncrypted(msg);
         } catch (Exception e) {
@@ -500,8 +498,43 @@ public class MultiplayerClient {
                         remotePlayers.put(id, rp);
                     }
                     int coordScale = gp.tileSize / gp.originalTileSize;
-                    rp.worldX     = extractInt(json, "x",       0) * coordScale;
-                    rp.worldY     = extractInt(json, "y",       0) * coordScale;
+                    int newX = extractInt(json, "x", 0) * coordScale;
+                    int newY = extractInt(json, "y", 0) * coordScale;
+
+                    // Server velocity is in px/server-tick (at 32px tile space); scale to client space.
+                    float rawVx = (float) extractDouble(json, "vx", 0.0) * coordScale;
+                    float rawVy = (float) extractDouble(json, "vy", 0.0) * coordScale;
+
+                    long nowNs = System.nanoTime();
+                    // Expected duration of the next segment matches the server broadcast interval.
+                    long segDurNs = 1_000_000_000L / 20; // 50 ms in nanoseconds
+
+                    if (!rp.spReady) {
+                        // First update: snap to position, no spline yet.
+                        rp.spPsX = newX; rp.spPsY = newY;
+                        rp.spPeX = newX; rp.spPeY = newY;
+                        rp.spVsX = 0f;   rp.spVsY = 0f;
+                        rp.spVeX = rawVx / segDurNs; rp.spVeY = rawVy / segDurNs;
+                        rp.spStartNs = nowNs;
+                        rp.spDurationNs = segDurNs;
+                        rp.spReady = true;
+                    } else {
+                        // Sample current visual position and velocity to use as the new start.
+                        float[] pos = rp.evalSpline(nowNs);
+                        // Derivative of Hermite at current t: dP/dt / duration.
+                        float curVxPxNs = hermiteVelocity(rp, nowNs);
+                        float curVyPxNs = hermiteVelocityY(rp, nowNs);
+
+                        rp.spPsX = pos[0];          rp.spPsY = pos[1];
+                        rp.spVsX = curVxPxNs;       rp.spVsY = curVyPxNs;
+                        rp.spPeX = newX;             rp.spPeY = newY;
+                        rp.spVeX = rawVx / segDurNs; rp.spVeY = rawVy / segDurNs;
+                        rp.spStartNs = nowNs;
+                        rp.spDurationNs = segDurNs;
+                    }
+
+                    rp.worldX     = newX;
+                    rp.worldY     = newY;
                     rp.direction  = extractInt(json, "dir",     rp.direction);
                     rp.spriteNum  = extractInt(json, "sprite",  rp.spriteNum);
                     rp.attacking  = extractBool(json, "attacking");
@@ -526,6 +559,24 @@ public class MultiplayerClient {
                 String reason = extractString(json, "reason");
                 connectionStatus = "Kicked: " + (reason != null ? reason : "No reason");
                 disconnect();
+            }
+            case "player_stats" -> {
+                var p = gp.player;
+                p.level         = extractInt(json, "level",        p.level);
+                p.maxLife       = extractInt(json, "maxLife",      p.maxLife);
+                p.life          = extractInt(json, "life",         p.life);
+                p.strenght      = extractInt(json, "strength",     p.strenght);
+                p.dexterity     = extractInt(json, "dexterity",    p.dexterity);
+                p.maxMana       = extractInt(json, "maxMana",      p.maxMana);
+                p.mana          = extractInt(json, "mana",         p.mana);
+                p.exp           = extractInt(json, "exp",          p.exp);
+                p.nextLevelExp  = extractInt(json, "nextLevelExp", p.nextLevelExp);
+                p.coin          = extractInt(json, "coin",         p.coin);
+                p.skillPoints   = extractInt(json, "skillPoints",  p.skillPoints);
+                p.attack        = p.getAttack();
+                p.defense       = p.getDefense();
+                System.out.println("[MP Client] Server stats applied: level=" + p.level
+                        + " life=" + p.life + "/" + p.maxLife);
             }
             case "mob_damage" -> handleMobDamage(json);
             case "mob_death" -> handleMobDeath(json);
@@ -809,6 +860,42 @@ public class MultiplayerClient {
         return b.toString();
     }
 
+    // ── Hermite spline derivative helpers ──
+
+    /**
+     * Returns the X component of the spline's instantaneous velocity at {@code nowNs},
+     * in pixels per nanosecond — the same units as {@code spVsX}/{@code spVeX}.
+     * Formula: dP/dt = (6t²-6t)Ps + (3t²-4t+1)Vs + (-6t²+6t)Pe + (3t²-2t)Ve,
+     * then divide by duration to convert from px/segment → px/ns.
+     */
+    private static float hermiteVelocity(RemotePlayerState rp, long nowNs) {
+        if (!rp.spReady || rp.spDurationNs <= 0) return 0f;
+        float t = Math.min(1.3f, (float)(nowNs - rp.spStartNs) / rp.spDurationNs);
+        float t2 = t * t;
+        float dh00 = 6*t2 - 6*t;
+        float dh10 = 3*t2 - 4*t + 1;
+        float dh01 = -6*t2 + 6*t;
+        float dh11 = 3*t2 - 2*t;
+        float vsX = rp.spVsX * rp.spDurationNs;
+        float veX = rp.spVeX * rp.spDurationNs;
+        float dpdt = dh00 * rp.spPsX + dh10 * vsX + dh01 * rp.spPeX + dh11 * veX;
+        return dpdt / rp.spDurationNs;
+    }
+
+    private static float hermiteVelocityY(RemotePlayerState rp, long nowNs) {
+        if (!rp.spReady || rp.spDurationNs <= 0) return 0f;
+        float t = Math.min(1.3f, (float)(nowNs - rp.spStartNs) / rp.spDurationNs);
+        float t2 = t * t;
+        float dh00 = 6*t2 - 6*t;
+        float dh10 = 3*t2 - 4*t + 1;
+        float dh01 = -6*t2 + 6*t;
+        float dh11 = 3*t2 - 2*t;
+        float vsY = rp.spVsY * rp.spDurationNs;
+        float veY = rp.spVeY * rp.spDurationNs;
+        float dpdt = dh00 * rp.spPsY + dh10 * vsY + dh01 * rp.spPeY + dh11 * veY;
+        return dpdt / rp.spDurationNs;
+    }
+
     // ── Simple JSON helpers for inbound application messages ──
 
     private static String extractString(String json, String key) {
@@ -964,10 +1051,59 @@ public class MultiplayerClient {
     public static class RemotePlayerState {
         public String name = "Player";
         public String playerClass = "Fighter";
+
+        // Canonical world position (set from server; used as spline endpoint).
         public int worldX, worldY;
+
+        // Cubic Hermite spline segment for smooth interpolation between server snapshots.
+        // All positions in client pixel space; velocities in px per nanosecond.
+        public float spPsX, spPsY;          // start position
+        public float spPeX, spPeY;          // end position
+        public float spVsX, spVsY;          // start velocity (px/ns)
+        public float spVeX, spVeY;          // end velocity   (px/ns)
+        public long  spStartNs;             // System.nanoTime() at segment start
+        public long  spDurationNs;          // expected duration of this segment
+        public boolean spReady = false;     // false until we have at least one update
+
         public int direction = 0;
         public int spriteNum = 1;
         public boolean attacking = false;
         public int life = 6, maxLife = 6;
+
+        /**
+         * Evaluates the cubic Hermite spline at the given render time and returns
+         * the interpolated (x, y) in client pixel space as a two-element float array.
+         *
+         * P(t) = (2t³ - 3t² + 1)Ps + (t³ - 2t² + t)Vs + (-2t³ + 3t²)Pe + (t³ - t²)Ve
+         *
+         * Vs and Ve here are the tangents scaled to the segment duration
+         * (velocity px/ns × durationNs = px per segment), so that t=1 lands
+         * exactly on Pe with the correct exit slope.
+         */
+        public float[] evalSpline(long nowNs) {
+            if (!spReady) return new float[]{ worldX, worldY };
+            long elapsed = nowNs - spStartNs;
+            // Clamp t to [0, 1.3] — allow slight overshoot rather than hard-snapping.
+            float t = spDurationNs > 0 ? (float) elapsed / spDurationNs : 1f;
+            if (t > 1.3f) t = 1.3f;
+
+            // Scale velocity from px/ns to px/segment so the Hermite formula works correctly.
+            float vsX = spVsX * spDurationNs;
+            float vsY = spVsY * spDurationNs;
+            float veX = spVeX * spDurationNs;
+            float veY = spVeY * spDurationNs;
+
+            float t2 = t * t;
+            float t3 = t2 * t;
+            float h00 = 2*t3 - 3*t2 + 1;
+            float h10 = t3  - 2*t2  + t;
+            float h01 = -2*t3 + 3*t2;
+            float h11 = t3  - t2;
+
+            return new float[]{
+                h00 * spPsX + h10 * vsX + h01 * spPeX + h11 * veX,
+                h00 * spPsY + h10 * vsY + h01 * spPeY + h11 * veY,
+            };
+        }
     }
 }

@@ -2,53 +2,26 @@
 """
 Michi's Adventure - Cloud Save Server v2
 
-Hardened protocol:
-  - RSA-OAEP-SHA256 for handshake
-  - AES-256-GCM (AEAD) for the entire session
-  - HKDF-SHA256 for delivery & session key derivation
-  - Anti-replay: signed timestamp + per-handshake nonces (5-min nonce cache)
-  - Per-IP sliding-window rate limiting
-  - Per-direction sequence numbers bound into AES-GCM AAD
-  - Optional `server_config.json` for bind host/port/limits
-
-Wire format (all lines are newline-terminated):
-  PING path  (no auth):
-    C -> "PING"
-    S -> "PONG"
+Wire format (newline-terminated):
+  PING  ->  PONG
 
   Authenticated path:
-    1) C -> "HELLO v2 <base64(client_nonce_16)>"
-    2) S -> "OK <base64(server_nonce_16)>"
-    3) C -> "AUTH <base64(rsa_oaep_sha256(handshake_json))>"
-       handshake_json = {
-         "license":      "XXXXXXXX-YYYY",
-         "ts":           <unix epoch seconds, server-window 60s>,
-         "client_nonce": <hex>,
-         "server_nonce": <hex>
-       }
-    4) S validates license + ts window + nonce match + replay cache.
-       If invalid: S -> "AUTH_FAIL"
-       If valid:
-         delivery_key = HKDF(license_bytes, salt=server_nonce, info="michi-delivery-v2", L=32)
-         session_key  = random 32 bytes
-         enc_session  = AES-GCM(session_key, key=delivery_key, nonce=client_nonce[:12], aad="MichiCloudSession")
-         S -> "AUTH_OK <base64(enc_session)>"
+    C -> "HELLO v2 <base64(client_nonce_16)>"
+    S -> "OK <base64(server_nonce_16)>"
+    C -> "AUTH <base64(rsa_oaep_sha256(handshake_json))> <machine_fp> <sig_b64>"
+         handshake_json = { "license", "ts", "client_nonce" (hex), "server_nonce" (hex) }
+    S -> "AUTH_OK <base64(aesgcm(session_key, key=delivery_key, nonce=cn[:12], aad='MichiCloudSession'))>"
+      or "AUTH_FAIL"
 
-    5) Both sides now exchange AEAD-framed lines:
-       wire = "DATA <base64(seq_8 || nonce_12 || ciphertext || tag_16)>"
-       AAD  = direction_byte (0x01 server->client, 0x02 client->server) || seq_8_BE
-       Each direction starts seq=0 and increments by 1 per message.
+  Session frames (AEAD):
+    wire = "DATA <base64(seq_8 || nonce_12 || ciphertext || tag_16)>"
+    AAD  = direction_byte (0x01 S->C, 0x02 C->S) || seq_8_BE
 
-    6) Application messages (after AEAD wrapping) are JSON:
-       Client -> Server:
-         {"cmd":"UPLOAD",  "data":<base64-of-save-bytes>}
-         {"cmd":"DOWNLOAD"}
-       Server -> Client:
-         {"status":"SAVED"}
-         {"status":"SYNC", "data":<base64-of-newer-save-bytes>}
-         {"status":"DOWNLOADED", "data":<base64-of-save-bytes>}
-         {"status":"NO_SAVE"}
-         {"status":"ERROR", "msg":"..."}
+  Commands (JSON inside AEAD):
+    C -> { "cmd": "UPLOAD",   "data": <base64> }
+    C -> { "cmd": "DOWNLOAD" }
+    C -> { "cmd": "CLAIM_USERNAME", "username": "..." }
+    C -> { "cmd": "CHECK_USERNAME", "username": "..." }
 """
 from __future__ import annotations
 
@@ -76,7 +49,6 @@ from cryptography.hazmat.primitives.kdf.hkdf import HKDF
 
 import license_verify
 
-# ── Defaults / constants ────────────────────────────────────────────────────
 BASE_DIR = Path(__file__).resolve().parent
 CONFIG_PATH = BASE_DIR / "server_config.json"
 SAVE_DIR = BASE_DIR / "saves"
@@ -111,7 +83,6 @@ DEFAULT_CONFIG = {
 }
 
 
-# ── Logging ─────────────────────────────────────────────────────────────────
 def configure_logging() -> None:
     BASE_DIR.mkdir(parents=True, exist_ok=True)
     SAVE_DIR.mkdir(parents=True, exist_ok=True)
@@ -129,7 +100,6 @@ def configure_logging() -> None:
     root.addHandler(sh)
 
 
-# ── Configuration ───────────────────────────────────────────────────────────
 def load_config() -> dict:
     cfg = dict(DEFAULT_CONFIG)
     if CONFIG_PATH.exists():
@@ -143,11 +113,8 @@ def load_config() -> dict:
     return cfg
 
 
-# ── RSA private key ────────────────────────────────────────────────────────
 _private_key = None
-
-# ── License-verification globals (populated in serve_forever) ──────────────
-_LICENSE_PUB = None           # cryptography RSAPublicKey or None (placeholder)
+_LICENSE_PUB = None
 
 
 def load_private_key(path: Path) -> None:
@@ -169,18 +136,13 @@ def rsa_oaep_decrypt(ct: bytes) -> bytes:
     )
 
 
-# ── License structural sanity check ────────────────────────────────────────
-# Cheap pre-filter: reject obvious garbage before doing RSA work. The real
-# trust is the RSA signature + registry allow-list — this is just to bail
-# out fast on absurd input. Accept anything that looks like a printable,
-# reasonably-sized alphanumeric / dash token.
+# Cheap pre-filter before doing RSA work — real trust is the RSA signature.
 _LICENSE_KEY_RE = __import__("re").compile(r"^[A-Z0-9][A-Z0-9\-]{3,63}$")
 
 def license_is_well_formed(license_key: str) -> bool:
     return isinstance(license_key, str) and bool(_LICENSE_KEY_RE.match(license_key))
 
 
-# ── Per-IP rate limiter (sliding window, in-memory) ────────────────────────
 class IpRateLimiter:
     def __init__(self, max_per_minute: int):
         self.max_per_minute = max_per_minute
@@ -200,7 +162,6 @@ class IpRateLimiter:
             return True
 
 
-# ── Anti-replay nonce cache ────────────────────────────────────────────────
 class NonceCache:
     def __init__(self, ttl: int = NONCE_REPLAY_WINDOW):
         self.ttl = ttl
@@ -208,11 +169,9 @@ class NonceCache:
         self._lock = threading.Lock()
 
     def check_and_store(self, nonce: bytes) -> bool:
-        """Return True if nonce is fresh; False if it's a replay."""
         now = time.monotonic()
         with self._lock:
             cutoff = now - self.ttl
-            # Periodic cleanup
             if len(self._seen) > 4096:
                 self._seen = {k: v for k, v in self._seen.items() if v >= cutoff}
             if nonce in self._seen and self._seen[nonce] >= cutoff:
@@ -221,7 +180,6 @@ class NonceCache:
             return True
 
 
-# ── Database (sqlite, WAL) ─────────────────────────────────────────────────
 _db_lock = threading.Lock()
 
 
@@ -247,8 +205,7 @@ def init_db() -> None:
                 status      TEXT    NOT NULL
             )
         """)
-        # Username registry: one username per license, globally unique.
-        # claim_username() enforces uniqueness atomically.
+        # One username per license, globally unique; claim_username() is atomic.
         con.execute("""
             CREATE TABLE IF NOT EXISTS usernames (
                 username     TEXT PRIMARY KEY,
@@ -260,7 +217,6 @@ def init_db() -> None:
         con.close()
 
 
-# ── Username registry ───────────────────────────────────────────────────────
 _USERNAME_RE = __import__("re").compile(r"^[A-Za-z0-9_\-]{1,20}$")
 
 def username_is_valid(name: str) -> bool:
@@ -268,13 +224,7 @@ def username_is_valid(name: str) -> bool:
 
 
 def claim_username(username: str, license_key: str) -> str:
-    """Try to claim *username* for *license_key*.
-
-    Returns:
-      "CLAIMED"  — success (new claim or same license already owns it)
-      "TAKEN"    — owned by a different license
-      "INVALID"  — name fails validation
-    """
+    """Returns "CLAIMED", "TAKEN", or "INVALID"."""
     if not username_is_valid(username):
         return "INVALID"
     now = time.strftime("%Y-%m-%d %H:%M:%S", time.gmtime())
@@ -289,11 +239,9 @@ def claim_username(username: str, license_key: str) -> str:
             ).fetchone()
             if row is not None:
                 if row[0] == license_key:
-                    return "CLAIMED"   # already ours
+                    return "CLAIMED"
                 return "TAKEN"
-            # Remove any previous username this license held
             con.execute("DELETE FROM usernames WHERE license_key = ?", (license_key,))
-            # Claim new one
             con.execute(
                 "INSERT INTO usernames (username, license_key, claimed_at) VALUES (?, ?, ?)",
                 (username, license_key, now),
@@ -301,20 +249,13 @@ def claim_username(username: str, license_key: str) -> str:
             con.commit()
             return "CLAIMED"
         except sqlite3.IntegrityError:
-            # Race: another thread inserted the same username between our SELECT and INSERT
             return "TAKEN"
         finally:
             con.close()
 
 
 def check_username(username: str, license_key: str) -> str:
-    """Check whether *username* is available for *license_key*.
-
-    Returns:
-      "AVAILABLE" — not claimed, or claimed by this license
-      "TAKEN"     — claimed by a different license
-      "INVALID"   — name fails validation
-    """
+    """Returns "AVAILABLE", "TAKEN", or "INVALID"."""
     if not username_is_valid(username):
         return "INVALID"
     with _db_lock:
@@ -411,7 +352,6 @@ def log_event(client_ip: str, license_key: str, status: str) -> None:
         pass
 
 
-# ── KDF / AEAD helpers ─────────────────────────────────────────────────────
 def hkdf(secret: bytes, salt: bytes, info: bytes, length: int = 32) -> bytes:
     return HKDF(algorithm=hashes.SHA256(), length=length, salt=salt, info=info).derive(secret)
 
@@ -428,7 +368,6 @@ def aesgcm_decrypt(ciphertext: bytes, key: bytes, nonce: bytes, aad: bytes) -> b
     return AESGCM(key).decrypt(nonce, ciphertext, aad)
 
 
-# ── Network framing ────────────────────────────────────────────────────────
 def send_line(conn: socket.socket, msg: str) -> None:
     conn.sendall((msg + "\n").encode("utf-8"))
 
@@ -445,7 +384,6 @@ def recv_line(conn: socket.socket, max_bytes: int = MAX_LINE_BYTES) -> str:
     raise ValueError("line too long")
 
 
-# ── Encrypted session helper ───────────────────────────────────────────────
 class Session:
     DIR_S2C = b"\x01"
     DIR_C2S = b"\x02"
@@ -490,15 +428,9 @@ class Session:
         return json.loads(plaintext.decode("utf-8"))
 
 
-# ── Client handler ──────────────────────────────────────────────────────────
 def _handle_internal(conn: socket.socket, client_ip: str, cfg: dict,
                      cmd_json: dict) -> str:
-    """Handle an internal (loopback) unauthenticated command.
-
-    The caller is the multiplayer server running on the same host.
-    Only callable from 127.0.0.1/::1; validated by shared api_key in config.
-    Returns a status string for logging.
-    """
+    """Handle a loopback-only command from the MP server (no RSA handshake needed)."""
     cmd = str(cmd_json.get("cmd", "")).upper()
     license_key = str(cmd_json.get("license", ""))[:32]
     username    = str(cmd_json.get("username", ""))[:32]
@@ -525,16 +457,11 @@ def handle_client(conn: socket.socket, addr: tuple[str, int],
     try:
         first = recv_line(conn, max_bytes=512)
 
-        # Fast PING path (no auth) for heartbeats
         if first == "PING":
             send_line(conn, "PONG")
             status = "PING"
             return
 
-        # ── Internal API path (loopback only) ──────────────────────────────
-        # The multiplayer server uses this to check/claim usernames without
-        # going through the full RSA handshake.  Only accepted from 127.0.0.1
-        # and ::1, and requires a pre-shared api_key in server_config.json.
         if first.startswith("INTERNAL "):
             is_loopback = client_ip in ("127.0.0.1", "::1", "localhost")
             internal_api_key = cfg.get("internal_api_key", "")
@@ -554,9 +481,6 @@ def handle_client(conn: socket.socket, addr: tuple[str, int],
                 status = "INTERNAL_FORBIDDEN"
             return
 
-        # The first authenticated line MUST be HELLO. Inject `first` back into
-        # the handshake by handling it ourselves rather than re-reading.
-        # We do this by faking the recv: re-implement perform_handshake inline.
         parts = first.split(" ")
         if len(parts) != 3 or parts[0] != "HELLO" or parts[1] != PROTOCOL_TAG:
             send_line(conn, "AUTH_FAIL")
@@ -603,15 +527,11 @@ def handle_client(conn: socket.socket, addr: tuple[str, int],
             status = "AUTH_NONCE_FORMAT"
             return
 
-        # Step 1 (cheap): structural sanity check. Real trust comes from
-        # the RSA signature (Step 2).
         if not license_is_well_formed(license_key):
             send_line(conn, "AUTH_FAIL")
             status = "AUTH_BAD_LICENSE"
             return
 
-        # Step 2: RSA signature over "license|machine_fp" must verify
-        # against the installer's public key (unless dev_mode).
         if not cfg.get("dev_mode", False):
             pub = _LICENSE_PUB
             if pub is not None:
@@ -653,7 +573,6 @@ def handle_client(conn: socket.socket, addr: tuple[str, int],
         )
         send_line(conn, "AUTH_OK " + base64.b64encode(enc_session).decode("ascii"))
 
-        # ── Encrypted command/response loop ──
         conn.settimeout(cfg["session_timeout_seconds"])
         sess = Session(conn, session_key, cfg["max_payload_bytes"])
 
@@ -761,7 +680,6 @@ def handle_client(conn: socket.socket, addr: tuple[str, int],
             pass
 
 
-# ── Entry point ────────────────────────────────────────────────────────────
 def serve_forever() -> None:
     configure_logging()
     cfg = load_config()
@@ -777,7 +695,6 @@ def serve_forever() -> None:
         sys.exit(2)
     load_private_key(pk_path)
 
-    # Load the license public key. No allow-list — RSA signature is the sole trust.
     global _LICENSE_PUB
     _LICENSE_PUB = license_verify.load_public_key(cfg.get("license_public_key_b64", ""))
     if _LICENSE_PUB is None and not cfg.get("dev_mode", False):

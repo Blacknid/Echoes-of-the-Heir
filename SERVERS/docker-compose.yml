@@ -82,10 +82,15 @@ services:
     restart: unless-stopped
     ports:
       - "7777:7777"
+      - "8888:8888"
     volumes:
       - ./multiplayer_server/mp_config.json:/srv/multiplayer_server/mp_config.json:ro
       - ./multiplayer_server/server_private_key.pem:/srv/multiplayer_server/server_private_key.pem:ro
       - ./multiplayer_server/maps:/srv/multiplayer_server/maps:ro
+      # Admin notes persist across container restarts (create the file first: touch ./multiplayer_server/admin_notes.json)
+      - ./multiplayer_server/admin_notes.json:/srv/multiplayer_server/admin_notes.json
+      # Read-only saves.db access for username lookup in the dashboard
+      - ./save_server/saves.db:/srv/save_server/saves.db:ro
     healthcheck:
       test: ["CMD-SHELL", "python -c \"import socket,sys; s=socket.socket(); s.settimeout(2); s.connect(('127.0.0.1',7777)); s.close()\" || exit 1"]
       interval: 30s
