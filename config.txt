@@ -4,5 +4,6 @@ seVolume=2
 vsync=On
 fpsTarget=60
 graphicsQuality=2
+stretchToFill=Off
 windowX=152
 windowY=42
