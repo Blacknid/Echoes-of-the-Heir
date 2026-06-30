@@ -98,18 +98,10 @@ public class Config {
             bw.write("fpsTarget=" + fpsTarget);                           bw.newLine();
             bw.write("graphicsQuality=" + graphicsQuality);                bw.newLine();
             bw.write("stretchToFill=" + (Config.stretchToFill ? "On" : "Off")); bw.newLine();
-            // Save window position: use live coords when windowed, saved bounds when fullscreen
-            int wx, wy;
-            if (!gp.fullScreenOn && Main.window != null) {
-                wx = Main.window.getX();
-                wy = Main.window.getY();
-            } else if (gp.windowedBounds != null) {
-                wx = gp.windowedBounds.x;
-                wy = gp.windowedBounds.y;
-            } else {
-                wx = windowX;
-                wy = windowY;
-            }
+            // Save window position. The window is owned by libGDX (backend-specific); to keep
+            // core backend-agnostic (Android-portable), we persist the last saved coords rather
+            // than querying the live window here.
+            int wx = windowX, wy = windowY;
             if (wx >= 0 && wy >= 0) {
                 bw.write("windowX=" + wx); bw.newLine();
                 bw.write("windowY=" + wy); bw.newLine();

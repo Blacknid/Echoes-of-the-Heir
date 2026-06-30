@@ -1,21 +1,11 @@
 package main;
 
-import java.awt.Color;
-import java.awt.Dimension;
-import java.awt.Font;
-import java.awt.Graphics;
-import java.awt.Graphics2D;
-import java.awt.GraphicsDevice;
-import java.awt.GraphicsEnvironment;
-import java.awt.Rectangle;
-import java.awt.Toolkit;
-import java.awt.image.BufferedImage;
+import gfx.Color;
+import gfx.Font;
+import gfx.GdxRenderer;
+import gfx.Sprite;
 import java.util.ArrayList;
 import java.util.Map;
-
-import javax.swing.JFrame;
-import javax.swing.JPanel;
-import javax.swing.SwingUtilities;
 
 import ai.PathFinder;
 import audio.AudioManager;
@@ -43,7 +33,11 @@ import ui.UI;
 import util.ObjectPool;
 import util.ResourceCache;
 
-public class GamePanel extends JPanel implements Runnable{
+// libGDX port: GamePanel is no longer a Swing JPanel/Runnable. It holds all game state and
+// logic; the libGDX MichiGame ApplicationListener drives it (fixed-timestep update() + per-frame
+// draw(GdxRenderer)). Window/fullscreen/resize is handled by Gdx.graphics; input by KeyHandler/
+// MouseHandler (libGDX InputProcessors).
+public class GamePanel {
 
     // Tile sizing is centralized in Config to support runtime scaling.
     public final int originalTileSize = Config.originalTileSize; // 32 x 32 pixel (native)
@@ -84,19 +78,9 @@ public class GamePanel extends JPanel implements Runnable{
     public final int worldWidth = tileSize * maxWorldCol;
     public final int worldHeight = tileSize * maxWorldRow;
     
-    Rectangle windowedBounds;
-    BufferedImage tempScreen;
-    Graphics2D g2;
-    // Saved identity transform — reset at the start of every frame to prevent
-    // AffineTransform accumulation when a translate is not perfectly undone
-    private java.awt.geom.AffineTransform identityTransform;
-
+    // (No Sprite back-buffer / GdxRenderer on the GPU — MichiGame renders straight to the
+    // default framebuffer via a GdxRenderer each frame.)
     public boolean fullScreenOn = false;
-
-    private static final int WCB_SIZE = 18;
-    private static final int WCB_GAP  = 4;
-    private static final int WCB_TOP  = 5;
-    private volatile java.awt.Point wcbHover = null;
     public boolean vSyncOn = true;
 
     private static final int TARGET_UPS = 60; // Fixed simulation rate (game speed)
@@ -119,30 +103,32 @@ public class GamePanel extends JPanel implements Runnable{
     public CutsceneManager csManager = new CutsceneManager(this);
     public PathFinder pFinder = new PathFinder(this);
     public EnvironmentManager eManager = new EnvironmentManager(this);
+    public environment.WindField windField = new environment.WindField(this);
+    public environment.WindPainter windPainter = new environment.WindPainter(this);
     public MapShaderManager mapShader;
     public environment.TileParticleEmitter tileParticleEmitter;
     public ScreenShake screenShake = new ScreenShake();
     public MobSpawner mobSpawner;
     public SaveLoad saveLoad = new SaveLoad(this);
 
-    private static final java.awt.Color PLAYER_GLOW_COLOR = new java.awt.Color(255, 240, 220);
-    private static final java.awt.Color DEFAULT_TORCH_COLOR = new java.awt.Color(255, 170, 60);
+    private static final gfx.Color PLAYER_GLOW_COLOR = new gfx.Color(255, 240, 220);
+    private static final gfx.Color DEFAULT_TORCH_COLOR = new gfx.Color(255, 170, 60);
 
-    private static final java.awt.Font DEBUG_FONT = new java.awt.Font("Consolas", java.awt.Font.PLAIN, 13);
-    private static final java.awt.Color DEBUG_BG_COLOR = new java.awt.Color(0, 0, 0, 160);
-    private static final java.awt.Color DEBUG_FPS_GREEN = new java.awt.Color(80, 255, 80);
-    private static final java.awt.Color DEBUG_FPS_YELLOW = new java.awt.Color(255, 220, 60);
-    private static final java.awt.Color DEBUG_FPS_RED = new java.awt.Color(255, 80, 80);
-    private static final java.awt.Color DEBUG_INFO_BLUE = new java.awt.Color(120, 200, 255);
-    private static final java.awt.Color MP_TINT_COLOR  = new java.awt.Color(100, 180, 255);
-    private static final java.awt.Color MP_FILL_COLOR  = new java.awt.Color(80, 160, 240, 200);
-    private static final java.awt.Color MP_BORDER_CLR  = new java.awt.Color(50, 120, 200);
-    private static final java.awt.Color MP_NAME_SHADOW = new java.awt.Color(0, 0, 0, 160);
-    private static final java.awt.Color MP_NAME_COLOR  = new java.awt.Color(180, 220, 255);
-    private static final java.awt.Color MP_BAR_BG      = new java.awt.Color(40, 40, 40, 180);
-    private static final java.awt.Color MP_BAR_GREEN   = new java.awt.Color(60, 200, 80);
-    private static final java.awt.Color MP_BAR_RED     = new java.awt.Color(220, 60, 60);
-    private static final java.awt.BasicStroke MP_STROKE_2 = new java.awt.BasicStroke(2f);
+    private static final gfx.Font DEBUG_FONT = new gfx.Font("Consolas", gfx.Font.PLAIN, 13);
+    private static final gfx.Color DEBUG_BG_COLOR = new gfx.Color(0, 0, 0, 160);
+    private static final gfx.Color DEBUG_FPS_GREEN = new gfx.Color(80, 255, 80);
+    private static final gfx.Color DEBUG_FPS_YELLOW = new gfx.Color(255, 220, 60);
+    private static final gfx.Color DEBUG_FPS_RED = new gfx.Color(255, 80, 80);
+    private static final gfx.Color DEBUG_INFO_BLUE = new gfx.Color(120, 200, 255);
+    private static final gfx.Color MP_TINT_COLOR  = new gfx.Color(100, 180, 255);
+    private static final gfx.Color MP_FILL_COLOR  = new gfx.Color(80, 160, 240, 200);
+    private static final gfx.Color MP_BORDER_CLR  = new gfx.Color(50, 120, 200);
+    private static final gfx.Color MP_NAME_SHADOW = new gfx.Color(0, 0, 0, 160);
+    private static final gfx.Color MP_NAME_COLOR  = new gfx.Color(180, 220, 255);
+    private static final gfx.Color MP_BAR_BG      = new gfx.Color(40, 40, 40, 180);
+    private static final gfx.Color MP_BAR_GREEN   = new gfx.Color(60, 200, 80);
+    private static final gfx.Color MP_BAR_RED     = new gfx.Color(220, 60, 60);
+    private static final gfx.Stroke MP_STROKE_2 = new gfx.Stroke(2f);
     private static final int DEBUG_ROW_DEBUG_TEXT = 0;
     private static final int DEBUG_ROW_HITBOXES = 1;
     private static final int DEBUG_ROW_PATHS = 2;
@@ -157,7 +143,7 @@ public class GamePanel extends JPanel implements Runnable{
     private static final int DEBUG_ROW_TARGET_MAP = 11;
     private static final int DEBUG_ROW_TELEPORT_TARGET = 12;
     private static final int DEBUG_MENU_ROWS = 13;
-    private java.awt.Font mpNametagFont;
+    private gfx.Font mpNametagFont;
 
 
     public Minimap minimap;
@@ -193,14 +179,18 @@ public class GamePanel extends JPanel implements Runnable{
     public int getCamWorldY() { return cameraLocked ? cameraWorldY : player.worldY; }
     public int getCamScreenX() { return player.screenX; }
     public int getCamScreenY() { return player.screenY; }
-    /** Map a raw panel-space point (mouse event coords) to game-space (logical back-buffer) coords. */
-    public java.awt.Point panelToGame(int px, int py) {
-        if (displayScaleF <= 0f) return new java.awt.Point(px, py);
+    /**
+     * Map raw window-space pointer coords (libGDX touch) to game-space coords, returned as
+     * int[]{x,y}. libGDX touch coords already share the game's top-left origin (y-down camera);
+     * in dynamic-viewport mode the transform is 1:1 (displayScaleF=1, no offset).
+     */
+    public int[] panelToGame(int px, int py) {
+        if (displayScaleF <= 0f) return new int[]{px, py};
         int gx = (int)((px - displayOffsetX) / displayScaleF);
         int gy = (int)((py - displayOffsetY) / displayScaleF);
         gx = Math.max(0, Math.min(screenWidth  - 1, gx));
         gy = Math.max(0, Math.min(screenHeight - 1, gy));
-        return new java.awt.Point(gx, gy);
+        return new int[]{gx, gy};
     }
     public void lockCamera(int tileCol, int tileRow) {
         cameraWorldX = tileCol * tileSize;
@@ -257,106 +247,8 @@ public class GamePanel extends JPanel implements Runnable{
     public String getCurrentMapId() { return mapManager.currentMapId; }
 
     public GamePanel() {
-
-        this.setPreferredSize(new Dimension(screenWidth, screenHeight));
-        this.setBackground(Color.black);
-        this.setDoubleBuffered(true);
-        this.addKeyListener(keyH);
-        this.addMouseListener(mouseH);
-        this.addMouseMotionListener(mouseH);
-        this.addMouseWheelListener(mouseH);
-        this.setFocusable(true);
-
-        // Dynamic viewport: immediately adapt resolution when the panel is resized.
-        addComponentListener(new java.awt.event.ComponentAdapter() {
-            @Override public void componentResized(java.awt.event.ComponentEvent e) {
-                if (!Config.stretchToFill) {
-                    int w = getWidth();
-                    int h = getHeight();
-                    if (w > 0 && h > 0 && (w != screenWidth || h != screenHeight)) {
-                        applyNewResolution(w, h);
-                    }
-                }
-            }
-        });
-
-        // Window drag & resize — the window is always undecorated (no title bar).
-        // Dragging the panel body moves the window; dragging within RESIZE_BORDER pixels
-        // of any edge or corner resizes it. Both are disabled in fullscreen mode.
-        java.awt.Point[]     dragStart = {null};
-        int[]                rDir      = {0};    // active resize direction bitmask (0 = none)
-        java.awt.Rectangle[] rBounds   = {null}; // window bounds at resize start
-        java.awt.Point[]     rScreen   = {null}; // screen cursor pos at resize start
-        addMouseListener(new java.awt.event.MouseAdapter() {
-            @Override public void mousePressed(java.awt.event.MouseEvent e) {
-                java.awt.Rectangle[] btns = getWCBRects();
-                if (btns[0].contains(e.getPoint())) { System.exit(0); return; }
-                if (btns[1].contains(e.getPoint())) { applyFullScreenSetting(!fullScreenOn); return; }
-                if (btns[2].contains(e.getPoint())) {
-                    if (Main.window != null) Main.window.setExtendedState(JFrame.ICONIFIED); return;
-                }
-                if (fullScreenOn || Main.window == null) return;
-                int dir = calcResizeDir(e.getX(), e.getY());
-                if (dir != 0) {
-                    rDir[0]    = dir;
-                    rBounds[0] = Main.window.getBounds();
-                    rScreen[0] = e.getLocationOnScreen();
-                } else {
-                    dragStart[0] = e.getLocationOnScreen();
-                }
-            }
-            @Override public void mouseReleased(java.awt.event.MouseEvent e) {
-                dragStart[0] = null;
-                rDir[0] = 0; rBounds[0] = null; rScreen[0] = null;
-                setCursor(java.awt.Cursor.getDefaultCursor());
-            }
-            @Override public void mouseExited(java.awt.event.MouseEvent e) {
-                wcbHover = null;
-                if (rDir[0] == 0) setCursor(java.awt.Cursor.getDefaultCursor());
-            }
-        });
-        addMouseMotionListener(new java.awt.event.MouseMotionAdapter() {
-            @Override public void mouseMoved(java.awt.event.MouseEvent e) {
-                wcbHover = e.getPoint();
-                if (!fullScreenOn) {
-                    int dir = calcResizeDir(e.getX(), e.getY());
-                    setCursor(dir != 0 ? resizeCursor(dir) : java.awt.Cursor.getDefaultCursor());
-                }
-            }
-            @Override public void mouseDragged(java.awt.event.MouseEvent e) {
-                if (fullScreenOn || Main.window == null) return;
-                // RESIZE: adjust window bounds based on which edge/corner is being dragged
-                if (rDir[0] != 0 && rBounds[0] != null && rScreen[0] != null) {
-                    java.awt.Point cur = e.getLocationOnScreen();
-                    int dx = cur.x - rScreen[0].x;
-                    int dy = cur.y - rScreen[0].y;
-                    java.awt.Rectangle nb = new java.awt.Rectangle(rBounds[0]);
-                    final int MIN_W = 480, MIN_H = 270;
-                    if ((rDir[0] & 2) != 0) { nb.width  = Math.max(MIN_W, rBounds[0].width  + dx); } // E
-                    if ((rDir[0] & 8) != 0) { nb.height = Math.max(MIN_H, rBounds[0].height + dy); } // S
-                    if ((rDir[0] & 1) != 0) { // W: move left edge
-                        int newW = Math.max(MIN_W, rBounds[0].width - dx);
-                        nb.x     = rBounds[0].x + (rBounds[0].width - newW);
-                        nb.width = newW;
-                    }
-                    if ((rDir[0] & 4) != 0) { // N: move top edge
-                        int newH = Math.max(MIN_H, rBounds[0].height - dy);
-                        nb.y      = rBounds[0].y + (rBounds[0].height - newH);
-                        nb.height = newH;
-                    }
-                    Main.window.setBounds(nb);
-                    return;
-                }
-                // DRAG: move the window
-                if (dragStart[0] != null) {
-                    java.awt.Point cur = e.getLocationOnScreen();
-                    java.awt.Point loc = Main.window.getLocation();
-                    Main.window.setLocation(loc.x + cur.x - dragStart[0].x,
-                                            loc.y + cur.y - dragStart[0].y);
-                    dragStart[0] = cur;
-                }
-            }
-        });
+        // libGDX: no Swing listeners/panel setup. Input is registered by MichiGame
+        // (Gdx.input.setInputProcessor over keyH/mouseH); the window is owned by Gdx.graphics.
     }
 
     public void setupGame() {
@@ -388,9 +280,10 @@ public class GamePanel extends JPanel implements Runnable{
             mapObjectLoader.loadMapProperties(initialPath);
         }
         if (!mapManager.pendingDialogueTrigger.isEmpty()) {
-            ui.addMessage(mapManager.pendingDialogueTrigger, new java.awt.Color(255, 240, 180), mapManager.pendingDialogueTriggerDuration);
+            ui.addMessage(mapManager.pendingDialogueTrigger, new gfx.Color(255, 240, 180), mapManager.pendingDialogueTriggerDuration);
             mapManager.pendingDialogueTrigger = "";
         }
+        windField.loadForMap(mapManager.currentMapId, tileM.currentMapCols, tileM.currentMapRows);
     }
     mobSpawner = new MobSpawner(this);
     thoughts = new ThoughtBubble(this);
@@ -452,22 +345,7 @@ public class GamePanel extends JPanel implements Runnable{
         5, "shatter_lake");
 
     renderPipeline = new RenderPipeline(this);
-
-    // Back buffer: plain BufferedImage in system RAM.
-    // CompatibleImage (VRAM/OpenGL texture) is invalidated whenever the Java2D OpenGL
-    // driver recreates its context on a window resize (e.g. fullscreen toggle), causing
-    // drawImage to silently draw nothing. A BufferedImage is never tied to the GL context;
-    // the game loop renders into it in software, and Java2D uploads it to the screen each
-    // frame via OpenGL texture-upload — that one-way copy always works.
-    tempScreen = new BufferedImage(screenWidth, screenHeight, BufferedImage.TYPE_INT_RGB);
-    g2 = tempScreen.createGraphics();
-    
-    g2.setRenderingHint(java.awt.RenderingHints.KEY_RENDERING, java.awt.RenderingHints.VALUE_RENDER_SPEED);
-    g2.setRenderingHint(java.awt.RenderingHints.KEY_INTERPOLATION, java.awt.RenderingHints.VALUE_INTERPOLATION_NEAREST_NEIGHBOR);
-    g2.setRenderingHint(java.awt.RenderingHints.KEY_COLOR_RENDERING, java.awt.RenderingHints.VALUE_COLOR_RENDER_SPEED);
-
-    // Save the clean identity transform so we can reset to it at the start of every frame
-    identityTransform = g2.getTransform();
+    // GPU port: no Sprite back-buffer — MichiGame renders to the screen via GdxRenderer.
     }
 
     public void registerMap(String id, String tmxPath) { mapManager.registerMap(id, tmxPath); }
@@ -477,94 +355,33 @@ public class GamePanel extends JPanel implements Runnable{
     public void resetGame(boolean restart) { mapManager.resetGame(restart); }
 
     public void setFullScreen() {
-
-        applyWindowMode(true);
-
+        applyFullScreenSetting(true);
     }
 
+    /** Toggle fullscreen via libGDX. The window/display is owned by Gdx.graphics. */
     public void applyFullScreenSetting(boolean enable) {
-        if (fullScreenOn == enable) {
-            return;
-        }
-
+        if (fullScreenOn == enable) return;
         fullScreenOn = enable;
-
-        // Ensure Swing window changes happen on EDT to avoid runtime UI issues.
-        SwingUtilities.invokeLater(() -> {
-            applyWindowMode(enable);
-            config.saveConfig();
-        });
-    }
-
-    private void applyWindowMode(boolean enableFullScreen) {
-        JFrame window = Main.window;
-        if (window == null) return;
-
-        // Software-rendering path (sun.java2d.opengl is OFF), so window-geometry
-        // changes no longer destroy the rendering surface. Plain setBounds is
-        // therefore the simplest and most reliable approach across drivers.
-        java.awt.GraphicsDevice gd = window.getGraphicsConfiguration().getDevice();
-        // Defensive: ensure no lingering exclusive-fullscreen mode from a prior build.
-        if (gd.getFullScreenWindow() == window) {
-            gd.setFullScreenWindow(null);
-        }
-
-        if (enableFullScreen) {
-            if (windowedBounds == null || windowedBounds.width <= 0) {
-                windowedBounds = window.getBounds();
-            }
-            java.awt.Rectangle sb = gd.getDefaultConfiguration().getBounds();
-            window.setExtendedState(JFrame.NORMAL);
-            window.setBounds(sb.x, sb.y, sb.width, sb.height);
-        } else {
-            window.setExtendedState(JFrame.NORMAL);
-            if (windowedBounds != null && windowedBounds.width > 0) {
-                window.setBounds(windowedBounds);
-            } else if (config.windowX >= 0 && config.windowY >= 0) {
-                window.setSize(screenWidth, screenHeight);
-                window.setLocation(config.windowX, config.windowY);
+        if (com.badlogic.gdx.Gdx.graphics != null) {
+            if (enable) {
+                com.badlogic.gdx.Gdx.graphics.setFullscreenMode(
+                    com.badlogic.gdx.Gdx.graphics.getDisplayMode());
             } else {
-                window.setSize(screenWidth, screenHeight);
-                window.setLocationRelativeTo(null);
+                com.badlogic.gdx.Gdx.graphics.setWindowedMode(screenWidth, screenHeight);
             }
         }
-
-        window.toFront();
-        requestFocusInWindow();
-        window.validate();
-        window.repaint();
-    }
-
-    /** Recreates the back buffer (e.g. if screen resolution changes at runtime). */
-    private void recreateBackBuffer() {
-        BufferedImage newScreen = new BufferedImage(screenWidth, screenHeight, BufferedImage.TYPE_INT_RGB);
-        Graphics2D newG2 = newScreen.createGraphics();
-        newG2.setRenderingHint(java.awt.RenderingHints.KEY_RENDERING,
-            java.awt.RenderingHints.VALUE_RENDER_SPEED);
-        newG2.setRenderingHint(java.awt.RenderingHints.KEY_INTERPOLATION,
-            java.awt.RenderingHints.VALUE_INTERPOLATION_NEAREST_NEIGHBOR);
-        newG2.setRenderingHint(java.awt.RenderingHints.KEY_COLOR_RENDERING,
-            java.awt.RenderingHints.VALUE_COLOR_RENDER_SPEED);
-        java.awt.geom.AffineTransform newIdentity = newG2.getTransform();
-        synchronized (this) {
-            if (g2 != null) g2.dispose();
-            g2 = newG2;
-            tempScreen = newScreen;
-            identityTransform = newIdentity;
-        }
+        config.saveConfig();
     }
 
     /**
-     * Adapts the logical resolution to the given panel dimensions.
-     * In dynamic-viewport mode (stretchToFill=false) this is called whenever the window
-     * is resized — more or fewer world tiles become visible; no black bars, no scaling.
+     * Adapts the logical resolution to the given window dimensions. Called from MichiGame.resize.
+     * In dynamic-viewport mode more or fewer world tiles become visible; no black bars, no scaling.
      */
-    private void applyNewResolution(int w, int h) {
+    public void applyNewResolution(int w, int h) {
         screenWidth  = w;
         screenHeight = h;
         maxScreenCol = (int)Math.ceil((double)screenWidth  / tileSize) + 1;
         maxScreenRow = (int)Math.ceil((double)screenHeight / tileSize) + 1;
-        recreateBackBuffer();
         if (player != null) {
             player.screenX = screenWidth  / 2 - tileSize / 2;
             player.screenY = screenHeight / 2 - tileSize / 2;
@@ -575,96 +392,8 @@ public class GamePanel extends JPanel implements Runnable{
         if (ui       != null) ui.onResolutionChanged();
     }
 
-    private java.awt.Rectangle[] getWCBRects() {
-        int pw = getWidth();
-        int closeX = pw - WCB_GAP - WCB_SIZE;
-        int fullX  = closeX - WCB_GAP - WCB_SIZE;
-        int minX   = fullX  - WCB_GAP - WCB_SIZE;
-        return new java.awt.Rectangle[] {
-            new java.awt.Rectangle(closeX, WCB_TOP, WCB_SIZE, WCB_SIZE),
-            new java.awt.Rectangle(fullX,  WCB_TOP, WCB_SIZE, WCB_SIZE),
-            new java.awt.Rectangle(minX,   WCB_TOP, WCB_SIZE, WCB_SIZE),
-        };
-    }
-
-    /** Pixels from each window edge that trigger the resize cursor / resize drag. */
-    private static final int RESIZE_BORDER = 8;
-
-    /**
-     * Returns a direction bitmask for a panel-relative mouse position near the window border.
-     * Bit 0 = W (left edge), bit 1 = E (right edge), bit 2 = N (top edge), bit 3 = S (bottom edge).
-     * Returns 0 when not in any resize zone or when fullscreen.
-     */
-    private int calcResizeDir(int mx, int my) {
-        if (fullScreenOn) return 0;
-        int dir = 0;
-        int pw = getWidth(), ph = getHeight();
-        if (mx <= RESIZE_BORDER)        dir |= 1; // W
-        if (mx >= pw - RESIZE_BORDER)   dir |= 2; // E
-        if (my <= RESIZE_BORDER)        dir |= 4; // N
-        if (my >= ph - RESIZE_BORDER)   dir |= 8; // S
-        return dir;
-    }
-
-    /** Maps a resize direction bitmask to the appropriate AWT resize cursor. */
-    private java.awt.Cursor resizeCursor(int dir) {
-        return switch (dir) {
-            case 1  -> java.awt.Cursor.getPredefinedCursor(java.awt.Cursor.W_RESIZE_CURSOR);
-            case 2  -> java.awt.Cursor.getPredefinedCursor(java.awt.Cursor.E_RESIZE_CURSOR);
-            case 4  -> java.awt.Cursor.getPredefinedCursor(java.awt.Cursor.N_RESIZE_CURSOR);
-            case 8  -> java.awt.Cursor.getPredefinedCursor(java.awt.Cursor.S_RESIZE_CURSOR);
-            case 5  -> java.awt.Cursor.getPredefinedCursor(java.awt.Cursor.NW_RESIZE_CURSOR); // N+W
-            case 6  -> java.awt.Cursor.getPredefinedCursor(java.awt.Cursor.NE_RESIZE_CURSOR); // N+E
-            case 9  -> java.awt.Cursor.getPredefinedCursor(java.awt.Cursor.SW_RESIZE_CURSOR); // S+W
-            case 10 -> java.awt.Cursor.getPredefinedCursor(java.awt.Cursor.SE_RESIZE_CURSOR); // S+E
-            default -> java.awt.Cursor.getDefaultCursor();
-        };
-    }
-
-    private void drawWindowControls(Graphics2D g2d) {
-        java.awt.Rectangle[] rects = getWCBRects();
-        java.awt.Point hover = wcbHover;
-
-        java.awt.RenderingHints savedHints = g2d.getRenderingHints();
-        g2d.setRenderingHint(java.awt.RenderingHints.KEY_ANTIALIASING,
-                java.awt.RenderingHints.VALUE_ANTIALIAS_ON);
-        java.awt.Stroke savedStroke = g2d.getStroke();
-        g2d.setStroke(new java.awt.BasicStroke(1.6f,
-                java.awt.BasicStroke.CAP_ROUND, java.awt.BasicStroke.JOIN_ROUND));
-
-        for (int i = 0; i < 3; i++) {
-            java.awt.Rectangle r = rects[i];
-            boolean hovered = (hover != null && r.contains(hover));
-
-            Color base = (i == 0) ? new Color(160, 45, 45, 210)
-                       : (i == 1) ? new Color(45, 110, 175, 210)
-                                  : new Color(70, 70, 70, 190);
-            g2d.setColor(hovered ? base.brighter() : base);
-            g2d.fillRoundRect(r.x, r.y, r.width, r.height, 5, 5);
-
-            g2d.setColor(new Color(255, 255, 255, 215));
-            int cx = r.x + r.width  / 2;
-            int cy = r.y + r.height / 2;
-            int m  = 4;
-
-            if (i == 0) {
-                g2d.drawLine(cx - m, cy - m, cx + m, cy + m);
-                g2d.drawLine(cx + m, cy - m, cx - m, cy + m);
-            } else if (i == 1) {
-                if (fullScreenOn) {
-                    g2d.drawRect(cx - m + 2, cy - m,     m * 2 - 3, m * 2 - 3);
-                    g2d.drawRect(cx - m,     cy - m + 2, m * 2 - 3, m * 2 - 3);
-                } else {
-                    g2d.drawRect(cx - m, cy - m, m * 2, m * 2);
-                }
-            } else {
-                g2d.drawLine(cx - m, cy + 2, cx + m, cy + 2);
-            }
-        }
-
-        g2d.setStroke(savedStroke);
-        g2d.setRenderingHints(savedHints);
-    }
+    // (Custom in-canvas window controls/resize/drag removed — the libGDX LWJGL3 window provides
+    // native decorations; F11 toggles fullscreen via applyFullScreenSetting.)
 
     public void setVSync(boolean enabled) {
         vSyncOn = enabled;
@@ -692,10 +421,8 @@ public class GamePanel extends JPanel implements Runnable{
 
     private void detectAndSetRefreshRate() {
         try {
-            GraphicsEnvironment ge = GraphicsEnvironment.getLocalGraphicsEnvironment();
-            GraphicsDevice[] gd = ge.getScreenDevices();
-            if (gd.length > 0) {
-                int refreshRate = gd[0].getDisplayMode().getRefreshRate();
+            if (com.badlogic.gdx.Gdx.graphics != null) {
+                int refreshRate = com.badlogic.gdx.Gdx.graphics.getDisplayMode().refreshRate;
                 if (refreshRate >= 30 && refreshRate <= 300) {
                     monitorRefreshRate = refreshRate;
                     System.out.println("[DISPLAY] Monitor detected: " + refreshRate + " Hz");
@@ -705,146 +432,38 @@ public class GamePanel extends JPanel implements Runnable{
             }
         } catch (Exception e) {
             System.out.println("[V-SYNC] Could not detect monitor refresh rate, using default 60 Hz");
-            e.printStackTrace();
         }
     }
 
-    public void startGameThread(){
+    // libGDX drives the loop: MichiGame calls stepUpdates(deltaSeconds) at a fixed 60 UPS and
+    // draw(GdxRenderer) each frame. The old Swing game-thread + run() + paintComponent are gone.
+    public void startGameThread() { /* no-op: MichiGame owns the loop now */ }
 
-        gameThread = new Thread(this);
-        gameThread.setDaemon(true);
-        gameThread.start();
-    }
+    private double updateAccumulator = 0;
+    private long fpsTimerNs = 0;
+    private int  fpsFrameCount = 0;
 
-    @Override
-    public void run() {
-
-        final double updateInterval = 1_000_000_000.0 / TARGET_UPS;
-        double updateDelta = 0;
-        double renderDelta = 0;
-        double drawInterval = (FPS > 0) ? 1_000_000_000.0 / Math.max(30, FPS) : 0;
-        boolean uncapped = (FPS <= 0);
-        long lastTime = System.nanoTime();
-        long currentTime;
-        long timer = 0;
-        int frameCount = 0;
-        int cachedFPS = FPS;
-
-        while(gameThread != null) {
-
-            currentTime = System.nanoTime();
-            long elapsed = currentTime - lastTime;
-
-            updateDelta += elapsed / updateInterval;
-
-            // Only recalculate draw interval when FPS target changes (e.g. V-Sync toggle)
-            if (cachedFPS != FPS) {
-                cachedFPS = FPS;
-                uncapped = (cachedFPS <= 0);
-                drawInterval = uncapped ? 0 : 1_000_000_000.0 / Math.max(30, cachedFPS);
-            }
-            if (!uncapped) {
-                renderDelta += elapsed / drawInterval;
-            }
-
-            timer += elapsed;
-            lastTime = currentTime;
-
-            // Cap update catch-up to prevent spiral of death
-            if (updateDelta > 5) updateDelta = 5;
-
-            while (updateDelta >= 1) {
-                update();
-                updateDelta--;
-            }
-
-            if (uncapped || renderDelta >= 1) {
-                synchronized (this) {
-                    drawToTempScreen();
-                }
-                repaint();
-                frameCount++;
-                if (!uncapped) {
-                    renderDelta -= 1;
-                    if (renderDelta > 1) renderDelta = 1;
-                }
-            }
-
-            if(timer >= 1_000_000_000) {
-                currentFPS = frameCount;
-                if (currentFPS > maxFPS) maxFPS = currentFPS;
-                frameCount = 0;
-                timer = 0;
-            }
-
-            if (!uncapped) {
-                long now = System.nanoTime();
-                long nextFrame = lastTime + (long) drawInterval;
-                long remaining = nextFrame - now;
-                if (remaining > 2_000_000) {
-                    try {
-                        Thread.sleep(1);
-                    } catch (InterruptedException e) {
-                        Thread.currentThread().interrupt();
-                        break;
-                    }
-                } else if (remaining > 0) {
-                    Thread.onSpinWait();
-                }
-            } else {
-                Thread.onSpinWait();
-            }
-
+    /**
+     * Advance the fixed-timestep simulation. Called once per rendered frame by MichiGame with the
+     * real frame delta; runs update() at TARGET_UPS (60 Hz), capping catch-up to avoid spiral.
+     */
+    public void stepUpdates(float deltaSeconds) {
+        final double updateInterval = 1.0 / TARGET_UPS;
+        updateAccumulator += deltaSeconds;
+        if (updateAccumulator > 5 * updateInterval) updateAccumulator = 5 * updateInterval; // cap
+        while (updateAccumulator >= updateInterval) {
+            update();
+            updateAccumulator -= updateInterval;
         }
-    }
-
-    @Override
-    protected void paintComponent(Graphics g) {
-        int panelW = getWidth();
-        int panelH = getHeight();
-        if (panelW <= 0 || panelH <= 0) return;
-
-        synchronized (this) {
-            Graphics2D g2d = (Graphics2D) g;
-
-            // Deep atmospheric dark — matches the game's dungeon/night palette rather
-            // than jarring pure black; fills letterbox/pillarbox bars around the game image.
-            g2d.setColor(new java.awt.Color(8, 6, 14));
-            g2d.fillRect(0, 0, panelW, panelH);
-
-            if (tempScreen != null) {
-                if (Config.stretchToFill) {
-                    // Fixed-resolution mode: scale the 1280×720 back-buffer to fill the window
-                    float sx = (float) panelW / screenWidth;
-                    float sy = (float) panelH / screenHeight;
-                    float usedScale = Math.min(sx, sy);
-                    int dstW = (int)(screenWidth  * usedScale);
-                    int dstH = (int)(screenHeight * usedScale);
-                    int dstX = (panelW - dstW) / 2;
-                    int dstY = (panelH - dstH) / 2;
-                    displayScaleF  = usedScale;
-                    displayOffsetX = dstX;
-                    displayOffsetY = dstY;
-                    g2d.setRenderingHint(java.awt.RenderingHints.KEY_INTERPOLATION,
-                            java.awt.RenderingHints.VALUE_INTERPOLATION_NEAREST_NEIGHBOR);
-                    g2d.drawImage(tempScreen, dstX, dstY, dstX + dstW, dstY + dstH,
-                            0, 0, screenWidth, screenHeight, null);
-                    if (dstX > 0 || dstY > 0) {
-                        g2d.setColor(new java.awt.Color(55, 45, 35, 110));
-                        g2d.drawRect(dstX, dstY, dstW - 1, dstH - 1);
-                    }
-                } else {
-                    // Dynamic-viewport mode (default): tempScreen = panel size → draw 1:1
-                    // Larger window = more world tiles visible; no scaling, no black bars
-                    displayScaleF  = 1f;
-                    displayOffsetX = 0;
-                    displayOffsetY = 0;
-                    g2d.drawImage(tempScreen, 0, 0, null);
-                }
-            }
+        // FPS counter
+        fpsFrameCount++;
+        fpsTimerNs += (long) (deltaSeconds * 1_000_000_000L);
+        if (fpsTimerNs >= 1_000_000_000L) {
+            currentFPS = fpsFrameCount;
+            if (currentFPS > maxFPS) maxFPS = currentFPS;
+            fpsFrameCount = 0;
+            fpsTimerNs = 0;
         }
-        drawWindowControls((Graphics2D) g);
-        Toolkit.getDefaultToolkit().sync();
     }
 
 
@@ -984,6 +603,8 @@ public class GamePanel extends JPanel implements Runnable{
                 }
             }
             eManager.update();
+            windField.update();
+            windPainter.update();
             mobSpawner.update();
             eHandler.updateSpawnZones();
             tileM.update();
@@ -997,7 +618,7 @@ public class GamePanel extends JPanel implements Runnable{
                 for (int i = 0; i < obj.length; i++) {
                     if (obj[i] != null && obj[i].lightSource && obj[i].lightRadius > 0) {
                         float flicker = 0.22f + 0.06f * MapShaderManager.fastSin(flickerBase + i * 1.7);
-                        java.awt.Color lc = (obj[i].lightColor != null) ? obj[i].lightColor : DEFAULT_TORCH_COLOR;
+                        gfx.Color lc = (obj[i].lightColor != null) ? obj[i].lightColor : DEFAULT_TORCH_COLOR;
                         eManager.lightning.addLight(
                             obj[i].worldX + tileSize / 2, obj[i].worldY + tileSize / 2,
                             obj[i].lightRadius * tileSize, lc, flicker);
@@ -1036,14 +657,14 @@ public class GamePanel extends JPanel implements Runnable{
                     player.life = 1;
                     player.undyingWillCooldown = 5400; // 90 seconds at 60 FPS
                     player.invincible = true;
-                    ui.addMessage("Undying Will activates!", new java.awt.Color(255, 215, 0));
+                    ui.addMessage("Undying Will activates!", new gfx.Color(255, 215, 0));
                     screenShake.shakeHeavy();
                     saved = true;
                 } else if (player.secondWindUnlocked && player.secondWindAvailable) {
                     player.life = Math.max(1, (int)(player.maxLife * 0.3f));
                     player.secondWindAvailable = false;
                     player.invincible = true;
-                    ui.addMessage("Second Wind!", new java.awt.Color(100, 200, 100));
+                    ui.addMessage("Second Wind!", new gfx.Color(100, 200, 100));
                     screenShake.shakeMedium();
                     saved = true;
                 }
@@ -1084,28 +705,8 @@ public class GamePanel extends JPanel implements Runnable{
                entity.worldY < vpMaxY + margin;
     }
 
-    public void drawToTempScreen() {
-
-    // Dynamic-viewport resize: adapt the logical resolution to the current panel size so that
-    // a bigger window shows more world tiles (1:1 pixels, no scaling, no black bars).
-    // In fixed-resolution mode (stretchToFill=true) the back-buffer stays at 1280×720.
-    if (!Config.stretchToFill) {
-        int panelW = getWidth();
-        int panelH = getHeight();
-        if (panelW > 0 && panelH > 0 && (panelW != screenWidth || panelH != screenHeight)) {
-            applyNewResolution(panelW, panelH);
-        }
-    } else if (screenWidth != 1280 || screenHeight != 720) {
-        applyNewResolution(1280, 720);
-    }
-
-    // Reset the Graphics2D transform to identity each frame — prevents AffineTransform
-    // accumulation if any drawing code forgets to undo a translate/rotate.
-    g2.setTransform(identityTransform);
-    // Clear the back buffer to black; without this, ghosting occurs whenever
-    // the tile or UI layers don't cover every pixel (e.g. transitions, title screen).
-    g2.setBackground(mapManager != null ? mapManager.mapBackgroundColor : Color.BLACK);
-    g2.clearRect(0, 0, screenWidth, screenHeight);
+    /** Render one frame. Called by MichiGame each frame with the active GdxRenderer (screen already cleared). */
+    public void draw(GdxRenderer g2) {
 
     renderPipeline.drawCurrentState(g2);
 
@@ -1290,6 +891,7 @@ public class GamePanel extends JPanel implements Runnable{
         particleList.clear();
         if (eManager != null && eManager.lightning != null) eManager.lightning.clearShadowCaches();
         eHandler.reset();
+        windField.loadForMap(mapId, tileM.currentMapCols, tileM.currentMapRows);
         aSetter.setObject();
         aSetter.setInteractiveTile();
         aSetter.setNPC();
@@ -1301,7 +903,7 @@ public class GamePanel extends JPanel implements Runnable{
             minimap.invalidateTerrainCache(mapId);
             minimap.bakeTerrainImage();
         }
-        ui.addMessage("Map fully reloaded", new java.awt.Color(100, 255, 140), 120);
+        ui.addMessage("Map fully reloaded", new gfx.Color(100, 255, 140), 120);
         playSE(SFX.MENU_SELECT);
     }
 
@@ -1312,7 +914,7 @@ public class GamePanel extends JPanel implements Runnable{
         for (int i = 0; i < npc.length; i++) npc[i] = null;
         aSetter.setNPC();
         aSetter.loadEntitiesFromTMX();
-        ui.addMessage("NPCs reloaded", new java.awt.Color(100, 200, 255), 120);
+        ui.addMessage("NPCs reloaded", new gfx.Color(100, 200, 255), 120);
         playSE(SFX.MENU_SELECT);
     }
 
@@ -1323,7 +925,7 @@ public class GamePanel extends JPanel implements Runnable{
         projectilesList.clear();
         aSetter.setMonster();
         aSetter.loadEntitiesFromTMX();
-        ui.addMessage("Monsters reloaded", new java.awt.Color(255, 120, 120), 120);
+        ui.addMessage("Monsters reloaded", new gfx.Color(255, 120, 120), 120);
         playSE(SFX.MENU_SELECT);
     }
 
@@ -1335,7 +937,7 @@ public class GamePanel extends JPanel implements Runnable{
         aSetter.setObject();
         aSetter.setInteractiveTile();
         aSetter.loadEntitiesFromTMX();
-        ui.addMessage("Objects reloaded", new java.awt.Color(255, 220, 100), 120);
+        ui.addMessage("Objects reloaded", new gfx.Color(255, 220, 100), 120);
         playSE(SFX.MENU_SELECT);
     }
 
@@ -1365,7 +967,7 @@ public class GamePanel extends JPanel implements Runnable{
     }
 
     /** Draw the debug panel overlay. */
-    private void drawDebugMenu(Graphics2D g2) {
+    private void drawDebugMenu(GdxRenderer g2) {
         final int panelW = 520;
         final int rowH = 24;
         final int panelH = DEBUG_MENU_ROWS * rowH + 82;
@@ -1413,9 +1015,7 @@ public class GamePanel extends JPanel implements Runnable{
                 px + 10, py + panelH - 8);
     }
 
-    public void drawToScreen() {
-        repaint();
-    }
+    public void drawToScreen() { /* libGDX renders every frame; no explicit repaint needed */ }
 
     public void playMusic(int i) {
         audio.playMusic(i);
@@ -1427,10 +1027,10 @@ public class GamePanel extends JPanel implements Runnable{
         audio.playSE(i);
     }
 
-    private static final java.awt.Color NAMETAG_BOX_BG     = new java.awt.Color(10, 8, 20, 170);
-    private static final java.awt.Color NAMETAG_BOX_BORDER = new java.awt.Color(200, 185, 255, 90);
-    private static final java.awt.Color NAMETAG_TEXT_LOCAL = new java.awt.Color(255, 240, 180);
-    private static final java.awt.BasicStroke NAMETAG_STROKE = new java.awt.BasicStroke(1f);
+    private static final gfx.Color NAMETAG_BOX_BG     = new gfx.Color(10, 8, 20, 170);
+    private static final gfx.Color NAMETAG_BOX_BORDER = new gfx.Color(200, 185, 255, 90);
+    private static final gfx.Color NAMETAG_TEXT_LOCAL = new gfx.Color(255, 240, 180);
+    private static final gfx.Stroke NAMETAG_STROKE = new gfx.Stroke(1f);
 
     /**
      * Draw a translucent nametag box centered above a sprite.
@@ -1438,11 +1038,11 @@ public class GamePanel extends JPanel implements Runnable{
      * spriteTopY = top of the sprite on screen.
      * isLocal = true for the local player (gold text), false for remote players (light-blue text).
      */
-    private void drawNametagBox(Graphics2D g2, String name, int centerX, int spriteTopY, boolean isLocal) {
+    private void drawNametagBox(GdxRenderer g2, String name, int centerX, int spriteTopY, boolean isLocal) {
         if (name == null || name.isEmpty()) return;
         if (mpNametagFont == null) mpNametagFont = new Font("Arial", Font.BOLD, 12);
         g2.setFont(mpNametagFont);
-        java.awt.FontMetrics fm = g2.getFontMetrics();
+        gfx.FontMetrics fm = g2.getFontMetrics();
 
         int padX = 7, padY = 3;
         int textW = fm.stringWidth(name);
@@ -1453,19 +1053,19 @@ public class GamePanel extends JPanel implements Runnable{
         int boxY = spriteTopY - boxH - 4;
 
         // Translucent background
-        java.awt.Composite saved = g2.getComposite();
-        g2.setComposite(java.awt.AlphaComposite.getInstance(java.awt.AlphaComposite.SRC_OVER, 0.82f));
+        float saved = g2.getAlpha();
+        g2.setAlpha(0.82f);
         g2.setColor(NAMETAG_BOX_BG);
         g2.fillRoundRect(boxX, boxY, boxW, boxH, 6, 6);
         g2.setColor(NAMETAG_BOX_BORDER);
         g2.setStroke(NAMETAG_STROKE);
         g2.drawRoundRect(boxX, boxY, boxW, boxH, 6, 6);
-        g2.setComposite(saved);
+        g2.setAlpha(saved);
 
         // Name text
         int textX = boxX + padX;
         int textY = boxY + padY + textH - 1;
-        g2.setColor(new java.awt.Color(0, 0, 0, 130));
+        g2.setColor(new gfx.Color(0, 0, 0, 130));
         g2.drawString(name, textX + 1, textY + 1);
         g2.setColor(isLocal ? NAMETAG_TEXT_LOCAL : MP_NAME_COLOR);
         g2.drawString(name, textX, textY);
@@ -1475,7 +1075,7 @@ public class GamePanel extends JPanel implements Runnable{
      * Draw local player nametag if a username has been set.
      * Called from RenderPipeline during the world render pass.
      */
-    public void drawLocalPlayerNametag(Graphics2D g2) {
+    public void drawLocalPlayerNametag(GdxRenderer g2) {
         String name = ui.playerUsername;
         if (name == null || name.isEmpty()) return;
         int centerX = player.screenX + tileSize / 2;
@@ -1488,7 +1088,7 @@ public class GamePanel extends JPanel implements Runnable{
      * Renders a simple colored rectangle with translucent nametag box above each player.
      * Uses the local player's sprite frames when available.
      */
-    public void drawRemotePlayers(Graphics2D g2) {
+    public void drawRemotePlayers(GdxRenderer g2) {
         long nowNs = System.nanoTime();
         for (java.util.Map.Entry<Integer, MultiplayerClient.RemotePlayerState> entry : mpClient.remotePlayers.entrySet()) {
             MultiplayerClient.RemotePlayerState rp = entry.getValue();
@@ -1501,9 +1101,9 @@ public class GamePanel extends JPanel implements Runnable{
             if (screenPosY + tileSize < -tileSize || screenPosY > screenHeight + tileSize) continue;
 
             // Try to use player's walk frames for the remote player sprite
-            BufferedImage sprite = null;
+            Sprite sprite = null;
             if (player.walkFrames != null && rp.direction >= 0 && rp.direction < player.walkFrames.length) {
-                BufferedImage[] dirFrames = player.walkFrames[rp.direction];
+                Sprite[] dirFrames = player.walkFrames[rp.direction];
                 if (dirFrames != null && dirFrames.length > 0) {
                     int frame = Math.max(0, Math.min(rp.spriteNum - 1, dirFrames.length - 1));
                     sprite = dirFrames[frame];
@@ -1511,12 +1111,12 @@ public class GamePanel extends JPanel implements Runnable{
             }
 
             if (sprite != null) {
-                java.awt.Composite old = g2.getComposite();
-                g2.drawImage(sprite, screenPosX, screenPosY, tileSize, tileSize, null);
-                g2.setComposite(java.awt.AlphaComposite.getInstance(java.awt.AlphaComposite.SRC_OVER, 0.15f));
+                float old = g2.getAlpha();
+                g2.drawImage(sprite, screenPosX, screenPosY, tileSize, tileSize);
+                g2.setAlpha(0.15f);
                 g2.setColor(MP_TINT_COLOR);
                 g2.fillRect(screenPosX, screenPosY, tileSize, tileSize);
-                g2.setComposite(old);
+                g2.setAlpha(old);
             } else {
                 // Fallback: colored rectangle
                 g2.setColor(MP_FILL_COLOR);

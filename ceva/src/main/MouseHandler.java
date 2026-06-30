@@ -1,14 +1,11 @@
 package main;
 
-import java.awt.event.MouseEvent;
-import java.awt.event.MouseListener;
-import java.awt.event.MouseMotionListener;
-import java.awt.event.MouseWheelEvent;
-import java.awt.event.MouseWheelListener;
+import com.badlogic.gdx.Input;
+import com.badlogic.gdx.InputProcessor;
 
 import entity.Entity;
 
-public class MouseHandler implements MouseListener, MouseMotionListener, MouseWheelListener {
+public class MouseHandler implements InputProcessor {
 
     private final GamePanel gp;
 
@@ -28,39 +25,50 @@ public class MouseHandler implements MouseListener, MouseMotionListener, MouseWh
         this.gp = gp;
     }
 
-    // ── position tracking ────────────────────────────────────────────────────
+    // ── libGDX InputProcessor: position, clicks, scroll ──────────────────────
+    // Touch/mouse coords arrive in window pixels with the SAME top-left origin the game uses
+    // (y-down camera), so panelToGame needs no Y flip.
 
-    @Override public void mouseMoved(MouseEvent e)   { updatePos(e); handleHover(); }
-    @Override public void mouseDragged(MouseEvent e) { updatePos(e); handleHover(); if (leftPressed) tryApplyVolumeSlider(); }
-
-    private void updatePos(MouseEvent e) {
-        java.awt.Point p = gp.panelToGame(e.getX(), e.getY());
-        gameX = p.x;
-        gameY = p.y;
+    private void updatePos(int screenX, int screenY) {
+        int[] p = gp.panelToGame(screenX, screenY);
+        gameX = p[0];
+        gameY = p[1];
     }
 
-    // ── clicks ───────────────────────────────────────────────────────────────
+    @Override public boolean mouseMoved(int screenX, int screenY) {
+        updatePos(screenX, screenY); handleHover(); return false;
+    }
 
-    @Override public void mousePressed(MouseEvent e) {
-        updatePos(e);
-        if (e.getButton() == MouseEvent.BUTTON1) { leftPressed = true;  leftClicked = true; }
-        if (e.getButton() == MouseEvent.BUTTON3) { rightPressed = true; rightClicked = true; }
+    @Override public boolean touchDragged(int screenX, int screenY, int pointer) {
+        updatePos(screenX, screenY); handleHover(); if (leftPressed) tryApplyVolumeSlider(); return false;
+    }
+
+    @Override public boolean touchDown(int screenX, int screenY, int pointer, int button) {
+        updatePos(screenX, screenY);
+        if (button == Input.Buttons.LEFT)  { leftPressed = true;  leftClicked = true; }
+        if (button == Input.Buttons.RIGHT) { rightPressed = true; rightClicked = true; }
         handleClick();
+        return false;
     }
 
-    @Override public void mouseReleased(MouseEvent e) {
-        if (e.getButton() == MouseEvent.BUTTON1) leftPressed  = false;
-        if (e.getButton() == MouseEvent.BUTTON3) rightPressed = false;
+    @Override public boolean touchUp(int screenX, int screenY, int pointer, int button) {
+        if (button == Input.Buttons.LEFT)  leftPressed  = false;
+        if (button == Input.Buttons.RIGHT) rightPressed = false;
+        return false;
     }
 
-    @Override public void mouseClicked(MouseEvent e) {}
-    @Override public void mouseEntered(MouseEvent e) {}
-    @Override public void mouseExited(MouseEvent e)  {}
+    @Override public boolean touchCancelled(int screenX, int screenY, int pointer, int button) {
+        return touchUp(screenX, screenY, pointer, button);
+    }
 
-    // ── scroll wheel ─────────────────────────────────────────────────────────
-
-    @Override public void mouseWheelMoved(MouseWheelEvent e) {
-        int dir = e.getWheelRotation() > 0 ? 1 : -1;
+    // scrolled(amountX, amountY): positive amountY = wheel down/away (matches old getWheelRotation>0).
+    @Override public boolean scrolled(float amountX, float amountY) {
+        int dir = amountY > 0 ? 1 : -1;
+        if (gp.windPainter != null && gp.windPainter.isActive()
+                && gp.gameState == GamePanel.playState) {
+            gp.windPainter.scrollRadius(-dir); // wheel up = bigger brush
+            return false;
+        }
         if (gp.gameState == GamePanel.journalState) {
             scrollJournal(dir);
         } else if (gp.gameState == GamePanel.skillTreeState) {
@@ -68,7 +76,13 @@ public class MouseHandler implements MouseListener, MouseMotionListener, MouseWh
         } else if (gp.gameState == GamePanel.optionsState && gp.ui.subState == 2) {
             gp.ui.controlScroll += dir;  // clamped by options_control each frame
         }
+        return false;
     }
+
+    // Key events are handled by KeyHandler; MouseHandler ignores them.
+    @Override public boolean keyDown(int keycode)  { return false; }
+    @Override public boolean keyUp(int keycode)    { return false; }
+    @Override public boolean keyTyped(char c)      { return false; }
 
     private void scrollJournal(int dir) {
         if (gp.memoryJournal == null) return;
@@ -557,6 +571,8 @@ public class MouseHandler implements MouseListener, MouseMotionListener, MouseWh
     // ════════════════════════════════════════════════════════════════════════
 
     private void clickWorld() {
+        // While the wind painter is active, the mouse paints — ignore world interactions.
+        if (gp.windPainter != null && gp.windPainter.isActive()) { leftClicked = false; return; }
         // Don't steal click if it's meant for combat (handled by Player.update via leftClicked)
         // We only handle NPC interaction here; combat consumes leftClicked separately.
         int playerCX = gp.player.getCenterX();
