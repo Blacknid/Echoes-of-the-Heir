@@ -1,10 +1,10 @@
 package tile;
 
-import java.awt.image.BufferedImage;
+import gfx.Sprite;
 
 public class Tile {
 
-    public BufferedImage image;
+    public Sprite image;
     public boolean collision = false;
     public int drawOffsetY = 0;
     // When depth-sorting a multi-row structure, add this many pixels to the tile's world Y

@@ -1,9 +1,9 @@
 package tile;
 
-import java.awt.Color;
-import java.awt.Graphics2D;
-import java.awt.geom.AffineTransform;
-import java.awt.image.BufferedImage;
+import gfx.Color;
+import gfx.GdxRenderer;
+import gfx.Sprite;
+import gfx.geom.Rect;
 
 import entity.Entity;
 import main.GamePanel;
@@ -13,8 +13,8 @@ import util.UtilityTool;
 public class IT_Grass extends interactiveTile {
 
     // Shared across all instances — loaded once
-    private static BufferedImage imgBlade1 = null;
-    private static BufferedImage imgBlade2 = null;
+    private static Sprite imgBlade1 = null;
+    private static Sprite imgBlade2 = null;
 
     // Per-instance sway state — blade 1
     private float phase1;
@@ -39,8 +39,8 @@ public class IT_Grass extends interactiveTile {
 
         // Load blade images once
         if (imgBlade1 == null) {
-            BufferedImage raw1 = ResourceCache.loadImageIfPresent("/res/interactive/Grass_Blade1.png");
-            BufferedImage raw2 = ResourceCache.loadImageIfPresent("/res/interactive/Grass_Blade2.png");
+            Sprite raw1 = ResourceCache.loadImageIfPresent("/res/interactive/Grass_Blade1.png");
+            Sprite raw2 = ResourceCache.loadImageIfPresent("/res/interactive/Grass_Blade2.png");
             System.out.println("[IT_Grass] blade1=" + raw1 + " blade2=" + raw2 + " tileSize=" + gp.tileSize);
             if (raw1 != null) imgBlade1 = UtilityTool.scaleImage(raw1, gp.tileSize, gp.tileSize);
             if (raw2 != null) imgBlade2 = UtilityTool.scaleImage(raw2, gp.tileSize, gp.tileSize);
@@ -66,7 +66,7 @@ public class IT_Grass extends interactiveTile {
         angle2 = (float) Math.sin(phase2) * MAX_SWAY;
 
         // Detect player hitbox overlap with this tile's area
-        java.awt.Rectangle p = gp.player.solidArea;
+        Rect p = gp.player.solidArea;
         int px1 = gp.player.worldX + p.x;
         int py1 = gp.player.worldY + p.y;
         int px2 = px1 + p.width;
@@ -91,7 +91,7 @@ public class IT_Grass extends interactiveTile {
     }
 
     @Override
-    public void draw(Graphics2D g2) {
+    public void draw(GdxRenderer g2) {
         System.out.println("[IT_Grass] draw called imgBlade1=" + imgBlade1 + " imgBlade2=" + imgBlade2);
         if (imgBlade1 == null && imgBlade2 == null) return;
 
@@ -104,22 +104,18 @@ public class IT_Grass extends interactiveTile {
             worldY + gp.tileSize <= gp.player.worldY - gp.player.screenY ||
             worldY - gp.tileSize >= gp.player.worldY + gp.player.screenY) return;
 
-        // Anchor = bottom-center of the tile
-        double anchorX = screenX + gp.tileSize * 0.5;
-        double anchorY = screenY + gp.tileSize;
-
-        AffineTransform saved = g2.getTransform();
+        // Anchor = bottom-center of the tile (rotation pivot, relative to the sprite's top-left)
+        float originX = gp.tileSize * 0.5f;
+        float originY = gp.tileSize;
 
         if (imgBlade1 != null) {
-            g2.rotate(angle1 + deflect1, anchorX, anchorY);
-            g2.drawImage(imgBlade1, screenX, screenY, gp.tileSize, gp.tileSize, null);
-            g2.setTransform(saved);
+            g2.drawImageRotated(imgBlade1, screenX, screenY, gp.tileSize, gp.tileSize,
+                    originX, originY, (float) Math.toDegrees(angle1 + deflect1));
         }
 
         if (imgBlade2 != null) {
-            g2.rotate(angle2 + deflect2, anchorX, anchorY);
-            g2.drawImage(imgBlade2, screenX, screenY, gp.tileSize, gp.tileSize, null);
-            g2.setTransform(saved);
+            g2.drawImageRotated(imgBlade2, screenX, screenY, gp.tileSize, gp.tileSize,
+                    originX, originY, (float) Math.toDegrees(angle2 + deflect2));
         }
     }
 

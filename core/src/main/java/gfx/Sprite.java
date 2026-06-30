@@ -84,6 +84,32 @@ public class Sprite {
         return (a << 24) | (r << 16) | (g << 8) | b;
     }
 
+    /**
+     * Crop a sub-rectangle of this sprite, scale it to (dw,dh), and place it bottom-aligned and
+     * horizontally centered into a transparent cell of (cellW,cellH) — the GPU-native replacement
+     * for the "new BufferedImage + createGraphics + drawImage(crop, ox, oy, dw, dh)" pattern used
+     * by NPC sprite-sheet trimming. Runs at load time via a Pixmap composite.
+     */
+    public Sprite croppedBottomAligned(int srcX, int srcY, int srcW, int srcH,
+                                       int dw, int dh, int cellW, int cellH) {
+        Texture tex = region.getTexture();
+        if (!tex.getTextureData().isPrepared()) tex.getTextureData().prepare();
+        com.badlogic.gdx.graphics.Pixmap src = tex.getTextureData().consumePixmap();
+        com.badlogic.gdx.graphics.Pixmap cell =
+            new com.badlogic.gdx.graphics.Pixmap(cellW, cellH, com.badlogic.gdx.graphics.Pixmap.Format.RGBA8888);
+        cell.setBlending(com.badlogic.gdx.graphics.Pixmap.Blending.None);
+        cell.setFilter(com.badlogic.gdx.graphics.Pixmap.Filter.NearestNeighbour);
+        int ox = (cellW - dw) / 2;
+        int oy = cellH - dh; // bottom-align
+        cell.drawPixmap(src,
+            region.getRegionX() + srcX, region.getRegionY() + srcY, srcW, srcH, // src rect
+            ox, oy, dw, dh);                                                     // dst rect (scaled)
+        Texture out = new Texture(cell);
+        out.setFilter(Texture.TextureFilter.Nearest, Texture.TextureFilter.Nearest);
+        cell.dispose();
+        return new Sprite(out);
+    }
+
     @Override public String toString() {
         return "Sprite[" + getWidth() + "x" + getHeight() + "]";
     }

@@ -8,6 +8,8 @@ import org.w3c.dom.Element;
 import org.w3c.dom.NodeList;
 
 import audio.SFX;
+import gfx.Color;
+import gfx.geom.IntPolygon;
 import data.ItemFactory;
 import data.MonsterFactory;
 import entity.BossMonster;
@@ -467,7 +469,7 @@ public class MapObjectLoader {
         gp.mapManager.defaultSpawnCol = -1;
         gp.mapManager.defaultSpawnRow = -1;
         gp.mapManager.hasNewGameSpawn = false;
-        gp.mapManager.mapBackgroundColor = java.awt.Color.BLACK;
+        gp.mapManager.mapBackgroundColor = Color.BLACK;
 
         String mapName = getStringProperty(mapEl, "mapName", null);
         if (mapName != null && !mapName.isBlank()) {
@@ -517,7 +519,7 @@ public class MapObjectLoader {
 
         String bgColor = getStringProperty(mapEl, "bgColor", null);
         if (bgColor != null && !bgColor.isBlank()) {
-            try { gp.mapManager.mapBackgroundColor = java.awt.Color.decode(bgColor.trim()); }
+            try { gp.mapManager.mapBackgroundColor = Color.decode(bgColor.trim()); }
             catch (NumberFormatException ignored) {}
         }
 
@@ -607,7 +609,7 @@ public class MapObjectLoader {
                 torch.lightRadius = getIntProperty(obj, "lightRadius", 6);
                 String lc = getStringProperty(obj, "lightColor", null);
                 if (lc != null && !lc.isBlank()) {
-                    try { torch.lightColor = java.awt.Color.decode(lc.trim()); }
+                    try { torch.lightColor = Color.decode(lc.trim()); }
                     catch (NumberFormatException ignored) {}
                 }
                 return torch;
@@ -1058,7 +1060,7 @@ public class MapObjectLoader {
                 // by the outer parsing block (worldX += minPX*sf). To recover the correct
                 // absolute world coords for each point use (rawX - minRawX)*sf + worldX,
                 // mirroring the same two-pass approach used by the WaterZone polygon case.
-                java.awt.Polygon spawnPoly = null;
+                IntPolygon spawnPoly = null;
                 NodeList spawnPolyNodes = obj.getElementsByTagName("polygon");
                 if (spawnPolyNodes.getLength() > 0) {
                     String pts = ((Element) spawnPolyNodes.item(0)).getAttribute("points");
@@ -1089,7 +1091,7 @@ public class MapObjectLoader {
                                 xs[pi] = worldX + (int)((rawX[pi] - minRawX) * sf);
                                 ys[pi] = worldY + (int)((rawY[pi] - minRawY) * sf);
                             }
-                            spawnPoly = new java.awt.Polygon(xs, ys, n);
+                            spawnPoly = new IntPolygon(xs, ys, n);
                             // Override the AABB bounds so the sampling loop uses the polygon's bounds
                             areaW = (int)((maxRawX - minRawX) * sf);
                             areaH = (int)((maxRawY - minRawY) * sf);
@@ -1150,7 +1152,7 @@ public class MapObjectLoader {
                                 xs[k] = worldX + (int)((rawX[k] - minPX) * sf);
                                 ys[k] = worldY + (int)((rawY[k] - minPY) * sf);
                             }
-                            gp.eHandler.registerWaterZone(new java.awt.Polygon(xs, ys, n));
+                            gp.eHandler.registerWaterZone(new IntPolygon(xs, ys, n));
                         } else {
                             gp.eHandler.registerWaterZone(worldX, worldY, ew, eh);
                         }
@@ -1278,7 +1280,7 @@ public class MapObjectLoader {
         light.lightRadius = getIntProperty(obj, "lightRadius", 4);
         String colorHex = getStringProperty(obj, "lightColor", null);
         if (colorHex != null && !colorHex.isBlank()) {
-            try { light.lightColor = java.awt.Color.decode(colorHex.trim()); }
+            try { light.lightColor = Color.decode(colorHex.trim()); }
             catch (NumberFormatException ignored) {}
         }
         light.collision = false;

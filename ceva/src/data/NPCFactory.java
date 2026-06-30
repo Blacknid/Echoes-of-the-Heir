@@ -1,6 +1,6 @@
 package data;
 
-import java.awt.image.BufferedImage;
+import gfx.Sprite;
 import java.io.BufferedReader;
 import java.io.InputStream;
 import java.io.InputStreamReader;
@@ -164,20 +164,20 @@ public class NPCFactory {
             ActivityDef act = entry.getValue();
             if (act.sprite == null) continue;
             try {
-                BufferedImage[][] mapped = new BufferedImage[4][];
+                Sprite[][] mapped = new Sprite[4][];
                 if (act.aspect > 1) {
                     // Non-square frames: use loadSpriteMatrix with explicit cell dimensions.
                     // Cell height = sheet.height / rows; cell width = cellHeight * aspect.
-                    java.awt.image.BufferedImage rawSheet = util.ResourceCache.loadImage(act.sprite + ".png");
+                    Sprite rawSheet = util.ResourceCache.loadImage(act.sprite + ".png");
                     int rows = act.framesPerRow.length;
                     int cellH = rawSheet.getHeight() / Math.max(1, rows);
                     int cellW = cellH * act.aspect;
-                    BufferedImage[][] matrix = npc.loadSpriteMatrix(act.sprite, cellW, cellH);
+                    Sprite[][] matrix = npc.loadSpriteMatrix(act.sprite, cellW, cellH);
                     // Scale each frame to a tileSize-wide, tileSize-tall square
                     int ts = gp.tileSize;
-                    BufferedImage[][] scaled = new BufferedImage[matrix.length][];
+                    Sprite[][] scaled = new Sprite[matrix.length][];
                     for (int r = 0; r < matrix.length; r++) {
-                        scaled[r] = new BufferedImage[matrix[r].length];
+                        scaled[r] = new Sprite[matrix[r].length];
                         for (int c = 0; c < matrix[r].length; c++) {
                             scaled[r][c] = util.UtilityTool.scaleImage(matrix[r][c], ts, ts);
                         }
@@ -194,7 +194,7 @@ public class NPCFactory {
                         if (mapped[Entity.DIR_RIGHT] == null) mapped[Entity.DIR_RIGHT] = mapped[Entity.DIR_DOWN];
                     }
                 } else {
-                    BufferedImage[][] frames = npc.loadSheetVariable(act.sprite, act.framesPerRow);
+                    Sprite[][] frames = npc.loadSheetVariable(act.sprite, act.framesPerRow);
                     if (frames == null) continue;
                     mapped[Entity.DIR_DOWN]  = frames.length > 0 ? frames[0] : null;
                     mapped[Entity.DIR_UP]    = frames.length > 1 ? frames[1] : null;

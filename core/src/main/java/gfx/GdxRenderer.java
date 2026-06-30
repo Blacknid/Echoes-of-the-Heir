@@ -141,6 +141,45 @@ public class GdxRenderer {
     public FontMetrics getFontMetrics() { return fonts.metrics(font); }
     public FontMetrics getFontMetrics(Font f) { return fonts.metrics(f); }
 
+    // ── Blend modes (for GPU compositing: additive glow, dst-out hole punching) ─
+    /** Blend modes mirroring the {@code java.awt.AlphaComposite} rules the game relied on. */
+    public static final int BLEND_NORMAL   = 0; // SRC_OVER:  (GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA)
+    public static final int BLEND_ADDITIVE = 1; // additive:  (GL_SRC_ALPHA, GL_ONE)
+    public static final int BLEND_DSTOUT   = 2; // DstOut:    (GL_ZERO,      GL_ONE_MINUS_SRC_ALPHA)
+
+    private int blendMode = BLEND_NORMAL;
+
+    /**
+     * Switch the SpriteBatch blend function, the GPU-native replacement for
+     * {@code Graphics2D.setComposite(AlphaComposite.*)}. Flushes the batch first so already-queued
+     * quads keep their previous blend, then applies the new function. Remember to reset to
+     * {@link #BLEND_NORMAL} when done — the rest of the renderer assumes normal alpha blending.
+     *
+     * <ul>
+     *   <li>{@link #BLEND_NORMAL}   — standard src-over (default).</li>
+     *   <li>{@link #BLEND_ADDITIVE} — additive light/glow (brightens the destination).</li>
+     *   <li>{@link #BLEND_DSTOUT}   — subtracts source alpha from the destination's alpha,
+     *       i.e. punches soft holes; used by the lighting compositor to cut light into darkness.</li>
+     * </ul>
+     */
+    public void setBlendMode(int mode) {
+        if (mode == blendMode) return;
+        flush(); // queued quads must render with the old blend before we change it
+        blendMode = mode;
+        switch (mode) {
+            case BLEND_ADDITIVE -> batch.setBlendFunction(
+                    com.badlogic.gdx.graphics.GL20.GL_SRC_ALPHA,
+                    com.badlogic.gdx.graphics.GL20.GL_ONE);
+            case BLEND_DSTOUT -> batch.setBlendFunction(
+                    com.badlogic.gdx.graphics.GL20.GL_ZERO,
+                    com.badlogic.gdx.graphics.GL20.GL_ONE_MINUS_SRC_ALPHA);
+            default -> batch.setBlendFunction(
+                    com.badlogic.gdx.graphics.GL20.GL_SRC_ALPHA,
+                    com.badlogic.gdx.graphics.GL20.GL_ONE_MINUS_SRC_ALPHA);
+        }
+    }
+    public int getBlendMode() { return blendMode; }
+
     // ── Image drawing (SpriteBatch) ───────────────────────────────────────────
     public void drawImage(Sprite img, int x, int y) {
         if (img == null) return;

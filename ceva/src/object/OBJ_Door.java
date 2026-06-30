@@ -1,6 +1,6 @@
 package object;
 
-import java.awt.image.BufferedImage;
+import gfx.Sprite;
 
 import entity.Entity;
 import main.GamePanel;
@@ -20,7 +20,7 @@ public class OBJ_Door extends Entity {
     /** Named spawn point on the target map — resolved after the map loads. */
     public String spawnId = "";
 
-    public BufferedImage[] doorOpenFrames;
+    public Sprite[] doorOpenFrames;
     public int doorAnimIndex = 0;
     public int doorAnimSpeed = 8;      // ticks per frame
     public int doorAnimCounter = 0;

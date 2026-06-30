@@ -1,7 +1,7 @@
 package object;
 
-import java.awt.Color;
-import java.awt.image.BufferedImage;
+import gfx.Color;
+import gfx.Sprite;
 
 import entity.Entity;
 import entity.Projectile;
@@ -37,8 +37,8 @@ public class OBJ_Arrow extends Projectile {
 
 
     public void getImage(){
-        BufferedImage[][] temp_images = loadSpriteMatrix("/res/projectiles/Arrow", 32, 32);
-        walkFrames = new BufferedImage[4][2];
+        Sprite[][] temp_images = loadSpriteMatrix("/res/projectiles/Arrow", 32, 32);
+        walkFrames = new Sprite[4][2];
         walkFrames[DIR_UP][0]    = walkFrames[DIR_UP][1]    = rotateImage(temp_images[1][3], -180);
         walkFrames[DIR_DOWN][0]  = walkFrames[DIR_DOWN][1]  = temp_images[1][3];
         walkFrames[DIR_LEFT][0]  = walkFrames[DIR_LEFT][1]  = rotateImage(temp_images[0][0], -180);

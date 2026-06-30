@@ -1,7 +1,7 @@
 package entity;
 
-import java.awt.Graphics2D;
-import java.awt.image.BufferedImage;
+import gfx.GdxRenderer;
+import gfx.Sprite;
 import java.util.concurrent.ThreadLocalRandom;
 
 import main.GamePanel;
@@ -9,10 +9,10 @@ import util.UtilityTool;
 
 public class Eye extends Entity {
 
-    private final BufferedImage[] downFrames = new BufferedImage[8];
-    private final BufferedImage[] upFrames = new BufferedImage[8];
-    private final BufferedImage[] leftFrames = new BufferedImage[8];
-    private final BufferedImage[] rightFrames = new BufferedImage[8];
+    private final Sprite[] downFrames = new Sprite[8];
+    private final Sprite[] upFrames = new Sprite[8];
+    private final Sprite[] leftFrames = new Sprite[8];
+    private final Sprite[] rightFrames = new Sprite[8];
     private int randomDirectionTimer = 0;
     private int nextRandomDirectionTicks;
 
@@ -77,14 +77,14 @@ public class Eye extends Entity {
     }
 
     @Override
-    public void draw(Graphics2D g2) {
+    public void draw(GdxRenderer g2) {
         // Drawing handled by OBJ_Tower
     }
 
     private void loadEyeImages() {
-        BufferedImage[][] frames = loadSpriteMatrix("/res/monster/Eye_spritesheet", 32, 32);
+        Sprite[][] frames = loadSpriteMatrix("/res/monster/Eye_spritesheet", 32, 32);
         for (int i = 0; i < 8; i++) {
-            BufferedImage baseFrame = UtilityTool.scaleImage(frames[0][i], gp.tileSize, gp.tileSize);
+            Sprite baseFrame = UtilityTool.scaleImage(frames[0][i], gp.tileSize, gp.tileSize);
 
             rightFrames[i] = baseFrame;
             downFrames[i] = Projectile.rotateImage(baseFrame, 90);
@@ -127,7 +127,7 @@ public class Eye extends Entity {
         solidAreaDefaultY = solidArea.y;
     }
 
-    public BufferedImage getCurrentSprite() {
+    public Sprite getCurrentSprite() {
         int frameIndex = Math.max(0, Math.min(spriteNum - 1, 7));
 
         return switch (direction) {

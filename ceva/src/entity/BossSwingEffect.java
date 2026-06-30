@@ -1,7 +1,7 @@
 package entity;
 
-import java.awt.Graphics2D;
-import java.awt.image.BufferedImage;
+import gfx.GdxRenderer;
+import gfx.Sprite;
 
 import main.GamePanel;
 
@@ -13,14 +13,14 @@ import main.GamePanel;
 public class BossSwingEffect extends Entity {
 
     private final Entity boss;
-    private final BufferedImage[][] swingFrames;
+    private final Sprite[][] swingFrames;
     private final int dir;
     private int frameIndex;
     private int frameCounter = 0;
     private static final int FRAMES_PER_TICK = 4;
 
     public BossSwingEffect(GamePanel gp, Entity boss,
-                           BufferedImage[][] swingFrames, int dir, int startFrame) {
+                           Sprite[][] swingFrames, int dir, int startFrame) {
         super(gp);
         this.boss = boss;
         this.swingFrames = swingFrames;
@@ -49,14 +49,14 @@ public class BossSwingEffect extends Entity {
     }
 
     @Override
-    public void draw(Graphics2D g2) {
+    public void draw(GdxRenderer g2) {
         if (swingFrames == null || dir < 0 || dir >= swingFrames.length
                 || swingFrames[dir] == null || frameIndex < 0
                 || frameIndex >= swingFrames[dir].length) {
             return;
         }
 
-        BufferedImage frame = swingFrames[dir][frameIndex];
+        Sprite frame = swingFrames[dir][frameIndex];
         if (frame == null) return;
 
         int screenX = worldX - gp.player.worldX + gp.player.screenX;
@@ -67,7 +67,7 @@ public class BossSwingEffect extends Entity {
         int drawY = screenY - (drawSize - gp.tileSize);
 
         changeAlpha(g2, 0.85f);
-        g2.drawImage(frame, drawX, drawY, drawSize, drawSize, null);
+        g2.drawImage(frame, drawX, drawY, drawSize, drawSize);
         changeAlpha(g2, 1f);
     }
 }

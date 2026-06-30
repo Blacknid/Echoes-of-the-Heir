@@ -1,8 +1,8 @@
 package map;
 
-import java.awt.Rectangle;
+import gfx.geom.Rect;
 
-public class EventRect extends Rectangle {
+public class EventRect extends Rect {
 
     int eventRectDefaultX, eventRectDefaultY;
     boolean eventDone = false;

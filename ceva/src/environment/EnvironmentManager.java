@@ -1,6 +1,6 @@
 package environment;
 
-import java.awt.Graphics2D;
+import gfx.GdxRenderer;
 
 import main.GamePanel;
 
@@ -188,7 +188,7 @@ public class EnvironmentManager {
         if (lightning != null) lightning.clearShadowCaches();
     }
 
-    public void draw(Graphics2D g2) {
+    public void draw(GdxRenderer g2) {
         float weatherDarkness = 0f;
         if (weatherState == WEATHER_RAIN) {
             weatherDarkness = 0.35f * weatherIntensity;

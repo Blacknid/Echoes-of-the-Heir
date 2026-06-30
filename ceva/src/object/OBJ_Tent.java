@@ -1,6 +1,6 @@
 package object;
 
-import java.awt.Color;
+import gfx.Color;
 
 import audio.SFX;
 import entity.Entity;

@@ -1,8 +1,8 @@
 package entity;
 
-import java.awt.Color;
-import java.awt.Graphics2D;
-import java.awt.image.BufferedImage;
+import gfx.Color;
+import gfx.GdxRenderer;
+import gfx.Sprite;
 
 import main.GamePanel;
 import util.ObjectPool.Poolable;
@@ -29,13 +29,13 @@ public class Particle extends Entity implements Poolable {
     public static final int STYLE_TRAIL = 5;
     public static final int STYLE_BOB = 6;
 
-    public BufferedImage image;
+    public Sprite image;
 
-    private static BufferedImage[] BOB_IMAGES = null;
-    static BufferedImage getRandomBob(GamePanel gp) {
+    private static Sprite[] BOB_IMAGES = null;
+    static Sprite getRandomBob(GamePanel gp) {
         if (BOB_IMAGES == null) {
             int sz = gp.tileSize;
-            BOB_IMAGES = new BufferedImage[] {
+            BOB_IMAGES = new Sprite[] {
                 util.ResourceCache.loadScaledImageIfPresent("/res/effects/bob1.png", sz, sz),
                 util.ResourceCache.loadScaledImageIfPresent("/res/effects/bob2.png", sz, sz),
                 util.ResourceCache.loadScaledImageIfPresent("/res/effects/bob3.png", sz, sz)
@@ -121,7 +121,7 @@ public class Particle extends Entity implements Poolable {
 
     }
 
-    public void draw(Graphics2D g2) {
+    public void draw(GdxRenderer g2) {
 
         int screenX = worldX - gp.player.worldX + gp.player.screenX;
         int screenY = worldY - gp.player.worldY + gp.player.screenY;
@@ -175,7 +175,7 @@ public class Particle extends Entity implements Poolable {
                     int cx = screenX + size / 2 - drawSize / 2;
                     int cy = screenY + size / 2 - drawSize / 2;
                     changeAlpha(g2, bobAlpha);
-                    g2.drawImage(image, cx, cy, drawSize, drawSize, null);
+                    g2.drawImage(image, cx, cy, drawSize, drawSize);
                 }
                 break;
             default:

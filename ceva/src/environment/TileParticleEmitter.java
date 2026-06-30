@@ -1,9 +1,7 @@
 package environment;
 
-import java.awt.AlphaComposite;
-import java.awt.Color;
-import java.awt.Composite;
-import java.awt.Graphics2D;
+import gfx.Color;
+import gfx.GdxRenderer;
 import java.util.Random;
 
 import main.GamePanel;
@@ -39,7 +37,9 @@ public class TileParticleEmitter {
     private int sortedCount = 0;
 
     private static final int ALPHA_LEVELS = 32;
-    private final AlphaComposite[] alphaCompositeCache = new AlphaComposite[ALPHA_LEVELS + 1];
+    // Quantized alpha values (32 buckets) replace the old AlphaComposite[] cache; the
+    // renderer takes a float alpha directly via setAlpha(), so we only need the value.
+    private final float[] alphaLevelCache = new float[ALPHA_LEVELS + 1];
 
     private final GamePanel gp;
     private final Random rng = new Random();
@@ -73,7 +73,7 @@ public class TileParticleEmitter {
             freeStack[i] = i;
             float alpha = (float) i / ALPHA_LEVELS;
             if (i <= ALPHA_LEVELS) {
-                alphaCompositeCache[i] = AlphaComposite.getInstance(AlphaComposite.SRC_OVER, alpha);
+                alphaLevelCache[i] = alpha;
             }
         }
         freeTop = MAX_PARTICLES - 1;
@@ -304,14 +304,12 @@ public class TileParticleEmitter {
         }
     }
 
-    public void draw(Graphics2D g2) {
-        Composite originalComp = g2.getComposite();
-
+    public void draw(GdxRenderer g2) {
         for (int i = 0; i < activeCount; i++) {
             drawParticle(g2, particles[activeIndices[i]]);
         }
 
-        g2.setComposite(originalComp);
+        g2.setAlpha(1f);
     }
 
     /**
@@ -365,13 +363,13 @@ public class TileParticleEmitter {
     }
 
     /** Draw a single particle at the given sorted position. */
-    public void drawSingle(Graphics2D g2, int sortedPosition) {
+    public void drawSingle(GdxRenderer g2, int sortedPosition) {
         FP p = particles[sortedIndices[sortedPosition]];
         if (!p.alive) return;
         drawParticle(g2, p);
     }
 
-    private void drawParticle(Graphics2D g2, FP p) {
+    private void drawParticle(GdxRenderer g2, FP p) {
         int sx = (int) p.worldX - gp.player.worldX + gp.player.screenX;
         int sy = (int) p.worldY - gp.player.worldY + gp.player.screenY;
 
@@ -386,16 +384,16 @@ public class TileParticleEmitter {
         }
         alpha = Math.max(0.0f, Math.min(alpha, 1.0f));
 
-        g2.setComposite(getCachedComposite(alpha));
+        g2.setAlpha(getCachedAlpha(alpha));
         g2.setColor(p.color);
         g2.fillRect(sx, sy, p.size, p.size);
     }
 
-    private AlphaComposite getCachedComposite(float alpha) {
+    private float getCachedAlpha(float alpha) {
         int bucket = (int) (alpha * ALPHA_LEVELS + 0.5f);
         if (bucket < 0) bucket = 0;
         if (bucket > ALPHA_LEVELS) bucket = ALPHA_LEVELS;
-        return alphaCompositeCache[bucket];
+        return alphaLevelCache[bucket];
     }
 
     public int getEmitInterval() {

@@ -1,12 +1,9 @@
 package ui;
 
-import java.awt.AlphaComposite;
-import java.awt.Color;
-import java.awt.Composite;
-import java.awt.Font;
-import java.awt.FontMetrics;
-import java.awt.Graphics2D;
-import java.awt.RenderingHints;
+import gfx.Color;
+import gfx.Font;
+import gfx.FontMetrics;
+import gfx.GdxRenderer;
 import java.util.ArrayDeque;
 
 import main.GamePanel;
@@ -157,7 +154,7 @@ public class ThoughtBubble {
         active = null;
     }
 
-    public void draw(Graphics2D g2) {
+    public void draw(GdxRenderer g2) {
         if (active == null || delayCounter > 0) return;
         if (fadeAlpha <= 0f) return;
 
@@ -165,7 +162,6 @@ public class ThoughtBubble {
         if (visible.isEmpty()) return;
 
         // Font: italic serif for inner monologue feel
-        g2.setRenderingHint(RenderingHints.KEY_TEXT_ANTIALIASING, RenderingHints.VALUE_TEXT_ANTIALIAS_ON);
         g2.setFont(THOUGHT_FONT);
         FontMetrics fm = g2.getFontMetrics();
 
@@ -175,9 +171,8 @@ public class ThoughtBubble {
         int tx = (screenW - textW) / 2;
         int ty = (int)(gp.screenHeight * Y_POSITION);
 
-        Composite saved = g2.getComposite();
         float a = Math.max(0f, Math.min(1f, fadeAlpha));
-        g2.setComposite(AlphaComposite.getInstance(AlphaComposite.SRC_OVER, a));
+        g2.setAlpha(a);
 
         // Subtle dark pill behind text
         int padX = 20, padY = 10;
@@ -200,7 +195,6 @@ public class ThoughtBubble {
             }
         }
 
-        g2.setComposite(saved);
-        g2.setRenderingHint(RenderingHints.KEY_TEXT_ANTIALIASING, RenderingHints.VALUE_TEXT_ANTIALIAS_OFF);
+        g2.setAlpha(1f);
     }
 }

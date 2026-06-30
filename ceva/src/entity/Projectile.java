@@ -1,7 +1,10 @@
 package entity;
 
-import java.awt.Graphics2D;
-import java.awt.image.BufferedImage;
+import com.badlogic.gdx.graphics.Pixmap;
+import com.badlogic.gdx.graphics.Texture;
+import com.badlogic.gdx.graphics.TextureData;
+
+import gfx.Sprite;
 
 import audio.SFX;
 import main.GamePanel;
@@ -122,18 +125,39 @@ public class Projectile extends Entity implements Poolable {
         return haveResource;
 
     }
-    public static BufferedImage rotateImage(BufferedImage img, double degrees) {
-        int w = img.getWidth();
-        int h = img.getHeight();
-        
-        BufferedImage rotated = new BufferedImage(w, h, img.getType());
-        Graphics2D g2d = rotated.createGraphics();
-        
-        g2d.rotate(Math.toRadians(degrees), w / 2, h / 2);
-        g2d.drawImage(img, 0, 0, null);
-        g2d.dispose();
-    
-        return rotated;
+    /**
+     * Rotate a sprite by a multiple of 90° into a new texture, the load-time GPU-native
+     * replacement for the old BufferedImage+Graphics2D.rotate. Callers (Eye, OBJ_Arrow) only ever
+     * use ±90/180/270, so we rotate the source Pixmap exactly by transpose/flip — no sampling blur.
+     */
+    public static Sprite rotateImage(Sprite img, double degrees) {
+        Texture src = img.texture();
+        TextureData td = src.getTextureData();
+        if (!td.isPrepared()) td.prepare();
+        Pixmap in = td.consumePixmap();
+        int w = in.getWidth(), h = in.getHeight();
+
+        int deg = ((int) Math.round(degrees) % 360 + 360) % 360; // normalize to 0/90/180/270
+        Pixmap out;
+        if (deg == 90 || deg == 270) out = new Pixmap(h, w, Pixmap.Format.RGBA8888);
+        else                         out = new Pixmap(w, h, Pixmap.Format.RGBA8888);
+        out.setBlending(Pixmap.Blending.None);
+
+        for (int y = 0; y < h; y++) {
+            for (int x = 0; x < w; x++) {
+                int rgba = in.getPixel(x, y);
+                switch (deg) {
+                    case 90  -> out.drawPixel(h - 1 - y, x, rgba);
+                    case 180 -> out.drawPixel(w - 1 - x, h - 1 - y, rgba);
+                    case 270 -> out.drawPixel(y, w - 1 - x, rgba);
+                    default  -> out.drawPixel(x, y, rgba);
+                }
+            }
+        }
+        Texture tex = new Texture(out);
+        tex.setFilter(Texture.TextureFilter.Nearest, Texture.TextureFilter.Nearest);
+        out.dispose();
+        return new Sprite(tex);
     }
     public void subtractResource(Entity user) {}
 

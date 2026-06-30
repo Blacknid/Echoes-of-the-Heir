@@ -1,9 +1,9 @@
 package main;
 
-import java.awt.AlphaComposite;
-import java.awt.Color;
-import java.awt.Font;
-import java.awt.Graphics2D;
+import gfx.Color;
+import gfx.Font;
+import gfx.GdxRenderer;
+import gfx.Stroke;
 import java.io.BufferedReader;
 import java.io.File;
 import java.io.FileInputStream;
@@ -176,8 +176,8 @@ public class QuestManager {
     private static final Color PROG_BG         = new Color(15, 10, 20, 255);
     private static final Color PROG_FILL       = new Color(90, 160, 200, 255);
 
-    private static final java.awt.BasicStroke STROKE_2 = new java.awt.BasicStroke(2f);
-    private static final java.awt.BasicStroke STROKE_1 = new java.awt.BasicStroke(1f);
+    private static final Stroke STROKE_2 = new Stroke(2f);
+    private static final Stroke STROKE_1 = new Stroke(1f);
     private static final Color DESC_COLOR    = new Color(160, 155, 145);
     private static final Color HINT_COLOR    = new Color(150, 150, 150);
     private Font fontPlain14, fontBold28, fontBold16, fontPlain20, fontPlain16, fontPlain14b;
@@ -191,13 +191,14 @@ public class QuestManager {
         logScrollOffset = Math.max(0, Math.min(logScrollMax, logScrollOffset + dir * 22));
     }
 
-    private void ensureFonts(Graphics2D g2) {
+    private void ensureFonts(GdxRenderer g2) {
         if (fontPlain14 == null) {
             // Load the custom pixel font once. Integer sizes keep the font crisp.
             Font base;
             try {
                 base = Font.createFont(Font.TRUETYPE_FONT,
-                        QuestManager.class.getResourceAsStream("/res/fonts/Pixeloid Sans.ttf"));
+                        QuestManager.class.getResourceAsStream("/res/fonts/Pixeloid Sans.ttf"),
+                        "Pixeloid Sans");
             } catch (Exception e) {
                 System.out.println("[QuestManager] Pixeloid Sans not found, using system font");
                 base = g2.getFont();
@@ -497,7 +498,7 @@ public class QuestManager {
 
 
     /** Draw the current objective tracker (small HUD overlay). */
-    public void drawTracker(Graphics2D g2) {
+    public void drawTracker(GdxRenderer g2) {
         Quest active = null;
         for (int i = 0, n = quests.size(); i < n; i++) {
             Quest q = quests.get(i);
@@ -533,7 +534,7 @@ public class QuestManager {
         int padH    = (int)(8 * sf);     // horizontal text padding inside pill
 
         // Measure text; truncate with … if too wide
-        java.awt.FontMetrics fm = g2.getFontMetrics();
+        gfx.FontMetrics fm = g2.getFontMetrics();
         String display = tracker;
         int textW = fm.stringWidth(display);
         if (textW > maxW - padH * 2) {
@@ -550,12 +551,12 @@ public class QuestManager {
         int x = gp.screenWidth - margin - trackerW;
         int y = margin + 3 * pillH + 2 * pillGap + (int)(6 * sf);
 
-        g2.setComposite(AlphaComposite.getInstance(AlphaComposite.SRC_OVER, 0.82f));
+        g2.setAlpha(0.82f);
         g2.setColor(BG);
         g2.fillRoundRect(x, y, trackerW, pillH, 8, 8);
         g2.setColor(INCOMPLETE);
         g2.fillRoundRect(x, y + (int)(4 * sf), (int)(3 * sf), pillH - (int)(8 * sf), 3, 3);
-        g2.setComposite(AlphaComposite.getInstance(AlphaComposite.SRC_OVER, 1f));
+        g2.setAlpha(1f);
 
         g2.setFont(fontPlain14);
         g2.setColor(INCOMPLETE);
@@ -564,7 +565,7 @@ public class QuestManager {
     }
 
     /** Draw the full quest log screen. */
-    public void drawLog(Graphics2D g2) {
+    public void drawLog(GdxRenderer g2) {
         if (!logOpen) return;
 
         ensureFonts(g2);
@@ -579,10 +580,10 @@ public class QuestManager {
         final int contentBottom = y + H - FOOTER_H;
         final int contentH      = contentBottom - contentTop;
 
-        g2.setComposite(AlphaComposite.getInstance(AlphaComposite.SRC_OVER, 0.97f));
+        g2.setAlpha(0.97f);
         g2.setColor(BG);
         g2.fillRoundRect(x, y, W, H, 18, 18);
-        g2.setComposite(AlphaComposite.getInstance(AlphaComposite.SRC_OVER, 1f));
+        g2.setAlpha(1f);
         g2.setColor(BORDER);
         g2.setStroke(STROKE_2);
         g2.drawRoundRect(x + 2, y + 2, W - 4, H - 4, 16, 16);
@@ -610,7 +611,6 @@ public class QuestManager {
         int sw = g2.getFontMetrics().stringWidth(summary);
         g2.drawString(summary, x + W - sw - PADDING, y + 36);
 
-        java.awt.Shape oldClip = g2.getClip();
         g2.setClip(x + 4, contentTop, W - 8, contentH);
 
         int qy = contentTop + 10 - logScrollOffset;
@@ -732,7 +732,7 @@ public class QuestManager {
         // Update scroll max
         logScrollMax = Math.max(0, (qy + logScrollOffset) - contentBottom + 8);
 
-        g2.setClip(oldClip);
+        g2.clearClip();
 
         // ── Footer ──
         g2.setColor(new Color(20, 16, 12, 230));
@@ -749,7 +749,7 @@ public class QuestManager {
     }
 
     /** Helper: draws a section header with label and a horizontal rule. */
-    private void drawSectionHeader(Graphics2D g2, int x, int qy, int W, int pad,
+    private void drawSectionHeader(GdxRenderer g2, int x, int qy, int W, int pad,
                                     String label, Color col, int lineStart) {
         g2.setFont(fontBold16);
         g2.setColor(col);

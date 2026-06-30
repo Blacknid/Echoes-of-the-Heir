@@ -1,6 +1,6 @@
 package map;
 
-import java.awt.Rectangle;
+import gfx.geom.Rect;
 import java.util.ArrayList;
 import java.util.Random;
 
@@ -26,9 +26,9 @@ public class MobSpawner {
     private static final int MAX_PLACEMENT_ATTEMPTS = 30;  // tries before giving up
 
     /** Rectangles (world-pixel) registered from MobSpawnerZone objects in Tiled. */
-    public final ArrayList<Rectangle> spawnZones = new ArrayList<>();
+    public final ArrayList<Rect> spawnZones = new ArrayList<>();
 
-    private final Rectangle spawnRect = new Rectangle();
+    private final Rect spawnRect = new Rect();
 
     public MobSpawner(GamePanel gp) {
         this.gp = gp;
@@ -41,7 +41,7 @@ public class MobSpawner {
 
     /** Register a spawn zone rectangle (world pixels). Called by MapObjectLoader. */
     public void addZone(int worldX, int worldY, int w, int h) {
-        spawnZones.add(new Rectangle(worldX, worldY, w, h));
+        spawnZones.add(new Rect(worldX, worldY, w, h));
         System.out.println("MobSpawner: zone added at (" + worldX + "," + worldY + ") size " + w + "x" + h);
     }
 
@@ -108,7 +108,7 @@ public class MobSpawner {
 
         for (int attempt = 0; attempt < MAX_PLACEMENT_ATTEMPTS; attempt++) {
             // Pick a random zone
-            Rectangle zone = spawnZones.get(random.nextInt(spawnZones.size()));
+            Rect zone = spawnZones.get(random.nextInt(spawnZones.size()));
 
             // Pick a random tile inside that zone
             int zoneCols = Math.max(1, zone.width  / ts);
@@ -137,7 +137,7 @@ public class MobSpawner {
         return null;
     }
 
-    private boolean collidesWithTerrain(Rectangle rect) {
+    private boolean collidesWithTerrain(Rect rect) {
         if (!gp.tileM.collisionTileLayers.isEmpty()) {
             int ts = gp.tileSize;
             int leftCol   = rect.x / ts;
