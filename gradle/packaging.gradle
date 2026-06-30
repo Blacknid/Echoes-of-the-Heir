@@ -1,0 +1,9 @@
+// Packaging pipeline (jpackage .exe + Inno Setup installer + license sync).
+// Wired in Stage 7. Placeholder for now so lwjgl3/build.gradle's `apply from` resolves.
+//
+// Planned tasks (Stage 7):
+//   - syncLicenseKeys  : Exec build_tools/sync_keys.py (inject RSA public key)
+//   - bumpBuildNumber  : increment ceva/src/res/build.properties `build`
+//   - jpackageImage    : jpackage --type app-image -> jpackage_tmp/MichisAdventure
+//   - innoInstaller    : ISCC build_tools/setup_init.iss -> deploy/MichiGame_Setup.exe
+//   - installer        : umbrella task (jar -> jpackageImage -> innoInstaller)

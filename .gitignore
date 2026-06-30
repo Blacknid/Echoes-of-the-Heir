@@ -22,6 +22,16 @@ crash_log.txt
 *.log
 *.class
 
+# Gradle (libGDX build)
+.gradle/
+**/build/
+!gradle/wrapper/gradle-wrapper.jar
+!gradle/packaging.gradle
+.idea/
+*.iml
+bin/
+out/
+
 # Server runtime files
 SERVERS/save_server/saves.db
 SERVERS/save_server/server.log

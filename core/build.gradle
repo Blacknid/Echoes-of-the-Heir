@@ -1,0 +1,41 @@
+// core — engine-agnostic game logic + libGDX rendering.
+//
+// MIGRATION NOTE: during the migration, core's sources and assets point at the legacy
+// ceva/src tree so we don't move 79 files + a large res/ folder until the libGDX build
+// is green. The physical relocation into core/src/main/java + core/assets is a separate,
+// clean commit at the end of Stage 0.
+apply plugin: 'java-library'
+
+// Target Java 17 bytecode (Android-compatible) while compiling with whatever JDK runs
+// Gradle (JDK 26 here). `release` is preferred over a toolchain so no extra JDK download
+// is needed; switch to a toolchain + foojay resolver if a pinned 17 JDK is ever wanted.
+java {
+    sourceCompatibility = JavaVersion.VERSION_17
+    targetCompatibility = JavaVersion.VERSION_17
+}
+tasks.withType(JavaCompile).configureEach {
+    options.release = 17
+    options.encoding = 'UTF-8'
+}
+
+sourceSets {
+    main {
+        java {
+            srcDirs = ['src/main/java', '../ceva/src']
+            // The new libGDX entry points live under core/src/main/java.
+            // Everything else still lives under ../ceva/src and is ported in place.
+        }
+        resources {
+            // Assets are read from the classpath as /res/... — keep that working by rooting
+            // resources at ceva/src (so /res/... resolves) AND core/assets for new files.
+            srcDirs = ['assets', '../ceva/src']
+            include 'res/**'
+            include '**/*.json', '**/*.properties', '**/*.tmx', '**/*.tsx', '**/*.windmap'
+        }
+    }
+}
+
+dependencies {
+    api "com.badlogicgames.gdx:gdx:$gdxVersion"
+    api "com.badlogicgames.gdx:gdx-freetype:$gdxVersion"   // .ttf fonts (Pixeloid Sans, m5x7)
+}
