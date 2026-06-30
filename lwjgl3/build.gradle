@@ -12,7 +12,9 @@ tasks.withType(JavaCompile).configureEach {
 }
 
 application {
-    mainClass = project.mainClassName
+    // Allow overriding the entry point for dev tools, e.g.:
+    //   ./gradlew :lwjgl3:run -PmainClass=lwjgl3.GeomParityTest
+    mainClass = project.hasProperty('mainClass') ? project.mainClass : project.mainClassName
 }
 
 // Keep the run task's working dir at the assets root so /res/... resolves in dev runs.
