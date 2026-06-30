@@ -1,18 +1,12 @@
 package tile;
 
-import java.awt.AlphaComposite;
-import java.awt.BasicStroke;
-import java.awt.Color;
-import java.awt.Composite;
-import java.awt.Graphics2D;
-import java.awt.Rectangle;
-import java.awt.Shape;
-import java.awt.geom.AffineTransform;
-import java.awt.geom.Area;
-import java.awt.geom.Ellipse2D;
-import java.awt.geom.Path2D;
-import java.awt.geom.Rectangle2D;
-import java.awt.image.BufferedImage;
+import gfx.Color;
+import gfx.GdxRenderer;
+import gfx.Sprite;
+import gfx.Stroke;
+import gfx.geom.Rect;
+import gfx.geom.Shape;
+import gfx.geom.Transform;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Comparator;
@@ -51,11 +45,11 @@ public class TileManager {
     private boolean hasAnimatedTiles = false;
 
     public static class ImageLayerData {
-        public BufferedImage image;
+        public Sprite image;
         public float worldX, worldY;       // offset from Tiled (already scaled)
         public float parallaxX = 1f, parallaxY = 1f;
         public float opacity = 1f;
-        public java.awt.Color tintColor = null; // null = no tint
+        public gfx.Color tintColor = null; // null = no tint
         public String name = "";
         public int globalLayerIndex;    // position in the full Tiled layer stack
         public boolean foreground = false; // true = draw above entities
@@ -79,23 +73,15 @@ public class TileManager {
     int mapOffsetPixelsY = 0;
     public Color mapBackgroundColor = new Color(20, 18, 22);
 
-    // AlphaComposite cache — eliminates ~880 allocations/frame
-    private static final HashMap<Float, AlphaComposite> alphaCompositeCache = new HashMap<>();
-    static {
-        alphaCompositeCache.put(1f, AlphaComposite.SrcOver);
-    }
-    private static AlphaComposite cachedAlpha(float alpha) {
-        return alphaCompositeCache.computeIfAbsent(alpha,
-            a -> AlphaComposite.getInstance(AlphaComposite.SRC_OVER, a));
-    }
+    // (Alpha is a plain float on the GPU facade — no AlphaComposite cache needed.)
 
     private static final String DEFAULT_COLLISION_OBJECT_LAYER = "Collision";
 
     private static final class TilesetFrameCache {
-        final BufferedImage[] images;
+        final Sprite[] images;
         final int[] drawOffsets;
 
-        TilesetFrameCache(BufferedImage[] images, int[] drawOffsets) {
+        TilesetFrameCache(Sprite[] images, int[] drawOffsets) {
             this.images = images;
             this.drawOffsets = drawOffsets;
         }
@@ -117,7 +103,7 @@ public class TileManager {
     }
 
     private static class VisibleTileDraw {
-        BufferedImage image;
+        Sprite image;
         int screenX;
         int screenY;
         int worldX;         // worldCol * tileSize (for fast sub-tile camera update)
@@ -214,10 +200,10 @@ public class TileManager {
     // Collision shapes (from Tiled objectgroup layers — rectangles, rotated rects, polygons, ellipses)
     public ArrayList<Shape> collisionShapes = new ArrayList<>();
     // Bounding boxes for each shape (used by spatial grid for broad-phase)
-    public ArrayList<Rectangle> collisionBounds = new ArrayList<>();
+    public ArrayList<Rect> collisionBounds = new ArrayList<>();
     // Axis-aligned rectangle occluders only — used exclusively by the lighting system for shadow casting.
     // Non-rectangular and rotated shapes are intentionally excluded to prevent incorrect shadow projections.
-    public ArrayList<Rectangle> lightOccluderRects = new ArrayList<>();
+    public ArrayList<Rect> lightOccluderRects = new ArrayList<>();
 
     // Runtime per-tile-position lit state. Cleared + rebuilt every frame by Lightning.draw().
     // Index: [col][row]. Null until initTileLitMap() is called on first map load.
@@ -439,8 +425,8 @@ public class TileManager {
             return cached;
         }
 
-        BufferedImage tilesetImage = ResourceCache.loadImage(path);
-        BufferedImage[] images = new BufferedImage[tileCount];
+        Sprite tilesetImage = ResourceCache.loadImage(path);
+        Sprite[] images = new Sprite[tileCount];
         int[] drawOffsets = new int[tileCount];
         float tileScale = (float) tileSize / mapTileSize;
 
@@ -451,7 +437,7 @@ public class TileManager {
                 break;
             }
 
-            BufferedImage sub = tilesetImage.getSubimage(tileX, tileY, tileWidth, tileHeight);
+            Sprite sub = tilesetImage.getSubimage(tileX, tileY, tileWidth, tileHeight);
             int scaledWidth = Math.max(1, Math.round(tileWidth * tileScale));
             int scaledHeight = Math.max(1, Math.round(tileHeight * tileScale));
             images[index] = UtilityTool.scaleImage(sub, scaledWidth, scaledHeight);
@@ -907,7 +893,7 @@ public class TileManager {
             System.out.println("Skipping imagelayer — cannot resolve source: " + srcRaw);
             return;
         }
-        BufferedImage rawImage;
+        Sprite rawImage;
         try {
             rawImage = ResourceCache.loadImage(srcPath);
         } catch (java.io.IOException imageError) {
@@ -1188,63 +1174,22 @@ public class TileManager {
     }
 
     private Shape buildRectShape(double x, double y, double w, double h, double rotation) {
-        if (rotation == 0) {
-            return new Rectangle2D.Double(x, y, w, h);
-        }
-        // Tiled rotates around the object's origin (top-left)
-        AffineTransform at = new AffineTransform();
-        at.translate(x, y);
-        at.rotate(Math.toRadians(rotation));
-        return at.createTransformedShape(new Rectangle2D.Double(0, 0, w, h));
+        // gfx.geom.Transform mirrors the old AffineTransform.translate+rotate+createTransformedShape:
+        // unrotated → Rect, rotated → flattened Polygon (Tiled rotates around the top-left origin).
+        return Transform.rect(x, y, w, h, rotation);
     }
 
     private Shape buildEllipseShape(double x, double y, double w, double h, double rotation) {
-        if (rotation == 0) {
-            return new Ellipse2D.Double(x, y, w, h);
-        }
-        AffineTransform at = new AffineTransform();
-        at.translate(x, y);
-        at.rotate(Math.toRadians(rotation));
-        return at.createTransformedShape(new Ellipse2D.Double(0, 0, w, h));
+        return Transform.ellipse(x, y, w, h, rotation);
     }
 
     private Shape buildPolylineShape(double x, double y, double rotation, String pointsStr, double sf, float thickness) {
-        String[] pairs = pointsStr.trim().split("\\s+");
-        Path2D.Double line = new Path2D.Double();
-        for (int i = 0; i < pairs.length; i++) {
-            String[] coords = pairs[i].split(",");
-            double px = Double.parseDouble(coords[0]) * sf;
-            double py = Double.parseDouble(coords[1]) * sf;
-            if (i == 0) line.moveTo(px, py);
-            else        line.lineTo(px, py);
-        }
-        // Convert open path to a filled area by stroking it
-        Shape stroked = new BasicStroke(thickness, BasicStroke.CAP_SQUARE, BasicStroke.JOIN_MITER)
-                .createStrokedShape(line);
-        AffineTransform at = new AffineTransform();
-        at.translate(x, y);
-        if (rotation != 0) at.rotate(Math.toRadians(rotation));
-        return new Area(at.createTransformedShape(stroked));
+        // Open polyline stroked to a filled outline polygon of the given thickness, placed/rotated.
+        return Transform.polyline(x, y, rotation, pointsStr, sf, thickness);
     }
 
     private Shape buildPolygonShape(double x, double y, double rotation, String pointsStr, double sf) {
-        String[] pairs = pointsStr.trim().split("\\s+");
-        Path2D.Double poly = new Path2D.Double();
-        for (int i = 0; i < pairs.length; i++) {
-            String[] coords = pairs[i].split(",");
-            double px = Double.parseDouble(coords[0]) * sf;
-            double py = Double.parseDouble(coords[1]) * sf;
-            if (i == 0) poly.moveTo(px, py);
-            else poly.lineTo(px, py);
-        }
-        poly.closePath();
-
-        AffineTransform at = new AffineTransform();
-        at.translate(x, y);
-        if (rotation != 0) {
-            at.rotate(Math.toRadians(rotation));
-        }
-        return at.createTransformedShape(poly);
+        return Transform.polygon(x, y, rotation, pointsStr, sf);
     }
 
     // OPTIMIZATION: Direct GID-indexed arrays for O(1) tile lookups (replaces per-tile linear tileset scans)
@@ -1450,61 +1395,34 @@ public class TileManager {
         foregroundVisibleTiles.sort(backgroundTileComparator);
     }
 
-    private void drawTile(Graphics2D g2, VisibleTileDraw vt) {
-        // Apply layer opacity composite
-        Composite origComposite = null;
-        if (vt.opacity < 0.999f) {
-            origComposite = g2.getComposite();
-            g2.setComposite(cachedAlpha(vt.opacity));
-        }
+    private void drawTile(GdxRenderer g2, VisibleTileDraw vt) {
+        // Apply layer opacity (plain alpha on the GPU facade)
+        if (vt.opacity < 0.999f) g2.setAlpha(vt.opacity);
 
-        // Draw the tile (with optional flip transform)
+        int w = vt.image.getWidth();
+        int h = vt.image.getHeight();
+
+        // Draw the tile (with optional Tiled flip/rotate flags)
         if (vt.flipFlags == 0) {
-            g2.drawImage(vt.image, vt.screenX, vt.screenY, null);
+            g2.drawImage(vt.image, vt.screenX, vt.screenY);
         } else {
-            AffineTransform at = buildFlipTransform(vt.flipFlags, vt.screenX, vt.screenY,
-                    vt.image.getWidth(), vt.image.getHeight());
-            g2.drawImage(vt.image, at, null);
+            boolean fH = (vt.flipFlags & 1) != 0;
+            boolean fV = (vt.flipFlags & 2) != 0;
+            boolean fD = (vt.flipFlags & 4) != 0;
+            g2.drawTileFlipped(vt.image, vt.screenX, vt.screenY, w, h, fH, fV, fD);
         }
 
-        // Apply tint overlay (multiply-like, using SRC_OVER with low alpha)
+        // Apply tint overlay (low-alpha fill over the tile, matching the old SRC_OVER overlay)
         if (vt.tint != null) {
-            Composite c = g2.getComposite();
-            g2.setComposite(cachedAlpha(0.4f * vt.opacity));
+            g2.setAlpha(0.4f * vt.opacity);
             g2.setColor(vt.tint);
-            g2.fillRect(vt.screenX, vt.screenY, vt.image.getWidth(), vt.image.getHeight());
-            g2.setComposite(c);
+            g2.fillRect(vt.screenX, vt.screenY, w, h);
         }
 
-        if (origComposite != null) g2.setComposite(origComposite);
+        if (vt.opacity < 0.999f || vt.tint != null) g2.setAlpha(1f);
     }
 
-    // OPTIMIZATION: Reusable AffineTransform — avoids allocation per flipped tile per frame
-    private final AffineTransform reusableFlipAT = new AffineTransform();
-
-    /**
-     * Build an AffineTransform for the 7 Tiled flip/rotate combinations.
-     * H  = mirror left/right
-     * V  = mirror top/bottom
-     * D  = anti-diagonal transpose (swap x,y — used combined with H or V to express rotations)
-     * D+H = 90° CW,  D+V = 90° CCW,  H+V = 180°,  D+H+V = 270° (or 90° CCW after flip)
-     */
-    private AffineTransform buildFlipTransform(byte flags, int sx, int sy, int w, int h) {
-        boolean fH = (flags & 1) != 0;
-        boolean fV = (flags & 2) != 0;
-        boolean fD = (flags & 4) != 0;
-        // Matrix elements: [m00 m10 m01 m11 tx ty]  (column-major AffineTransform order)
-        if ( fD &&  fH && !fV) reusableFlipAT.setTransform( 0,  1, -1,  0, sx + w, sy);         // 90° CW
-        else if ( fD && !fH &&  fV) reusableFlipAT.setTransform( 0, -1,  1,  0, sx,     sy + h);      // 90° CCW
-        else if (!fD &&  fH &&  fV) reusableFlipAT.setTransform(-1,  0,  0, -1, sx + w, sy + h);      // 180°
-        else if ( fD &&  fH &&  fV) reusableFlipAT.setTransform( 0, -1, -1,  0, sx + w, sy + h);      // 270° CW
-        else if (!fD &&  fH && !fV) reusableFlipAT.setTransform(-1,  0,  0,  1, sx + w, sy);          // flip H
-        else if (!fD && !fH &&  fV) reusableFlipAT.setTransform( 1,  0,  0, -1, sx,     sy + h);      // flip V
-        else /* fD && !fH && !fV */ reusableFlipAT.setTransform( 0,  1,  1,  0, sx,     sy);          // transpose
-        return reusableFlipAT;
-    }
-
-    public void drawBackground(Graphics2D g2) {
+    public void drawBackground(GdxRenderer g2) {
         // Fill void areas outside the map with the map's background color
         g2.setColor(mapBackgroundColor);
         g2.fillRect(0, 0, gp.screenWidth, gp.screenHeight);
@@ -1544,7 +1462,7 @@ public class TileManager {
         drawPathOverlay(g2);
     }
 
-    public void drawForeground(Graphics2D g2) {
+    public void drawForeground(GdxRenderer g2) {
         // Fast path: no foreground image layers — just draw tiles
         if (!hasFgImagesCacheValid) {
             hasFgImagesCache = false;
@@ -1598,37 +1516,31 @@ public class TileManager {
         return depthVisibleTiles.get(index).sortY;
     }
 
-    public void drawDepthTile(Graphics2D g2, int index) {
+    public void drawDepthTile(GdxRenderer g2, int index) {
         drawTile(g2, depthVisibleTiles.get(index));
     }
 
     /** Draw a single image layer at its world position relative to the camera. */
-    private void drawSingleImageLayer(Graphics2D g2, ImageLayerData ild,
+    private void drawSingleImageLayer(GdxRenderer g2, ImageLayerData ild,
                                        int cameraWorldX, int cameraWorldY) {
         if (ild.image == null) return;
         int sx = Math.round(ild.worldX - cameraWorldX * ild.parallaxX);
         int sy = Math.round(ild.worldY - cameraWorldY * ild.parallaxY);
-        Composite orig = null;
-        if (ild.opacity < 0.999f) {
-            orig = g2.getComposite();
-            g2.setComposite(cachedAlpha(ild.opacity));
-        }
-        g2.drawImage(ild.image, sx, sy, null);
+        if (ild.opacity < 0.999f) g2.setAlpha(ild.opacity);
+        g2.drawImage(ild.image, sx, sy);
         if (ild.tintColor != null) {
-            Composite c = g2.getComposite();
-            g2.setComposite(cachedAlpha(0.4f * ild.opacity));
+            g2.setAlpha(0.4f * ild.opacity);
             g2.setColor(ild.tintColor);
             g2.fillRect(sx, sy, ild.image.getWidth(), ild.image.getHeight());
-            g2.setComposite(c);
         }
-        if (orig != null) g2.setComposite(orig);
+        if (ild.opacity < 0.999f || ild.tintColor != null) g2.setAlpha(1f);
     }
 
-    private void drawPathOverlay(Graphics2D g2) {
+    private void drawPathOverlay(GdxRenderer g2) {
         if ( gp.drawPath ) {
             int playerWorldX = gp.player.worldX;
             int playerWorldY = gp.player.worldY;
-            g2.setColor(new java.awt.Color(255, 0, 0, 128));
+            g2.setColor(new Color(255, 0, 0, 128));
             for ( int i = 0 ; i < gp.pFinder.pathList.size() ; i++ ) {
                 int worldX = gp.pFinder.pathList.get(i).col * tileSize;
                 int worldY = gp.pFinder.pathList.get(i).row * tileSize;

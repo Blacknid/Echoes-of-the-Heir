@@ -1,10 +1,9 @@
 package entity;
 
-import java.awt.AlphaComposite;
- import java.awt.Color;
- import java.awt.Graphics2D;
- import java.awt.Rectangle;
- import java.awt.image.BufferedImage;
+import gfx.Color;
+ import gfx.GdxRenderer;
+ import gfx.Sprite;
+ import gfx.geom.Rect;
  import java.util.ArrayList;
 
  import audio.SFX;
@@ -37,8 +36,8 @@ public class Player extends Entity {
     private static final Color COLOR_LEVELUP_MSG = new Color(255, 220, 110);
     private static final Color COLOR_LEVELUP_RING = new Color(160, 200, 255);
 
-    public BufferedImage[][] hitFrames;    // getHit sprite sheet [dir][frame]
-    public BufferedImage[][] deathFrames;  // death sprite sheet  [dir][frame]
+    public Sprite[][] hitFrames;    // getHit sprite sheet [dir][frame]
+    public Sprite[][] deathFrames;  // death sprite sheet  [dir][frame]
     public boolean playerDying = false;     // death animation in progress
     public int playerDeathCounter = 0;      // tick counter for death anim
     public int playerDeathFrame = 0;        // current death frame index
@@ -108,11 +107,6 @@ public class Player extends Entity {
     public int levelUpBannerTimer = 0;
     public String levelUpBannerText = "";
 
-    // Drift / momentum: sub-pixel velocity that decays after keys are released.
-    // DRIFT_FRICTION chosen for a 2-4 frame glide at normal walk speed (feels like grass, not ice).
-    private float driftVx = 0f, driftVy = 0f;
-    private float driftAccumX = 0f, driftAccumY = 0f;
-    private static final float DRIFT_FRICTION = 0.72f; // per-frame multiplier; lower = snappier, higher = more slide
 
     private boolean dashing = false;
     private int dashCounter = 0;
@@ -163,26 +157,41 @@ public class Player extends Entity {
     private int windDownCounter = 0;
     private static final int WIND_DOWN_FRAMES = 2;
 
-    // Acceleration / inertia
-    private float player_weight = 65f; //kg, basically the mass of the player on which we calculate the inertia
+    // Physics-based movement: F_D = 0.5 * rho * v^2 * C_D * A
+    // rho=1.225 kg/m^3, C_D=1.0, A=0.5 m^2, mass=60 kg — scaled to pixel/frame units.
+    private static final float PLAYER_MASS  = 60f;    // kg
+    private static final float DRAG_K       = 1.44f;  // 0.5 * rho * C_D * A, tuned to pixel space
+    private static final float DRIVE_ACCEL  = 0.4f;   // px/frame^2 drive force per unit mass while key held
     private float currentSpeed = 0f;
     private float inertiaVelX = 0f;
     private float inertiaVelY = 0f;
-    private static final float ACCEL_RATE   = 0.4f; // speed gained per frame while key held
-    private static final float DECEL_RATE   = 0.55f; // speed lost per frame after key released (inertia)
+
+    // Wind: a real force vector sampled from the map's WindField, applied as F/mass per frame.
+    // Only the component along the player's movement axis is used (tailwind faster / headwind
+    // slower) — the sideways component is discarded so the player is never pushed off-course.
+    private static final float WIND_FORCE_SCALE = 9.0f; // converts WindField strength (0..1) to px/frame^2 force
+    // The "inertia hitbox" — the body area the wind pushes on. Larger than the collision solidArea
+    // so it is visually balanced with the on-screen player sprite (a person-sized sail, not just feet).
+    private final Rect inertiaArea = new Rect();
 
     public Player(GamePanel gp, KeyHandler keyH) {
         super(gp);
         this.keyH = keyH;
         screenX = gp.screenWidth / 2 - (gp.tileSize / 2);
         screenY = gp.screenHeight / 2 - (gp.tileSize / 2);
-        solidArea = new Rectangle();
+        solidArea = new Rect();
         solidArea.x = gp.tileSize * 20 / 64;   // 20px at 64px tile, scales proportionally
         solidArea.y = gp.tileSize * 22 / 64;   // 22px at 64px tile
         solidAreaDefaultX = solidArea.x;
         solidAreaDefaultY = solidArea.y;
         solidArea.width  = gp.tileSize * 24 / 64;  // 24px at 64px tile
         solidArea.height = gp.tileSize * 22 / 64;  // 22px at 64px tile
+        // Inertia/wind hitbox: covers most of the on-screen body so wind pushes on a
+        // person-sized area, not just the feet. ~44px wide × ~52px tall at a 64px tile.
+        inertiaArea.x = gp.tileSize * 10 / 64;
+        inertiaArea.y = gp.tileSize *  8 / 64;
+        inertiaArea.width  = gp.tileSize * 44 / 64;
+        inertiaArea.height = gp.tileSize * 52 / 64;
         setDefaultValues();
     }
 
@@ -335,7 +344,7 @@ public class Player extends Entity {
     }
 
     public void getPlayerAttackImages() {
-        attackFrames = new BufferedImage[4][5];
+        attackFrames = new Sprite[4][5];
         attackFrames[DIR_UP][0] = setup("/res/player/b.attack/attack 1/up/u1", gp.tileSize, gp.tileSize * 2);
         attackFrames[DIR_UP][1] = setup("/res/player/b.attack/attack 1/up/u2", gp.tileSize, gp.tileSize * 2);
         attackFrames[DIR_UP][2] = setup("/res/player/b.attack/attack 1/up/u3", gp.tileSize, gp.tileSize * 2);
@@ -358,16 +367,16 @@ public class Player extends Entity {
         attackFrames[DIR_RIGHT][4] = setup("/res/player/b.attack/attack 1/right/r5", gp.tileSize * 2, gp.tileSize);
         // Combo step 1 — attack2_sheet (4 rows × 5 cols, 1-tile each: down/left/right/up)
         int[] a2 = {5, 5, 5, 5};
-        BufferedImage[][] raw2 = loadSheetVariable("/res/player/b.attack/attack2_sheet", a2);
-        attackFrames2 = new BufferedImage[4][];
+        Sprite[][] raw2 = loadSheetVariable("/res/player/b.attack/attack2_sheet", a2);
+        attackFrames2 = new Sprite[4][];
         attackFrames2[DIR_DOWN]  = raw2[0];
         attackFrames2[DIR_LEFT]  = raw2[1];
         attackFrames2[DIR_RIGHT] = raw2[2];
         attackFrames2[DIR_UP]    = raw2[3];
         // Combo step 2 — attack3_sheet (4 rows × 6 cols, 1-tile each: down/left/right/up)
         int[] a3 = {6, 6, 6, 6};
-        BufferedImage[][] raw3 = loadSheetVariable("/res/player/b.attack/attack3_sheet", a3);
-        attackFrames3 = new BufferedImage[4][];
+        Sprite[][] raw3 = loadSheetVariable("/res/player/b.attack/attack3_sheet", a3);
+        attackFrames3 = new Sprite[4][];
         attackFrames3[DIR_DOWN]  = raw3[0];
         attackFrames3[DIR_LEFT]  = raw3[1];
         attackFrames3[DIR_RIGHT] = raw3[2];
@@ -376,8 +385,8 @@ public class Player extends Entity {
 
     public void getPlayerHitImages() {
         int[] framesPerRow = {4, 4, 4, 4}; // sheet rows: down, left, up, right
-        BufferedImage[][] frames = loadSheetVariable("/res/player/Player_getHit", framesPerRow);
-        hitFrames = new BufferedImage[4][];
+        Sprite[][] frames = loadSheetVariable("/res/player/Player_getHit", framesPerRow);
+        hitFrames = new Sprite[4][];
         hitFrames[DIR_UP]    = frames[0]; // row 0 = up
         hitFrames[DIR_RIGHT] = frames[3]; // row 1 = right
         hitFrames[DIR_DOWN]  = frames[1]; // row 2 = down
@@ -386,8 +395,8 @@ public class Player extends Entity {
 
     public void getPlayerDeathImages() {
         int[] framesPerRow = {5, 5, 5, 5}; // sheet rows: up, down, left, right
-        BufferedImage[][] frames = loadSheetVariable("/res/player/Player_death", framesPerRow);
-        deathFrames = new BufferedImage[4][];
+        Sprite[][] frames = loadSheetVariable("/res/player/Player_death", framesPerRow);
+        deathFrames = new Sprite[4][];
         deathFrames[DIR_DOWN]  = frames[0]; // row 0 = down
         deathFrames[DIR_RIGHT] = frames[2]; // row 2 = right
         deathFrames[DIR_UP]    = frames[1]; // row 1 = up
@@ -396,8 +405,8 @@ public class Player extends Entity {
 
     public void getPlayerIdleImages() {
         int[] framesPerRow = {6, 6, 6, 6}; // sheet rows: up, down, left, right
-        BufferedImage[][] frames = loadSheetVariable("/res/player/Player_idle-sheet", framesPerRow);
-        idleFrames = new BufferedImage[4][];
+        Sprite[][] frames = loadSheetVariable("/res/player/Player_idle-sheet", framesPerRow);
+        idleFrames = new Sprite[4][];
         idleFrames[DIR_UP]    = frames[0]; // row 0 = up
         idleFrames[DIR_DOWN]  = frames[1]; // row 1 = down
         idleFrames[DIR_LEFT]  = frames[2]; // row 2 = left
@@ -617,7 +626,17 @@ public class Player extends Entity {
                         solidArea.width, solidArea.height)) {
                     targetSpeed *= 0.6f;
                 }
-                currentSpeed = Math.min(targetSpeed, currentSpeed + ACCEL_RATE);
+                // Drive force accelerates toward target; air drag (quadratic) opposes motion.
+                float drag = DRAG_K * currentSpeed * currentSpeed / PLAYER_MASS;
+                currentSpeed = Math.min(targetSpeed, currentSpeed + DRIVE_ACCEL - drag);
+
+                // Wind: project the wind force onto the player's movement direction only.
+                // Tailwind (force aligned with motion) adds speed; headwind subtracts it.
+                // The perpendicular component is discarded — no sideways shove.
+                float windAccel = windForceAlongMovement(movingLeft, movingRight, movingUp, movingDown);
+                currentSpeed = Math.max(0.5f, currentSpeed + windAccel);
+                // Allow tailwind to push the player past their normal top speed (capped).
+                currentSpeed = Math.min(currentSpeed, targetSpeed + Math.max(0f, windAccel) * 6f);
 
                 // Diagonal: scale each axis by 1/√2 so total speed equals cardinal
                 boolean diagonal = movingH && movingV;
@@ -635,14 +654,11 @@ public class Player extends Entity {
                 inertiaVelX = movingLeft ? -csX : movingRight ? csX : 0f;
                 inertiaVelY = movingUp   ? -csY : movingDown  ? csY : 0f;
 
-                int moveSpeedX = Math.max(1, Math.round(Math.abs(inertiaVelX)));
-                int moveSpeedY = Math.max(1, Math.round(Math.abs(inertiaVelY)));
-
                 if (movingH && !keyH.enterPressed) moveAxis(movingLeft ? DIR_LEFT : DIR_RIGHT, movingLeft ? -sx : sx, 0);
-                else if (!movingH) driftVx = 0f;
+                else if (!movingH) { inertiaVelX = 0f; }
 
                 if (movingV && !keyH.enterPressed) moveAxis(movingUp ? DIR_UP : DIR_DOWN, 0, movingUp ? -sy : sy);
-                else if (!movingV) driftVy = 0f;
+                else if (!movingV) { inertiaVelY = 0f; }
 
                 // Restore final facing direction after axis checks
                 if      (movingUp)    direction = DIR_UP;
@@ -690,9 +706,10 @@ public class Player extends Entity {
             } else {
                 footstepParticleCounter = 0;
 
-                // Inertia: keep sliding in last direction, decelerating each frame
+                // Air-drag deceleration: F_D = k*v^2, a = -F_D/m
                 if (currentSpeed > 0f) {
-                    currentSpeed = Math.max(0f, currentSpeed - DECEL_RATE);
+                    float drag = DRAG_K * currentSpeed * currentSpeed / PLAYER_MASS;
+                    currentSpeed = Math.max(0f, currentSpeed - drag);
                     if (currentSpeed > 0f && (Math.abs(inertiaVelX) > 0f || Math.abs(inertiaVelY) > 0f)) {
                         float mag = (float) Math.sqrt(inertiaVelX * inertiaVelX + inertiaVelY * inertiaVelY);
                         float nx = inertiaVelX / mag;
@@ -737,14 +754,6 @@ public class Player extends Entity {
                 }
                 wasMovingLastFrame = false;
 
-                // Drift: glide to a stop after keys released
-                driftVx *= DRIFT_FRICTION;
-                driftVy *= DRIFT_FRICTION;
-                if (Math.abs(driftVx) < 0.2f) driftVx = 0f;
-                if (Math.abs(driftVy) < 0.2f) driftVy = 0f;
-                applyDrift(DIR_LEFT, DIR_RIGHT, true);
-                applyDrift(DIR_UP, DIR_DOWN, false);
-
                 if (windingDown) {
                     int interval = Math.max(1, 32 / Math.max(1, speed));
                     windDownCounter++;
@@ -770,6 +779,9 @@ public class Player extends Entity {
                 }
             }
             // Mouse left-click attack — fires whether standing still or moving
+            // (suppressed while the wind painter is active: the mouse is painting, not attacking)
+            boolean windPainting = gp.windPainter != null && gp.windPainter.isActive();
+            if (windPainting) gp.mouseH.leftClicked = false;
             if (gp.mouseH.leftClicked && !attacking && !dashing && currentWeapon != null) {
                 gp.mouseH.leftClicked = false;
                 direction = gp.mouseH.getAttackDirectionFromMouse();
@@ -858,40 +870,38 @@ public class Player extends Entity {
         if (!collisionOn) {
             worldX += dx;
             worldY += dy;
-            if (dx != 0) driftVx = dx;
-            if (dy != 0) driftVy = dy;
         } else {
-            if (dx != 0) driftVx = 0f;
-            if (dy != 0) driftVy = 0f;
+            if (dx != 0) inertiaVelX = 0f;
+            if (dy != 0) inertiaVelY = 0f;
         }
         direction = savedDir;
     }
 
-    private void applyDrift(int negDir, int posDir, boolean horizontal) {
-        float vel = horizontal ? driftVx : driftVy;
-        if (vel == 0f) {
-            if (horizontal) driftAccumX = 0f; else driftAccumY = 0f;
-            return;
-        }
-        if (horizontal) driftAccumX += vel; else driftAccumY += vel;
-        int delta = (int)(horizontal ? driftAccumX : driftAccumY);
-        if (delta == 0) return;
-        int savedDir = direction;
-        direction = delta < 0 ? negDir : posDir;
-        collisionOn = false;
-        gp.cChecker.checkTile(this);
-        gp.cChecker.checkObject(this, false);
-        gp.cChecker.checkEntity(this, gp.npc);
-        gp.cChecker.checkEntity(this, gp.monster);
-        gp.cChecker.checkEntity(this, gp.iTile);
-        if (!collisionOn) {
-            if (horizontal) { worldX += delta; driftAccumX -= delta; }
-            else            { worldY += delta; driftAccumY -= delta; }
-        } else {
-            if (horizontal) { driftVx = 0f; driftAccumX = 0f; }
-            else            { driftVy = 0f; driftAccumY = 0f; }
-        }
-        direction = savedDir;
+    /**
+     * Returns the wind force (as a per-frame acceleration, px/frame²) projected onto the
+     * player's current movement direction. Positive = tailwind (speed up), negative = headwind
+     * (slow down). The perpendicular component is intentionally dropped so wind never pushes the
+     * player sideways. Force is sampled over the enlarged {@link #inertiaArea} and divided by mass.
+     */
+    private float windForceAlongMovement(boolean left, boolean right, boolean up, boolean down) {
+        if (gp.windField == null) return 0f;
+        // Sample wind at the centre of the inertia hitbox (the body, not the feet).
+        int sampleX = worldX + inertiaArea.x + inertiaArea.width  / 2;
+        int sampleY = worldY + inertiaArea.y + inertiaArea.height / 2;
+        float wfx = gp.windField.sampleX(sampleX, sampleY);
+        float wfy = gp.windField.sampleY(sampleX, sampleY);
+        if (wfx == 0f && wfy == 0f) return 0f;
+
+        // Unit movement vector from current keys.
+        float mvx = (left ? -1f : 0f) + (right ? 1f : 0f);
+        float mvy = (up   ? -1f : 0f) + (down  ? 1f : 0f);
+        float mag = (float) Math.sqrt(mvx * mvx + mvy * mvy);
+        if (mag == 0f) return 0f;
+        mvx /= mag; mvy /= mag;
+
+        // Dot product = component of the wind force along the movement direction.
+        float along = wfx * mvx + wfy * mvy;           // in WindField strength units
+        return (along * WIND_FORCE_SCALE) / PLAYER_MASS; // F/m → acceleration
     }
 
     private void updateSprite() {
@@ -1030,7 +1040,7 @@ public class Player extends Entity {
         Entity attackHitbox = new Entity(gp);
         attackHitbox.worldX = worldX;
         attackHitbox.worldY = worldY;
-        attackHitbox.solidArea = new Rectangle(solidArea);
+        attackHitbox.solidArea = new Rect(solidArea);
         
         int ts = gp.tileSize;
         int quarter = ts / 4;  // 16px at 64px tile — scales with tile size
@@ -1840,12 +1850,12 @@ public class Player extends Entity {
 
     // Rendering methods
     @Override
-    public void draw(Graphics2D g2) {
+    public void draw(GdxRenderer g2) {
         // ── DEATH ANIMATION ──
         if (playerDying) {
             int drawX = screenX;
             int drawY = screenY;
-            BufferedImage deathImg = null;
+            Sprite deathImg = null;
             if (deathFrames != null && deathDirection >= 0 && deathDirection < deathFrames.length
                     && deathFrames[deathDirection] != null && playerDeathFrame < deathFrames[deathDirection].length) {
                 deathImg = deathFrames[deathDirection][playerDeathFrame];
@@ -1855,15 +1865,15 @@ public class Player extends Entity {
                 int holdTick = playerDeathCounter - (DEATH_TOTAL_FRAMES * DEATH_ANIM_SPEED);
                 if (holdTick > 0) {
                     float fadeAlpha = Math.max(0.15f, 1f - (holdTick / (float) DEATH_HOLD_DELAY));
-                    g2.setComposite(AlphaComposite.getInstance(AlphaComposite.SRC_OVER, fadeAlpha));
+                    g2.setAlpha(fadeAlpha);
                 }
-                g2.drawImage(deathImg, drawX, drawY, gp.tileSize, gp.tileSize, null);
-                g2.setComposite(AlphaComposite.getInstance(AlphaComposite.SRC_OVER, 1f));
+                g2.drawImage(deathImg, drawX, drawY, gp.tileSize, gp.tileSize);
+                g2.setAlpha(1f);
             }
             return;
         }
 
-        BufferedImage image;
+        Sprite image;
         int tempScreenX = screenX;
         int tempScreenY = screenY;
         int frame = Math.max(1, spriteNum);
@@ -1899,7 +1909,6 @@ public class Player extends Entity {
 
             // --- SWING TRAIL: draw warm-tinted afterimages behind the active swing ---
             if (trailActive && trailCount > 0 && image != null) {
-                java.awt.Composite savedTrail = g2.getComposite();
                 float[] trailAlphas = {0.22f, 0.14f, 0.08f, 0.04f};
                 int playerWX = gp.player.worldX;
                 int playerWY = gp.player.worldY;
@@ -1918,10 +1927,10 @@ public class Player extends Entity {
                         }
                     }
                     float alpha = (ti < trailAlphas.length) ? trailAlphas[ti] : 0.03f;
-                    g2.setComposite(AlphaComposite.getInstance(AlphaComposite.SRC_OVER, alpha));
-                    g2.drawImage(image, tSX, tSY, drawW, drawH, null);
+                    g2.setAlpha(alpha);
+                    g2.drawImage(image, tSX, tSY, drawW, drawH);
                 }
-                g2.setComposite(savedTrail);
+                g2.setAlpha(1f);
             }
         } else if (hitAnimCounter > 0 && hitFrames != null && hitAnimDirection >= 0 && hitAnimDirection < hitFrames.length
                    && hitFrames[hitAnimDirection] != null && hitAnimFrame < hitFrames[hitAnimDirection].length) {
@@ -1960,12 +1969,12 @@ public class Player extends Entity {
 
         float drawAlpha = spawnFadeAlpha;
         if (invincible && !dashing) drawAlpha *= (invincibleCounter % 4 < 2) ? 0.5f : 0.85f;
-        if (drawAlpha < 1.0f) g2.setComposite(AlphaComposite.getInstance(AlphaComposite.SRC_OVER, Math.max(0f, drawAlpha)));
-        g2.drawImage(image, drawX, drawY, drawW, drawH, null);
-        g2.setComposite(AlphaComposite.getInstance(AlphaComposite.SRC_OVER, 1f));
+        if (drawAlpha < 1.0f) g2.setAlpha(Math.max(0f, drawAlpha));
+        g2.drawImage(image, drawX, drawY, drawW, drawH);
+        g2.setAlpha(1f);
     }
 
-    private BufferedImage getIdleFrame(int dir, int frame) {
+    private Sprite getIdleFrame(int dir, int frame) {
         if (idleFrames != null && dir >= 0 && dir < idleFrames.length && idleFrames[dir] != null) {
             int idx = frame - 1;
             if (idx >= 0 && idx < idleFrames[dir].length) return idleFrames[dir][idx];
@@ -1974,8 +1983,8 @@ public class Player extends Entity {
         return null;
     }
 
-    private BufferedImage getAttackFrame(int dir, int frame) {
-        BufferedImage[][] frames = switch (comboStep) {
+    private Sprite getAttackFrame(int dir, int frame) {
+        Sprite[][] frames = switch (comboStep) {
             case 1  -> attackFrames2 != null ? attackFrames2 : attackFrames;
             case 2  -> attackFrames3 != null ? attackFrames3 : attackFrames;
             default -> attackFrames;

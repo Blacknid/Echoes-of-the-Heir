@@ -1,6 +1,5 @@
 package util;
 
-import java.awt.image.BufferedImage;
 import java.io.IOException;
 import java.io.InputStream;
 import java.util.HashMap;
@@ -8,12 +7,17 @@ import java.util.HashSet;
 import java.util.Map;
 import java.util.Set;
 
-import javax.imageio.ImageIO;
 import javax.xml.parsers.DocumentBuilder;
 import javax.xml.parsers.DocumentBuilderFactory;
 import javax.xml.parsers.ParserConfigurationException;
 
 import org.w3c.dom.Document;
+
+import com.badlogic.gdx.Gdx;
+import com.badlogic.gdx.files.FileHandle;
+import com.badlogic.gdx.graphics.Texture;
+
+import gfx.Sprite;
 
 /**
  * Shared cache for frequently reloaded classpath resources.
@@ -21,11 +25,17 @@ import org.w3c.dom.Document;
  * The engine reuses maps, tilesets, and sprites often during map transitions.
  * Caching decoded images and parsed TMX documents avoids repeated disk/classpath
  * reads and expensive XML/image decoding on every reload.
+ *
+ * <p>libGDX migration: images are libGDX {@link gfx.Sprite} (GPU Texture) instead of
+ * BufferedImage. XML (.tmx/.tsx) parsing is unchanged (engine-agnostic). Paths remain the
+ * classpath-style {@code /res/...} the whole engine uses; they are resolved against the
+ * libGDX assets root (or the dev source dir for live reload). Textures use nearest-neighbor
+ * filtering for crisp pixel art, matching the old VALUE_INTERPOLATION_NEAREST_NEIGHBOR hint.
  */
 public final class ResourceCache {
 
-    private static final Map<String, BufferedImage> imageCache = new HashMap<>();
-    private static final Map<String, BufferedImage> scaledImageCache = new HashMap<>();
+    private static final Map<String, Sprite> imageCache = new HashMap<>();
+    private static final Map<String, Sprite> scaledImageCache = new HashMap<>();
     private static final Map<String, Document> xmlCache = new HashMap<>();
     private static final Set<String> missingImageCache = new HashSet<>();
     private static final Set<String> missingXmlCache = new HashSet<>();
@@ -48,16 +58,16 @@ public final class ResourceCache {
 
     private ResourceCache() {}
 
-    public static synchronized BufferedImage loadImage(String path) throws IOException {
-        BufferedImage image = loadImageIfPresent(path);
+    public static synchronized Sprite loadImage(String path) throws IOException {
+        Sprite image = loadImageIfPresent(path);
         if (image == null) {
             throw new IOException("Resource not found: " + path);
         }
         return image;
     }
 
-    public static synchronized BufferedImage loadImageIfPresent(String path) {
-        BufferedImage cached = imageCache.get(path);
+    public static synchronized Sprite loadImageIfPresent(String path) {
+        Sprite cached = imageCache.get(path);
         if (cached != null) {
             return cached;
         }
@@ -68,14 +78,12 @@ public final class ResourceCache {
         if (devSourceDir != null) {
             java.io.File devFile = new java.io.File(devSourceDir, path);
             if (devFile.exists()) {
-                try {
-                    BufferedImage image = ImageIO.read(devFile);
-                    if (image != null) {
-                        imageCache.put(path, image);
-                        missingImageCache.remove(path);
-                        return image;
-                    }
-                } catch (IOException ignored) {}
+                Sprite image = textureFrom(new com.badlogic.gdx.files.FileHandle(devFile));
+                if (image != null) {
+                    imageCache.put(path, image);
+                    missingImageCache.remove(path);
+                    return image;
+                }
             }
         }
 
@@ -83,51 +91,58 @@ public final class ResourceCache {
             return null;
         }
 
-        try (InputStream stream = ResourceCache.class.getResourceAsStream(path)) {
-            if (stream == null) {
-                missingImageCache.add(path);
-                System.out.println("[ResourceCache] Missing image: " + path);
-                return null;
-            }
-
-            BufferedImage image = ImageIO.read(stream);
-            if (image == null) {
-                missingImageCache.add(path);
-                System.out.println("[ResourceCache] Failed to decode image: " + path);
-                return null;
-            }
-
-            imageCache.put(path, image);
-            return image;
-        } catch (IOException e) {
+        // Packaged / runtime: resolve against the libGDX assets root. Paths are the engine's
+        // classpath-style "/res/..."; strip the leading slash for FileHandle (internal root).
+        FileHandle fh = Gdx.files.internal(path.startsWith("/") ? path.substring(1) : path);
+        if (!fh.exists()) {
             missingImageCache.add(path);
-            System.out.println("[ResourceCache] Failed to load image: " + path + " (" + e.getMessage() + ")");
+            System.out.println("[ResourceCache] Missing image: " + path);
+            return null;
+        }
+        Sprite image = textureFrom(fh);
+        if (image == null) {
+            missingImageCache.add(path);
+            System.out.println("[ResourceCache] Failed to decode image: " + path);
+            return null;
+        }
+        imageCache.put(path, image);
+        return image;
+    }
+
+    /** Create a nearest-filtered GPU texture sprite from a file handle (crisp pixel art). */
+    private static Sprite textureFrom(FileHandle fh) {
+        try {
+            Texture tex = new Texture(fh, false);
+            tex.setFilter(Texture.TextureFilter.Nearest, Texture.TextureFilter.Nearest);
+            return new Sprite(tex);
+        } catch (Exception e) {
+            System.out.println("[ResourceCache] Texture load failed: " + fh + " (" + e.getMessage() + ")");
             return null;
         }
     }
 
-    public static synchronized BufferedImage loadScaledImage(String path, int width, int height) throws IOException {
-        BufferedImage scaled = loadScaledImageIfPresent(path, width, height);
+    public static synchronized Sprite loadScaledImage(String path, int width, int height) throws IOException {
+        Sprite scaled = loadScaledImageIfPresent(path, width, height);
         if (scaled == null) {
             throw new IOException("Resource not found: " + path);
         }
         return scaled;
     }
 
-    public static synchronized BufferedImage loadScaledImageIfPresent(String path, int width, int height) {
+    public static synchronized Sprite loadScaledImageIfPresent(String path, int width, int height) {
         String cacheKey = path + '|' + width + 'x' + height;
-        BufferedImage cached = scaledImageCache.get(cacheKey);
+        Sprite cached = scaledImageCache.get(cacheKey);
         if (cached != null) {
             return cached;
         }
 
-        BufferedImage image = loadImageIfPresent(path);
+        Sprite image = loadImageIfPresent(path);
         if (image == null) {
             return null;
         }
-        BufferedImage scaled = (image.getWidth() == width && image.getHeight() == height)
-            ? image
-            : UtilityTool.scaleImage(image, width, height);
+        // GPU "scaling" is a no-op on the bitmap: keep the native texture, report/draw the
+        // requested logical size (nearest-neighbor). Matches the old pre-scaled BufferedImage API.
+        Sprite scaled = image.withLogicalSize(width, height);
         scaledImageCache.put(cacheKey, scaled);
         return scaled;
     }

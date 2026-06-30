@@ -1,10 +1,9 @@
 package entity;
 
-import java.awt.AlphaComposite;
-import java.awt.Color;
-import java.awt.Graphics2D;
-import java.awt.Rectangle;
-import java.awt.image.BufferedImage;
+import gfx.Color;
+import gfx.GdxRenderer;
+import gfx.Sprite;
+import gfx.geom.Rect;
 import java.io.IOException;
 
 import audio.SFX;
@@ -39,17 +38,17 @@ public class Entity {
 
 
 
-    public BufferedImage up1, up2, up3, up4, up5, up6, up7,
+    public Sprite up1, up2, up3, up4, up5, up6, up7,
         down1, down2, down3, down4, down5, down6, down7,
         left1, left2, left3, left4, left5, left6, left7, left8,
         right1, right2, right3, right4, right5, right6, right7, right8;
-    public BufferedImage[][] walkFrames;   // walk animation per direction
-    public BufferedImage[][] idleFrames;   // idle animation per direction
-    public BufferedImage[][] attackFrames;  // attack animation per direction (combo step 0)
-    public BufferedImage[][] attackFrames2; // combo step 1, 1-tile sprites
-    public BufferedImage[][] attackFrames3; // combo step 2, 1-tile sprites
-    
-    public java.util.HashMap<String, BufferedImage[][]> activityAnimations;   // key → [dir][frame]
+    public Sprite[][] walkFrames;   // walk animation per direction
+    public Sprite[][] idleFrames;   // idle animation per direction
+    public Sprite[][] attackFrames;  // attack animation per direction (combo step 0)
+    public Sprite[][] attackFrames2; // combo step 1, 1-tile sprites
+    public Sprite[][] attackFrames3; // combo step 2, 1-tile sprites
+
+    public java.util.HashMap<String, Sprite[][]> activityAnimations;   // key → [dir][frame]
     public java.util.HashMap<String, Integer> activityAnimSpeeds;             // key → ticks between frames
     public String  currentActivity = null;       // active animation key (null = use default walk/idle)
     public int     activitySpriteNum = 1;        // current frame (1-based, bouncing)
@@ -102,9 +101,7 @@ public class Entity {
     private static final Color SPARK_COLOR_2 = new Color(255, 200, 80);
     private static final Color COIN_MSG_COLOR = new Color(255, 210, 90);
     private static final Color SHADOW_COLOR = new Color(0, 0, 0, 60);
-    private BufferedImage hitFlashBuffer;
-    private int hitFlashBufferW, hitFlashBufferH;
-    private java.awt.Graphics2D hitFlashG2;
+    // (Hit-flash/telegraph now tint on the GPU via the batch — no intermediate buffer needed.)
 
 
 
@@ -128,17 +125,17 @@ public class Entity {
 
 
     
-    public BufferedImage image, image1, image2, image3, compas_image;
+    public Sprite image, image1, image2, image3, compas_image;
 
 
 
-    public Rectangle solidArea = new Rectangle(0, 0, 48, 48);
-    public Rectangle attackArea = new Rectangle(0, 0, 0, 0);
+    public Rect solidArea = new Rect(0, 0, 48, 48);
+    public Rect attackArea = new Rect(0, 0, 0, 0);
     public int solidAreaDefaultX, solidAreaDefaultY;
 
     // Optional polygon hurtbox for hit-detection only (tile/movement collision still uses solidArea).
     // Set via setOctagonHurt() in subclass constructors. Stored in local entity space (origin = worldX/worldY).
-    public java.awt.Polygon hurtPolygon = null;
+    public gfx.geom.IntPolygon hurtPolygon = null;
 
     /** Replace hurtPolygon with a regular octagon. cx/cy are the center offset from worldX/worldY; r is the radius. */
     public void setOctagonHurt(int cx, int cy, int r) {
@@ -153,7 +150,7 @@ public class Entity {
         xs[5] = cx - r + cut; ys[5] = cy + r;
         xs[6] = cx - r;       ys[6] = cy + r - cut;
         xs[7] = cx - r;       ys[7] = cy - r + cut;
-        hurtPolygon = new java.awt.Polygon(xs, ys, 8);
+        hurtPolygon = new gfx.geom.IntPolygon(xs, ys, 8);
     }
     public boolean collisionOn = false;
     public boolean invincible = false;
@@ -216,7 +213,7 @@ public class Entity {
     public Projectile projectile;
     public boolean lightSource = false;
     public int lightRadius = 0;
-    public java.awt.Color lightColor = null; // custom light tint (null = default orange)
+    public gfx.Color lightColor = null; // custom light tint (null = default orange)
     public boolean eventLayerLight = false; // transient static light loaded from the TMX Events layer
     public boolean removeOnPickup = true;   // for touch-pickups in the Objects layer; remove from world after a successful pickup
 
@@ -227,7 +224,7 @@ public class Entity {
     public int interactRange = 0;       // if > 0, player can interact when within this radius (facing the NPC)
     public int depthSortYOffset = 0;    // added to entityY in depth sort — positive pushes entity to draw in front of lower tiles
     public int wanderRadius = 0;        // max wander pixel offset from spawn (0 = free)
-    public Rectangle confinementZone = null; // if set, monster cannot leave this rectangle (world pixels)
+    public Rect confinementZone = null; // if set, monster cannot leave this rectangle (world pixels)
     public boolean staticNPC = false;   // NPC never wanders or follows paths — stays in place
     public boolean guardMode  = false;  // Static from spawn; faces the player every tick. Set onPath=true to unlock movement.
     public String portraitPath = null;  // optional portrait image path (e.g. "/res/NPC/alucard_portrait.png")
@@ -320,7 +317,7 @@ public class Entity {
     public boolean isInvincible() { return invincible; }
     public boolean isDying() { return dying; }
 
-    public BufferedImage getWalkFrame(int direction, int frameIndex) { return getWalkFrameImage(direction, frameIndex); }
+    public Sprite getWalkFrame(int direction, int frameIndex) { return getWalkFrameImage(direction, frameIndex); }
     public int getSpriteNum() { return spriteNum; }
     public int getDirection() { return direction; }
 
@@ -719,7 +716,7 @@ public class Entity {
             }
 
             if (currentActivity != null && activityAnimations != null) {
-                BufferedImage[][] actFrames = activityAnimations.get(currentActivity);
+                Sprite[][] actFrames = activityAnimations.get(currentActivity);
                 if (actFrames != null) {
                     int dir = (idleDirection >= 0) ? idleDirection : direction;
                     if (dir >= 0 && dir < actFrames.length && actFrames[dir] != null && actFrames[dir].length > 0) {
@@ -791,7 +788,7 @@ public class Entity {
         }
         // Activity animation
         if (currentActivity != null && activityAnimations != null) {
-            BufferedImage[][] actFrames = activityAnimations.get(currentActivity);
+            Sprite[][] actFrames = activityAnimations.get(currentActivity);
             if (actFrames != null) {
                 int dir = (idleDirection >= 0) ? idleDirection : direction;
                 if (dir >= 0 && dir < actFrames.length && actFrames[dir] != null && actFrames[dir].length > 0) {
@@ -817,9 +814,9 @@ public class Entity {
         }
     }
 
-    public void draw(Graphics2D g2) {
-        
-        BufferedImage currentSprite = null;
+    public void draw(GdxRenderer g2) {
+
+        Sprite currentSprite = null;
         
         int screenX = worldX - gp.player.worldX + gp.player.screenX;
         int screenY = worldY - gp.player.worldY + gp.player.screenY;
@@ -833,7 +830,7 @@ public class Entity {
             int drawH = (int)(gp.tileSize * spriteScale);
 
             if (currentSprite == null && entityIdle && currentActivity != null && activityAnimations != null) {
-                BufferedImage[][] actFrames = activityAnimations.get(currentActivity);
+                Sprite[][] actFrames = activityAnimations.get(currentActivity);
                 if (actFrames != null) {
                     int actDir = (idleDirection >= 0) ? idleDirection : direction;
                     if (actDir >= 0 && actDir < actFrames.length && actFrames[actDir] != null) {
@@ -917,64 +914,33 @@ public class Entity {
             if (currentSprite != null) {
                 int drawX = screenX - (drawW - gp.tileSize) / 2;
                 int drawY = screenY - (drawH - gp.tileSize);
-                g2.drawImage(currentSprite, drawX, drawY, drawW, drawH, null);
+                g2.drawImage(currentSprite, drawX, drawY, drawW, drawH);
             }
 
-            // ATTACK TELEGRAPH: tint sprite red when about to attack
+            // ATTACK TELEGRAPH: tint sprite red when about to attack.
+            // GPU-native: redraw the sprite tinted red at telegraphAlpha — the sprite's own alpha
+            // masks the tint to its silhouette (equivalent to the old SRC_ATOP buffer composite).
             if (attackWindupFlash > 0 && currentSprite != null && hitFlashCounter == 0) {
                 float telegraphAlpha = Math.min(0.7f, attackWindupFlash / 20f * 0.7f);
-                int sprW = currentSprite.getWidth();
-                int sprH = currentSprite.getHeight();
-                if (hitFlashBuffer == null || hitFlashBufferW < sprW || hitFlashBufferH < sprH) {
-                    hitFlashBufferW = sprW; hitFlashBufferH = sprH;
-                    hitFlashBuffer = new BufferedImage(sprW, sprH, BufferedImage.TYPE_INT_ARGB);
-                    if (hitFlashG2 != null) hitFlashG2.dispose();
-                    hitFlashG2 = hitFlashBuffer.createGraphics();
-                }
-                java.awt.Graphics2D rg = hitFlashG2;
-                rg.setComposite(AlphaComposite.Clear);
-                rg.fillRect(0, 0, hitFlashBufferW, hitFlashBufferH);
-                rg.setComposite(AlphaComposite.SrcOver);
-                rg.drawImage(currentSprite, 0, 0, null);
-                rg.setComposite(AlphaComposite.getInstance(AlphaComposite.SRC_ATOP, telegraphAlpha));
-                rg.setColor(new Color(255, 60, 60));
-                rg.fillRect(0, 0, sprW, sprH);
-                g2.drawImage(hitFlashBuffer, screenX, screenY, gp.tileSize, gp.tileSize, null);
+                g2.drawImageTinted(currentSprite, screenX, screenY, gp.tileSize, gp.tileSize,
+                        TELEGRAPH_TINT, telegraphAlpha);
                 attackWindupFlash--;
             }
 
-            // HIT FLASH: tint sprite white when recently damaged
-            // OPTIMIZATION: Reuse a single buffer and cached Graphics2D instead of createGraphics() every frame
+            // HIT FLASH: tint sprite white when recently damaged (same GPU-native silhouette tint).
             if (hitFlashCounter > 0 && currentSprite != null) {
                 float flashAlpha = Math.min(1f, hitFlashCounter / (float) HIT_FLASH_DURATION * 0.8f);
-                int sprW = currentSprite.getWidth();
-                int sprH = currentSprite.getHeight();
-                // Lazily allocate or resize the reusable flash buffer
-                if (hitFlashBuffer == null || hitFlashBufferW < sprW || hitFlashBufferH < sprH) {
-                    hitFlashBufferW = sprW;
-                    hitFlashBufferH = sprH;
-                    hitFlashBuffer = new BufferedImage(sprW, sprH, BufferedImage.TYPE_INT_ARGB);
-                    if (hitFlashG2 != null) hitFlashG2.dispose();
-                    hitFlashG2 = hitFlashBuffer.createGraphics();
-                }
-                java.awt.Graphics2D fg = hitFlashG2;
-                // Clear previous contents
-                fg.setComposite(AlphaComposite.Clear);
-                fg.fillRect(0, 0, hitFlashBufferW, hitFlashBufferH);
-                // Draw sprite then overlay white
-                fg.setComposite(AlphaComposite.SrcOver);
-                fg.drawImage(currentSprite, 0, 0, null);
-                fg.setComposite(AlphaComposite.getInstance(AlphaComposite.SRC_ATOP, flashAlpha));
-                fg.setColor(Color.WHITE);
-                fg.fillRect(0, 0, sprW, sprH);
-                g2.drawImage(hitFlashBuffer, screenX, screenY, gp.tileSize, gp.tileSize, null);
+                g2.drawImageTinted(currentSprite, screenX, screenY, gp.tileSize, gp.tileSize,
+                        Color.WHITE, flashAlpha);
             }
-            
-            changeAlpha(g2, 1F);
+
+            g2.setAlpha(1F);
         }
     }
 
-    protected BufferedImage getWalkFrameImage(int dir, int frame) {
+    private static final Color TELEGRAPH_TINT = new Color(255, 60, 60);
+
+    protected Sprite getWalkFrameImage(int dir, int frame) {
         // Try new array-based storage first (Player, Monster, NPC)
         if (walkFrames != null && dir >= 0 && dir < walkFrames.length && walkFrames[dir] != null) {
             int idx = frame - 1;
@@ -1012,8 +978,8 @@ public class Entity {
      * @param frame 0-based frame index
      * @return the sprite image, or null if not available
      */
-    public BufferedImage getSprite(String type, int dir, int frame) {
-        BufferedImage[][] frames = switch (type) {
+    public Sprite getSprite(String type, int dir, int frame) {
+        Sprite[][] frames = switch (type) {
             case "walk" -> walkFrames;
             case "idle" -> idleFrames;
             case "attack" -> attackFrames;
@@ -1033,7 +999,7 @@ public class Entity {
         return null;
     }
     
-    public void dyingAnimation(Graphics2D g2) {
+    public void dyingAnimation(GdxRenderer g2) {
         dyingCounter++;
 
         // Phase 1 (frames 1-24): arcade flicker + pulse
@@ -1116,10 +1082,10 @@ public class Entity {
             }
         }
     }
-    public void changeAlpha(Graphics2D g2, float alphaValue) {
-        g2.setComposite(AlphaComposite.getInstance(AlphaComposite.SRC_OVER, alphaValue));
+    public void changeAlpha(GdxRenderer g2, float alphaValue) {
+        g2.setAlpha(alphaValue);
     }
-    public BufferedImage setup(String imagePath, int width, int height) {
+    public Sprite setup(String imagePath, int width, int height) {
         return ResourceCache.loadScaledImageIfPresent(imagePath + ".png", width, height);
     }
     public int getDetected(Entity user, Entity target[], String targetName) {
@@ -1329,13 +1295,13 @@ public class Entity {
         int dy = Math.abs(getCenterY() - gp.player.getCenterY());
         return dx < range && dy < range;
     } 
-    public BufferedImage[][] loadSheetVariable(String path, int[] framesPerRow) {
+    public Sprite[][] loadSheetVariable(String path, int[] framesPerRow) {
         int rowsWanted = framesPerRow.length;
         int maxColsWanted = 0;
         for (int f : framesPerRow) if (f > maxColsWanted) maxColsWanted = f;
 
         try {
-            BufferedImage sheet = ResourceCache.loadImage(path + ".png");
+            Sprite sheet = ResourceCache.loadImage(path + ".png");
 
             // Determine if the sheet is arranged in multiple rows as requested,
             // otherwise treat it as a single-row strip and duplicate that row
@@ -1353,21 +1319,18 @@ public class Entity {
 
             int colsActual = Math.max(1, sheet.getWidth() / cellSize);
 
-            BufferedImage[][] frames = new BufferedImage[rowsWanted][];
+            Sprite[][] frames = new Sprite[rowsWanted][];
 
             for (int y = 0; y < rowsWanted; y++) {
                 int expected = framesPerRow[y];
                 if (colsActual <= 0) {
-                    // Create empty transparent frames if nothing is available
-                    frames[y] = new BufferedImage[expected];
-                    for (int k = 0; k < expected; k++) {
-                        frames[y][k] = new BufferedImage(gp.tileSize, gp.tileSize, BufferedImage.TYPE_INT_ARGB);
-                    }
+                    // No frames available — leave nulls; draw code guards against null sprites.
+                    frames[y] = new Sprite[expected];
                     continue;
                 }
 
                 int available = Math.min(expected, colsActual);
-                BufferedImage[] temp = new BufferedImage[available];
+                Sprite[] temp = new Sprite[available];
 
                 for (int x = 0; x < available; x++) {
                     int srcRow = (rowsActual == rowsWanted) ? y : 0;
@@ -1376,22 +1339,13 @@ public class Entity {
                     int sw = Math.min(cellSize, sheet.getWidth() - sx);
                     int sh = Math.min(cellSize, sheet.getHeight() - sy);
 
-                    BufferedImage crop;
-                    if (sw == cellSize && sh == cellSize) {
-                        crop = sheet.getSubimage(sx, sy, sw, sh);
-                    } else {
-                        BufferedImage padded = new BufferedImage(cellSize, cellSize, BufferedImage.TYPE_INT_ARGB);
-                        java.awt.Graphics2D pg = padded.createGraphics();
-                        pg.drawImage(sheet.getSubimage(sx, sy, sw, sh), 0, 0, null);
-                        pg.dispose();
-                        crop = padded;
-                    }
-
+                    // Zero-copy sub-region (no padding buffer needed on the GPU); report tileSize logical.
+                    Sprite crop = sheet.getSubimage(sx, sy, sw, sh);
                     temp[x] = util.UtilityTool.scaleImage(crop, gp.tileSize, gp.tileSize);
                 }
 
                 // Fill expected count, pad by duplicating last available frame if needed
-                frames[y] = new BufferedImage[expected];
+                frames[y] = new Sprite[expected];
                 for (int x = 0; x < expected; x++) {
                     if (x < temp.length) frames[y][x] = temp[x];
                     else frames[y][x] = temp[temp.length - 1];
@@ -1401,11 +1355,11 @@ public class Entity {
             return frames;
         } catch (IOException e) {
             // Fallback to original (scaled full-sheet) behaviour for compatibility
-            BufferedImage sheet = setup(path, gp.tileSize * maxColsWanted, gp.tileSize * rowsWanted);
-            BufferedImage[][] frames = new BufferedImage[rowsWanted][];
+            Sprite sheet = setup(path, gp.tileSize * maxColsWanted, gp.tileSize * rowsWanted);
+            Sprite[][] frames = new Sprite[rowsWanted][];
 
             for (int y = 0; y < rowsWanted; y++) {
-                frames[y] = new BufferedImage[framesPerRow[y]];
+                frames[y] = new Sprite[framesPerRow[y]];
                 for (int x = 0; x < framesPerRow[y]; x++) {
                     frames[y][x] = sheet.getSubimage(
                             x * gp.tileSize,
@@ -1418,13 +1372,13 @@ public class Entity {
             return frames;
         }
     }
-    public BufferedImage[][] loadSpriteMatrix(
+    public Sprite[][] loadSpriteMatrix(
         String path,
         int spriteWidth,
         int spriteHeight
     ) {
 
-        BufferedImage sheet;
+        Sprite sheet;
 
         try {
             sheet = ResourceCache.loadImage(path + ".png");
@@ -1451,7 +1405,7 @@ public class Entity {
             rows++; // include the partial row
         }
 
-        BufferedImage[][] matrix = new BufferedImage[rows][columns];
+        Sprite[][] matrix = new Sprite[rows][columns];
 
         for (int y = 0; y < rows; y++) {
             int srcY = y * spriteHeight;
@@ -1465,12 +1419,10 @@ public class Entity {
                             spriteHeight
                     );
                 } else {
-                    // Partial row: copy into a full-size image
-                    BufferedImage padded = new BufferedImage(spriteWidth, spriteHeight, BufferedImage.TYPE_INT_ARGB);
-                    java.awt.Graphics2D pg = padded.createGraphics();
-                    pg.drawImage(sheet.getSubimage(x * spriteWidth, srcY, spriteWidth, srcH), 0, 0, null);
-                    pg.dispose();
-                    matrix[y][x] = padded;
+                    // Partial row: take the available sub-region but report the full cell as logical
+                    // size (GPU pads transparently — no buffer copy needed).
+                    matrix[y][x] = sheet.getSubimage(x * spriteWidth, srcY, spriteWidth, srcH)
+                            .withLogicalSize(spriteWidth, spriteHeight);
                 }
             }
         }

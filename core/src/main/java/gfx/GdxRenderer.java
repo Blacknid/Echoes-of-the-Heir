@@ -188,6 +188,40 @@ public class GdxRenderer {
         batch.draw(img.region(), x, y, originX, originY, w, h, 1f, 1f, rotationDeg);
     }
 
+    /**
+     * Draw a tile with Tiled flip/rotate flags (H/V/diagonal), replacing the old AffineTransform
+     * path. Reproduces the 7 flip/rotate combinations by flipping the region and rotating in 90°
+     * steps about the tile's top-left, matching buildFlipTransform's placement.
+     */
+    public void drawTileFlipped(Sprite img, int x, int y, int w, int h,
+                                boolean fH, boolean fV, boolean fD) {
+        if (img == null) return;
+        useBatch();
+        batch.setColor(1f, 1f, 1f, alpha);
+        com.badlogic.gdx.graphics.g2d.TextureRegion r0 = img.region();
+        // Work on a copy so we don't mutate the cached region's flip state.
+        com.badlogic.gdx.graphics.g2d.TextureRegion r =
+            new com.badlogic.gdx.graphics.g2d.TextureRegion(r0);
+        // Diagonal flip = transpose; expressed as H-flip + 90° rotation in the combinations below.
+        float rot = 0f;       // degrees, clockwise on the y-down screen
+        boolean flipX = fH, flipY = fV;
+        if (fD) {
+            // D combined with H/V encodes the rotations (see buildFlipTransform mapping).
+            if (fH && !fV)      { rot = 90f;  flipX = false; flipY = false; }   // 90° CW
+            else if (!fH && fV) { rot = -90f; flipX = false; flipY = false; }   // 90° CCW
+            else if (fH && fV)  { rot = 90f;  flipX = false; flipY = true;  }   // 270° CW
+            else                { rot = 90f;  flipX = true;  flipY = false; }   // transpose
+        }
+        r.flip(flipX, flipY);
+        if (rot == 0f) {
+            batch.draw(r, x, y, w, h);
+        } else {
+            // Rotate about the tile center so the rotated tile still covers its cell.
+            batch.draw(r, x, y, w / 2f, h / 2f, w, h, 1f, 1f, rot);
+        }
+        batch.setColor(1f, 1f, 1f, 1f);
+    }
+
     // ── Text (SpriteBatch + BitmapFont) ───────────────────────────────────────
     /** drawString(s, x, y): x,y is the BASELINE origin, like Graphics2D. */
     public void drawString(String s, int x, int y) { drawString(s, (float) x, (float) y); }
@@ -252,6 +286,21 @@ public class GdxRenderer {
         }
     }
 
+    /** Fill a rect with a linear gradient (mirrors GradientPaint + fillRect). */
+    public void fillGradient(Gradient g, int x, int y, int w, int h) {
+        useShape(ShapeRenderer.ShapeType.Filled);
+        com.badlogic.gdx.graphics.Color c1 = g.c1.toGdx(); c1.a *= alpha;
+        com.badlogic.gdx.graphics.Color c2 = g.c2.toGdx(); c2.a *= alpha;
+        // Determine orientation from the gradient's two points: vertical if dy dominates.
+        boolean vertical = Math.abs(g.y2 - g.y1) >= Math.abs(g.x2 - g.x1);
+        if (vertical) {
+            // c1 at top (y), c2 at bottom (y+h): bottom-left, bottom-right, top-right, top-left
+            shapes.rect(x, y, w, h, c2, c2, c1, c1);
+        } else {
+            shapes.rect(x, y, w, h, c1, c2, c2, c1);
+        }
+    }
+
     // ── gfx.geom.Shape fill/draw (collision/debug overlays, polygons) ──────────
     public void fill(gfx.geom.Shape s) {
         if (s instanceof gfx.geom.Rect r) { fillRect(r.x, r.y, r.width, r.height); return; }
@@ -265,6 +314,16 @@ public class GdxRenderer {
                                 (float) p.xs[i], (float) p.ys[i],
                                 (float) p.xs[i + 1], (float) p.ys[i + 1]);
             }
+            return;
+        }
+        if (s instanceof gfx.geom.IntPolygon p) {
+            useShape(ShapeRenderer.ShapeType.Filled);
+            shapes.setColor(gdxColor());
+            for (int i = 1; i + 1 < p.npoints; i++) {
+                shapes.triangle(p.xpoints[0], p.ypoints[0],
+                                p.xpoints[i], p.ypoints[i],
+                                p.xpoints[i + 1], p.ypoints[i + 1]);
+            }
         }
     }
     public void draw(gfx.geom.Shape s) {
@@ -275,6 +334,14 @@ public class GdxRenderer {
             shapes.setColor(gdxColor());
             for (int i = 0, j = p.n - 1; i < p.n; j = i++) {
                 shapes.line((float) p.xs[j], (float) p.ys[j], (float) p.xs[i], (float) p.ys[i]);
+            }
+            return;
+        }
+        if (s instanceof gfx.geom.IntPolygon p) {
+            useShape(ShapeRenderer.ShapeType.Line);
+            shapes.setColor(gdxColor());
+            for (int i = 0, j = p.npoints - 1; i < p.npoints; j = i++) {
+                shapes.line(p.xpoints[j], p.ypoints[j], p.xpoints[i], p.ypoints[i]);
             }
         }
     }
@@ -291,6 +358,48 @@ public class GdxRenderer {
         ScissorStack.pushScissors(scissor);
     }
     public void clearClip() { flush(); if (ScissorStack.peekScissors() != null) ScissorStack.popScissors(); }
+
+    /**
+     * Bake a {@link RadialGradient} into a Sprite (Texture) once, the GPU-native replacement for
+     * Java2D's RadialGradientPaint. Used for vignettes and light halos — draw the returned Sprite
+     * each frame instead of rasterizing a gradient. Interpolates the stop colors per pixel by radius.
+     */
+    public static Sprite bakeRadialGradient(RadialGradient g, int w, int h) {
+        com.badlogic.gdx.graphics.Pixmap pm =
+            new com.badlogic.gdx.graphics.Pixmap(w, h, com.badlogic.gdx.graphics.Pixmap.Format.RGBA8888);
+        pm.setBlending(com.badlogic.gdx.graphics.Pixmap.Blending.None);
+        for (int y = 0; y < h; y++) {
+            for (int x = 0; x < w; x++) {
+                float dx = x - g.cx, dy = y - g.cy;
+                float t = (float) Math.sqrt(dx * dx + dy * dy) / g.radius;
+                if (t > 1f) t = 1f;
+                Color c = sampleStops(g.fractions, g.colors, t);
+                pm.setColor(c.getRed() / 255f, c.getGreen() / 255f, c.getBlue() / 255f, c.getAlpha() / 255f);
+                pm.drawPixel(x, y);
+            }
+        }
+        Texture tex = new Texture(pm);
+        tex.setFilter(Texture.TextureFilter.Linear, Texture.TextureFilter.Linear);
+        pm.dispose();
+        return new Sprite(tex);
+    }
+
+    private static Color sampleStops(float[] fractions, Color[] colors, float t) {
+        if (t <= fractions[0]) return colors[0];
+        for (int i = 1; i < fractions.length; i++) {
+            if (t <= fractions[i]) {
+                float span = fractions[i] - fractions[i - 1];
+                float f = span <= 0 ? 0 : (t - fractions[i - 1]) / span;
+                Color a = colors[i - 1], b = colors[i];
+                return new Color(
+                    (int) (a.getRed()   + (b.getRed()   - a.getRed())   * f),
+                    (int) (a.getGreen() + (b.getGreen() - a.getGreen()) * f),
+                    (int) (a.getBlue()  + (b.getBlue()  - a.getBlue())  * f),
+                    (int) (a.getAlpha() + (b.getAlpha() - a.getAlpha()) * f));
+            }
+        }
+        return colors[colors.length - 1];
+    }
 
     public void dispose() {
         flush();

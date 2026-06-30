@@ -47,7 +47,7 @@ public class MapManager {
     public int defaultSpawnRow = -1;
     /** True once a SpawnPoint with newGame=true has been registered for the current map load. */
     public boolean hasNewGameSpawn = false;
-    public java.awt.Color mapBackgroundColor = java.awt.Color.BLACK;
+    public gfx.Color mapBackgroundColor = gfx.Color.BLACK;
     /** Named spawn point to resolve after map loads. */
     public String nextSpawnId = "";
     /** Message to display once after the player spawns on this map (from dialogueTrigger TMX property). */
@@ -236,6 +236,9 @@ public class MapManager {
 
         gp.eHandler.reset();
 
+        // Load this map's painted wind field (or code gradient fallback).
+        gp.windField.loadForMap(currentMapId, gp.tileM.currentMapCols, gp.tileM.currentMapRows);
+
         if (savedObjects.containsKey(currentMapId)) {
             restoreMapEntities(currentMapId);
         } else {
@@ -285,7 +288,7 @@ public class MapManager {
         // Skip during save-game loading so stale map messages don't pop up.
         if (!pendingDialogueTrigger.isEmpty()) {
             if (!loadingGame) {
-                gp.ui.addMessage(pendingDialogueTrigger, new java.awt.Color(255, 240, 180), pendingDialogueTriggerDuration);
+                gp.ui.addMessage(pendingDialogueTrigger, new gfx.Color(255, 240, 180), pendingDialogueTriggerDuration);
             }
             pendingDialogueTrigger = "";
         }

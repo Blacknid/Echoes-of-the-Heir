@@ -16,16 +16,37 @@ import com.badlogic.gdx.graphics.g2d.TextureRegion;
 public class Sprite {
 
     private final TextureRegion region;
+    // Logical size mirrors java.awt's "pre-scaled" BufferedImage dimensions: callers that asked
+    // ResourceCache to scale to (w,h) read getWidth()/getHeight() expecting those numbers, and
+    // drawImage(sprite,x,y) should draw at that size. On the GPU we keep the native texture and
+    // just report/draw the logical size (nearest-neighbor scaled), so no bitmap is pre-scaled.
+    private final int logicalW, logicalH;
 
-    public Sprite(TextureRegion region) { this.region = region; }
+    public Sprite(TextureRegion region) {
+        this.region = region;
+        this.logicalW = region.getRegionWidth();
+        this.logicalH = region.getRegionHeight();
+    }
 
-    public Sprite(Texture texture) { this.region = new TextureRegion(texture); }
+    public Sprite(Texture texture) { this(new TextureRegion(texture)); }
+
+    private Sprite(TextureRegion region, int logicalW, int logicalH) {
+        this.region = region; this.logicalW = logicalW; this.logicalH = logicalH;
+    }
+
+    /** Returns a view of this sprite that reports/draws at the given logical size. */
+    public Sprite withLogicalSize(int w, int h) {
+        if (w == logicalW && h == logicalH) return this;
+        return new Sprite(region, w, h);
+    }
 
     public TextureRegion region() { return region; }
     public Texture texture()      { return region.getTexture(); }
 
-    public int getWidth()  { return region.getRegionWidth(); }
-    public int getHeight() { return region.getRegionHeight(); }
+    public int getWidth()  { return logicalW; }
+    public int getHeight() { return logicalH; }
+    public int nativeWidth()  { return region.getRegionWidth(); }
+    public int nativeHeight() { return region.getRegionHeight(); }
 
     /**
      * Zero-copy sub-region, mirroring {@code BufferedImage.getSubimage(x,y,w,h)} used for
@@ -41,6 +62,27 @@ public class Sprite {
     /** True if this sprite is horizontally flipped (used by some animation code). */
     public boolean isFlipX() { return region.isFlipX(); }
     public boolean isFlipY() { return region.isFlipY(); }
+
+    /**
+     * Read a single pixel as packed 0xAARRGGBB (like BufferedImage.getRGB), in this region's
+     * local coordinates. CPU-side: consumes the texture's Pixmap, so use only at load/bake time
+     * (e.g. minimap terrain sampling), never per frame. Returns 0 if pixels aren't available.
+     */
+    public int getRGB(int x, int y) {
+        Texture tex = region.getTexture();
+        if (!tex.getTextureData().isPrepared()) tex.getTextureData().prepare();
+        com.badlogic.gdx.graphics.Pixmap pm = tex.getTextureData().consumePixmap();
+        if (pm == null) return 0;
+        int px = region.getRegionX() + x;
+        int py = region.getRegionY() + y;
+        int rgba8888 = pm.getPixel(px, py); // 0xRRGGBBAA
+        // Repack RGBA8888 → ARGB to match java.awt.BufferedImage.getRGB.
+        int r = (rgba8888 >>> 24) & 0xFF;
+        int g = (rgba8888 >>> 16) & 0xFF;
+        int b = (rgba8888 >>> 8) & 0xFF;
+        int a = rgba8888 & 0xFF;
+        return (a << 24) | (r << 16) | (g << 8) | b;
+    }
 
     @Override public String toString() {
         return "Sprite[" + getWidth() + "x" + getHeight() + "]";

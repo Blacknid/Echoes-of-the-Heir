@@ -11,6 +11,9 @@ public interface Shape {
     /** True if this shape overlaps the axis-aligned rectangle (rx,ry,rw,rh). Like Shape.intersects. */
     boolean intersects(double rx, double ry, double rw, double rh);
 
+    /** Convenience overlap test against a Rect (broad-phase collision uses this). */
+    default boolean intersects(Rect r) { return intersects(r.x, r.y, r.width, r.height); }
+
     /** True if the point (px,py) is inside this shape. Like Shape.contains(double,double). */
     boolean contains(double px, double py);
 
