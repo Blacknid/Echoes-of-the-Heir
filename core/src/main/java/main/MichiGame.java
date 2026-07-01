@@ -69,11 +69,45 @@ public class MichiGame extends ApplicationAdapter {
         else Gdx.app.log("MichiGame", "Font face missing: " + path);
     }
 
-    /** Configure the camera so (0,0) is top-left and +Y points down, sized to the window. */
-    private void syncCamera(int w, int h) {
-        camera.setToOrtho(true, w, h); // yDown = true
+    /**
+     * Configure the camera + GL viewport for Moonshire-style integer-scaled rendering — identical for
+     * windowed and fullscreen.
+     *
+     * <p>We pick the largest whole-number {@code pixelScale} the window can FULLY support, then the
+     * world is always drawn at that exact integer magnification (crisp pixel art, no fractional
+     * sampling). Any space left over because the window isn't an exact multiple is NOT letterboxed —
+     * it becomes extra LOGICAL pixels, which the tile culling turns into MORE visible map tiles. So a
+     * window that is 2.4x wide and a clean 2x tall renders the world at a crisp 2x and the leftover
+     * 0.4x of width fills with additional tiles.
+     *
+     * <p>Scale is {@code floor(min(widthRatio, heightRatio))}: we only step up to Nx once a COMPLETE
+     * Nx of the 1280x720 baseline fits on BOTH axes, so the extra screen area only ever ADDS tiles and
+     * never hides any of the baseline view. Consequence: a "2x" WINDOW often stays at 1x because the OS
+     * title bar steals a few px of height (so a full 2x of 720 doesn't fit) — fullscreen has no chrome,
+     * so it reaches 2x/3x cleanly. This is the intended trade-off (never crop the baseline view).
+     */
+    private void syncCamera(int deviceW, int deviceH) {
+        // Choose the integer magnification from how far the window has zoomed past the baseline. Use
+        // the SMALLER axis ratio as the ceiling (so we never zoom in so far that the logical view drops
+        // below the 1280x720 baseline on either axis — the extra screen must only ever ADD tiles, never
+        // remove them), but FLOOR it so we step up to Nx exactly when a full Nx of baseline fits.
+        double fitRatio = Math.min(deviceW / (double) BASE_W, deviceH / (double) BASE_H);
+        int pixelScale = Math.max(1, (int) Math.floor(fitRatio));
+
+        int logicalW = deviceW / pixelScale;
+        int logicalH = deviceH / pixelScale;
+        int usedW = logicalW * pixelScale;
+        int usedH = logicalH * pixelScale;
+        int marginX = (deviceW - usedW) / 2;
+        int marginY = (deviceH - usedH) / 2;
+
+        camera.setToOrtho(true, logicalW, logicalH); // yDown = true, box sized in logical px
         camera.update();
-        if (gp != null) gp.applyNewResolution(w, h);
+        Gdx.gl.glViewport(marginX, marginY, usedW, usedH);
+
+        if (gp != null) {
+            gp.applyNewResolution(logicalW, logicalH, pixelScale, marginX, marginY, deviceW, deviceH);
+        }
     }
 
     @Override
@@ -97,7 +131,8 @@ public class MichiGame extends ApplicationAdapter {
         gp.stepUpdates(Gdx.graphics.getDeltaTime());
 
         // Memory flashback freezes updates but must still render; gp.draw handles state internally.
-        renderer.begin(Gdx.graphics.getWidth(), Gdx.graphics.getHeight());
+        // Use the LOGICAL resolution (not device px) — the camera/viewport magnify it by pixelScale.
+        renderer.begin(gp.screenWidth, gp.screenHeight);
         gp.draw(renderer);
         if (gp.memoryFlashback != null && gp.memoryFlashback.isActive()) {
             gp.memoryFlashback.draw(renderer);

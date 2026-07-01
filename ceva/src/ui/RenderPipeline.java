@@ -208,6 +208,58 @@ public class RenderPipeline {
         }
     }
 
+    /**
+     * Debug-only attack cone visualization, styled after Moonshire (Challacade)'s telegraph: a fan
+     * of small rotated rectangular ticks (not continuous lines) radiating out from a gap around the
+     * apex, plus a bright glow at the apex. Never drawn outside debug mode (gp.HitBoxes).
+     */
+    private static final int CONE_DEBUG_RAY_COUNT = 16;
+    private static final float CONE_DEBUG_TICK_LEN = 0.62f;    // fraction of radius the tick spans
+    private static final float CONE_DEBUG_TICK_INNER = 0.30f;  // fraction of radius before the tick starts (gap at apex)
+    private static final float CONE_DEBUG_TICK_WIDTH = 3.5f;   // px, across the ray
+
+    private void drawAttackConeDebug(GdxRenderer g2, gfx.geom.Cone cone) {
+        double apexX = cone.apexX, apexY = cone.apexY;
+        double radius = cone.radius;
+
+        // Radiating tick marks (small rotated rectangles), evenly spaced across the sector.
+        g2.setColor(new Color(255, 255, 255, 210));
+        for (int i = 0; i <= CONE_DEBUG_RAY_COUNT; i++) {
+            double t = -cone.halfAngle + (2 * cone.halfAngle) * i / (double) CONE_DEBUG_RAY_COUNT;
+            double a = cone.centerAngle + t;
+            double cosA = Math.cos(a), sinA = Math.sin(a);
+            // Perpendicular unit vector (for the tick's width).
+            double px = -sinA, py = cosA;
+
+            double rInner = radius * CONE_DEBUG_TICK_INNER;
+            double rOuter = radius * (CONE_DEBUG_TICK_INNER + CONE_DEBUG_TICK_LEN);
+            double halfW = CONE_DEBUG_TICK_WIDTH / 2.0;
+
+            double ix = apexX + cosA * rInner, iy = apexY + sinA * rInner;
+            double ox = apexX + cosA * rOuter, oy = apexY + sinA * rOuter;
+
+            int[] xs = {
+                (int) Math.round(ix - px * halfW), (int) Math.round(ix + px * halfW),
+                (int) Math.round(ox + px * halfW), (int) Math.round(ox - px * halfW)
+            };
+            int[] ys = {
+                (int) Math.round(iy - py * halfW), (int) Math.round(iy + py * halfW),
+                (int) Math.round(oy + py * halfW), (int) Math.round(oy - py * halfW)
+            };
+            g2.fill(new gfx.geom.IntPolygon(xs, ys, 4));
+        }
+
+        // Bright glow at the apex, like a small flash/spark — sits in the gap the ticks leave.
+        int glowR = 7;
+        g2.setAlpha(0.9f);
+        g2.setColor(Color.WHITE);
+        g2.fillOval((int) apexX - glowR, (int) apexY - glowR, glowR * 2, glowR * 2);
+        g2.setAlpha(1f);
+
+        g2.setColor(Color.WHITE);
+        g2.drawString("ATTACK", (int) apexX, (int) apexY - glowR - 6);
+    }
+
     /** Draw a filled+outlined octagon for entity e at its screen position. Uses hurtPolygon if set, else builds one from solidArea. */
     private void drawEntityOctagon(GdxRenderer g2, Entity e, int offX, int offY, Color fill, Color border, String label) {
         gfx.geom.IntPolygon poly = e.hurtPolygon;
@@ -288,16 +340,10 @@ public class RenderPipeline {
 
         if (gp.player.attacking && gp.player.attackCone != null) {
             // attackCone is stored in world space (apex = player world center); translate into
-            // screen space like the tile-collision-shapes debug loop below does. White per the
-            // user's reference — the cone hitbox is debug-only and never drawn in normal play.
+            // screen space like the tile-collision-shapes debug loop below does.
             float oldTX = g2.getTranslateX(); float oldTY = g2.getTranslateY();
             g2.translate(-pwx + psx, -pwy + psy);
-            g2.setAlpha(0.35f);
-            g2.setColor(Color.WHITE);
-            g2.fill(gp.player.attackCone);
-            g2.setAlpha(1f);
-            g2.draw(gp.player.attackCone);
-            g2.drawString("ATTACK", (int) gp.player.attackCone.apexX, (int) gp.player.attackCone.apexY - 6);
+            drawAttackConeDebug(g2, gp.player.attackCone);
             g2.setTranslate(oldTX, oldTY);
         }
 

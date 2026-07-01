@@ -103,6 +103,41 @@ public final class Transform {
         return t.transformPoly(ox, oy);
     }
 
+    /**
+     * Stroke a polyline into one thin quad PER SEGMENT (each returned as its own {@link Polygon}),
+     * rather than a single offset-outline ring. The single-ring approach in {@link #polyline} collapses
+     * for large or CLOSED paths (e.g. a room-perimeter loop): its vertex ring ends up enclosing the whole
+     * interior, so filling it paints the entire area (the "blue covers the whole map" collision bug).
+     * Per-segment quads stroke correctly for any path — an open wall, or a closed loop that becomes a
+     * ring of thin wall strips. Each quad is {@code thickness} wide, centered on its segment.
+     */
+    public static java.util.List<Polygon> polylineSegments(double x, double y, double rotationDeg,
+                                                           String pointsStr, double sf, double thickness) {
+        double[][] pts = parsePoints(pointsStr, sf);
+        double[] px = pts[0], py = pts[1];
+        int m = px.length;
+        java.util.List<Polygon> out = new java.util.ArrayList<>();
+        double half = thickness / 2;
+        Transform t = new Transform().translate(x, y).rotateDegrees(rotationDeg);
+        if (m < 2) {
+            out.add(t.transformPoly(
+                new double[]{-half, half, half, -half},
+                new double[]{-half, -half, half, half}));
+            return out;
+        }
+        for (int i = 0; i < m - 1; i++) {
+            double dx = px[i + 1] - px[i], dy = py[i + 1] - py[i];
+            double len = Math.hypot(dx, dy);
+            if (len == 0) continue;
+            double nx = -dy / len * half, ny = dx / len * half; // segment normal * half-thickness
+            // Quad: p0+n, p1+n, p1-n, p0-n (wound consistently).
+            double[] qx = { px[i] + nx, px[i + 1] + nx, px[i + 1] - nx, px[i] - nx };
+            double[] qy = { py[i] + ny, py[i + 1] + ny, py[i + 1] - ny, py[i] - ny };
+            out.add(t.transformPoly(qx, qy));
+        }
+        return out;
+    }
+
     private Polygon transformPoly(double[] lx, double[] ly) {
         double[] wx = new double[lx.length];
         double[] wy = new double[ly.length];

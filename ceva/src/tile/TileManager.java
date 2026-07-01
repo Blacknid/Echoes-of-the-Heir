@@ -1013,6 +1013,15 @@ public class TileManager {
                             boolean isAARect = isAxisAlignedCollisionRect(obj);
                             Shape shape = parseCollisionObject(obj);
                             if (shape != null) {
+                                // DEBUG: dump every collision shape's type + bounds so we can spot the
+                                // "blue covers the whole map" offender (e.g. a stray (0,0) polygon vertex,
+                                // an off-map position, or an oversized oval).
+                                Rect b = shape.getBounds();
+                                System.out.println("  [collide] id=" + obj.getAttribute("id")
+                                    + " type=" + shape.getClass().getSimpleName()
+                                    + " raw(x=" + obj.getAttribute("x") + " y=" + obj.getAttribute("y")
+                                    + " w=" + obj.getAttribute("width") + " h=" + obj.getAttribute("height") + ")"
+                                    + " -> bounds(" + b.x + "," + b.y + " " + b.width + "x" + b.height + ")");
                                 collisionShapes.add(shape);
                                 collisionBounds.add(shape.getBounds());
                                 if (isAARect) lightOccluderRects.add(shape.getBounds());

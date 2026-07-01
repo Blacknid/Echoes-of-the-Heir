@@ -1,12 +1,12 @@
 package entity;
 
-import gfx.Color;
+import java.util.ArrayList;
+
+ import audio.SFX;
+ import gfx.Color;
  import gfx.GdxRenderer;
  import gfx.Sprite;
  import gfx.geom.Rect;
- import java.util.ArrayList;
-
- import audio.SFX;
  import main.GamePanel;
  import main.KeyHandler;
  import main.SkillTree;
@@ -101,10 +101,14 @@ public class Player extends Entity {
     // aspect is preserved (uniformly scaled, never stretched independently per axis).
     private Sprite[] sliceFrames; // [0]=peak, [1]=trail
     private static final int SLICE_CELL_W = 32, SLICE_CELL_H = 96;
+    // Alternates each swing so consecutive attacks mirror each other (default, flipped, default, ...)
+    // for a smoother back-and-forth feel. Starts false so the FIRST swing is the default (unflipped)
+    // orientation; toggled at swing END so the current swing draws with the value set at its start.
+    private boolean sliceFlip = false;
 
     // Attack "kick" — a brief forward impulse along attackAngle during the swing, collision-checked.
     private float kickOffsetX = 0f, kickOffsetY = 0f;
-    private static final float KICK_MAX_PX = 4f;
+    private static final float KICK_MAX_PX = 7f;
 
     // 0..1 across the swing's active frames, -1 when the slice VFX should be hidden.
     private float swingProgress = -1f;
@@ -583,41 +587,22 @@ public class Player extends Entity {
                 keyH.enterPressed = false;
             }
             attacking();
-            int attackMoveSpeed = Math.max(1, speed / 2);
-            int nextX = worldX;
-            int nextY = worldY;
-            switch(direction) {
-                case DIR_UP:    if (keyH.upPressed)    nextY -= attackMoveSpeed; break;
-                case DIR_DOWN:  if (keyH.downPressed)  nextY += attackMoveSpeed; break;
-                case DIR_LEFT:  if (keyH.leftPressed)  nextX -= attackMoveSpeed; break;
-                case DIR_RIGHT: if (keyH.rightPressed) nextX += attackMoveSpeed; break;
-            }
-            int originalX = worldX;
-            int originalY = worldY;
-            worldX = nextX;
-            worldY = nextY;
+            // While attacking the player STOPS walking — no key-driven movement; only the lunge from
+            // attacking() carries them forward. Speed is bled off so that resuming walking after the
+            // swing has to ramp back up from near-zero (see post-attack ramp below).
+            currentSpeed = Math.min(currentSpeed, defaultSpeed * 0.25f);
+            movingThisFrame = false;
+            // Still scan the tile/entity the player is standing on so pickups/coins under the lunge
+            // register, but don't apply any positional key movement.
             collisionOn = false;
-            gp.cChecker.checkTile(this);
-            int objIndex = gp.cChecker.checkObject(this, true);
-            if (objIndex != 999) collisionOn = true;
-            int npcIndex = gp.cChecker.checkEntity(this, gp.npc);
-            if (npcIndex != 999 && gp.npc[npcIndex].collision) collisionOn = true;
-            int monsterIndex = gp.cChecker.checkEntity(this, gp.monster);
-            if (monsterIndex != 999 && gp.monster[monsterIndex].collision) collisionOn = true;
             int iTileIndex = gp.cChecker.checkEntity(this, gp.iTile);
-            if (iTileIndex != 999 && gp.iTile[iTileIndex] != null) {
-                if (gp.iTile[iTileIndex].collision) collisionOn = true;
-                if (gp.iTile[iTileIndex] instanceof tile.IT_Coins) {
-                    tile.IT_Coins coinTile = (tile.IT_Coins) gp.iTile[iTileIndex];
-                    coin += coinTile.coinValue;
-                    gp.playSE(SFX.GOT_GEM);
-                    generateParticle(coinTile, coinTile);
-                    gp.iTile[iTileIndex] = null;
-                }
-            }
-            if (collisionOn) {
-                worldX = originalX;
-                worldY = originalY;
+            if (iTileIndex != 999 && gp.iTile[iTileIndex] != null
+                    && gp.iTile[iTileIndex] instanceof tile.IT_Coins) {
+                tile.IT_Coins coinTile = (tile.IT_Coins) gp.iTile[iTileIndex];
+                coin += coinTile.coinValue;
+                gp.playSE(SFX.GOT_GEM);
+                generateParticle(coinTile, coinTile);
+                gp.iTile[iTileIndex] = null;
             }
         } else {
             if (gp.inputLocked) return;
@@ -1034,6 +1019,20 @@ public class Player extends Entity {
 
         int maxLean = (comboStep == 2) ? 3 : 2;
         float kickMax = (comboStep == 2) ? KICK_MAX_PX * 1.5f : KICK_MAX_PX;
+
+        // Lunge driven off the CONTINUOUS spriteCounter (ticks every 60Hz frame) rather than the coarse
+        // integer currentFrame, so the push interpolates smoothly instead of snapping in ~3 steps. The
+        // out-phase spans the first ~65% of the swing; a smoothstep (ease-in-out) accelerates then
+        // decelerates so it glides into the final position. After that it HOLDS (Moonshire lunge — keep
+        // the ground gained; only the visual lean recovers, worldX/Y stay put, no snap-back).
+        float swingT = totalDuration > 0 ? Math.min(1f, spriteCounter / (float) totalDuration) : 1f;
+        float outEnd = 0.85f; // spread the push across most of the swing for a longer, softer glide
+        float lungeT = Math.min(1f, swingT / outEnd);
+        // smootherstep (6t^5-15t^4+10t^3): flatter start AND flatter arrival than smoothstep, so the
+        // lunge eases in and settles without any abrupt stop at the end.
+        float eased = lungeT * lungeT * lungeT * (lungeT * (lungeT * 6f - 15f) + 10f);
+        applyAttackKick(kickMax * eased);
+
         if (currentFrame <= 3) {
             float progress = Math.min(1f, currentFrame / 3f);
             int lean = Math.round(maxLean * progress);
@@ -1043,7 +1042,6 @@ public class Player extends Entity {
                 case DIR_LEFT  -> { animOffsetX = -lean; animOffsetY = 0; }
                 case DIR_RIGHT -> { animOffsetX = lean; animOffsetY = 0; }
             }
-            applyAttackKick(kickMax * progress);
         } else {
             float recovery = (currentFrame - 3) / 2f;
             int lean = Math.round(maxLean * (1f - recovery));
@@ -1053,7 +1051,6 @@ public class Player extends Entity {
                 case DIR_LEFT  -> { animOffsetX = -lean; animOffsetY = 0; }
                 case DIR_RIGHT -> { animOffsetX = lean; animOffsetY = 0; }
             }
-            applyAttackKick(kickMax * (1f - recovery));
         }
 
         if (currentFrame >= 2 && currentFrame <= 4) {
@@ -1074,6 +1071,7 @@ public class Player extends Entity {
         if (spriteCounter >= totalDuration) {
             spriteCounter = 0;
             attacking = false;
+            sliceFlip = !sliceFlip; // next swing mirrors this one (default, flipped, default, ...)
             anticipationTimer = -1;
             trailActive = false;
             trailCount = 0;
@@ -1992,10 +1990,15 @@ public class Player extends Entity {
      * apex (player center); the sprite's own long axis runs along its height (32 wide x 96 tall),
      * so the rotation origin sits near the bottom of the cell (the "hilt" end) so the crescent
      * sweeps outward from the player rather than pivoting on its own midpoint.
+     *
+     * <p>The applied rotation is {@code attackAngle + 90} (see the rotationDeg comment below).
      */
     private void drawSliceVfx(GdxRenderer g2, int tempScreenX, int tempScreenY) {
         if (sliceFrames == null || swingProgress < 0f) return;
-        Sprite frame = sliceFrames[swingProgress < 0.6f ? 0 : 1];
+        // Frame 0 (peak) for the first tick of the window, frame 1 (trail) for the rest — the old
+        // 0.6 threshold only let frame 1 show on the single last tick before the swing ended,
+        // making it effectively invisible.
+        Sprite frame = sliceFrames[swingProgress < 0.34f ? 0 : 1];
         if (frame == null) return;
 
         float scale = (gp.tileSize / (float) SLICE_CELL_W) * (comboStep == 2 ? 1.15f : 1f);
@@ -2004,18 +2007,32 @@ public class Player extends Entity {
 
         float w = SLICE_CELL_W * scale;
         float h = SLICE_CELL_H * scale;
-        // Anchor point = attack cone apex (player center) in screen space.
-        float apexSX = tempScreenX + solidArea.x + solidArea.width  / 2f;
-        float apexSY = tempScreenY + solidArea.y + solidArea.height / 2f;
+        // Player center in screen space.
+        float pcx = tempScreenX + solidArea.x + solidArea.width  / 2f;
+        float pcy = tempScreenY + solidArea.y + solidArea.height / 2f;
+        // Place the crescent's own center a fixed distance in FRONT of the player along attackAngle,
+        // so it sits directly ahead rather than off to one side.
+        float frontDist = gp.tileSize * 0.6f;
+        float centerX = pcx + (float) Math.cos(attackAngle) * frontDist;
+        float centerY = pcy + (float) Math.sin(attackAngle) * frontDist;
+        // Pivot at the sprite's geometric center so rotation spins in place about that front point.
         float originX = w / 2f;
-        float originY = h * 0.85f; // pivot near the cell's bottom edge, not its geometric center
-        float drawX = apexSX - originX;
-        float drawY = apexSY - originY;
-        // Sprite's neutral orientation points "up" (+90 so attackAngle's 0=right lines up with it).
-        float rotationDeg = (float) Math.toDegrees(attackAngle) + 90f;
+        float originY = h / 2f;
+        float drawX = centerX - originX;
+        float drawY = centerY - originY;
+        // sliceAnim.png's neutral (unrotated) crescent is vertical (long axis top-to-bottom), convex
+        // bulging RIGHT and concave facing LEFT — i.e. the neutral pose already IS a correct right-facing
+        // slash (concave toward a player on the left). attackAngle uses the atan2 convention
+        // (0=right, +90=down) matching drawImageRotated's clockwise-positive screen rotation, so rotating
+        // the neutral pose straight by attackAngle keeps the concave side facing the player for every
+        // direction (e.g. down attack -> concave faces up toward the player). No offset, no flip.
+        float rotationDeg = (float) Math.toDegrees(attackAngle);
 
         g2.setAlpha(alpha);
-        g2.drawImageRotated(frame, drawX, drawY, w, h, originX, originY, rotationDeg);
+        // sliceFlip alternates each swing: flipY mirrors the crescent top<->bottom in its local space,
+        // swapping the arc direction for a back-and-forth slash feel without changing which side the
+        // concave faces (that stays toward the player).
+        g2.drawImageRotated(frame, drawX, drawY, w, h, originX, originY, rotationDeg, false, sliceFlip);
         g2.setAlpha(1f);
     }
 

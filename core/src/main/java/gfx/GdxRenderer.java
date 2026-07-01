@@ -220,11 +220,38 @@ public class GdxRenderer {
     /** Rotated image draw (replaces AffineTransform rotate on a sprite). originX/Y in pixels. */
     public void drawImageRotated(Sprite img, float x, float y, float w, float h,
                                  float originX, float originY, float rotationDeg) {
+        drawImageRotated(img, x, y, w, h, originX, originY, rotationDeg, false);
+    }
+
+    /**
+     * Rotated image draw with optional horizontal mirror. {@code flipX} mirrors the sprite about its
+     * vertical center (swaps left/right) before rotating. Works on a region copy so the cached
+     * region's flip state is untouched.
+     */
+    public void drawImageRotated(Sprite img, float x, float y, float w, float h,
+                                 float originX, float originY, float rotationDeg, boolean flipX) {
+        drawImageRotated(img, x, y, w, h, originX, originY, rotationDeg, flipX, false);
+    }
+
+    /**
+     * Rotated image draw with optional horizontal and/or vertical mirror (in the sprite's own local
+     * space, applied before rotation). {@code flipY} swaps top/bottom — used e.g. to alternate a
+     * crescent slash VFX's arc between swings without changing which side its concave faces. Works on
+     * a region copy so the cached region's flip state is untouched.
+     */
+    public void drawImageRotated(Sprite img, float x, float y, float w, float h,
+                                 float originX, float originY, float rotationDeg,
+                                 boolean flipX, boolean flipY) {
         if (img == null) return;
         useBatch();
         batch.setColor(1f, 1f, 1f, alpha);
+        com.badlogic.gdx.graphics.g2d.TextureRegion r = img.region();
+        if (flipX || flipY) {
+            r = new com.badlogic.gdx.graphics.g2d.TextureRegion(r);
+            r.flip(flipX, flipY);
+        }
         // libGDX rotates CCW; y-down camera makes positive degrees clockwise on screen, matching AWT.
-        batch.draw(img.region(), x, y, originX, originY, w, h, 1f, 1f, rotationDeg);
+        batch.draw(r, x, y, originX, originY, w, h, 1f, 1f, rotationDeg);
     }
 
     /**

@@ -44,11 +44,21 @@ public class GamePanel {
     public final double scale = Config.scale;
 
     public final int tileSize = Config.tileSize; // runtime tile size (originalTileSize * scale)
-    // Logical resolution — matches the panel size in dynamic-viewport mode (stretchToFill=false),
-    // or stays fixed at 1280×720 in legacy scaled mode (stretchToFill=true).
+    // Logical resolution — the integer-scaled game view size (device pixels / pixelScale). All world,
+    // HUD and input layout is authored in these logical pixels; the camera/GL viewport magnify them by
+    // the whole-number pixelScale for crisp pixel art. Used for BOTH windowed and fullscreen.
     public int screenWidth  = 1280;
     public int screenHeight = 720;
-    // Display transform — 1:1 in dynamic mode; populated for legacy scaled mode
+    // Raw device (window/framebuffer) size in physical pixels — what the OS gives us.
+    public int deviceWidth  = 1280;
+    public int deviceHeight = 720;
+    // Moonshire-style integer pixel scale: how many device pixels map to one logical game pixel.
+    // Chosen as the largest whole number that keeps the 1280x720 baseline fitting on screen, so
+    // pixel art stays crisp (no fractional sampling). The leftover remainder (device not being an
+    // exact multiple) enlarges the logical viewport, which the tile culling turns into MORE visible
+    // map tiles rather than black bars.
+    public int pixelScale = 1;
+    // Display transform — set to pixelScale so panelToGame maps device coords back to logical space.
     private float displayScaleF  = 1f;
     private int   displayOffsetX = 0;
     private int   displayOffsetY = 0;
@@ -358,28 +368,56 @@ public class GamePanel {
         applyFullScreenSetting(true);
     }
 
+    // Remembers the last windowed WINDOW size (device px) so leaving fullscreen restores it, rather
+    // than the smaller logical size (which would shrink the window after an integer-scaled fullscreen).
+    private int lastWindowedW = 0, lastWindowedH = 0;
+
     /** Toggle fullscreen via libGDX. The window/display is owned by Gdx.graphics. */
     public void applyFullScreenSetting(boolean enable) {
         if (fullScreenOn == enable) return;
         fullScreenOn = enable;
         if (com.badlogic.gdx.Gdx.graphics != null) {
             if (enable) {
+                lastWindowedW = com.badlogic.gdx.Gdx.graphics.getWidth();
+                lastWindowedH = com.badlogic.gdx.Gdx.graphics.getHeight();
                 com.badlogic.gdx.Gdx.graphics.setFullscreenMode(
                     com.badlogic.gdx.Gdx.graphics.getDisplayMode());
             } else {
-                com.badlogic.gdx.Gdx.graphics.setWindowedMode(screenWidth, screenHeight);
+                int w = lastWindowedW > 0 ? lastWindowedW : MichiGame.BASE_W;
+                int h = lastWindowedH > 0 ? lastWindowedH : MichiGame.BASE_H;
+                com.badlogic.gdx.Gdx.graphics.setWindowedMode(w, h);
             }
         }
         config.saveConfig();
     }
 
-    /**
-     * Adapts the logical resolution to the given window dimensions. Called from MichiGame.resize.
-     * In dynamic-viewport mode more or fewer world tiles become visible; no black bars, no scaling.
-     */
+    /** Back-compat 1:1 overload (no integer scaling). */
     public void applyNewResolution(int w, int h) {
-        screenWidth  = w;
-        screenHeight = h;
+        applyNewResolution(w, h, 1, 0, 0, w, h);
+    }
+
+    /**
+     * Adapts the LOGICAL resolution to the window. Called from MichiGame.syncCamera, which has
+     * already chosen the integer {@code pixelScale} and computed the logical viewport
+     * ({@code logicalW/H = deviceW/H / pixelScale}) plus the centering margins.
+     *
+     * <p>Moonshire-style behaviour: the world/UI are authored and culled in LOGICAL pixels, then
+     * the GL viewport magnifies them by the whole-number {@code pixelScale} for crisp pixel art.
+     * Because logicalW/H keep the full integer-division remainder, a bigger screen becomes MORE
+     * visible map tiles (via the existing culling on {@code screenWidth/Height}) rather than black
+     * bars or stretching. {@code displayScaleF}/offsets mirror the render transform so
+     * {@link #panelToGame} maps device pointer coords back to logical space exactly.
+     */
+    public void applyNewResolution(int logicalW, int logicalH, int pixelScale,
+                                   int marginX, int marginY, int deviceW, int deviceH) {
+        screenWidth  = logicalW;
+        screenHeight = logicalH;
+        deviceWidth  = deviceW;
+        deviceHeight = deviceH;
+        this.pixelScale     = pixelScale;
+        this.displayScaleF  = pixelScale;   // device px -> logical px (inverse of the render magnify)
+        this.displayOffsetX = marginX;
+        this.displayOffsetY = marginY;
         maxScreenCol = (int)Math.ceil((double)screenWidth  / tileSize) + 1;
         maxScreenRow = (int)Math.ceil((double)screenHeight / tileSize) + 1;
         if (player != null) {

@@ -69,11 +69,20 @@ public class FontSystem implements Disposable {
         // letter renders upside-down. flip=true makes BitmapFont emit glyphs for a top-left origin
         // (y grows downward), matching Graphics2D text placement.
         p.flip = true;
+        // Pixel-perfect rasterization: mono (1-bit, NO anti-aliasing) + no hinting distortion. Without
+        // this, FreeType anti-aliases glyph edges into gray pixels, which read as a soft "shadow" —
+        // especially on thin PLAIN weights and once the whole frame is integer-magnified (pixelScale>1).
+        // mono renders each glyph texel as pure on/off, so magnified text stays razor-sharp.
+        p.mono = true;
+        p.hinting = FreeTypeFontGenerator.Hinting.None;
         // Approximate bold/italic from the base face (FreeType can fake-bold via borderWidth/spacing).
         if (f.isBold()) { p.borderWidth = 0f; p.spaceX = 0; /* face is pixel; bold reads via size */ }
         p.minFilter = Texture.TextureFilter.Nearest;  // pixel-art crisp text
         p.magFilter = Texture.TextureFilter.Nearest;
         bf = gen.generateFont(p);
+        // Force integer glyph positions so per-glyph advances never accumulate a fractional offset
+        // (which would blur text under integer-scaled rendering). Works with the rounding in draw().
+        bf.setUseIntegerPositions(true);
         fontCache.put(key, bf);
         return bf;
     }
@@ -86,8 +95,11 @@ public class FontSystem implements Disposable {
         // Graphics2D y is the baseline; a flipped BitmapFont draws with y as the TOP of the line
         // (growing downward). So top = baseline - ascent. getCapHeight approximates the ascent
         // from baseline to the top of caps, matching how Graphics2D positions most UI text.
-        float top = y - bf.getCapHeight();
-        bf.draw(batch, s, x, top);
+        // Snap to whole LOGICAL pixels: under integer-scaled rendering (pixelScale>1) a fractional
+        // glyph origin smears each texel across the logical->device pixel blocks, giving text a soft
+        // "shadow". Rounding keeps every glyph texel on an exact device-pixel grid → pixel-perfect.
+        float top = Math.round(y - bf.getCapHeight());
+        bf.draw(batch, s, Math.round(x), top);
     }
 
     public FontMetrics metrics(Font f) {

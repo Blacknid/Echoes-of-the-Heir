@@ -1,5 +1,10 @@
 package ui;
 
+import java.util.ArrayList;
+import java.util.HashMap;
+
+import audio.SFX;
+import entity.Entity;
 import gfx.Color;
 import gfx.Font;
 import gfx.FontMetrics;
@@ -7,11 +12,6 @@ import gfx.GdxRenderer;
 import gfx.Gradient;
 import gfx.Sprite;
 import gfx.Stroke;
-import java.util.ArrayList;
-import java.util.HashMap;
-
-import audio.SFX;
-import entity.Entity;
 import main.Config;
 import main.GamePanel;
 import main.SkillTree;
@@ -2451,13 +2451,13 @@ public class UI {
         int startY = titleY + 42;       // first item Y baseline
         int textX = frameX + pad + 15;
 
-        String[] labels = { "Full Screen", "V-Sync", "Perf Mode", "Graphics", "Music", "Sound FX", "Controls", "End Game", "Save Game", "Dynamic View", "Back" };
-        int totalItems = labels.length;  // 11 items, indices 0-10
+        String[] labels = { "Full Screen", "V-Sync", "Perf Mode", "Graphics", "Music", "Sound FX", "Controls", "End Game", "Save Game", "Back" };
+        int totalItems = labels.length;  // 10 items, indices 0-9
 
         for (int i = 0; i < totalItems; i++) {
             int itemY = startY + i * lineH;
             boolean selected = (commandNum == i);
-            boolean isBack = (i == 10);
+            boolean isBack = (i == 9);
 
             // draw separator before "Back"
             if (isBack) {
@@ -2557,16 +2557,7 @@ public class UI {
                     gp.keyH.enterPressed = false;
                 }
             }
-            else if (i == 9) { // Dynamic View: ON = dynamic viewport (more tiles), OFF = fixed 1280×720 scaled
-                drawMedievalToggle(rightCol + 100, ctrlY, !Config.stretchToFill); // lit when dynamic ON
-                if (selected && gp.keyH.enterPressed) {
-                    Config.stretchToFill = !Config.stretchToFill;
-                    gp.playSE(SFX.MENU_SELECT);
-                    gp.keyH.enterPressed = false;
-                    gp.config.saveConfig();
-                }
-            }
-            else if (i == 10) { // Back
+            else if (i == 9) { // Back
                 if (selected && gp.keyH.enterPressed) { gp.gameState = GamePanel.playState; commandNum = 0; gp.config.saveConfig(); }
             }
         }

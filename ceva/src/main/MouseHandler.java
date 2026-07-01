@@ -379,7 +379,7 @@ public class MouseHandler implements InputProcessor {
     // ════════════════════════════════════════════════════════════════════════
     // OPTIONS SCREEN
     // Frame: min(520, screenWidth*0.42) × min(660, screenHeight*0.92), centred
-    // options_top: items 0-10, startY = frameY+48+42, lineH=46
+    // options_top: items 0-9, startY = frameY+48+42, lineH=46
     // ════════════════════════════════════════════════════════════════════════
 
     private int optionsFrameY() {
@@ -391,7 +391,7 @@ public class MouseHandler implements InputProcessor {
         int frameY  = optionsFrameY();
         int startY  = frameY + 48 + 42;  // titleY + 42 (title baseline = frameY+48)
         int lineH   = 46;
-        for (int i = 0; i < 11; i++) {
+        for (int i = 0; i < 10; i++) {
             int itemY = startY + i * lineH;
             int top   = itemY - lineH + 16;  // matches selection bar barY
             if (gameY >= top && gameY < top + lineH - 4) return i;
