@@ -147,6 +147,13 @@ public class Player extends Entity {
     private int idleFrameDirection = 1;
     private final int idleFrameInterval = 10;
     private final int idleStartDelayFrames = 120;
+
+    // ── libGDX-backed player walk/idle animation (fixed 60-UPS step). ──
+    // Player drives its own spriteNum for both walk and idle (draw reads spriteNum), so these are
+    // Player-local. walk = LOOP (wrap), idle = LOOP_PINGPONG (bounce), matching the old counters.
+    private gfx.SpriteAnimation[] pWalkAnim, pIdleAnim;
+    private float pWalkStateTime = 0f, pIdleStateTime = 0f;
+    private static final float PDT = 1f / 60f;
     private int idleDelayCounter = 0;
     private boolean movingThisFrame = false;
     private boolean wasMovingLastFrame = false;
@@ -691,6 +698,7 @@ public class Player extends Entity {
                 if (!wasMovingLastFrame) {
                     spawnBobParticle(1);
                     footstepParticleCounter = 0;
+                    pWalkStateTime = 0f; // restart the walk cycle cleanly on movement start
                 }
                 wasMovingLastFrame = true;
                 updateSprite();
@@ -905,37 +913,43 @@ public class Player extends Entity {
     }
 
     private void updateSprite() {
-        spriteCounter++;
-        // Tie animation cadence to movement speed so feet never slide.
-        // At defaultSpeed (5) interval = 48/5 = 9 ticks (~6.7 frame-advances/sec).
-        // During a dash (speed ~16) interval = 3 ticks — snappy but not strobing.
-        int interval = Math.max(2, 48 / Math.max(1, speed));
-        int frameCount = (walkFrames != null && walkFrames[direction] != null)
-                ? walkFrames[direction].length : 7;
-        if (spriteCounter > interval) {
-            spriteNum = (spriteNum % frameCount) + 1;
-            spriteCounter = 0;
+        // Walk cycle: libGDX Animation (LOOP), cadence tied to speed so feet never slide.
+        // At defaultSpeed (5) interval = 48/5 = 9 ticks; during a dash (~16) = 3 ticks.
+        Sprite[] frames = (walkFrames != null && direction >= 0 && direction < walkFrames.length)
+                ? walkFrames[direction] : null;
+        if (frames == null || frames.length == 0) { updateSpriteLegacy(); return; }
+        if (pWalkAnim == null || pWalkAnim.length != walkFrames.length) pWalkAnim = new gfx.SpriteAnimation[walkFrames.length];
+        if (pWalkAnim[direction] == null || pWalkAnim[direction].frameCount() != frames.length) {
+            pWalkAnim[direction] = new gfx.SpriteAnimation(frames,
+                gfx.SpriteAnimation.durationForTicks(Math.max(2, 48 / Math.max(1, speed))),
+                com.badlogic.gdx.graphics.g2d.Animation.PlayMode.LOOP);
+        } else {
+            pWalkAnim[direction].setFrameDuration(gfx.SpriteAnimation.durationForTicks(Math.max(2, 48 / Math.max(1, speed))));
         }
+        pWalkStateTime += PDT;
+        spriteNum = pWalkAnim[direction].getFrameIndex(pWalkStateTime) + 1;
+    }
+
+    /** Fallback wrap used only if walkFrames is missing (mirrors the old counter). */
+    private void updateSpriteLegacy() {
+        spriteCounter++;
+        int interval = Math.max(2, 48 / Math.max(1, speed));
+        if (spriteCounter > interval) { spriteNum = (spriteNum % 7) + 1; spriteCounter = 0; }
     }
 
     private void updateIdleSprite() {
-        idleCounter++;
-        int maxIdleFrame = 6;
-
-        if (idleCounter > idleFrameInterval) {
-            spriteNum += idleFrameDirection;
-
-            if (spriteNum >= maxIdleFrame) {
-                spriteNum = maxIdleFrame;
-                idleFrameDirection = -1;
-            }
-            if (spriteNum <= 1) {
-                spriteNum = 1;
-                idleFrameDirection = 1;
-            }
-
-            idleCounter = 0;
+        // Idle cycle: libGDX Animation (LOOP_PINGPONG = the old 1..6..1 bounce).
+        Sprite[] frames = (idleFrames != null && direction >= 0 && direction < idleFrames.length)
+                ? idleFrames[direction] : null;
+        if (frames == null || frames.length == 0) return;
+        if (pIdleAnim == null || pIdleAnim.length != idleFrames.length) pIdleAnim = new gfx.SpriteAnimation[idleFrames.length];
+        if (pIdleAnim[direction] == null || pIdleAnim[direction].frameCount() != frames.length) {
+            pIdleAnim[direction] = new gfx.SpriteAnimation(frames,
+                gfx.SpriteAnimation.durationForTicks(idleFrameInterval),
+                com.badlogic.gdx.graphics.g2d.Animation.PlayMode.LOOP_PINGPONG);
         }
+        pIdleStateTime += PDT;
+        spriteNum = pIdleAnim[direction].getFrameIndex(pIdleStateTime) + 1;
     }
 
     public void attacking() {

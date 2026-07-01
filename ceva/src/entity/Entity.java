@@ -69,6 +69,17 @@ public class Entity {
     public int walkFrameCount = 3;
     public int animationFrameInterval = 8;
     private int walkFrameDirection = 1;
+
+    // ── libGDX-backed animation (walk / idle / activity) ──
+    // These wrap the existing walkFrames/idleFrames/activityAnimations arrays in
+    // gfx.SpriteAnimation (LOOP_PINGPONG = the old 1..N..1 bounce). Frames are advanced by a float
+    // stateTime (fixed 60-UPS step) and the resulting index is written back into spriteNum /
+    // idleSpriteNum / activitySpriteNum so the existing draw code (which reads those) is unchanged.
+    private gfx.SpriteAnimation[] walkAnim;
+    private gfx.SpriteAnimation[] idleAnim;
+    private final java.util.HashMap<String, gfx.SpriteAnimation[]> activityAnim = new java.util.HashMap<>();
+    private float walkStateTime = 0f, idleStateTime = 0f, activityStateTime = 0f;
+    private static final float DT = 1f / 60f; // fixed sim step (swap to Gdx.graphics.getDeltaTime() for real delta)
     public int actionLockCounter = 0;
     public int invincibleCounter = 0;
     public int invincibleDuration = 10; // frames of i-frames after hit (short for combo-friendly combat)
@@ -657,95 +668,17 @@ public class Entity {
 
         if (movedThisFrame) {
             entityIdle = false;
-            idleSpriteNum = 1;
-            idleSpriteCounter = 0;
-            idleFrameDirection = 1;
-            activitySpriteNum = 1;
-            activitySpriteCounter = 0;
-            activityFrameDirection = 1;
-            spriteCounter++;
-            int walkInterval = Math.max(2, 48 / Math.max(1, speed));
-            if (spriteCounter > walkInterval) {
-                int maxWalkFrames = Math.max(1, Math.min(walkFrameCount, 8));
-
-                if (maxWalkFrames == 1) {
-                    spriteNum = 1;
-                } else {
-                    spriteNum += walkFrameDirection;
-
-                    if (spriteNum >= maxWalkFrames) {
-                        spriteNum = maxWalkFrames;
-                        walkFrameDirection = -1;
-                    }
-                    if (spriteNum <= 1) {
-                        spriteNum = 1;
-                        walkFrameDirection = 1;
-                    }
-                }
-
-                spriteCounter = 0;
-            }
+            // Reset idle/activity cycles so they restart cleanly next time the entity stops.
+            idleSpriteNum = 1; idleStateTime = 0f;
+            activitySpriteNum = 1; activityStateTime = 0f;
+            // Advance the walk cycle by the fixed sim step; cadence tied to speed (48/speed ticks).
+            advanceWalk();
         } else {
             spriteNum = 1;
-            spriteCounter = 0;
-            walkFrameDirection = 1;
+            walkStateTime = 0f;
             entityIdle = true;
-
-            if (idleFrames != null) {
-                int dir = (idleDirection >= 0) ? idleDirection : direction;
-                if (dir >= 0 && dir < idleFrames.length && idleFrames[dir] != null && idleFrames[dir].length > 0) {
-                    idleSpriteCounter++;
-                    if (idleSpriteCounter > idleAnimationInterval) {
-                        int maxIdle = idleFrames[dir].length;
-                        if (maxIdle == 1) {
-                            idleSpriteNum = 1;
-                        } else {
-                            idleSpriteNum += idleFrameDirection;
-                            if (idleSpriteNum >= maxIdle) {
-                                idleSpriteNum = maxIdle;
-                                idleFrameDirection = -1;
-                            }
-                            if (idleSpriteNum <= 1) {
-                                idleSpriteNum = 1;
-                                idleFrameDirection = 1;
-                            }
-                        }
-                        idleSpriteCounter = 0;
-                    }
-                }
-            }
-
-            if (currentActivity != null && activityAnimations != null) {
-                Sprite[][] actFrames = activityAnimations.get(currentActivity);
-                if (actFrames != null) {
-                    int dir = (idleDirection >= 0) ? idleDirection : direction;
-                    if (dir >= 0 && dir < actFrames.length && actFrames[dir] != null && actFrames[dir].length > 0) {
-                        int interval = idleAnimationInterval;
-                        if (activityAnimSpeeds != null) {
-                            Integer customSpeed = activityAnimSpeeds.get(currentActivity);
-                            if (customSpeed != null) interval = customSpeed;
-                        }
-                        activitySpriteCounter++;
-                        if (activitySpriteCounter > interval) {
-                            int maxFrames = actFrames[dir].length;
-                            if (maxFrames == 1) {
-                                activitySpriteNum = 1;
-                            } else {
-                                activitySpriteNum += activityFrameDirection;
-                                if (activitySpriteNum >= maxFrames) {
-                                    activitySpriteNum = maxFrames;
-                                    activityFrameDirection = -1;
-                                }
-                                if (activitySpriteNum <= 1) {
-                                    activitySpriteNum = 1;
-                                    activityFrameDirection = 1;
-                                }
-                            }
-                            activitySpriteCounter = 0;
-                        }
-                    }
-                }
-            }
+            advanceIdle();
+            advanceActivity();
         }
 
         if (invincible) {
@@ -768,50 +701,90 @@ public class Entity {
      */
     public void tickAnimations() {
         entityIdle = true;
-        // Idle frames
-        if (idleFrames != null) {
-            int dir = (idleDirection >= 0) ? idleDirection : direction;
-            if (dir >= 0 && dir < idleFrames.length && idleFrames[dir] != null && idleFrames[dir].length > 0) {
-                idleSpriteCounter++;
-                if (idleSpriteCounter > idleAnimationInterval) {
-                    int maxIdle = idleFrames[dir].length;
-                    if (maxIdle == 1) {
-                        idleSpriteNum = 1;
-                    } else {
-                        idleSpriteNum += idleFrameDirection;
-                        if (idleSpriteNum >= maxIdle) { idleSpriteNum = maxIdle; idleFrameDirection = -1; }
-                        if (idleSpriteNum <= 1)        { idleSpriteNum = 1;       idleFrameDirection =  1; }
-                    }
-                    idleSpriteCounter = 0;
-                }
-            }
+        advanceIdle();
+        advanceActivity();
+    }
+
+    // ── Animation advance helpers (libGDX-backed, fixed 60-UPS step) ──
+    // Each rebuilds its SpriteAnimation lazily if the backing frame array changed, advances a float
+    // stateTime, and writes the resulting 1-based index back into the *SpriteNum field the draw code
+    // reads. PlayMode.LOOP_PINGPONG reproduces the old 1..N..1 bounce.
+
+    private gfx.SpriteAnimation animFor(Sprite[] frames, gfx.SpriteAnimation cached, float durationSec) {
+        if (frames == null || frames.length == 0) return null;
+        // Rebuild if missing or frame array identity/length changed.
+        if (cached == null || cached.frameCount() != frames.length) {
+            return new gfx.SpriteAnimation(frames, durationSec,
+                com.badlogic.gdx.graphics.g2d.Animation.PlayMode.LOOP_PINGPONG);
         }
-        // Activity animation
-        if (currentActivity != null && activityAnimations != null) {
-            Sprite[][] actFrames = activityAnimations.get(currentActivity);
-            if (actFrames != null) {
-                int dir = (idleDirection >= 0) ? idleDirection : direction;
-                if (dir >= 0 && dir < actFrames.length && actFrames[dir] != null && actFrames[dir].length > 0) {
-                    int interval = idleAnimationInterval;
-                    if (activityAnimSpeeds != null) {
-                        Integer customSpeed = activityAnimSpeeds.get(currentActivity);
-                        if (customSpeed != null) interval = customSpeed;
-                    }
-                    activitySpriteCounter++;
-                    if (activitySpriteCounter > interval) {
-                        int maxFrames = actFrames[dir].length;
-                        if (maxFrames == 1) {
-                            activitySpriteNum = 1;
-                        } else {
-                            activitySpriteNum += activityFrameDirection;
-                            if (activitySpriteNum >= maxFrames) { activitySpriteNum = maxFrames; activityFrameDirection = -1; }
-                            if (activitySpriteNum <= 1)          { activitySpriteNum = 1;         activityFrameDirection =  1; }
-                        }
-                        activitySpriteCounter = 0;
-                    }
-                }
-            }
+        cached.setFrameDuration(durationSec);
+        return cached;
+    }
+
+    private void advanceWalk() {
+        int dir = direction;
+        Sprite[] frames = (walkFrames != null && dir >= 0 && dir < walkFrames.length) ? walkFrames[dir] : null;
+        if (frames == null || frames.length == 0) {
+            // Legacy entities (Object/Item) store frames in named up1/down1/... fields, not walkFrames,
+            // and animate via getWalkFrameImage(dir, spriteNum). Keep the old tick-based bounce here.
+            advanceLegacyWalkCounter();
+            return;
         }
+        if (walkAnim == null || walkAnim.length != walkFrames.length) walkAnim = new gfx.SpriteAnimation[walkFrames.length];
+        float dur = gfx.SpriteAnimation.durationForTicks(Math.max(2, 48 / Math.max(1, speed)));
+        walkAnim[dir] = animFor(frames, walkAnim[dir], dur);
+        walkStateTime += DT;
+        if (walkAnim[dir] != null) spriteNum = walkAnim[dir].getFrameIndex(walkStateTime) + 1;
+    }
+
+    /** Old counter/bounce for legacy named-field entities (walkFrames == null). */
+    private void advanceLegacyWalkCounter() {
+        spriteCounter++;
+        int walkInterval = Math.max(2, 48 / Math.max(1, speed));
+        if (spriteCounter > walkInterval) {
+            int maxWalkFrames = Math.max(1, Math.min(walkFrameCount, 8));
+            if (maxWalkFrames == 1) {
+                spriteNum = 1;
+            } else {
+                spriteNum += walkFrameDirection;
+                if (spriteNum >= maxWalkFrames) { spriteNum = maxWalkFrames; walkFrameDirection = -1; }
+                if (spriteNum <= 1)             { spriteNum = 1;             walkFrameDirection =  1; }
+            }
+            spriteCounter = 0;
+        }
+    }
+
+    private void advanceIdle() {
+        if (idleFrames == null) return;
+        int dir = (idleDirection >= 0) ? idleDirection : direction;
+        Sprite[] frames = (dir >= 0 && dir < idleFrames.length) ? idleFrames[dir] : null;
+        if (frames == null || frames.length == 0) return;
+        if (idleAnim == null || idleAnim.length != idleFrames.length) idleAnim = new gfx.SpriteAnimation[idleFrames.length];
+        idleAnim[dir] = animFor(frames, idleAnim[dir], gfx.SpriteAnimation.durationForTicks(idleAnimationInterval));
+        idleStateTime += DT;
+        if (idleAnim[dir] != null) idleSpriteNum = idleAnim[dir].getFrameIndex(idleStateTime) + 1;
+    }
+
+    private void advanceActivity() {
+        if (currentActivity == null || activityAnimations == null) return;
+        Sprite[][] actFrames = activityAnimations.get(currentActivity);
+        if (actFrames == null) return;
+        int dir = (idleDirection >= 0) ? idleDirection : direction;
+        Sprite[] frames = (dir >= 0 && dir < actFrames.length) ? actFrames[dir] : null;
+        if (frames == null || frames.length == 0) return;
+        int interval = idleAnimationInterval;
+        if (activityAnimSpeeds != null) {
+            Integer customSpeed = activityAnimSpeeds.get(currentActivity);
+            if (customSpeed != null) interval = customSpeed;
+        }
+        gfx.SpriteAnimation[] anims = activityAnim.get(currentActivity);
+        if (anims == null || anims.length != actFrames.length) {
+            anims = new gfx.SpriteAnimation[actFrames.length];
+            activityAnim.put(currentActivity, anims);
+        }
+        anims[dir] = animFor(frames, anims[dir], gfx.SpriteAnimation.durationForTicks(interval));
+        activityStateTime += DT;
+        if (anims[dir] != null) activitySpriteNum = anims[dir].getFrameIndex(activityStateTime) + 1;
     }
 
     public void draw(GdxRenderer g2) {

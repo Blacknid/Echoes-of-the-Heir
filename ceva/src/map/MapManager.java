@@ -207,6 +207,7 @@ public class MapManager {
             }
         }
 
+        try {
         gp.tileM.mapLayers.clear();
         gp.tileM.loadMapFromTMX(path);
         gp.tileM.loadCollisionLayer(path);
@@ -314,6 +315,20 @@ public class MapManager {
         // Notify quest manager so "go" steps complete on map arrival
         if (gp.questManager != null) {
             gp.questManager.notifyMapEntered(currentMapId);
+        }
+        } catch (Throwable t) {
+            // A failure here (bad TMX, missing asset, etc.) used to propagate up through the
+            // render loop and kill the whole app mid-transition (black screen, music cut).
+            // Log the full trace so the real cause is visible, and keep the app alive.
+            System.out.println("[MapManager] changeMap FAILED for '" + mapIdOrPath + "' (path=" + path + "):");
+            t.printStackTrace(System.out);
+            try {
+                java.io.File log = new java.io.File(System.getProperty("user.dir"), "crash_log.txt");
+                try (java.io.PrintWriter pw = new java.io.PrintWriter(new java.io.FileWriter(log, true))) {
+                    pw.println("=== changeMap FAILED for '" + mapIdOrPath + "' (path=" + path + ") ===");
+                    t.printStackTrace(pw);
+                }
+            } catch (Exception ignored) {}
         }
     }
 

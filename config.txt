@@ -1,5 +1,5 @@
 fullscreen=On
-musicVolume=5
+musicVolume=1
 seVolume=4
 vsync=On
 fpsTarget=60

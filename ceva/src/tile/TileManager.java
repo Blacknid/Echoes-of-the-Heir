@@ -36,7 +36,7 @@ public class TileManager {
         public int[] frameLocalIds;   // local tile ids (0-based within tileset)
         public int[] frameDurationsMs; // duration of each frame in milliseconds
         public int currentFrame = 0;
-        public int timerMs = 0;
+        public float timerMs = 0f; // float so the exact 16.667 ms/tick carries no rounding drift
     }
 
     /** GID -> animation (null = not animated). Built alongside gidToTile arrays. */
@@ -1194,6 +1194,13 @@ public class TileManager {
 
     // OPTIMIZATION: Direct GID-indexed arrays for O(1) tile lookups (replaces per-tile linear tileset scans)
     private Tile[]    gidToTile;
+    // Cache of sampled minimap colours per GID. sampleTileColor() decodes a tileset PNG into a
+    // native Pixmap on the first sample of each GID; without this cache the minimap bake decodes
+    // the same tilesets once *per tile cell* (tens of thousands of full-PNG decodes → multi-second
+    // black screens and native OOM crashes). NULL_COLOR marks GIDs sampled as transparent/missing
+    // so they are not re-decoded either. Cleared whenever gidToTile is rebuilt (per map load).
+    private final Map<Integer, Color> gidColorCache = new HashMap<>();
+    private static final Color NULL_COLOR = new Color(0, 0, 0, 0);
     private int[]     gidToRenderOrder;
     private boolean[] gidToDepthSort;
     private boolean[] gidToForeground;
@@ -1561,8 +1568,9 @@ public class TileManager {
      */
     public void update() {
         if (!hasAnimatedTiles) return;
-        // 60 UPS → each tick ≈ 16.67 ms; we approximate as 17 ms per tick.
-        final int MS_PER_TICK = 17;
+        // 60 UPS → exactly 1000/60 ≈ 16.667 ms per tick. Using the exact float value (not the old
+        // 17 ms approximation) removes the ~2%/frame drift so animated tiles cycle at their true rate.
+        final float MS_PER_TICK = 1000f / 60f;
         boolean anyFrameChanged = false;
         for (TileAnimation anim : gidToAnimation.values()) {
             anim.timerMs += MS_PER_TICK;
@@ -1608,6 +1616,7 @@ public class TileManager {
         }
 
         // Build O(1) direct GID lookup arrays — eliminates per-tile linear tileset scan
+        gidColorCache.clear(); // GIDs are remapped per map; drop stale minimap colour samples
         gidToTile          = new Tile[maxGIDValue + 1];
         gidToRenderOrder   = new int[maxGIDValue + 1];
         gidToDepthSort     = new boolean[maxGIDValue + 1];
@@ -1676,14 +1685,21 @@ public class TileManager {
      */
     public Color sampleTileColor(int gid) {
         if (gid <= 0 || gidToTile == null || gid >= gidToTile.length) return null;
+
+        // Cached? (NULL_COLOR means "sampled, but transparent/missing" — don't re-decode.)
+        Color cached = gidColorCache.get(gid);
+        if (cached != null) return cached == NULL_COLOR ? null : cached;
+
         Tile t = gidToTile[gid];
-        if (t == null || t.image == null) return null;
+        if (t == null || t.image == null) { gidColorCache.put(gid, NULL_COLOR); return null; }
         int cx = t.image.getWidth() / 2;
         int cy = t.image.getHeight() / 2;
         int argb = t.image.getRGB(cx, cy);
         // Skip fully transparent pixels
-        if ((argb >>> 24) < 10) return null;
-        return new Color(argb, true);
+        if ((argb >>> 24) < 10) { gidColorCache.put(gid, NULL_COLOR); return null; }
+        Color color = new Color(argb, true);
+        gidColorCache.put(gid, color);
+        return color;
     }
 
     /**

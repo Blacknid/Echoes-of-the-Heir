@@ -109,6 +109,11 @@ public class Minimap {
         pm.setColor(COL_BG.getRed() / 255f, COL_BG.getGreen() / 255f, COL_BG.getBlue() / 255f, 1f);
         pm.fill();
 
+        // Batch the per-GID pixel samples: gidToColor()->sampleTileColor()->Sprite.getRGB() decodes
+        // a tileset PNG on each new GID. On big maps (hundreds of unique GIDs) that was ~10s on the
+        // first bake. The batch decodes each tileset texture once and disposes them at the end.
+        Sprite.beginPixelBatch();
+        try {
         for (int l = 0; l < gp.tileM.mapLayers.size(); l++) {
             int[][] layer = gp.tileM.mapLayers.get(l);
             for (int row = 0; row < mapRows; row++) {
@@ -122,6 +127,9 @@ public class Minimap {
                                      BAKE_PIXELS_PER_TILE, BAKE_PIXELS_PER_TILE);
                 }
             }
+        }
+        } finally {
+            Sprite.endPixelBatch();
         }
 
         Texture tex = new Texture(pm);

@@ -77,25 +77,78 @@ public class Sprite {
     public boolean isFlipX() { return region.isFlipX(); }
     public boolean isFlipY() { return region.isFlipY(); }
 
+    // ── Decoded-pixmap batch cache ──
+    // getRGB() / croppedBottomAligned() need CPU pixels, obtained via TextureData.consumePixmap(),
+    // which DECODES THE WHOLE PNG each call. NPC sprite-sheet trimming calls getRGB() once per pixel
+    // (tens of thousands of times) plus croppedBottomAligned() per frame — without batching that is
+    // tens of thousands of full-PNG decodes and was making class-select take ~12 seconds.
+    //
+    // When a pixel batch is open, the decoded Pixmap for each Texture is cached and reused across
+    // all calls, then disposed together in endPixelBatch(). Callers doing heavy per-pixel work should
+    // wrap it: Sprite.beginPixelBatch(); ...scan...; Sprite.endPixelBatch();
+    private static final java.util.IdentityHashMap<Texture, com.badlogic.gdx.graphics.Pixmap>
+        pixmapBatch = new java.util.IdentityHashMap<>();
+    private static boolean pixelBatchOpen = false;
+
+    /** Begin a batch: decoded Pixmaps are cached+reused until {@link #endPixelBatch()}. */
+    public static void beginPixelBatch() { pixelBatchOpen = true; }
+
+    /** End the batch and dispose every cached decoded Pixmap (frees native memory). */
+    public static void endPixelBatch() {
+        for (com.badlogic.gdx.graphics.Pixmap pm : pixmapBatch.values()) {
+            if (pm != null) pm.dispose();
+        }
+        pixmapBatch.clear();
+        pixelBatchOpen = false;
+    }
+
+    /**
+     * Obtain the decoded Pixmap for this sprite's texture. During a pixel batch it is decoded once
+     * and cached; otherwise the caller owns it (see {@code ownsResult}) and must dispose it.
+     */
+    private com.badlogic.gdx.graphics.Pixmap acquirePixmap(boolean[] ownsResult) {
+        Texture tex = region.getTexture();
+        if (pixelBatchOpen) {
+            com.badlogic.gdx.graphics.Pixmap cached = pixmapBatch.get(tex);
+            if (cached == null) {
+                com.badlogic.gdx.graphics.TextureData data = tex.getTextureData();
+                if (!data.isPrepared()) data.prepare();
+                cached = data.consumePixmap(); // batch owns it; disposed in endPixelBatch()
+                pixmapBatch.put(tex, cached);
+            }
+            ownsResult[0] = false;
+            return cached;
+        }
+        com.badlogic.gdx.graphics.TextureData data = tex.getTextureData();
+        if (!data.isPrepared()) data.prepare();
+        com.badlogic.gdx.graphics.Pixmap pm = data.consumePixmap();
+        ownsResult[0] = (pm != null) && data.disposePixmap();
+        return pm;
+    }
+
     /**
      * Read a single pixel as packed 0xAARRGGBB (like BufferedImage.getRGB), in this region's
-     * local coordinates. CPU-side: consumes the texture's Pixmap, so use only at load/bake time
-     * (e.g. minimap terrain sampling), never per frame. Returns 0 if pixels aren't available.
+     * local coordinates. CPU-side: decodes the texture's Pixmap, so use only at load/bake time
+     * (e.g. minimap terrain sampling), never per frame. Wrap heavy per-pixel scans in
+     * beginPixelBatch()/endPixelBatch() to avoid re-decoding. Returns 0 if pixels aren't available.
      */
     public int getRGB(int x, int y) {
-        Texture tex = region.getTexture();
-        if (!tex.getTextureData().isPrepared()) tex.getTextureData().prepare();
-        com.badlogic.gdx.graphics.Pixmap pm = tex.getTextureData().consumePixmap();
+        boolean[] owns = {false};
+        com.badlogic.gdx.graphics.Pixmap pm = acquirePixmap(owns);
         if (pm == null) return 0;
-        int px = rx + x; // native top-left pixel coords (region field is V-flipped)
-        int py = ry + y;
-        int rgba8888 = pm.getPixel(px, py); // 0xRRGGBBAA
-        // Repack RGBA8888 → ARGB to match java.awt.BufferedImage.getRGB.
-        int r = (rgba8888 >>> 24) & 0xFF;
-        int g = (rgba8888 >>> 16) & 0xFF;
-        int b = (rgba8888 >>> 8) & 0xFF;
-        int a = rgba8888 & 0xFF;
-        return (a << 24) | (r << 16) | (g << 8) | b;
+        try {
+            int px = rx + x; // native top-left pixel coords (region field is V-flipped)
+            int py = ry + y;
+            int rgba8888 = pm.getPixel(px, py); // 0xRRGGBBAA
+            // Repack RGBA8888 → ARGB to match java.awt.BufferedImage.getRGB.
+            int r = (rgba8888 >>> 24) & 0xFF;
+            int g = (rgba8888 >>> 16) & 0xFF;
+            int b = (rgba8888 >>> 8) & 0xFF;
+            int a = rgba8888 & 0xFF;
+            return (a << 24) | (r << 16) | (g << 8) | b;
+        } finally {
+            if (owns[0]) pm.dispose();
+        }
     }
 
     /**
@@ -106,9 +159,8 @@ public class Sprite {
      */
     public Sprite croppedBottomAligned(int srcX, int srcY, int srcW, int srcH,
                                        int dw, int dh, int cellW, int cellH) {
-        Texture tex = region.getTexture();
-        if (!tex.getTextureData().isPrepared()) tex.getTextureData().prepare();
-        com.badlogic.gdx.graphics.Pixmap src = tex.getTextureData().consumePixmap();
+        boolean[] owns = {false};
+        com.badlogic.gdx.graphics.Pixmap src = acquirePixmap(owns);
         com.badlogic.gdx.graphics.Pixmap cell =
             new com.badlogic.gdx.graphics.Pixmap(cellW, cellH, com.badlogic.gdx.graphics.Pixmap.Format.RGBA8888);
         cell.setBlending(com.badlogic.gdx.graphics.Pixmap.Blending.None);
@@ -121,6 +173,7 @@ public class Sprite {
         Texture out = new Texture(cell);
         out.setFilter(Texture.TextureFilter.Nearest, Texture.TextureFilter.Nearest);
         cell.dispose();
+        if (owns[0]) src.dispose(); // release the decoded source Pixmap (native memory) if unbatched
         return new Sprite(out);
     }
 

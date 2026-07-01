@@ -104,6 +104,11 @@ public class NPC_Generic extends Entity {
     // crop+scale+bottom-align uses Sprite.croppedBottomAligned (Pixmap composite at load time).
     public void getImage() {
         if (imageLoaded) return;
+        // Batch CPU pixel reads: getRGB()/croppedBottomAligned() below are called thousands of
+        // times per sheet; without batching each call re-decodes the whole PNG (~12s on class
+        // select). The batch decodes each source texture once and disposes it at the end.
+        Sprite.beginPixelBatch();
+        try {
         if (spritePath != null) {
             try {
                 walkFrames = new Sprite[4][];
@@ -242,6 +247,9 @@ public class NPC_Generic extends Entity {
             } catch (RuntimeException e) {
                 System.out.println("NPC_Generic: Failed to load idle sprite '" + idleSpritePath + "': " + e.getMessage());
             }
+        }
+        } finally {
+            Sprite.endPixelBatch();
         }
         imageLoaded = true;
     }
