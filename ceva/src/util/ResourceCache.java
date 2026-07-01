@@ -91,10 +91,11 @@ public final class ResourceCache {
             return null;
         }
 
-        // Packaged / runtime: resolve against the libGDX assets root. Paths are the engine's
-        // classpath-style "/res/..."; strip the leading slash for FileHandle (internal root).
-        FileHandle fh = Gdx.files.internal(path.startsWith("/") ? path.substring(1) : path);
-        if (!fh.exists()) {
+        // Packaged / runtime: resolve the engine's classpath-style "/res/..." path. Try the
+        // internal (working-dir) root first, then the classpath (where bundled assets live in the
+        // packaged jar and on the dev runtime classpath via core's resources srcDir).
+        FileHandle fh = resolve(path);
+        if (fh == null) {
             missingImageCache.add(path);
             System.out.println("[ResourceCache] Missing image: " + path);
             return null;
@@ -107,6 +108,20 @@ public final class ResourceCache {
         }
         imageCache.put(path, image);
         return image;
+    }
+
+    /**
+     * Resolve an engine "/res/..." path to an existing FileHandle: try the internal (working-dir)
+     * root first, then the classpath (bundled jar assets / dev runtime classpath). Returns null if
+     * neither exists.
+     */
+    private static FileHandle resolve(String path) {
+        String rel = path.startsWith("/") ? path.substring(1) : path;
+        FileHandle fh = Gdx.files.internal(rel);
+        if (fh.exists()) return fh;
+        FileHandle cp = Gdx.files.classpath(path); // classpath uses the leading-slash absolute form
+        if (cp.exists()) return cp;
+        return null;
     }
 
     /** Create a nearest-filtered GPU texture sprite from a file handle (crisp pixel art). */

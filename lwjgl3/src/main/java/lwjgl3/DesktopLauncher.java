@@ -35,7 +35,14 @@ public class DesktopLauncher {
         config.useVsync(true);
         config.setResizable(true);
         config.setForegroundFPS(60);
-        config.setWindowIcon(com.badlogic.gdx.Files.FileType.Internal, "res/icon.png");
+        // Window icon: only set if resolvable from the working dir (dev runs from project root),
+        // else skip (the classpath-bundled icon can't be used by setWindowIcon directly).
+        try {
+            java.io.File icon = new java.io.File("ceva/src/res/icon.png");
+            if (icon.exists()) {
+                config.setWindowIcon(com.badlogic.gdx.Files.FileType.Absolute, icon.getAbsolutePath());
+            }
+        } catch (Throwable ignored) {}
 
         new Lwjgl3Application(new MichiGame(), config);
     }

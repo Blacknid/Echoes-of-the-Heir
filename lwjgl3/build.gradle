@@ -17,9 +17,11 @@ application {
     mainClass = project.hasProperty('mainClass') ? project.mainClass : project.mainClassName
 }
 
-// Keep the run task's working dir at the assets root so /res/... resolves in dev runs.
+// Run from the project root so config.txt / save files resolve next to it (as they do beside
+// the .exe in production). In dev (DEBUG_MODE) ResourceCache loads assets from its dev-source
+// dir (ceva/src); in production assets are bundled on the classpath.
 run {
-    workingDir = rootProject.file('ceva/src')
+    workingDir = rootProject.projectDir
     setIgnoreExitValue(true)
     if (org.gradle.internal.os.OperatingSystem.current() == org.gradle.internal.os.OperatingSystem.MAC_OS) {
         jvmArgs += ['-XstartOnFirstThread']
