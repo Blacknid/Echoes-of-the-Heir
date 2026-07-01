@@ -52,12 +52,12 @@ Internally the facade drives a libGDX `SpriteBatch` (images/text/gradients) + `S
 state. The **single Y-flip** lives in the camera (`OrthographicCamera.setToOrtho(true, …)`), so
 every existing coordinate works unchanged — top-left origin, +Y down.
 
-**Texture V-flip (important):** under the yDown camera, `batch.draw(region, …)` would render
-textures upside-down (shapes/text are unaffected — hence "only pictures were inverted" if this is
-missed). So every `gfx.Sprite` stores its `TextureRegion` **V-flipped** (`region.flip(false,true)`)
-at construction; slicing (`getSubimage`) works in native top-left pixel coords against the texture
-and re-flips the child, so sheet/tileset frame math is unaffected. Fonts are generated **without**
-`flip` (a flipped font mirrors the glyphs); `drawString` positions by baseline (`top = y − ascent`).
+**Orientation (important):** with this project's `OrthographicCamera.setToOrtho(true, …)` (yDown),
+a **plain, unflipped** `TextureRegion` already renders upright at top-left — verified against the
+title background, world tiles, sprites, and text. Do **not** V-flip regions and do **not** generate
+fonts with `flip=true`: either one inverts/mirrors output. `gfx.Sprite` keeps regions unflipped and
+slices (`getSubimage`) in native top-left pixel coords; `drawString` positions by baseline
+(`top = y − ascent`).
 
 ### Value types
 AWT value types were replaced with Android-safe `gfx.*` mirrors (same public API), so no

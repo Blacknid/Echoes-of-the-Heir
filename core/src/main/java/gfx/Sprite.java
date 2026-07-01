@@ -15,13 +15,11 @@ import com.badlogic.gdx.graphics.g2d.TextureRegion;
  */
 public class Sprite {
 
-    // The stored region is ALWAYS V-flipped (v > v2) so batch.draw(region, x, y, w, h) renders it
-    // visually upright under the game's yDown (top-left origin) camera. Slicing (getSubimage) works
-    // in native top-left pixel coordinates against the texture, then re-flips — so sheet/tileset
-    // frame math is unaffected by the flip.
+    // Plain (unflipped) region. Under this project's yDown OrthographicCamera it already renders
+    // upright at top-left; slicing (getSubimage) uses native top-left pixel coordinates.
     private final TextureRegion region;
 
-    // Native top-left pixel rect of this sprite within its texture (pre-flip), used for slicing.
+    // Native top-left pixel rect of this sprite within its texture, used for slicing.
     private final int rx, ry, rw, rh;
 
     // Logical size mirrors java.awt's "pre-scaled" BufferedImage dimensions: callers that asked
@@ -44,9 +42,10 @@ public class Sprite {
     private Sprite(Texture tex, int rx, int ry, int rw, int rh, int logicalW, int logicalH) {
         this.rx = rx; this.ry = ry; this.rw = rw; this.rh = rh;
         this.logicalW = logicalW; this.logicalH = logicalH;
-        TextureRegion reg = new TextureRegion(tex, rx, ry, rw, rh);
-        reg.flip(false, true); // V-flip for the yDown camera
-        this.region = reg;
+        // No V-flip: with this project's yDown OrthographicCamera, a plain TextureRegion already
+        // renders upright at top-left (verified against title background, tiles, sprites, and text).
+        // Flipping here inverts all images — do not re-add it.
+        this.region = new TextureRegion(tex, rx, ry, rw, rh);
     }
 
     /** Returns a view of this sprite that reports/draws at the given logical size. */
@@ -66,8 +65,7 @@ public class Sprite {
     /**
      * Zero-copy sub-region in native top-left pixel coordinates, mirroring
      * {@code BufferedImage.getSubimage(x,y,w,h)} for sprite-sheet frame slicing and tileset tile
-     * extraction. Coordinates are relative to this sprite's top-left; the result is V-flipped again
-     * for the yDown camera.
+     * extraction. Coordinates are relative to this sprite's top-left.
      */
     public Sprite getSubimage(int x, int y, int w, int h) {
         return new Sprite(region.getTexture(), rx + x, ry + y, w, h, w, h);
