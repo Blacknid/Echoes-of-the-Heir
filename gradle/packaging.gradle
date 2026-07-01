@@ -1,9 +1,126 @@
-// Packaging pipeline (jpackage .exe + Inno Setup installer + license sync).
-// Wired in Stage 7. Placeholder for now so lwjgl3/build.gradle's `apply from` resolves.
+// Packaging pipeline for the desktop build — the Gradle replacement for build_tools/compile.cmd.
+// Reproduces: license keypair sync → fat runnable JAR → jpackage app-image (.exe) → Inno Setup
+// installer (with install-time RSA license generation). Applied from lwjgl3/build.gradle.
 //
-// Planned tasks (Stage 7):
-//   - syncLicenseKeys  : Exec build_tools/sync_keys.py (inject RSA public key)
-//   - bumpBuildNumber  : increment ceva/src/res/build.properties `build`
-//   - jpackageImage    : jpackage --type app-image -> jpackage_tmp/MichisAdventure
-//   - innoInstaller    : ISCC build_tools/setup_init.iss -> deploy/MichiGame_Setup.exe
-//   - installer        : umbrella task (jar -> jpackageImage -> innoInstaller)
+// Tasks:
+//   gradlew :lwjgl3:jar          → deploy/Michi-s-adventure.jar (fat, runnable via DesktopLauncher)
+//   gradlew :lwjgl3:jpackageImage→ jpackage_tmp/MichisAdventure/MichisAdventure.exe (+ copy to deploy)
+//   gradlew :lwjgl3:installer    → deploy/MichiGame_Setup.exe (umbrella: syncKeys→jar→jpackage→Inno)
+//
+// Requires on PATH/installed: JDK jpackage (bundled with the JDK), Python (license scripts),
+// and Inno Setup 6 (ISCC). Each is checked; missing optional tools warn instead of failing.
+
+import org.gradle.internal.os.OperatingSystem
+
+def rootDir       = rootProject.projectDir
+def buildToolsDir = new File(rootDir, 'build_tools')
+def deployDir     = new File(rootDir, 'deploy')
+def jpackageTmp   = new File(rootDir, 'jpackage_tmp')
+def appName       = 'MichisAdventure'
+def jarName       = 'Michi-s-adventure.jar'
+def mainClass     = 'lwjgl3.DesktopLauncher'
+def appVersion    = project.gameVersion.version
+
+// Put the fat JAR in deploy/ with the legacy name so jpackage/Inno paths are unchanged.
+jar {
+    destinationDirectory = deployDir
+}
+
+// ── License key sync (idempotent): inject the RSA public key into LicenseManager + servers. ──
+tasks.register('syncLicenseKeys', Exec) {
+    group = 'packaging'
+    description = 'Run build_tools/sync_keys.py to inject the license public key.'
+    workingDir = rootDir
+    // Skip gracefully if Python or the keys are absent (dev machines without the keypair).
+    onlyIf {
+        boolean ok = new File(buildToolsDir, 'sync_keys.py').exists() &&
+                     new File(buildToolsDir, 'license_public.b64').exists()
+        if (!ok) logger.warn('[packaging] sync_keys.py or license_public.b64 missing — skipping key sync.')
+        ok
+    }
+    commandLine 'python', new File(buildToolsDir, 'sync_keys.py').absolutePath
+    ignoreExitValue = true
+}
+
+// ── jpackage app-image (.exe with bundled JRE). ──
+tasks.register('jpackageImage') {
+    group = 'packaging'
+    description = 'Build the Windows app-image (.exe) with jpackage from the fat JAR.'
+    dependsOn tasks.named('jar')
+    doLast {
+        deployDir.mkdirs()
+        if (jpackageTmp.exists()) jpackageTmp.deleteDir()
+        jpackageTmp.mkdirs()
+
+        def jpackage = "${System.getProperty('java.home')}/bin/jpackage" +
+                       (OperatingSystem.current().isWindows() ? '.exe' : '')
+        if (!new File(jpackage).exists()) {
+            logger.warn("[packaging] jpackage not found at ${jpackage} — skipping .exe. Fat JAR is in deploy/.")
+            return
+        }
+        // Gradle 9 removed Project.exec at execution time — use ProcessBuilder directly.
+        def pb = new ProcessBuilder(jpackage,
+            '--input',       deployDir.absolutePath,
+            '--name',        appName,
+            '--main-jar',    jarName,
+            '--main-class',  mainClass,
+            '--type',        'app-image',
+            '--dest',        jpackageTmp.absolutePath,
+            '--app-version', appVersion,
+            '--java-options', '-XX:+UseG1GC -XX:MaxGCPauseMillis=5')
+        pb.inheritIO()
+        pb.start().waitFor()
+
+        def exe = new File(jpackageTmp, "${appName}/${appName}.exe")
+        if (exe.exists()) {
+            def out = new File(deployDir, "${appName}-${appVersion}.exe")
+            java.nio.file.Files.copy(exe.toPath(), out.toPath(),
+                java.nio.file.StandardCopyOption.REPLACE_EXISTING)
+            logger.lifecycle("[packaging] EXE: deploy/${appName}-${appVersion}.exe")
+        } else {
+            logger.warn('[packaging] jpackage did not produce an EXE (see output above).')
+        }
+    }
+}
+
+// ── Inno Setup installer (wraps the app-image; generates the per-machine license at install). ──
+tasks.register('innoInstaller') {
+    group = 'packaging'
+    description = 'Build deploy/MichiGame_Setup.exe via Inno Setup (ISCC).'
+    dependsOn tasks.named('jpackageImage')
+    doLast {
+        def iss = new File(buildToolsDir, 'setup_init.iss')
+        def privKey = new File(buildToolsDir, 'license_private.xml')
+        if (!iss.exists()) { logger.warn('[packaging] setup_init.iss missing — skipping installer.'); return }
+
+        // Write the private key into the temp include the .iss expects (#include "_privkey_tmp.iss").
+        def inc = new File(buildToolsDir, '_privkey_tmp.iss')
+        if (privKey.exists()) {
+            inc.setText('#define MICHI_PRIVKEY "' + privKey.text.trim() + '"', 'UTF-8')
+        } else {
+            logger.warn('[packaging] license_private.xml missing — installer will build without a signing key.')
+        }
+
+        // Locate ISCC.
+        def iscc = ['C:/Program Files (x86)/Inno Setup 6/ISCC.exe',
+                    'C:/Program Files/Inno Setup 6/ISCC.exe']
+                   .collect { new File(it) }.find { it.exists() }?.absolutePath
+        if (iscc == null) {
+            logger.warn('[packaging] Inno Setup (ISCC.exe) not found — skipping installer. Get it: https://jrsoftware.org/isdl.php')
+            inc.delete()
+            return
+        }
+        def pb = new ProcessBuilder(iscc, iss.absolutePath); pb.inheritIO(); pb.start().waitFor()
+        inc.delete() // never leave the private key on disk
+        def out = new File(deployDir, 'MichiGame_Setup.exe')
+        if (out.exists()) logger.lifecycle('[packaging] Installer: deploy/MichiGame_Setup.exe')
+    }
+}
+
+// Umbrella task: full source → installer pipeline.
+tasks.register('installer') {
+    group = 'packaging'
+    description = 'Full desktop packaging: license sync → fat JAR → jpackage .exe → Inno Setup installer.'
+    dependsOn tasks.named('syncLicenseKeys'), tasks.named('innoInstaller')
+}
+tasks.named('jar') { mustRunAfter tasks.named('syncLicenseKeys') }
