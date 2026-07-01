@@ -65,6 +65,9 @@ public class FontSystem implements Disposable {
         }
         FreeTypeFontGenerator.FreeTypeFontParameter p = new FreeTypeFontGenerator.FreeTypeFontParameter();
         p.size = size;
+        // NOTE: do NOT set p.flip here. The camera is yDown, but the SpriteBatch draws glyph quads
+        // using the same V-flipped convention as our sprites, so unflipped glyphs render upright.
+        // (flip=true mirrors the text — see the migration notes.)
         // Approximate bold/italic from the base face (FreeType can fake-bold via borderWidth/spacing).
         if (f.isBold()) { p.borderWidth = 0f; p.spaceX = 0; /* face is pixel; bold reads via size */ }
         p.minFilter = Texture.TextureFilter.Nearest;  // pixel-art crisp text
@@ -79,8 +82,9 @@ public class FontSystem implements Disposable {
         BitmapFont bf = resolve(f);
         bf.setColor(color.getRed() / 255f, color.getGreen() / 255f, color.getBlue() / 255f,
                 (color.getAlpha() / 255f) * alpha);
-        // Graphics2D y is the baseline; libGDX BitmapFont.draw y is the TOP of the cap line.
-        // With a y-down camera, top = baseline - ascent.
+        // Graphics2D y is the baseline; a flipped BitmapFont draws with y as the TOP of the line
+        // (growing downward). So top = baseline - ascent. getCapHeight approximates the ascent
+        // from baseline to the top of caps, matching how Graphics2D positions most UI text.
         float top = y - bf.getCapHeight();
         bf.draw(batch, s, x, top);
     }

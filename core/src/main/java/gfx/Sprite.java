@@ -15,29 +15,44 @@ import com.badlogic.gdx.graphics.g2d.TextureRegion;
  */
 public class Sprite {
 
+    // The stored region is ALWAYS V-flipped (v > v2) so batch.draw(region, x, y, w, h) renders it
+    // visually upright under the game's yDown (top-left origin) camera. Slicing (getSubimage) works
+    // in native top-left pixel coordinates against the texture, then re-flips — so sheet/tileset
+    // frame math is unaffected by the flip.
     private final TextureRegion region;
+
+    // Native top-left pixel rect of this sprite within its texture (pre-flip), used for slicing.
+    private final int rx, ry, rw, rh;
+
     // Logical size mirrors java.awt's "pre-scaled" BufferedImage dimensions: callers that asked
     // ResourceCache to scale to (w,h) read getWidth()/getHeight() expecting those numbers, and
     // drawImage(sprite,x,y) should draw at that size. On the GPU we keep the native texture and
     // just report/draw the logical size (nearest-neighbor scaled), so no bitmap is pre-scaled.
     private final int logicalW, logicalH;
 
-    public Sprite(TextureRegion region) {
-        this.region = region;
-        this.logicalW = region.getRegionWidth();
-        this.logicalH = region.getRegionHeight();
+    public Sprite(Texture texture) {
+        this(texture, 0, 0, texture.getWidth(), texture.getHeight(),
+             texture.getWidth(), texture.getHeight());
     }
 
-    public Sprite(Texture texture) { this(new TextureRegion(texture)); }
+    /** Wrap an existing region (native, unflipped). Its region rect becomes this sprite's native rect. */
+    public Sprite(TextureRegion r) {
+        this(r.getTexture(), r.getRegionX(), r.getRegionY(), r.getRegionWidth(), r.getRegionHeight(),
+             r.getRegionWidth(), r.getRegionHeight());
+    }
 
-    private Sprite(TextureRegion region, int logicalW, int logicalH) {
-        this.region = region; this.logicalW = logicalW; this.logicalH = logicalH;
+    private Sprite(Texture tex, int rx, int ry, int rw, int rh, int logicalW, int logicalH) {
+        this.rx = rx; this.ry = ry; this.rw = rw; this.rh = rh;
+        this.logicalW = logicalW; this.logicalH = logicalH;
+        TextureRegion reg = new TextureRegion(tex, rx, ry, rw, rh);
+        reg.flip(false, true); // V-flip for the yDown camera
+        this.region = reg;
     }
 
     /** Returns a view of this sprite that reports/draws at the given logical size. */
     public Sprite withLogicalSize(int w, int h) {
         if (w == logicalW && h == logicalH) return this;
-        return new Sprite(region, w, h);
+        return new Sprite(region.getTexture(), rx, ry, rw, rh, w, h);
     }
 
     public TextureRegion region() { return region; }
@@ -45,18 +60,17 @@ public class Sprite {
 
     public int getWidth()  { return logicalW; }
     public int getHeight() { return logicalH; }
-    public int nativeWidth()  { return region.getRegionWidth(); }
-    public int nativeHeight() { return region.getRegionHeight(); }
+    public int nativeWidth()  { return rw; }
+    public int nativeHeight() { return rh; }
 
     /**
-     * Zero-copy sub-region, mirroring {@code BufferedImage.getSubimage(x,y,w,h)} used for
-     * sprite-sheet frame slicing and tileset tile extraction. Coordinates are relative to this
-     * region's top-left (the regions are already y-down because textures are loaded with the
-     * top-left origin convention; see ResourceCache).
+     * Zero-copy sub-region in native top-left pixel coordinates, mirroring
+     * {@code BufferedImage.getSubimage(x,y,w,h)} for sprite-sheet frame slicing and tileset tile
+     * extraction. Coordinates are relative to this sprite's top-left; the result is V-flipped again
+     * for the yDown camera.
      */
     public Sprite getSubimage(int x, int y, int w, int h) {
-        return new Sprite(new TextureRegion(region,
-            x, y, w, h));
+        return new Sprite(region.getTexture(), rx + x, ry + y, w, h, w, h);
     }
 
     /** True if this sprite is horizontally flipped (used by some animation code). */
@@ -73,8 +87,8 @@ public class Sprite {
         if (!tex.getTextureData().isPrepared()) tex.getTextureData().prepare();
         com.badlogic.gdx.graphics.Pixmap pm = tex.getTextureData().consumePixmap();
         if (pm == null) return 0;
-        int px = region.getRegionX() + x;
-        int py = region.getRegionY() + y;
+        int px = rx + x; // native top-left pixel coords (region field is V-flipped)
+        int py = ry + y;
         int rgba8888 = pm.getPixel(px, py); // 0xRRGGBBAA
         // Repack RGBA8888 → ARGB to match java.awt.BufferedImage.getRGB.
         int r = (rgba8888 >>> 24) & 0xFF;
@@ -102,8 +116,8 @@ public class Sprite {
         int ox = (cellW - dw) / 2;
         int oy = cellH - dh; // bottom-align
         cell.drawPixmap(src,
-            region.getRegionX() + srcX, region.getRegionY() + srcY, srcW, srcH, // src rect
-            ox, oy, dw, dh);                                                     // dst rect (scaled)
+            rx + srcX, ry + srcY, srcW, srcH, // src rect (native top-left pixel coords)
+            ox, oy, dw, dh);                  // dst rect (scaled)
         Texture out = new Texture(cell);
         out.setFilter(Texture.TextureFilter.Nearest, Texture.TextureFilter.Nearest);
         cell.dispose();
