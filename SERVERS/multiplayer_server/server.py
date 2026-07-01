@@ -979,11 +979,22 @@ class GameServer:
         for trig in triggers:
             self._dispatch_trigger(client, trig)
 
-        # Compute velocity (px per server tick) from displacement since last accepted position.
-        # Alpha-blended to smooth out jitter between move messages.
+        # Velocity from displacement, then apply quadratic air drag (F_D = k*v^2, a = -F_D/m)
+        # matching the client physics: mass=60 kg, drag_k=1.44 (tuned pixel-space units).
+        _PLAYER_MASS = 60.0
+        _DRAG_K = 1.44
+        raw_vx = float(new_x - player.x)
+        raw_vy = float(new_y - player.y)
+        speed = (raw_vx ** 2 + raw_vy ** 2) ** 0.5
+        if speed > 0:
+            drag_decel = _DRAG_K * speed * speed / _PLAYER_MASS
+            damped_speed = max(0.0, speed - drag_decel)
+            scale = damped_speed / speed
+        else:
+            scale = 0.0
         alpha = 0.6
-        player.vx = alpha * (new_x - player.x) + (1.0 - alpha) * player.vx
-        player.vy = alpha * (new_y - player.y) + (1.0 - alpha) * player.vy
+        player.vx = alpha * raw_vx * scale + (1.0 - alpha) * player.vx
+        player.vy = alpha * raw_vy * scale + (1.0 - alpha) * player.vy
 
         player.x = new_x
         player.y = new_y

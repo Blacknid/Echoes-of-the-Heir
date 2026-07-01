@@ -53,11 +53,18 @@ state. The **single Y-flip** lives in the camera (`OrthographicCamera.setToOrtho
 every existing coordinate works unchanged — top-left origin, +Y down.
 
 **Orientation (important):** with this project's `OrthographicCamera.setToOrtho(true, …)` (yDown),
-a **plain, unflipped** `TextureRegion` already renders upright at top-left — verified against the
-title background, world tiles, sprites, and text. Do **not** V-flip regions and do **not** generate
-fonts with `flip=true`: either one inverts/mirrors output. `gfx.Sprite` keeps regions unflipped and
-slices (`getSubimage`) in native top-left pixel coords; `drawString` positions by baseline
-(`top = y − ascent`).
+`SpriteBatch` emits texture V-coords for a yUp world, so an **unflipped** `TextureRegion` renders
+**upside-down** and unflipped glyphs render each letter upside-down. The fix is applied **once per
+subsystem, together**:
+- `gfx.Sprite` V-flips its display region (`region.flip(false, true)`), while keeping native
+  top-left `rx/ry/rw/rh` for CPU slicing (`getSubimage`/`getRGB`/`croppedBottomAligned`).
+- `gfx.FontSystem` generates fonts with `p.flip = true`; `drawString` positions by baseline
+  (`top = y − ascent`).
+
+`ShapeRenderer` (fills/lines/ovals) needs no flip — it uses raw geometry, so it always matched the
+camera. **Do not** "fix" inversion by flipping only one of Sprite/Font (an earlier attempt did that
+and the symptoms ping-ponged: flip the region alone → images upright but letters still inverted, and
+vice-versa). Both must be flipped, or neither — and neither means everything is upside-down.
 
 ### Value types
 AWT value types were replaced with Android-safe `gfx.*` mirrors (same public API), so no

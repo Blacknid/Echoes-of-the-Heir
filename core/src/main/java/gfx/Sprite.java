@@ -15,8 +15,10 @@ import com.badlogic.gdx.graphics.g2d.TextureRegion;
  */
 public class Sprite {
 
-    // Plain (unflipped) region. Under this project's yDown OrthographicCamera it already renders
-    // upright at top-left; slicing (getSubimage) uses native top-left pixel coordinates.
+    // V-flipped region. SpriteBatch emits texture V-coords for a yUp world; under this project's
+    // yDown OrthographicCamera an UNflipped region renders upside-down, so we flip V once here.
+    // Slicing (getSubimage/getRGB/croppedBottomAligned) uses the native top-left rx/ry/rw/rh below,
+    // so it is unaffected by the display flip.
     private final TextureRegion region;
 
     // Native top-left pixel rect of this sprite within its texture, used for slicing.
@@ -42,10 +44,10 @@ public class Sprite {
     private Sprite(Texture tex, int rx, int ry, int rw, int rh, int logicalW, int logicalH) {
         this.rx = rx; this.ry = ry; this.rw = rw; this.rh = rh;
         this.logicalW = logicalW; this.logicalH = logicalH;
-        // No V-flip: with this project's yDown OrthographicCamera, a plain TextureRegion already
-        // renders upright at top-left (verified against title background, tiles, sprites, and text).
-        // Flipping here inverts all images — do not re-add it.
+        // V-flip for display: with the yDown OrthographicCamera, SpriteBatch would otherwise render
+        // this region upside-down. rx/ry/rw/rh stay native (top-left) so CPU slicing is unaffected.
         this.region = new TextureRegion(tex, rx, ry, rw, rh);
+        this.region.flip(false, true);
     }
 
     /** Returns a view of this sprite that reports/draws at the given logical size. */

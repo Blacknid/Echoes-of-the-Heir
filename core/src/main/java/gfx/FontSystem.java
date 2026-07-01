@@ -65,9 +65,10 @@ public class FontSystem implements Disposable {
         }
         FreeTypeFontGenerator.FreeTypeFontParameter p = new FreeTypeFontGenerator.FreeTypeFontParameter();
         p.size = size;
-        // NOTE: do NOT set p.flip here. The camera is yDown, but the SpriteBatch draws glyph quads
-        // using the same V-flipped convention as our sprites, so unflipped glyphs render upright.
-        // (flip=true mirrors the text — see the migration notes.)
+        // yDown camera: glyph quads must be V-flipped just like sprite regions, otherwise each
+        // letter renders upside-down. flip=true makes BitmapFont emit glyphs for a top-left origin
+        // (y grows downward), matching Graphics2D text placement.
+        p.flip = true;
         // Approximate bold/italic from the base face (FreeType can fake-bold via borderWidth/spacing).
         if (f.isBold()) { p.borderWidth = 0f; p.spaceX = 0; /* face is pixel; bold reads via size */ }
         p.minFilter = Texture.TextureFilter.Nearest;  // pixel-art crisp text
