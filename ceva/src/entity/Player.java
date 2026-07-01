@@ -76,6 +76,39 @@ public class Player extends Entity {
     private static final int COMBO_WINDOW_MAX = 20;
     private boolean attackBuffered = false;
 
+    // Free-aim attack angle (radians, atan2 convention) — independent of the cardinal `direction`
+    // field. `direction` stays cardinal for body sprite/frontal-armor/knockback/AI; `attackAngle`
+    // drives the cone hitbox, the rotated slice VFX, and the attack kick.
+    public double attackAngle = 0.0;
+    public gfx.geom.Cone attackCone;
+    private static final double ATTACK_CONE_RADIUS_SCALE = 1.35; // × tileSize
+    private static final double ATTACK_CONE_HALF_ANGLE = Math.toRadians(55);
+
+    /** Nearest-cardinal snap of a continuous angle, for body-sprite `direction` selection. */
+    private static int angleToCardinal(double angleRad) {
+        double deg = Math.toDegrees(angleRad);
+        int sector = Math.floorMod(Math.round((float) (deg / 90f)), 4);
+        return switch (sector) {
+            case 0 -> DIR_RIGHT;
+            case 1 -> DIR_DOWN;
+            case 2 -> DIR_LEFT;
+            default -> DIR_UP; // 3
+        };
+    }
+
+    // Slash VFX — sliceAnim.png is a 2-frame strip (2 cols x 1 row, 32x96 per cell): frame 0 =
+    // slash peak, frame 1 = fade/trail. Rotated to attackAngle each swing; native tall/narrow
+    // aspect is preserved (uniformly scaled, never stretched independently per axis).
+    private Sprite[] sliceFrames; // [0]=peak, [1]=trail
+    private static final int SLICE_CELL_W = 32, SLICE_CELL_H = 96;
+
+    // Attack "kick" — a brief forward impulse along attackAngle during the swing, collision-checked.
+    private float kickOffsetX = 0f, kickOffsetY = 0f;
+    private static final float KICK_MAX_PX = 4f;
+
+    // 0..1 across the swing's active frames, -1 when the slice VFX should be hidden.
+    private float swingProgress = -1f;
+
     public int levelUpChoice = 0;
     public String[] levelUpOptions;
     public int[] levelUpValues;
@@ -351,43 +384,31 @@ public class Player extends Entity {
     }
 
     public void getPlayerAttackImages() {
-        attackFrames = new Sprite[4][5];
-        attackFrames[DIR_UP][0] = setup("/res/player/b.attack/attack 1/up/u1", gp.tileSize, gp.tileSize * 2);
-        attackFrames[DIR_UP][1] = setup("/res/player/b.attack/attack 1/up/u2", gp.tileSize, gp.tileSize * 2);
-        attackFrames[DIR_UP][2] = setup("/res/player/b.attack/attack 1/up/u3", gp.tileSize, gp.tileSize * 2);
-        attackFrames[DIR_UP][3] = setup("/res/player/b.attack/attack 1/up/u4", gp.tileSize, gp.tileSize * 2);
-        attackFrames[DIR_UP][4] = setup("/res/player/b.attack/attack 1/up/u5", gp.tileSize, gp.tileSize * 2);
-        attackFrames[DIR_DOWN][0] = setup("/res/player/b.attack/attack 1/front/f1", gp.tileSize, gp.tileSize * 2);
-        attackFrames[DIR_DOWN][1] = setup("/res/player/b.attack/attack 1/front/f2", gp.tileSize, gp.tileSize * 2);
-        attackFrames[DIR_DOWN][2] = setup("/res/player/b.attack/attack 1/front/f3", gp.tileSize, gp.tileSize * 2);
-        attackFrames[DIR_DOWN][3] = setup("/res/player/b.attack/attack 1/front/f4", gp.tileSize, gp.tileSize * 2);
-        attackFrames[DIR_DOWN][4] = setup("/res/player/b.attack/attack 1/front/f5", gp.tileSize, gp.tileSize * 2);
-        attackFrames[DIR_LEFT][0] = setup("/res/player/b.attack/attack 1/left/l1", gp.tileSize * 2, gp.tileSize);
-        attackFrames[DIR_LEFT][1] = setup("/res/player/b.attack/attack 1/left/l2", gp.tileSize * 2, gp.tileSize);
-        attackFrames[DIR_LEFT][2] = setup("/res/player/b.attack/attack 1/left/l3", gp.tileSize * 2, gp.tileSize);
-        attackFrames[DIR_LEFT][3] = setup("/res/player/b.attack/attack 1/left/l4", gp.tileSize * 2, gp.tileSize);
-        attackFrames[DIR_LEFT][4] = setup("/res/player/b.attack/attack 1/left/l5", gp.tileSize * 2, gp.tileSize);
-        attackFrames[DIR_RIGHT][0] = setup("/res/player/b.attack/attack 1/right/r1", gp.tileSize * 2, gp.tileSize);
-        attackFrames[DIR_RIGHT][1] = setup("/res/player/b.attack/attack 1/right/r2", gp.tileSize * 2, gp.tileSize);
-        attackFrames[DIR_RIGHT][2] = setup("/res/player/b.attack/attack 1/right/r3", gp.tileSize * 2, gp.tileSize);
-        attackFrames[DIR_RIGHT][3] = setup("/res/player/b.attack/attack 1/right/r4", gp.tileSize * 2, gp.tileSize);
-        attackFrames[DIR_RIGHT][4] = setup("/res/player/b.attack/attack 1/right/r5", gp.tileSize * 2, gp.tileSize);
-        // Combo step 1 — attack2_sheet (4 rows × 5 cols, 1-tile each: down/left/right/up)
-        int[] a2 = {5, 5, 5, 5};
-        Sprite[][] raw2 = loadSheetVariable("/res/player/b.attack/attack2_sheet", a2);
-        attackFrames2 = new Sprite[4][];
-        attackFrames2[DIR_DOWN]  = raw2[0];
-        attackFrames2[DIR_LEFT]  = raw2[1];
-        attackFrames2[DIR_RIGHT] = raw2[2];
-        attackFrames2[DIR_UP]    = raw2[3];
-        // Combo step 2 — attack3_sheet (4 rows × 6 cols, 1-tile each: down/left/right/up)
-        int[] a3 = {6, 6, 6, 6};
-        Sprite[][] raw3 = loadSheetVariable("/res/player/b.attack/attack3_sheet", a3);
-        attackFrames3 = new Sprite[4][];
-        attackFrames3[DIR_DOWN]  = raw3[0];
-        attackFrames3[DIR_LEFT]  = raw3[1];
-        attackFrames3[DIR_RIGHT] = raw3[2];
-        attackFrames3[DIR_UP]    = raw3[3];
+        // Unified attack sheet (4 rows × 5 cols, 1-tile each: down/left/right/up) — same sheet
+        // reused for all 3 combo steps; only per-step timing (frameDurations in attacking())
+        // and the free-aim cone/slice differ, not the body sprite.
+        int[] a = {5, 5, 5, 5};
+        Sprite[][] raw = loadSheetVariable("/res/player/player_attacking", a);
+        attackFrames = new Sprite[4][];
+        attackFrames[DIR_DOWN]  = raw[0];
+        attackFrames[DIR_LEFT]  = raw[1];
+        attackFrames[DIR_RIGHT] = raw[2];
+        attackFrames[DIR_UP]    = raw[3];
+        attackFrames2 = attackFrames;
+        attackFrames3 = attackFrames;
+
+        getSliceEffectImages();
+    }
+
+    /** sliceAnim.png is a 2-frame strip (2 cols x 1 row, 32x96 per cell) — not square, so it
+     *  can't go through loadSheetVariable (which force-scales cells to a square tileSize).
+     *  Sliced manually, keeping the native tall/narrow aspect for the rotated VFX quad. */
+    private void getSliceEffectImages() {
+        Sprite sheet = util.ResourceCache.loadImageIfPresent("/res/effects/sliceAnim.png");
+        if (sheet == null) { sliceFrames = null; return; }
+        sliceFrames = new Sprite[2];
+        sliceFrames[0] = sheet.getSubimage(0, 0, SLICE_CELL_W, SLICE_CELL_H);
+        sliceFrames[1] = sheet.getSubimage(SLICE_CELL_W, 0, SLICE_CELL_W, SLICE_CELL_H);
     }
 
     public void getPlayerHitImages() {
@@ -689,6 +710,7 @@ public class Player extends Entity {
                     attacking = true;
                     spriteCounter = 0;
                     attackBuffered = false;
+                    attackAngle = main.MouseHandler.angleForDirection(direction);
                     if (comboWindow > 0 && comboStep < 2) comboStep++;
                     else if (comboWindow <= 0) comboStep = 0;
                 }
@@ -792,7 +814,8 @@ public class Player extends Entity {
             if (windPainting) gp.mouseH.leftClicked = false;
             if (gp.mouseH.leftClicked && !attacking && !dashing && currentWeapon != null) {
                 gp.mouseH.leftClicked = false;
-                direction = gp.mouseH.getAttackDirectionFromMouse();
+                attackAngle = gp.mouseH.getAttackAngleFromMouse();
+                direction = angleToCardinal(attackAngle); // body sprite snaps to nearest cardinal
                 attacking = true;
                 spriteCounter = 0;
                 windingDown = false;
@@ -976,6 +999,9 @@ public class Player extends Entity {
             trailActive = false;
             animOffsetX = 0;
             animOffsetY = 0;
+            kickOffsetX = 0f;
+            kickOffsetY = 0f;
+            swingProgress = -1f; // hides the slice VFX during anticipation
         }
         if (anticipationTimer > 0) {
             anticipationTimer--;
@@ -1007,6 +1033,7 @@ public class Player extends Entity {
         for (int d : durations) totalDuration += d;
 
         int maxLean = (comboStep == 2) ? 3 : 2;
+        float kickMax = (comboStep == 2) ? KICK_MAX_PX * 1.5f : KICK_MAX_PX;
         if (currentFrame <= 3) {
             float progress = Math.min(1f, currentFrame / 3f);
             int lean = Math.round(maxLean * progress);
@@ -1016,6 +1043,7 @@ public class Player extends Entity {
                 case DIR_LEFT  -> { animOffsetX = -lean; animOffsetY = 0; }
                 case DIR_RIGHT -> { animOffsetX = lean; animOffsetY = 0; }
             }
+            applyAttackKick(kickMax * progress);
         } else {
             float recovery = (currentFrame - 3) / 2f;
             int lean = Math.round(maxLean * (1f - recovery));
@@ -1025,6 +1053,7 @@ public class Player extends Entity {
                 case DIR_LEFT  -> { animOffsetX = -lean; animOffsetY = 0; }
                 case DIR_RIGHT -> { animOffsetX = lean; animOffsetY = 0; }
             }
+            applyAttackKick(kickMax * (1f - recovery));
         }
 
         if (currentFrame >= 2 && currentFrame <= 4) {
@@ -1033,6 +1062,10 @@ public class Player extends Entity {
             trailIndex = (trailIndex + 1) % TRAIL_SIZE;
             if (trailCount < TRAIL_SIZE) trailCount++;
         }
+
+        // Slash VFX progress spans the swing window (frames 2..4); -1 outside it (hidden).
+        swingProgress = (currentFrame >= 2 && currentFrame <= 4)
+            ? Math.min(1f, (currentFrame - 2) / 2f) : -1f;
 
         int frame3Start = durations[0] + durations[1] + 1;
         if (currentFrame == 3 && spriteCounter == frame3Start) {
@@ -1046,48 +1079,40 @@ public class Player extends Entity {
             trailCount = 0;
             animOffsetX = 0;
             animOffsetY = 0;
+            kickOffsetX = 0f;
+            kickOffsetY = 0f;
+            swingProgress = -1f;
+            attackCone = null; // clear so debug draw never shows a stale cone after the swing ends
             comboWindow = (comboStep == 2) ? 10 : COMBO_WINDOW_MAX;
         }
     }
 
-    private void performAttackHitbox() {
-        Entity attackHitbox = new Entity(gp);
-        attackHitbox.worldX = worldX;
-        attackHitbox.worldY = worldY;
-        attackHitbox.solidArea = new Rect(solidArea);
-        
-        int ts = gp.tileSize;
-        int quarter = ts / 4;  // 16px at 64px tile — scales with tile size
-        int eighth  = ts / 8;  // 8px  at 64px tile — scales with tile size
-        switch(direction) {
-            case DIR_UP:
-                attackHitbox.solidArea.width  = ts - quarter;  // 48 at 64px
-                attackHitbox.solidArea.height = ts + quarter;  // 80 at 64px
-                attackHitbox.worldX += eighth;                 // center horizontally
-                attackHitbox.worldY -= ts + quarter;           // extend upward
-                break;
-            case DIR_DOWN:
-                attackHitbox.solidArea.width  = ts - quarter;  // 48 at 64px
-                attackHitbox.solidArea.height = ts + quarter;  // 80 at 64px
-                attackHitbox.worldX += eighth;                 // center horizontally
-                attackHitbox.worldY += ts;                     // extend downward
-                break;
-            case DIR_LEFT:
-                attackHitbox.solidArea.width  = ts + quarter;  // 80 at 64px
-                attackHitbox.solidArea.height = ts - quarter;  // 48 at 64px
-                attackHitbox.worldX -= ts + quarter;           // extend leftward
-                attackHitbox.worldY += eighth;                 // center vertically
-                break;
-            case DIR_RIGHT:
-                attackHitbox.solidArea.width  = ts + quarter;  // 80 at 64px
-                attackHitbox.solidArea.height = ts - quarter;  // 48 at 64px
-                attackHitbox.worldX += ts;                     // extend rightward
-                attackHitbox.worldY += eighth;                 // center vertically
-                break;
+    /** Eases the player a few px forward along attackAngle during the swing, wall-checked.
+     *  Uses checkTileNext (tests a hypothetical position without depending on cardinal
+     *  `direction`) since the kick vector is a free angle, not one of the 4 cardinals. */
+    private void applyAttackKick(float targetPx) {
+        float kx = (float) (Math.cos(attackAngle) * targetPx);
+        float ky = (float) (Math.sin(attackAngle) * targetPx);
+        int dxPx = Math.round(kx - kickOffsetX);
+        int dyPx = Math.round(ky - kickOffsetY);
+        if (dxPx != 0) {
+            gp.cChecker.checkTileNext(this, worldX + dxPx, worldY);
+            if (!collisionOn) { worldX += dxPx; kickOffsetX += dxPx; }
         }
-        int iTileIndex = gp.cChecker.checkEntity(attackHitbox, gp.iTile);
+        if (dyPx != 0) {
+            gp.cChecker.checkTileNext(this, worldX, worldY + dyPx);
+            if (!collisionOn) { worldY += dyPx; kickOffsetY += dyPx; }
+        }
+        collisionOn = false;
+    }
+
+    private void performAttackHitbox() {
+        double radius = gp.tileSize * ATTACK_CONE_RADIUS_SCALE;
+        attackCone = new gfx.geom.Cone(getCenterX(), getCenterY(), radius, attackAngle, ATTACK_CONE_HALF_ANGLE);
+
+        int iTileIndex = gp.cChecker.checkEntityCone(attackCone, gp.iTile);
         damageInteractiveTile(iTileIndex);
-        int monsterIndex = gp.cChecker.checkEntity(attackHitbox, gp.monster);
+        int monsterIndex = gp.cChecker.checkEntityCone(attackCone, gp.monster);
         damageMonster(monsterIndex, attack);
     }
 
@@ -1897,29 +1922,6 @@ public class Player extends Entity {
 
         if (attacking) {
             image = getAttackFrame(direction, frame);
-            // Attack1 sprites are 2-tile — set doubled draw size and offset (attack2/3 are 1-tile)
-            if (comboStep == 0) {
-                switch(direction) {
-                    case DIR_UP -> {
-                        drawW = (int)(gp.tileSize * spriteScale);
-                        drawH = (int)(gp.tileSize * 2 * spriteScale);
-                        tempScreenY -= gp.tileSize * spriteScale;
-                    }
-                    case DIR_DOWN -> {
-                        drawW = (int)(gp.tileSize * spriteScale);
-                        drawH = (int)(gp.tileSize * 2 * spriteScale);
-                    }
-                    case DIR_LEFT -> {
-                        drawW = (int)(gp.tileSize * 2 * spriteScale);
-                        drawH = (int)(gp.tileSize * spriteScale);
-                        tempScreenX -= gp.tileSize * spriteScale;
-                    }
-                    case DIR_RIGHT -> {
-                        drawW = (int)(gp.tileSize * 2 * spriteScale);
-                        drawH = (int)(gp.tileSize * spriteScale);
-                    }
-                }
-            }
 
             // --- SWING TRAIL: draw warm-tinted afterimages behind the active swing ---
             if (trailActive && trailCount > 0 && image != null) {
@@ -1933,19 +1935,15 @@ public class Player extends Entity {
                     int idx = (trailIndex - trailCount + ti + TRAIL_SIZE) % TRAIL_SIZE;
                     int tSX = trailWorldX[idx] - playerWX + playerSX;
                     int tSY = trailWorldY[idx] - playerWY + playerSY;
-                    // Apply same attack offset as main sprite (only for attack1's 2-tile sprites)
-                    if (comboStep == 0) {
-                        switch (direction) {
-                            case DIR_UP   -> tSY -= gp.tileSize;
-                            case DIR_LEFT -> tSX -= gp.tileSize;
-                        }
-                    }
                     float alpha = (ti < trailAlphas.length) ? trailAlphas[ti] : 0.03f;
                     g2.setAlpha(alpha);
                     g2.drawImage(image, tSX, tSY, drawW, drawH);
                 }
                 g2.setAlpha(1f);
             }
+
+            // --- SLASH VFX: single arc texture, rotated to attackAngle, eased scale/alpha ---
+            drawSliceVfx(g2, tempScreenX, tempScreenY);
         } else if (hitAnimCounter > 0 && hitFrames != null && hitAnimDirection >= 0 && hitAnimDirection < hitFrames.length
                    && hitFrames[hitAnimDirection] != null && hitAnimFrame < hitFrames[hitAnimDirection].length) {
             image = hitFrames[hitAnimDirection][hitAnimFrame];
@@ -1985,6 +1983,39 @@ public class Player extends Entity {
         if (invincible && !dashing) drawAlpha *= (invincibleCounter % 4 < 2) ? 0.5f : 0.85f;
         if (drawAlpha < 1.0f) g2.setAlpha(Math.max(0f, drawAlpha));
         g2.drawImage(image, drawX, drawY, drawW, drawH);
+        g2.setAlpha(1f);
+    }
+
+    /**
+     * Draws the slash VFX: sliceAnim.png's 2 frames (peak/trail) are shown across the swing's
+     * active window (swingProgress 0..1), rotated to attackAngle. Anchored at the attack cone's
+     * apex (player center); the sprite's own long axis runs along its height (32 wide x 96 tall),
+     * so the rotation origin sits near the bottom of the cell (the "hilt" end) so the crescent
+     * sweeps outward from the player rather than pivoting on its own midpoint.
+     */
+    private void drawSliceVfx(GdxRenderer g2, int tempScreenX, int tempScreenY) {
+        if (sliceFrames == null || swingProgress < 0f) return;
+        Sprite frame = sliceFrames[swingProgress < 0.6f ? 0 : 1];
+        if (frame == null) return;
+
+        float scale = (gp.tileSize / (float) SLICE_CELL_W) * (comboStep == 2 ? 1.15f : 1f);
+        float alpha = 1f - (float) Math.pow(swingProgress, 3); // hold, then fade near the end
+        if (alpha <= 0.02f) return;
+
+        float w = SLICE_CELL_W * scale;
+        float h = SLICE_CELL_H * scale;
+        // Anchor point = attack cone apex (player center) in screen space.
+        float apexSX = tempScreenX + solidArea.x + solidArea.width  / 2f;
+        float apexSY = tempScreenY + solidArea.y + solidArea.height / 2f;
+        float originX = w / 2f;
+        float originY = h * 0.85f; // pivot near the cell's bottom edge, not its geometric center
+        float drawX = apexSX - originX;
+        float drawY = apexSY - originY;
+        // Sprite's neutral orientation points "up" (+90 so attackAngle's 0=right lines up with it).
+        float rotationDeg = (float) Math.toDegrees(attackAngle) + 90f;
+
+        g2.setAlpha(alpha);
+        g2.drawImageRotated(frame, drawX, drawY, w, h, originX, originY, rotationDeg);
         g2.setAlpha(1f);
     }
 

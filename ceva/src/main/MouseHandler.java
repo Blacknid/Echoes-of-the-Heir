@@ -599,12 +599,25 @@ public class MouseHandler implements InputProcessor {
     // COMBAT — left-click attacks in the direction of the cursor
     // ════════════════════════════════════════════════════════════════════════
 
-    public int getAttackDirectionFromMouse() {
+    /** Continuous aim angle (radians, atan2 convention: 0=right, +PI/2=down) from the player
+     *  center to the cursor. Used for free-aim attack cone/slice orientation. */
+    public double getAttackAngleFromMouse() {
         int pcx = gp.player.screenX + gp.tileSize / 2;
         int pcy = gp.player.screenY + gp.tileSize / 2;
-        int dx  = gameX - pcx;
-        int dy  = gameY - pcy;
-        if (Math.abs(dx) >= Math.abs(dy)) return dx >= 0 ? Entity.DIR_RIGHT : Entity.DIR_LEFT;
-        else                              return dy >= 0 ? Entity.DIR_DOWN  : Entity.DIR_UP;
+        double dx = gameX - pcx;
+        double dy = gameY - pcy;
+        if (dx == 0 && dy == 0) return angleForDirection(gp.player.direction);
+        return Math.atan2(dy, dx);
+    }
+
+    /** Cardinal direction → atan2-convention angle, for keyboard-only attacks (no mouse aim). */
+    public static double angleForDirection(int direction) {
+        return switch (direction) {
+            case Entity.DIR_RIGHT -> 0.0;
+            case Entity.DIR_DOWN  -> Math.PI / 2.0;
+            case Entity.DIR_LEFT  -> Math.PI;
+            case Entity.DIR_UP    -> -Math.PI / 2.0;
+            default -> Math.PI / 2.0;
+        };
     }
 }

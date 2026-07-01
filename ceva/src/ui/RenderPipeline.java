@@ -286,24 +286,19 @@ public class RenderPipeline {
             }
         }
 
-        if (gp.player.attacking) {
-            g2.setColor(DBG_ATTACK);
-            int ts = gp.tileSize;
-            int quarter = ts / 4;
-            int eighth  = ts / 8;
-            int attackWorldX = pwx, attackWorldY = pwy;
-            int aw = 0, ah = 0;
-            switch (gp.player.direction) {
-                case Entity.DIR_UP:    aw = ts - quarter; ah = ts + quarter; attackWorldX += eighth;    attackWorldY -= ts + quarter; break;
-                case Entity.DIR_DOWN:  aw = ts - quarter; ah = ts + quarter; attackWorldX += eighth;    attackWorldY += ts;            break;
-                case Entity.DIR_LEFT:  aw = ts + quarter; ah = ts - quarter; attackWorldX -= ts + quarter; attackWorldY += eighth;    break;
-                case Entity.DIR_RIGHT: aw = ts + quarter; ah = ts - quarter; attackWorldX += ts;        attackWorldY += eighth;        break;
-            }
-            int asx = attackWorldX - pwx + psx;
-            int asy = attackWorldY - pwy + psy;
-            g2.fillRect(asx, asy, aw, ah);
+        if (gp.player.attacking && gp.player.attackCone != null) {
+            // attackCone is stored in world space (apex = player world center); translate into
+            // screen space like the tile-collision-shapes debug loop below does. White per the
+            // user's reference — the cone hitbox is debug-only and never drawn in normal play.
+            float oldTX = g2.getTranslateX(); float oldTY = g2.getTranslateY();
+            g2.translate(-pwx + psx, -pwy + psy);
+            g2.setAlpha(0.35f);
             g2.setColor(Color.WHITE);
-            g2.drawString("ATTACK", asx, asy - 3);
+            g2.fill(gp.player.attackCone);
+            g2.setAlpha(1f);
+            g2.draw(gp.player.attackCone);
+            g2.drawString("ATTACK", (int) gp.player.attackCone.apexX, (int) gp.player.attackCone.apexY - 6);
+            g2.setTranslate(oldTX, oldTY);
         }
 
         // NPCs

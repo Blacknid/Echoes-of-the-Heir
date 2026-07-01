@@ -416,6 +416,61 @@ public class CollisionChecker {
         return index;
     }
 
+    /**
+     * Cone-vs-entity overlap for the free-aim melee attack hitbox (replaces the old cardinal
+     * {@code Rect} attack box). Broad-phase distance pre-filter, then narrow-phase: samples the
+     * target's hurtPolygon vertices (or solidArea corners/center as a fallback) against
+     * {@link gfx.geom.Cone#contains}, mirroring the vertex-sampling pattern {@code checkEntity}
+     * already uses for polygon targets. Returns the first hit index, or 999 if none.
+     */
+    public int checkEntityCone(gfx.geom.Cone cone, Entity[] target) {
+        int index = 999;
+
+        for (int i = 0; i < target.length; i++) {
+            if (target[i] == null) continue;
+            if (target[i].type == Entity.TYPE_MONSTER &&
+                (target[i].dying || !target[i].alive)) {
+                continue;
+            }
+
+            double dx = cone.apexX - target[i].worldX;
+            double dy = cone.apexY - target[i].worldY;
+            double reach = cone.radius + Math.max(target[i].solidArea.width, target[i].solidArea.height);
+            if (dx * dx + dy * dy > reach * reach) continue;
+
+            boolean hit;
+            if (target[i].hurtPolygon != null) {
+                IntPolygon wp = target[i].hurtPolygon;
+                wp.translate(target[i].worldX, target[i].worldY);
+                hit = false;
+                for (int v = 0; v < wp.npoints; v++) {
+                    if (cone.contains(wp.xpoints[v], wp.ypoints[v])) { hit = true; break; }
+                }
+                if (!hit) {
+                    // Cone apex/rim sample falling inside a target that's small relative to the cone.
+                    Rect b = wp.getBounds();
+                    hit = wp.contains(cone.apexX, cone.apexY) ||
+                          cone.intersects(b.x, b.y, b.width, b.height) && wp.contains((b.x + b.width / 2.0), (b.y + b.height / 2.0));
+                }
+                wp.translate(-target[i].worldX, -target[i].worldY);
+            } else {
+                Rect r = target[i].solidArea;
+                int tx = target[i].worldX + r.x;
+                int ty = target[i].worldY + r.y;
+                hit = cone.contains(tx, ty) || cone.contains(tx + r.width, ty) ||
+                      cone.contains(tx, ty + r.height) || cone.contains(tx + r.width, ty + r.height) ||
+                      cone.contains(tx + r.width / 2.0, ty + r.height / 2.0);
+            }
+
+            if (hit) {
+                index = i;
+                break;
+            }
+        }
+
+        return index;
+    }
+
     // OPTIMIZATION: Reduce redundant coordinate modifications
     public boolean checkPlayer(Entity entity) {
         boolean contactPlayer = false;
