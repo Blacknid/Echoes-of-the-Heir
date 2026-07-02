@@ -40,6 +40,10 @@ jar {
     archiveBaseName = 'Michi-s-adventure'
     archiveVersion = ''
     duplicatesStrategy = DuplicatesStrategy.EXCLUDE
+    // Packaged builds always ship a freshly packed sprite atlas (see gradle/assets.gradle);
+    // dev runs (gradlew :lwjgl3:run) never trigger this, so loose PNGs + live reload still work.
+    dependsOn project(':core').tasks.named('packSprites')
+    from { project(':core').ext.spriteAtlasRoot }
     dependsOn configurations.runtimeClasspath
     from { configurations.runtimeClasspath.collect { it.isDirectory() ? it : zipTree(it) } }
     manifest { attributes 'Main-Class': project.mainClassName }

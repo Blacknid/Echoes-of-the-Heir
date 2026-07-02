@@ -126,12 +126,15 @@ public class Lightning {
         if (falloffTexture != null) return falloffTexture;
         int s = FALLOFF_TEX_SIZE;
         float c = s / 2f;
-        // Same falloff stops the old getDstOutLight used (0.0→1.0 alpha curve), white throughout.
-        float[] dist   = { 0.0f, 0.30f, 0.65f, 1.0f };
+        // Soft radial falloff (alpha = how much darkness this light removes). A gentle curve that
+        // starts near-full at the center and eases to 0 at the edge gives a natural pool of light
+        // rather than a hard-edged fully-lit disc; the mask model (DST_OUT) turns this into a smooth
+        // transition from lit → dark.
+        float[] dist   = { 0.0f, 0.55f, 0.80f, 1.0f };
         Color[] colors = {
             new Color(255, 255, 255, 255),
-            new Color(255, 255, 255, 230),
-            new Color(255, 255, 255, 110),
+            new Color(255, 255, 255, 180),
+            new Color(255, 255, 255,  70),
             new Color(255, 255, 255,   0)
         };
         falloffTexture = GdxRenderer.bakeRadialGradient(
@@ -187,6 +190,44 @@ public class Lightning {
         Sprite falloff = getFalloffTexture();
         int d = rad * 2;
         g2.drawImageTinted(falloff, sx - rad, sy - rad, d, d, tint, strength);
+    }
+
+    /**
+     * Mark tiles lit for every light-emitting entity in an array (torches in gp.obj, NPCs in gp.npc,
+     * or any future light source). Mirrors the per-object loop the player light uses, so lit tiles /
+     * reflective highlights work for NPC lights too.
+     */
+    private void markEntityArrayTilesLit(entity.Entity[] arr, boolean isLow, boolean useTileShadows) {
+        if (arr == null) return;
+        for (entity.Entity e : arr) {
+            if (e == null || !e.lightSource || e.lightRadius <= 0) continue;
+            int cx = e.worldX + gp.tileSize / 2;
+            int cy = e.worldY + gp.tileSize / 2;
+            int rPx = e.lightRadius * gp.tileSize;
+            if (isLow) markTilesLitLowBFS(cx, cy, rPx);
+            else       markTilesLit(cx, cy, rPx, useTileShadows, false);
+        }
+    }
+
+    /**
+     * Carve a light hole in the darkness mask for every light-emitting entity in an array. Used for
+     * both torches (gp.obj) and NPCs (gp.npc) so a glowing NPC draws the player's eye in a dark cave.
+     * Must be called while the mask is bound and in DST_OUT blend mode.
+     */
+    private void drawEntityArrayLights(GdxRenderer g2, entity.Entity[] arr,
+                                       int playerWorldX, int playerWorldY,
+                                       int playerScreenX, int playerScreenY,
+                                       int screenWidth, int screenHeight, float punch) {
+        if (arr == null) return;
+        for (entity.Entity e : arr) {
+            if (e == null || !e.lightSource || e.lightRadius <= 0) continue;
+            int rWorld = e.lightRadius * gp.tileSize;
+            int sx = e.worldX - playerWorldX + playerScreenX + gp.tileSize / 2;
+            int sy = e.worldY - playerWorldY + playerScreenY + gp.tileSize / 2;
+            if (sx + rWorld < 0 || sx - rWorld > screenWidth
+                    || sy + rWorld < 0 || sy - rWorld > screenHeight) continue;
+            drawLight(g2, sx, sy, rWorld, Color.WHITE, punch);
+        }
     }
 
     /**
@@ -573,64 +614,63 @@ public class Lightning {
             gp.tileM.clearTileLitMap();
             if (isLow) {
                 markTilesLitLowBFS(playerLightCX, playerLightCY, lightPxWorld);
-                for (int i = 0; i < gp.obj.length; i++) {
-                    if (gp.obj[i] != null && gp.obj[i].lightSource && gp.obj[i].lightRadius > 0) {
-                        markTilesLitLowBFS(gp.obj[i].worldX + gp.tileSize / 2,
-                                           gp.obj[i].worldY + gp.tileSize / 2,
-                                           gp.obj[i].lightRadius * gp.tileSize);
-                    }
-                }
+                markEntityArrayTilesLit(gp.obj, isLow, useTileShadows);
+                markEntityArrayTilesLit(gp.npc, isLow, useTileShadows);
             } else {
                 markTilesLit(playerLightCX, playerLightCY, lightPxWorld, useTileShadows, false);
-                for (int i = 0; i < gp.obj.length; i++) {
-                    if (gp.obj[i] != null && gp.obj[i].lightSource && gp.obj[i].lightRadius > 0) {
-                        markTilesLit(gp.obj[i].worldX + gp.tileSize / 2,
-                                     gp.obj[i].worldY + gp.tileSize / 2,
-                                     gp.obj[i].lightRadius * gp.tileSize,
-                                     useTileShadows, false);
-                    }
-                }
+                markEntityArrayTilesLit(gp.obj, isLow, useTileShadows);
+                markEntityArrayTilesLit(gp.npc, isLow, useTileShadows);
             }
         }
 
         if (currentMaxDarkness <= 0.001f) return;
 
-        // ========= DARKNESS: one full-screen night-color fill =========
-        // GPU-native replacement for the BufferedImage overlay fill.
+        // ========= DARKNESS MASK (offscreen) =========
+        // Proper 2D lighting: render a darkness LAYER into an offscreen alpha buffer, then carve soft
+        // holes where lights reach (DST_OUT). Compositing that mask over the finished scene lets the
+        // scene show through at its NATURAL brightness in lit areas and stay genuinely dark elsewhere —
+        // replacing the old "darken + add white glow" approximation that washed the player out to a
+        // bright blob and never let caves read as truly dark. Any new light source just carves its own
+        // hole; no per-light tuning needed.
+        g2.beginLightMask();
+
+        // Fill the mask with the night color at the darkness alpha.
+        g2.setBlendMode(GdxRenderer.BLEND_NORMAL);
         g2.setColor(NIGHT_COLOR);
         g2.setAlpha(currentMaxDarkness);
         g2.fillRect(0, 0, screenWidth, screenHeight);
         g2.setAlpha(1f);
 
-        // ========= LIGHTS: additive soft glows that lift the darkness back =========
-        // TODO(gfx-stage5): on-screen polygon shadow occlusion omitted — see class doc. The radial
-        // glows below do not cast hard polygon shadows; tile-grid shadows still gate tileIsLit.
-        g2.setBlendMode(GdxRenderer.BLEND_ADDITIVE);
-
-        // Warm white light tint: scaled by darkness so lights don't over-brighten at dusk.
-        float punch = LIGHT_PUNCH_STRENGTH * currentMaxDarkness;
+        // Carve light holes: DST_OUT subtracts each falloff's alpha from the darkness, revealing the
+        // scene. LIGHT_PUNCH_STRENGTH < 1 keeps a faint darkness even at a light's core so lit areas
+        // read as "dimly lit", not fully bright — tweak per taste.
+        g2.setBlendMode(GdxRenderer.BLEND_DSTOUT);
+        float punch = LIGHT_PUNCH_STRENGTH;
 
         // ========= PLAYER LIGHT =========
         int playerSX = playerScreenX + gp.tileSize / 2;
         int playerSY = playerScreenY + gp.tileSize / 2;
         drawLight(g2, playerSX, playerSY, lightPxWorld, Color.WHITE, punch);
 
-        // ========= TORCH LIGHTS =========
-        for (int i = 0; i < gp.obj.length; i++) {
-            if (gp.obj[i] == null || !gp.obj[i].lightSource || gp.obj[i].lightRadius <= 0) continue;
-
-            int tRadWorld = gp.obj[i].lightRadius * gp.tileSize;
-            int tx = gp.obj[i].worldX - playerWorldX + playerScreenX + gp.tileSize / 2;
-            int ty = gp.obj[i].worldY - playerWorldY + playerScreenY + gp.tileSize / 2;
-
-            if (tx + tRadWorld < 0 || tx - tRadWorld > screenWidth
-                    || ty + tRadWorld < 0 || ty - tRadWorld > screenHeight) continue;
-
-            drawLight(g2, tx, ty, tRadWorld, Color.WHITE, punch);
-        }
+        // ========= TORCH / NPC LIGHTS =========
+        // Any entity flagged lightSource carves a light hole — torches (gp.obj) and NPCs (gp.npc), so a
+        // glowing NPC beckons the player through a dark cave. New light-emitting entity types just get
+        // passed here.
+        drawEntityArrayLights(g2, gp.obj, playerWorldX, playerWorldY, playerScreenX, playerScreenY,
+                              screenWidth, screenHeight, punch);
+        drawEntityArrayLights(g2, gp.npc, playerWorldX, playerWorldY, playerScreenX, playerScreenY,
+                              screenWidth, screenHeight, punch);
         torchShadowCacheDirty = false;
 
+        // Finish the mask and composite it over the scene with normal blending.
+        g2.setBlendMode(GdxRenderer.BLEND_NORMAL);
+        g2.endLightMask();
+        g2.drawLightMask();
+
         // ========= COLORED LIGHTS (ambient glow, no shadow casting) =========
+        // These ADD colored light on top of the composited scene (a colored torch/crystal glow), so
+        // they stay additive on the default framebuffer.
+        g2.setBlendMode(GdxRenderer.BLEND_ADDITIVE);
         if (lightCount > 0 && currentMaxDarkness > 0.05f) {
             for (int i = 0; i < lightCount; i++) {
                 int lx  = lightWX[i] - playerWorldX + playerScreenX;

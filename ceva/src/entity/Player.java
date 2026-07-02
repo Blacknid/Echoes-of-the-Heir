@@ -612,6 +612,18 @@ public class Player extends Entity {
             boolean movingDown  = canMove && keyH.downPressed;
             boolean movingLeft  = canMove && keyH.leftPressed;
             boolean movingRight = canMove && keyH.rightPressed;
+            // During a dash the burst must propel the player even if they've released the movement key
+            // (a dash is a committed lunge, not a hold-to-move). Force motion in the facing direction
+            // so the dash always travels; without this the speed boost applied above did nothing when
+            // no direction key was held, which is why the dash "did nothing".
+            if (dashing && canMove && !movingUp && !movingDown && !movingLeft && !movingRight) {
+                switch (direction) {
+                    case DIR_UP    -> movingUp    = true;
+                    case DIR_DOWN  -> movingDown  = true;
+                    case DIR_LEFT  -> movingLeft  = true;
+                    case DIR_RIGHT -> movingRight = true;
+                }
+            }
             boolean movingH = movingLeft || movingRight;
             boolean movingV = movingUp   || movingDown;
             boolean moving  = movingH    || movingV;
@@ -639,9 +651,17 @@ public class Player extends Entity {
                         solidArea.width, solidArea.height)) {
                     targetSpeed *= 0.6f;
                 }
-                // Drive force accelerates toward target; air drag (quadratic) opposes motion.
-                float drag = DRAG_K * currentSpeed * currentSpeed / PLAYER_MASS;
-                currentSpeed = Math.min(targetSpeed, currentSpeed + DRIVE_ACCEL - drag);
+                if (dashing) {
+                    // Dash is a burst, not a driven walk: snap straight to the dash speed. The quadratic
+                    // air-drag model below has a terminal velocity of ~4 px/frame (0.4 = 0.024*v²), which
+                    // is BELOW walking speed — so ramping toward it made the dash feel like normal walking.
+                    // Bypassing drag here is what makes the dash actually lunge forward.
+                    currentSpeed = targetSpeed;
+                } else {
+                    // Drive force accelerates toward target; air drag (quadratic) opposes motion.
+                    float drag = DRAG_K * currentSpeed * currentSpeed / PLAYER_MASS;
+                    currentSpeed = Math.min(targetSpeed, currentSpeed + DRIVE_ACCEL - drag);
+                }
 
                 // Wind: project the wind force onto the player's movement direction only.
                 // Tailwind (force aligned with motion) adds speed; headwind subtracts it.

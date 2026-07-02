@@ -104,6 +104,7 @@ public class MichiGame extends ApplicationAdapter {
         camera.setToOrtho(true, logicalW, logicalH); // yDown = true, box sized in logical px
         camera.update();
         Gdx.gl.glViewport(marginX, marginY, usedW, usedH);
+        if (renderer != null) renderer.setWorldViewport(marginX, marginY, usedW, usedH);
 
         if (gp != null) {
             gp.applyNewResolution(logicalW, logicalH, pixelScale, marginX, marginY, deviceW, deviceH);

@@ -124,7 +124,10 @@ public class GamePanel {
     private static final gfx.Color PLAYER_GLOW_COLOR = new gfx.Color(255, 240, 220);
     private static final gfx.Color DEFAULT_TORCH_COLOR = new gfx.Color(255, 170, 60);
 
-    private static final gfx.Font DEBUG_FONT = new gfx.Font("Consolas", gfx.Font.PLAIN, 13);
+    // Debug overlay is drawn in DEVICE-pixel space (see GdxRenderer.beginDeviceSpace) so it renders at a
+    // fixed, crisp on-screen size regardless of pixelScale — never Nearest-magnified. 16px reads well on
+    // both windowed and fullscreen; the box geometry below is likewise in device pixels.
+    private static final gfx.Font DEBUG_FONT = new gfx.Font("Consolas", gfx.Font.PLAIN, 16);
     private static final gfx.Color DEBUG_BG_COLOR = new gfx.Color(0, 0, 0, 160);
     private static final gfx.Color DEBUG_FPS_GREEN = new gfx.Color(80, 255, 80);
     private static final gfx.Color DEBUG_FPS_YELLOW = new gfx.Color(255, 220, 60);
@@ -653,15 +656,9 @@ public class GamePanel {
                     player.worldX + tileSize / 2, player.worldY + tileSize / 2,
                     tileSize * 4, PLAYER_GLOW_COLOR, 0.25f);
                 float flickerBase = System.nanoTime() * 0.000000003f;
-                for (int i = 0; i < obj.length; i++) {
-                    if (obj[i] != null && obj[i].lightSource && obj[i].lightRadius > 0) {
-                        float flicker = 0.22f + 0.06f * MapShaderManager.fastSin(flickerBase + i * 1.7);
-                        gfx.Color lc = (obj[i].lightColor != null) ? obj[i].lightColor : DEFAULT_TORCH_COLOR;
-                        eManager.lightning.addLight(
-                            obj[i].worldX + tileSize / 2, obj[i].worldY + tileSize / 2,
-                            obj[i].lightRadius * tileSize, lc, flicker);
-                    }
-                }
+                addColoredGlows(obj, flickerBase, 0f);
+                // NPC lights (e.g. a glowing figure beckoning in a dark cave) get a colored glow too.
+                addColoredGlows(npc, flickerBase, 100f);
             }
 
             if (mapShader != null) {
@@ -724,6 +721,24 @@ public class GamePanel {
             }
     }
 
+    /**
+     * Register a flickering colored ambient glow for every light-emitting entity in an array. Shared by
+     * torches (obj) and NPCs (npc) so a glowing NPC gives off its lightColor. {@code phaseOffset} keeps
+     * each array's flicker out of phase. Uses DEFAULT_TORCH_COLOR when the entity has no explicit tint.
+     */
+    private void addColoredGlows(Entity[] arr, float flickerBase, float phaseOffset) {
+        if (arr == null || eManager.lightning == null) return;
+        for (int i = 0; i < arr.length; i++) {
+            Entity e = arr[i];
+            if (e == null || !e.lightSource || e.lightRadius <= 0) continue;
+            float flicker = 0.22f + 0.06f * MapShaderManager.fastSin(flickerBase + phaseOffset + i * 1.7);
+            gfx.Color lc = (e.lightColor != null) ? e.lightColor : DEFAULT_TORCH_COLOR;
+            eManager.lightning.addLight(
+                e.worldX + tileSize / 2, e.worldY + tileSize / 2,
+                e.lightRadius * tileSize, lc, flicker);
+        }
+    }
+
     private int vpMinX, vpMaxX, vpMinY, vpMaxY;
     private boolean vpCacheValid = false;
 
@@ -753,17 +768,19 @@ public class GamePanel {
         memoryFlashback.draw(g2);
     }
 
-    // DEBUG TEXT
+    // DEBUG TEXT — drawn in DEVICE-pixel space so it stays crisp and fixed-size in fullscreen
+    // (logical-space text is magnified by pixelScale via Nearest filtering, which made it jaggy).
     if(keyH.showDebugText) {
-        final int x = 10;
-        int y = 400;
-        final int lineHeight = 20;
-        final int padX = 8, padY = 6;
+        g2.beginDeviceSpace();
+        final int x = 18;
+        int y = 36;                 // baseline of the first line, from the top of the window
+        final int lineHeight = 24;
+        final int padX = 10, padY = 8;
         final int lines = 9 + (tileParticleEmitter != null ? 1 : 0);
-        final int boxW = 230, boxH = lines * lineHeight + padY * 2;
+        final int boxW = 280, boxH = lines * lineHeight + padY * 2;
 
         g2.setColor(DEBUG_BG_COLOR);
-        g2.fillRoundRect(x - padX, y - lineHeight - padY, boxW, boxH, 8, 8);
+        g2.fillRoundRect(x - padX, y - lineHeight - padY, boxW, boxH, 10, 10);
 
         g2.setFont(DEBUG_FONT);
         final int safeFPS = currentFPS > 0 ? currentFPS : 1;
@@ -789,6 +806,7 @@ public class GamePanel {
         if (tileParticleEmitter != null) {
             g2.drawString("TileParticles: " + tileParticleEmitter.getActiveCount(), x, y); y += lineHeight;
         }
+        g2.endDeviceSpace();
     }
 
     if (debugMenuOpen) drawDebugMenu(g2);
@@ -1004,13 +1022,16 @@ public class GamePanel {
         };
     }
 
-    /** Draw the debug panel overlay. */
+    /** Draw the debug panel overlay. Rendered in device-pixel space (like the FPS overlay) so its
+     *  Consolas text stays crisp in fullscreen instead of being Nearest-magnified by pixelScale. */
     private void drawDebugMenu(GdxRenderer g2) {
+        g2.beginDeviceSpace();
         final int panelW = 520;
         final int rowH = 24;
         final int panelH = DEBUG_MENU_ROWS * rowH + 82;
-        final int px = screenWidth / 2 - panelW / 2;
-        final int py = screenHeight / 2 - panelH / 2;
+        // Center in the full window (device pixels), not the logical view.
+        final int px = com.badlogic.gdx.Gdx.graphics.getBackBufferWidth()  / 2 - panelW / 2;
+        final int py = com.badlogic.gdx.Gdx.graphics.getBackBufferHeight() / 2 - panelH / 2;
 
         // Background
         g2.setColor(new Color(10, 10, 30, 220));
@@ -1051,6 +1072,7 @@ public class GamePanel {
         g2.setColor(new Color(120, 120, 120));
         g2.drawString("Current map: " + mapManager.currentMapId,
                 px + 10, py + panelH - 8);
+        g2.endDeviceSpace();
     }
 
     public void drawToScreen() { /* libGDX renders every frame; no explicit repaint needed */ }

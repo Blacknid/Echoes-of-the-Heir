@@ -1,4 +1,4 @@
-fullscreen=Off
+fullscreen=On
 musicVolume=1
 seVolume=4
 vsync=On

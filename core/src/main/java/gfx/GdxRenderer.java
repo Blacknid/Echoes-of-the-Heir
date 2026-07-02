@@ -288,6 +288,109 @@ public class GdxRenderer {
         batch.setColor(1f, 1f, 1f, 1f);
     }
 
+    // ── Offscreen light-mask FrameBuffer ──────────────────────────────────────
+    // The lighting model composites a darkness LAYER over the finished scene, then carves soft holes
+    // in that layer where lights reach — so the scene shows through at its NATURAL brightness (no
+    // additive white washout). DST_OUT hole-punching needs a real alpha channel, which the default
+    // (opaque) framebuffer doesn't provide, so we render the mask into this offscreen RGBA target and
+    // then blit it over the scene with normal alpha blending. Sized to the LOGICAL resolution and
+    // recreated on resize. See Lightning.draw.
+    private com.badlogic.gdx.graphics.glutils.FrameBuffer lightFbo;
+    private int lightFboW, lightFboH;
+    private boolean lightMaskActive = false;
+
+    /** Bind the light-mask FBO and clear it fully transparent. Draw the darkness fill + light holes,
+     *  then call {@link #endLightMask()} and {@link #drawLightMask()} to composite it. */
+    public void beginLightMask() {
+        if (lightMaskActive) return;
+        flush();
+        if (lightFbo == null || lightFboW != screenW || lightFboH != screenH) {
+            if (lightFbo != null) lightFbo.dispose();
+            lightFbo = new com.badlogic.gdx.graphics.glutils.FrameBuffer(
+                com.badlogic.gdx.graphics.Pixmap.Format.RGBA8888, Math.max(1, screenW), Math.max(1, screenH), false);
+            lightFboW = screenW; lightFboH = screenH;
+        }
+        lightFbo.begin();
+        Gdx.gl.glViewport(0, 0, lightFboW, lightFboH);
+        Gdx.gl.glClearColor(0f, 0f, 0f, 0f);
+        Gdx.gl.glClear(com.badlogic.gdx.graphics.GL20.GL_COLOR_BUFFER_BIT);
+        // The FBO is upside-down relative to the screen; use a matching y-down ortho so the darkness
+        // fill and light coordinates (logical, top-left origin) land where the scene expects them, and
+        // the composite blit below flips it back.
+        Matrix4 m = new Matrix4().setToOrtho2D(0, 0, screenW, screenH);
+        batch.setProjectionMatrix(m);
+        shapes.setProjectionMatrix(m);
+        Matrix4 id = new Matrix4();
+        batch.setTransformMatrix(id);
+        shapes.setTransformMatrix(id);
+        lightMaskActive = true;
+    }
+
+    /** Unbind the light-mask FBO and restore the scene's camera projection + viewport. */
+    public void endLightMask() {
+        if (!lightMaskActive) return;
+        flush();
+        lightFbo.end();
+        Gdx.gl.glViewport(worldVpX, worldVpY, worldVpW, worldVpH);
+        applyProjection();
+        lightMaskActive = false;
+    }
+
+    /** Composite the finished light mask over the scene with normal alpha blending. The darkness (where
+     *  no light punched a hole) darkens the scene; lit areas are transparent so the scene shows through
+     *  at its true brightness. Call after endLightMask(), in the default framebuffer. */
+    public void drawLightMask() {
+        if (lightFbo == null) return;
+        setBlendMode(BLEND_NORMAL);
+        useBatch();
+        batch.setColor(1f, 1f, 1f, 1f);
+        // FBO color texture; drawn full-screen. Flip V (batch.draw with negative height) because FBO
+        // textures have their origin at the bottom-left while our camera is y-down (top-left).
+        com.badlogic.gdx.graphics.g2d.TextureRegion region =
+            new com.badlogic.gdx.graphics.g2d.TextureRegion(lightFbo.getColorBufferTexture());
+        region.flip(false, true);
+        batch.draw(region, 0, 0, screenW, screenH);
+    }
+
+    // ── Device-space overlay (unmagnified HUD/debug) ──────────────────────────
+    // Everything above draws in LOGICAL pixels, which the camera magnifies by pixelScale (crisp for
+    // pixel art, but it Nearest-upscales small non-pixel text into a jaggy mess in fullscreen). These
+    // helpers temporarily swap to a 1:1 DEVICE-pixel projection (top-left origin, y-down) so an overlay
+    // can be drawn at its true on-screen size — resolution-independent and never magnified. Coordinates
+    // passed while in device space are physical window pixels. Always pair with endDeviceSpace().
+    private boolean deviceSpace = false;
+    public void beginDeviceSpace() {
+        if (deviceSpace) return;
+        flush();
+        int dw = Gdx.graphics.getBackBufferWidth();
+        int dh = Gdx.graphics.getBackBufferHeight();
+        // Full-window viewport (world drawing uses an integer-scaled sub-viewport; the overlay wants all
+        // of it) and a y-down ortho so (0,0) is top-left like the rest of the game's coordinates.
+        Gdx.gl.glViewport(0, 0, dw, dh);
+        Matrix4 m = new Matrix4().setToOrtho2D(0, dh, dw, -dh);
+        batch.setProjectionMatrix(m);
+        shapes.setProjectionMatrix(m);
+        Matrix4 id = new Matrix4();
+        batch.setTransformMatrix(id);
+        shapes.setTransformMatrix(id);
+        deviceSpace = true;
+    }
+    public void endDeviceSpace() {
+        if (!deviceSpace) return;
+        flush();
+        deviceSpace = false;
+        // Restore the world camera's viewport + projection for subsequent logical-space draws.
+        camera.update();
+        Gdx.gl.glViewport(worldVpX, worldVpY, worldVpW, worldVpH);
+        applyProjection();
+    }
+    // The integer-scaled world viewport, mirrored from MichiGame.syncCamera so we can restore it after
+    // an overlay temporarily takes the full window. Set via setWorldViewport each resolution change.
+    private int worldVpX, worldVpY, worldVpW, worldVpH;
+    public void setWorldViewport(int x, int y, int w, int h) {
+        worldVpX = x; worldVpY = y; worldVpW = w; worldVpH = h;
+    }
+
     // ── Text (SpriteBatch + BitmapFont) ───────────────────────────────────────
     /** drawString(s, x, y): x,y is the BASELINE origin, like Graphics2D. */
     public void drawString(String s, int x, int y) { drawString(s, (float) x, (float) y); }
@@ -372,24 +475,36 @@ public class GdxRenderer {
         if (s instanceof gfx.geom.Rect r) { fillRect(r.x, r.y, r.width, r.height); return; }
         if (s instanceof gfx.geom.Ellipse e) { fillOval((int) e.x, (int) e.y, (int) e.w, (int) e.h); return; }
         if (s instanceof gfx.geom.Polygon p) {
-            useShape(ShapeRenderer.ShapeType.Filled);
-            shapes.setColor(gdxColor());
-            // Triangle-fan fill (convex shapes used here).
-            for (int i = 1; i + 1 < p.n; i++) {
-                shapes.triangle((float) p.xs[0], (float) p.ys[0],
-                                (float) p.xs[i], (float) p.ys[i],
-                                (float) p.xs[i + 1], (float) p.ys[i + 1]);
-            }
+            float[] verts = new float[p.n * 2];
+            for (int i = 0; i < p.n; i++) { verts[i * 2] = (float) p.xs[i]; verts[i * 2 + 1] = (float) p.ys[i]; }
+            fillPolygon(verts);
             return;
         }
         if (s instanceof gfx.geom.IntPolygon p) {
-            useShape(ShapeRenderer.ShapeType.Filled);
-            shapes.setColor(gdxColor());
-            for (int i = 1; i + 1 < p.npoints; i++) {
-                shapes.triangle(p.xpoints[0], p.ypoints[0],
-                                p.xpoints[i], p.ypoints[i],
-                                p.xpoints[i + 1], p.ypoints[i + 1]);
-            }
+            float[] verts = new float[p.npoints * 2];
+            for (int i = 0; i < p.npoints; i++) { verts[i * 2] = p.xpoints[i]; verts[i * 2 + 1] = p.ypoints[i]; }
+            fillPolygon(verts);
+        }
+    }
+
+    // Reused across frames so triangulating every collision polygon doesn't churn garbage.
+    private final com.badlogic.gdx.math.EarClippingTriangulator triangulator =
+        new com.badlogic.gdx.math.EarClippingTriangulator();
+
+    /**
+     * Fill an arbitrary SIMPLE polygon (convex OR concave) given as flat [x0,y0,x1,y1,...] vertices.
+     * A naive triangle fan from vertex 0 only fills convex polygons correctly — Tiled collision
+     * polygons and stroked polylines are frequently concave, and fanning them produced the glitched
+     * overlapping-triangle mess seen in the hitbox debug overlay. Ear-clipping triangulates properly.
+     */
+    private void fillPolygon(float[] verts) {
+        if (verts.length < 6) return; // need at least 3 points
+        useShape(ShapeRenderer.ShapeType.Filled);
+        shapes.setColor(gdxColor());
+        com.badlogic.gdx.utils.ShortArray tris = triangulator.computeTriangles(verts);
+        for (int i = 0; i < tris.size; i += 3) {
+            int a = tris.get(i) * 2, b = tris.get(i + 1) * 2, c = tris.get(i + 2) * 2;
+            shapes.triangle(verts[a], verts[a + 1], verts[b], verts[b + 1], verts[c], verts[c + 1]);
         }
     }
     public void draw(gfx.geom.Shape s) {
@@ -471,6 +586,7 @@ public class GdxRenderer {
         flush();
         batch.dispose();
         shapes.dispose();
+        if (lightFbo != null) lightFbo.dispose();
     }
 
     public SpriteBatch batch() { return batch; }

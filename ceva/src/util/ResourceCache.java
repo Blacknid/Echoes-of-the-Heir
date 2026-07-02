@@ -16,6 +16,7 @@ import org.w3c.dom.Document;
 import com.badlogic.gdx.Gdx;
 import com.badlogic.gdx.files.FileHandle;
 import com.badlogic.gdx.graphics.Texture;
+import com.badlogic.gdx.graphics.g2d.TextureAtlas;
 
 import gfx.Sprite;
 
@@ -50,10 +51,44 @@ public final class ResourceCache {
      */
     private static java.io.File devSourceDir = null;
 
+    /**
+     * Packed sprite atlas (see gdx-tools TexturePacker output), loaded once at startup if
+     * present. Only packaged builds ship an atlas; dev runs have none, so this stays null and
+     * every image loads from loose files as before (preserving dev-mode live reload).
+     */
+    private static TextureAtlas spriteAtlas = null;
+    private static boolean spriteAtlasLoadAttempted = false;
+
     /** Call once at startup (DEBUG_MODE only) to enable live .tmx reloading. */
     public static synchronized void setDevSourcePath(String absPath) {
         devSourceDir = new java.io.File(absPath);
         System.out.println("[ResourceCache] Dev source path: " + devSourceDir.getAbsolutePath());
+    }
+
+    /** Loads res/atlas/sprites.atlas from the classpath, if it exists, once per run. */
+    private static void ensureSpriteAtlasLoaded() {
+        if (spriteAtlasLoadAttempted) return;
+        spriteAtlasLoadAttempted = true;
+        FileHandle fh = Gdx.files.internal("res/atlas/sprites.atlas");
+        if (!fh.exists()) fh = Gdx.files.classpath("/res/atlas/sprites.atlas");
+        if (!fh.exists()) return;
+        try {
+            spriteAtlas = new TextureAtlas(fh);
+            System.out.println("[ResourceCache] Loaded packed sprite atlas: " + fh);
+        } catch (Exception e) {
+            System.out.println("[ResourceCache] Failed to load sprite atlas: " + e.getMessage());
+        }
+    }
+
+    /**
+     * Derive a TextureAtlas region name from an engine "/res/..." path: strip the leading
+     * "/res/" and the file extension, matching how the packer names regions from input files.
+     */
+    private static String atlasRegionName(String path) {
+        String rel = path.startsWith("/") ? path.substring(1) : path;
+        if (rel.startsWith("res/")) rel = rel.substring(4);
+        int dot = rel.lastIndexOf('.');
+        return dot > 0 ? rel.substring(0, dot) : rel;
     }
 
     private ResourceCache() {}
@@ -89,6 +124,18 @@ public final class ResourceCache {
 
         if (missingImageCache.contains(path)) {
             return null;
+        }
+
+        // Packaged builds: prefer the packed sprite atlas over loading individual textures.
+        ensureSpriteAtlasLoaded();
+        if (spriteAtlas != null) {
+            com.badlogic.gdx.graphics.g2d.TextureAtlas.AtlasRegion region =
+                spriteAtlas.findRegion(atlasRegionName(path));
+            if (region != null) {
+                Sprite image = new Sprite(region);
+                imageCache.put(path, image);
+                return image;
+            }
         }
 
         // Packaged / runtime: resolve the engine's classpath-style "/res/..." path. Try the

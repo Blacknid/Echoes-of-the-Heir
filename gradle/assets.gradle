@@ -1,0 +1,75 @@
+// Sprite atlas packing for release/packaged builds — the Gradle-side equivalent of running
+// libGDX's TexturePacker by hand. Dev runs (gradlew :lwjgl3:run) never invoke this and keep
+// loading loose PNGs from ceva/src/res/ via ResourceCache's dev-source-dir path, so day-to-day
+// asset editing / live reload is unaffected.
+//
+// Task: gradlew :lwjgl3:packSprites → core/build/resources/main/res/atlas/sprites.atlas(+.png)
+// Wired as a dependency of `jar`, so packaged builds (jar/jpackageImage/installer) always ship
+// a fresh atlas built from the current res/ tree.
+//
+// gdx-tools is NOT Android-safe and is not a runtime dependency of core/android — it only runs
+// here, in an isolated tool classpath, at build time on desktop.
+
+def packerToolConfig = configurations.maybeCreate('texturePackerTool')
+dependencies {
+    texturePackerTool "com.badlogicgames.gdx:gdx-tools:$gdxVersion"
+}
+
+def resDir      = new File(rootProject.projectDir, 'ceva/src/res')
+// Packed into core's own build dir (not processResources' output) so :core:jar's task graph
+// doesn't see an undeclared write into its input directory. lwjgl3's fat-jar task copies this
+// output into the packaged jar explicitly alongside the runtime classpath.
+def atlasOutDir = new File(project.buildDir, 'spriteAtlas/res/atlas')
+
+// Sprite folders only — tileset PNGs under res/tiles/ are consumed directly by the custom
+// TMX/tileset pipeline (TileManager.java) via sub-region slicing, not through ResourceCache's
+// per-path sprite cache, so they are intentionally excluded from this atlas.
+def spriteFolders = [
+    'player', 'NPC', 'monster', 'bosses', 'objects', 'projectiles',
+    'weapons', 'shields', 'consumables', 'quest_items', 'effects', 'Interactive'
+]
+
+// Root of the staged output tree (contains res/atlas/sprites.atlas + pages), so consumers
+// (lwjgl3's fat jar) can pull in the whole "res/atlas/..." layout with a single `from`.
+ext.spriteAtlasRoot = new File(project.buildDir, 'spriteAtlas')
+
+tasks.register('packSprites', JavaExec) {
+    group = 'assets'
+    description = 'Pack sprite PNGs (ceva/src/res/{player,NPC,monster,...}) into a single atlas for packaged builds.'
+    classpath = packerToolConfig
+    mainClass = 'com.badlogic.gdx.tools.texturepacker.TexturePacker'
+
+    def stagingDir = new File(project.buildDir, 'tmp/spritePackerInput')
+
+    inputs.files(spriteFolders.collect { new File(resDir, it) }).skipWhenEmpty(false)
+    outputs.dir(atlasOutDir)
+
+    doFirst {
+        if (stagingDir.exists()) stagingDir.deleteDir()
+        stagingDir.mkdirs()
+        // TexturePacker packs one directory (recursively) into one atlas; mirror only the
+        // sprite folders into a staging dir so res/tiles/, res/maps/, res/data/ etc. are excluded.
+        spriteFolders.each { folder ->
+            def src = new File(resDir, folder)
+            if (src.exists()) {
+                project.copy {
+                    from(src)
+                    into(new File(stagingDir, folder))
+                    include '**/*.png'
+                }
+            }
+        }
+        atlasOutDir.mkdirs()
+        // Some sprite sheets (e.g. multi-frame run/attack strips) exceed the packer's default
+        // 1024x1024 max page size, so raise it. GPUs from the last decade comfortably support
+        // 2048x2048 textures; nearest-filter pixel art atlases at that size are still tiny.
+        def settingsFile = new File(project.buildDir, 'tmp/spritePackerSettings.json')
+        settingsFile.text = '''{
+  "maxWidth": 2048,
+  "maxHeight": 2048,
+  "filterMin": "Nearest",
+  "filterMag": "Nearest"
+}'''
+        args = [stagingDir.absolutePath, atlasOutDir.absolutePath, 'sprites', settingsFile.absolutePath]
+    }
+}

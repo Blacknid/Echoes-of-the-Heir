@@ -1103,7 +1103,10 @@ public class TileManager {
             return buildEllipseShape(x, y, w, h, rotation);
         }
 
-        // --- Polyline — stroked into a filled shape using a configurable thickness ---
+        // --- Polyline — stroked into one thin quad PER SEGMENT, added directly to the collision list.
+        // (A single offset-outline ring self-intersects on long/closed paths, which no fill can render
+        // correctly — that was the glitched blue hitbox overlay. Per-segment convex quads stroke any
+        // path cleanly.) Returns null because it adds its own shapes rather than a single Shape.
         NodeList polylineNodes = obj.getElementsByTagName("polyline");
         if (polylineNodes.getLength() > 0) {
             String pointsStr = ((Element) polylineNodes.item(0)).getAttribute("points");
@@ -1112,7 +1115,11 @@ public class TileManager {
             float thickness = (thickAttr != null && !thickAttr.isEmpty())
                 ? (float)(Double.parseDouble(thickAttr) * sf)
                 : 6f; // default: 6 game pixels
-            return buildPolylineShape(x, y, rotation, pointsStr, sf, thickness);
+            for (Shape seg : Transform.polylineSegments(x, y, rotation, pointsStr, sf, thickness)) {
+                collisionShapes.add(seg);
+                collisionBounds.add(seg.getBounds());
+            }
+            return null;
         }
 
         // --- Rectangle (default Tiled object type) ---
