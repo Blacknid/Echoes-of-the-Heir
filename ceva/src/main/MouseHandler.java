@@ -1,5 +1,6 @@
 package main;
 
+import com.badlogic.gdx.Gdx;
 import com.badlogic.gdx.Input;
 import com.badlogic.gdx.InputProcessor;
 
@@ -204,7 +205,9 @@ public class MouseHandler implements InputProcessor {
             case 0 -> gp.ui.titleScreenState = 1;
             case 1 -> { gp.saveLoad.load(); startGame(); }
             case 2 -> { gp.ui.titleScreenState = 3; gp.ui.mpServerSelection = 0; gp.ui.commandNum = 0; }
-            case 3 -> System.exit(0);
+            // Gdx.app.exit() over System.exit(0): lets libGDX run its own shutdown/dispose()
+            // sequence and maps to Activity.finish() on Android instead of killing the process.
+            case 3 -> Gdx.app.exit();
         }
     }
 
@@ -361,11 +364,15 @@ public class MouseHandler implements InputProcessor {
         gp.ui.commandNum = i;
         gp.playSE(audio.SFX.MENU_SELECT);
         if (i == 0) {
-            // Retry
+            // Retry — resetGame(false) already repositions the player correctly (at
+            // retrySpawnCol/Row, the tile they last entered the map at, falling back to the
+            // map's default spawn only if that isn't set). An extra setDefaultPositions() call
+            // here used to unconditionally overwrite that with the map's default/new-game
+            // spawn point afterward, so retry always dropped the player at the same fixed spot
+            // instead of where the TMX/door-entry logic actually placed them.
             gp.resetGame(false);
             gp.gameState = GamePanel.playState;
             gp.playMusic(audio.SFX.MAIN_THEME);
-            gp.player.setDefaultPositions();
         } else {
             // Quit to title
             gp.ui.titleScreenState = 0;

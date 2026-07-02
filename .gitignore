@@ -37,5 +37,16 @@ SERVERS/save_server/saves.db
 SERVERS/save_server/server.log
 SERVERS/multiplayer_server/*.db
 
-
+# Android SDK dropped directly into android/ (large, machine-specific — not shipped in the repo)
+android/build-tools/
+android/cmdline-tools/
+android/licenses/
+android/platform-tools/
+android/platforms/
+android/.knownPackages
+android/.temp/
+android/.cxx/
+android/libs/
+# AGP reads local.properties (sdk.dir) from the ROOT project directory, not the module dir.
+local.properties
 

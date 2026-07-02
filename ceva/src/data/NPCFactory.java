@@ -79,7 +79,7 @@ public class NPCFactory {
         if (loaded) return;
         loaded = true;
 
-        try (InputStream is = NPCFactory.class.getResourceAsStream("/res/data/npcs.json")) {
+        try (InputStream is = util.ResourceCache.openClasspathStream("/res/data/npcs.json")) {
             if (is == null) {
                 System.out.println("[NPCFactory] npcs.json not found — no data-driven NPCs loaded");
                 return;

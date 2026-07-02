@@ -323,8 +323,17 @@ public class MapManager {
             System.out.println("[MapManager] changeMap FAILED for '" + mapIdOrPath + "' (path=" + path + "):");
             t.printStackTrace(System.out);
             try {
-                java.io.File log = new java.io.File(System.getProperty("user.dir"), "crash_log.txt");
-                try (java.io.PrintWriter pw = new java.io.PrintWriter(new java.io.FileWriter(log, true))) {
+                // GameStorage.outputStream always truncates (no append mode across both
+                // backends) — read-modify-write to preserve prior crash entries in the file.
+                byte[] prior = new byte[0];
+                if (platform.GameStorage.exists("crash_log.txt")) {
+                    try (java.io.InputStream is = platform.GameStorage.inputStream("crash_log.txt")) {
+                        prior = is.readAllBytes();
+                    }
+                }
+                try (java.io.OutputStream os = platform.GameStorage.outputStream("crash_log.txt");
+                     java.io.PrintWriter pw = new java.io.PrintWriter(os)) {
+                    os.write(prior);
                     pw.println("=== changeMap FAILED for '" + mapIdOrPath + "' (path=" + path + ") ===");
                     t.printStackTrace(pw);
                 }

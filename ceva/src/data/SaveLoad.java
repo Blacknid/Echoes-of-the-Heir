@@ -1,7 +1,7 @@
 package data;
 
-import java.io.FileInputStream;
-import java.io.FileOutputStream;
+import java.io.InputStream;
+import java.io.OutputStream;
 import java.nio.charset.StandardCharsets;
 import java.security.GeneralSecurityException;
 import java.security.SecureRandom;
@@ -22,6 +22,7 @@ import object.OBJ_Door;
 import object.OBJ_Gem;
 import object.OBJ_Key;
 import object.OBJ_Potion;
+import platform.GameStorage;
 
 public class SaveLoad {
 
@@ -331,7 +332,7 @@ public class SaveLoad {
             }
 
             byte[] encrypted = encrypt(sb.toString());
-            try (FileOutputStream fos = new FileOutputStream("save.dat")) {
+            try (OutputStream fos = GameStorage.outputStream("save.dat")) {
                 fos.write(encrypted);
             }
 
@@ -366,7 +367,7 @@ public class SaveLoad {
 
         try {
             byte[] raw;
-            try (FileInputStream fis = new FileInputStream("save.dat")) {
+            try (InputStream fis = GameStorage.inputStream("save.dat")) {
                 raw = fis.readAllBytes();
             }
             String plaintext = decrypt(raw);

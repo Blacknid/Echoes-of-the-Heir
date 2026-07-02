@@ -290,7 +290,7 @@ public class WindField {
     /** Load <Map>.windmap from the classpath (works packaged) or source tree. Returns true if found. */
     private boolean loadWindMapFile(String mapId) {
         // 1) classpath resource (packaged jar / runtime)
-        InputStream in = getClass().getResourceAsStream("/res/maps/" + mapId + ".windmap");
+        InputStream in = util.ResourceCache.openClasspathStream("/res/maps/" + mapId + ".windmap");
         // 2) source tree (dev)
         try {
             if (in == null) {

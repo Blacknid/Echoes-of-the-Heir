@@ -236,7 +236,7 @@ public final class ResourceCache {
             }
         }
 
-        try (InputStream stream = ResourceCache.class.getResourceAsStream(path)) {
+        try (InputStream stream = openClasspathStream(path)) {
             if (stream == null) {
                 missingXmlCache.add(path);
                 return null;
@@ -249,6 +249,21 @@ public final class ResourceCache {
             xmlCache.put(path, document);
             return document;
         }
+    }
+
+    /**
+     * Opens a classpath-style resource path (e.g. {@code "/res/data/items.json"}) as a stream.
+     * On the desktop backend the assets are on the JVM classpath, so {@code Class.getResourceAsStream}
+     * works; on Android they are packaged as APK assets instead, which are NOT on the classpath —
+     * {@link com.badlogic.gdx.files.FileHandle} (via {@code Gdx.files.internal}) is the one loading
+     * path that works identically on both backends, so every classpath-style resource load in the
+     * game (factories, quest/skill data, fonts, XML/TMX parsing) should route through this method
+     * instead of calling {@code getResourceAsStream} directly.
+     */
+    public static InputStream openClasspathStream(String path) {
+        String assetPath = path.startsWith("/") ? path.substring(1) : path;
+        FileHandle fh = Gdx.files.internal(assetPath);
+        return fh.exists() ? fh.read() : null;
     }
 
     public static synchronized void invalidateXml(String path) {

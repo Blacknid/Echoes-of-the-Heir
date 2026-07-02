@@ -33,6 +33,9 @@ dependencies {
     implementation "com.badlogicgames.gdx:gdx-backend-lwjgl3:$gdxVersion"
     implementation "com.badlogicgames.gdx:gdx-platform:$gdxVersion:natives-desktop"
     implementation "com.badlogicgames.gdx:gdx-freetype-platform:$gdxVersion:natives-desktop"
+    // Desktop backend for core's gdx-controllers-core usage (mobile.GamepadInputAdapter) — gives
+    // Xbox/PS controller support on desktop too, for free, since it's the same shared adapter.
+    implementation "com.badlogicgames.gdx-controllers:gdx-controllers-desktop:$gdxControllersVersion"
 }
 
 // ── Fat (runnable) JAR — equivalent to compile.cmd's `jar --create` step. ──

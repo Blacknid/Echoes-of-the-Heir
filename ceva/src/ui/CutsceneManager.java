@@ -69,7 +69,7 @@ public class CutsceneManager {
 
         try {
             pixelFont = Font.createFont(Font.TRUETYPE_FONT,
-                    getClass().getResourceAsStream("/res/fonts/Pixeloid Sans.ttf"),
+                    util.ResourceCache.openClasspathStream("/res/fonts/Pixeloid Sans.ttf"),
                     "Pixeloid Sans");
         } catch (Exception e) {
             pixelFont = new Font("Segoe UI", Font.PLAIN, 12);

@@ -232,7 +232,7 @@ public class UI {
         Font pixelBase;
         try {
             pixelBase = Font.createFont(Font.TRUETYPE_FONT,
-                    getClass().getResourceAsStream("/res/fonts/Pixeloid Sans.ttf"),
+                    ResourceCache.openClasspathStream("/res/fonts/Pixeloid Sans.ttf"),
                     "Pixeloid Sans");
         } catch (Exception e) {
             System.out.println("[UI] Pixeloid Sans font not found, falling back to Segoe UI");

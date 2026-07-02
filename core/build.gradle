@@ -38,6 +38,9 @@ sourceSets {
 dependencies {
     api "com.badlogicgames.gdx:gdx:$gdxVersion"
     api "com.badlogicgames.gdx:gdx-freetype:$gdxVersion"   // .ttf fonts (Pixeloid Sans, m5x7)
+    // Gamepad/controller support (Bluetooth/USB) — platform artifact is added per-launcher module
+    // (lwjgl3 for desktop, android for Android); this is the shared, engine-agnostic API surface.
+    api "com.badlogicgames.gdx-controllers:gdx-controllers-core:$gdxControllersVersion"
 }
 
 // Sprite atlas packing (desktop build-time tool only, not a runtime/Android dependency).

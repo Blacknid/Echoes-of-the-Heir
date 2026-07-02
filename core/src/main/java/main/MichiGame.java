@@ -1,13 +1,17 @@
 package main;
 
 import com.badlogic.gdx.ApplicationAdapter;
+import com.badlogic.gdx.Application;
 import com.badlogic.gdx.Gdx;
 import com.badlogic.gdx.InputMultiplexer;
+import com.badlogic.gdx.controllers.Controllers;
 import com.badlogic.gdx.graphics.GL20;
 import com.badlogic.gdx.graphics.OrthographicCamera;
 
 import gfx.FontSystem;
 import gfx.GdxRenderer;
+import mobile.GamepadInputAdapter;
+import mobile.TouchControlsOverlay;
 
 /**
  * libGDX application entry point — the GPU replacement for the old Swing {@code GamePanel} game
@@ -32,9 +36,15 @@ public class MichiGame extends ApplicationAdapter {
     private GdxRenderer renderer;
     private FontSystem fonts;
     private GamePanel gp;
+    private TouchControlsOverlay touchOverlay;
 
     @Override
     public void create() {
+        // No-ops on every backend except Android. Must run here (not from AndroidLauncher's
+        // onCreate() before initialize()) since Gdx.app/Gdx.files aren't live until this point
+        // on the Android backend.
+        platform.AndroidLicense.primeIfAndroid();
+
         camera = new OrthographicCamera();
         syncCamera(Gdx.graphics.getWidth(), Gdx.graphics.getHeight());
 
@@ -53,11 +63,22 @@ public class MichiGame extends ApplicationAdapter {
         gp.setupGame();
         gp.startGameThread(); // no-op now; kept for API parity
 
-        // Route input to both handlers (key + mouse) via a multiplexer.
+        // Route input to both handlers (key + mouse) via a multiplexer. On Android, the touch
+        // overlay's Stage goes first so it can consume taps on its own widgets (joystick/action
+        // buttons) before they'd otherwise reach MouseHandler as world-taps.
         InputMultiplexer mux = new InputMultiplexer();
+        boolean isAndroid = Gdx.app.getType() == Application.ApplicationType.Android;
+        if (isAndroid) {
+            touchOverlay = new TouchControlsOverlay(gp);
+            mux.addProcessor(touchOverlay.getStage());
+        }
         mux.addProcessor(gp.keyH);
         mux.addProcessor(gp.mouseH);
         Gdx.input.setInputProcessor(mux);
+
+        // Gamepad support coexists with touch/keyboard — same shared input fields, no
+        // exclusivity logic needed. Harmless no-op if no controller is paired.
+        Controllers.addListener(new GamepadInputAdapter(gp));
 
         Gdx.app.log("MichiGame", "create() OK — GL " + Gdx.gl.glGetString(GL20.GL_VERSION)
             + ", window " + Gdx.graphics.getWidth() + "x" + Gdx.graphics.getHeight());
@@ -115,6 +136,8 @@ public class MichiGame extends ApplicationAdapter {
     public void resize(int width, int height) {
         if (width <= 0 || height <= 0) return;
         syncCamera(width, height);
+        if (touchOverlay != null) touchOverlay.getStage().getViewport().update(width, height, true);
+        if (touchOverlay != null) touchOverlay.layout();
     }
 
     @Override
@@ -128,6 +151,10 @@ public class MichiGame extends ApplicationAdapter {
 
         if (gp == null) return;
 
+        // Touch overlay reads/writes KeyHandler/MouseHandler fields before stepUpdates() consumes
+        // them this frame, exactly like a physical key/mouse event would have already arrived.
+        if (touchOverlay != null) touchOverlay.act(Gdx.graphics.getDeltaTime());
+
         // Fixed-timestep simulation, then render this frame.
         gp.stepUpdates(Gdx.graphics.getDeltaTime());
 
@@ -139,11 +166,14 @@ public class MichiGame extends ApplicationAdapter {
             gp.memoryFlashback.draw(renderer);
         }
         renderer.end();
+
+        if (touchOverlay != null) touchOverlay.draw();
     }
 
     @Override
     public void dispose() {
         if (renderer != null) renderer.dispose();
         if (fonts != null) fonts.dispose();
+        if (touchOverlay != null) touchOverlay.dispose();
     }
 }

@@ -7,6 +7,12 @@ buildscript {
         gradlePluginPortal()
         google()
     }
+    dependencies {
+        // Android Gradle Plugin — classic buildscript-classpath style (matches this project's
+        // apply-plugin convention elsewhere; there's no pluginManagement block in settings.gradle
+        // for the modern plugins{} DSL). AGP 9.x tracks the Gradle 9.x major line we're already on.
+        classpath 'com.android.tools.build:gradle:9.2.1'
+    }
 }
 
 allprojects {
@@ -20,7 +26,8 @@ allprojects {
         mainClassName = 'lwjgl3.DesktopLauncher'
         gameMainClass = 'main.Main'   // legacy entry (retired after Stage 1); kept for reference
 
-        gdxVersion        = '1.13.1'
+        gdxVersion            = '1.13.1'
+        gdxControllersVersion = '2.2.4'
         // MP3/OGG/WAV are handled natively by libGDX audio after Stage 6, so the legacy
         // javax.sound MP3 SPI jars (jl/tritonus/mp3spi) are NOT needed once audio migrates.
         // Until then, core compiles fine without them because audio is isolated behind

@@ -2,13 +2,13 @@ package main;
 
 import java.io.BufferedReader;
 import java.io.BufferedWriter;
-import java.io.FileReader;
-import java.io.FileWriter;
 import java.io.IOException;
 import java.io.InputStream;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Properties;
+
+import platform.GameStorage;
 
 public class Config {
 
@@ -23,7 +23,7 @@ public class Config {
     }
 
     private static void loadBuildProperties() {
-        try (InputStream is = Config.class.getResourceAsStream("/res/build.properties")) {
+        try (InputStream is = util.ResourceCache.openClasspathStream("/res/build.properties")) {
             if (is != null) {
                 Properties props = new Properties();
                 props.load(is);
@@ -89,7 +89,7 @@ public class Config {
 
     public void saveConfig () {
 
-        try (BufferedWriter bw = new BufferedWriter(new FileWriter("config.txt"))) {
+        try (BufferedWriter bw = GameStorage.bufferedWriter("config.txt")) {
 
             bw.write("fullscreen=" + (gp.fullScreenOn ? "On" : "Off")); bw.newLine();
             bw.write("musicVolume=" + gp.audio.getMusicVolume());        bw.newLine();
@@ -113,7 +113,7 @@ public class Config {
     }
     public void loadConfig () {
 
-        try (BufferedReader br = new BufferedReader(new FileReader("config.txt"))) {
+        try (BufferedReader br = GameStorage.bufferedReader("config.txt")) {
 
             Map<String, String> map = new HashMap<>();
             String line;

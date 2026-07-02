@@ -133,7 +133,7 @@ public class QuestManager {
                 }
             }
         }
-        try (InputStream is = QuestManager.class.getResourceAsStream("/res/data/quests.json")) {
+        try (InputStream is = util.ResourceCache.openClasspathStream("/res/data/quests.json")) {
             if (is == null) { System.out.println("[QuestManager] quests.json not found"); return; }
             BufferedReader br = new BufferedReader(new InputStreamReader(is, "UTF-8"));
             StringBuilder sb = new StringBuilder();
@@ -197,7 +197,7 @@ public class QuestManager {
             Font base;
             try {
                 base = Font.createFont(Font.TRUETYPE_FONT,
-                        QuestManager.class.getResourceAsStream("/res/fonts/Pixeloid Sans.ttf"),
+                        util.ResourceCache.openClasspathStream("/res/fonts/Pixeloid Sans.ttf"),
                         "Pixeloid Sans");
             } catch (Exception e) {
                 System.out.println("[QuestManager] Pixeloid Sans not found, using system font");

@@ -25,7 +25,7 @@ public class MonsterFactory {
         if (loaded) return;
         loaded = true;
 
-        try (InputStream is = MonsterFactory.class.getResourceAsStream("/res/data/monsters.json")) {
+        try (InputStream is = util.ResourceCache.openClasspathStream("/res/data/monsters.json")) {
             if (is == null) {
                 System.out.println("[MonsterFactory] monsters.json not found, using hardcoded fallback");
                 return;

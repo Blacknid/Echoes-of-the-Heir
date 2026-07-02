@@ -2,12 +2,10 @@ package data;
 
 import java.io.BufferedReader;
 import java.io.BufferedWriter;
-import java.io.File;
-import java.io.FileInputStream;
-import java.io.FileOutputStream;
-import java.io.FileReader;
 import java.io.IOException;
+import java.io.InputStream;
 import java.io.InputStreamReader;
+import java.io.OutputStream;
 import java.io.OutputStreamWriter;
 import java.lang.reflect.Array;
 import java.lang.reflect.Field;
@@ -38,6 +36,8 @@ import javax.crypto.spec.GCMParameterSpec;
 import javax.crypto.spec.OAEPParameterSpec;
 import javax.crypto.spec.PSource;
 import javax.crypto.spec.SecretKeySpec;
+
+import platform.GameStorage;
 
 /**
  * Cloud-save client
@@ -206,9 +206,8 @@ public class CloudSaveService {
      */
     private List<Endpoint> loadServerPool() {
         List<Endpoint> list = new ArrayList<>();
-        File f = new File(SAVE_SERVERS_FILE);
-        if (f.exists() && f.isFile()) {
-            try (BufferedReader br = new BufferedReader(new FileReader(f, StandardCharsets.UTF_8))) {
+        if (GameStorage.exists(SAVE_SERVERS_FILE)) {
+            try (BufferedReader br = GameStorage.bufferedReader(SAVE_SERVERS_FILE)) {
                 String line;
                 while ((line = br.readLine()) != null) {
                     line = line.trim();
@@ -527,14 +526,14 @@ public class CloudSaveService {
             byte[] ct = aesGcmEncrypt(jsonBytes, key, nonce, aad);
 
             // File layout: magic(4) | version(1) | nonce(12) | ciphertext+tag
-            try (FileOutputStream fos = new FileOutputStream(LOCAL_SAVE_FILE)) {
+            try (OutputStream fos = GameStorage.outputStream(LOCAL_SAVE_FILE)) {
                 fos.write(new byte[]{ 'M', 'I', 'C', 'H' });
                 fos.write(2); // version 2
                 fos.write(nonce);
                 fos.write(ct);
             }
             // Wipe legacy plaintext key file if it lingered
-            new File(LEGACY_AES_KEY_FILE).delete();
+            GameStorage.delete(LEGACY_AES_KEY_FILE);
             return SaveResult.ok("Saved locally (server offline).");
         } catch (Exception e) {
             return SaveResult.fail("Local save failed: " + e.getMessage());
@@ -542,10 +541,9 @@ public class CloudSaveService {
     }
 
     private String loadLocalEncrypted(String licenseKey) {
-        File saveFile = new File(LOCAL_SAVE_FILE);
-        if (!saveFile.exists()) return null;
+        if (!GameStorage.exists(LOCAL_SAVE_FILE)) return null;
         byte[] data;
-        try (FileInputStream fis = new FileInputStream(saveFile)) {
+        try (InputStream fis = GameStorage.inputStream(LOCAL_SAVE_FILE)) {
             data = fis.readAllBytes();
         } catch (IOException e) {
             return null;
@@ -568,9 +566,8 @@ public class CloudSaveService {
         }
 
         // Legacy v1: AES-CBC with plaintext key in local_aes.key
-        File keyFile = new File(LEGACY_AES_KEY_FILE);
-        if (!keyFile.exists()) return null;
-        try (FileInputStream fis = new FileInputStream(keyFile)) {
+        if (!GameStorage.exists(LEGACY_AES_KEY_FILE)) return null;
+        try (InputStream fis = GameStorage.inputStream(LEGACY_AES_KEY_FILE)) {
             byte[] aesKey = fis.readAllBytes();
             if (aesKey.length != 32) return null;
             byte[] iv = Arrays.copyOfRange(data, 0, 16);
@@ -604,8 +601,8 @@ public class CloudSaveService {
     }
 
     private void deletePendingLocalFiles() {
-        try { new File(LOCAL_SAVE_FILE).delete(); } catch (Exception ignored) {}
-        try { new File(LEGACY_AES_KEY_FILE).delete(); } catch (Exception ignored) {}
+        try { GameStorage.delete(LOCAL_SAVE_FILE); } catch (Exception ignored) {}
+        try { GameStorage.delete(LEGACY_AES_KEY_FILE); } catch (Exception ignored) {}
     }
 
     private static PublicKey loadRSAPublicKey() throws GeneralSecurityException {

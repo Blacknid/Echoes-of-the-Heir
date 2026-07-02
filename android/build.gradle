@@ -1,0 +1,109 @@
+// android — Android launcher module (gdx-backend-android). Wraps core's MichiGame in an
+// AndroidApplication activity. Targets Samsung Galaxy S24/S25 Ultra (arm64-v8a, landscape,
+// high-refresh-rate) — no low-end-device compromises needed.
+apply plugin: 'com.android.application'
+
+android {
+    namespace 'com.michi.adventure'
+    compileSdk 34
+
+    defaultConfig {
+        applicationId 'com.michi.adventure'
+        // minSdk 26 (Android 8.0): comfortably below anything the S24/S25 Ultra ship, and above
+        // gdx-backend-android 1.13.x's own floor — no need to support older/low-end devices.
+        minSdk 26
+        targetSdk 34
+        versionCode 1
+        versionName project.version.toString()
+        // arm64-v8a only: the S24/S25 Ultra (and effectively all modern Android hardware) are
+        // arm64-only, so 32-bit/x86 natives would only add APK size with no benefit here.
+        ndk {
+            abiFilters 'arm64-v8a'
+        }
+    }
+
+    compileOptions {
+        sourceCompatibility JavaVersion.VERSION_17
+        targetCompatibility JavaVersion.VERSION_17
+    }
+
+    // The SDK was installed directly under this module's own directory (android/platforms,
+    // android/build-tools, etc. — see local.properties' sdk.dir) rather than a standalone SDK
+    // root; AGP only cares that sdk.dir resolves to a valid SDK layout, which this is.
+    sourceSets {
+        main {
+            manifest.srcFile 'AndroidManifest.xml'
+            java.srcDirs = ['src/main/java']
+            res.srcDirs = ['res']
+            jniLibs.srcDirs = ['libs']
+            // Reuse core's existing resource roots instead of physically duplicating assets:
+            // core/assets (new libGDX assets) + a staged copy of ceva/src/res (legacy
+            // classpath-style assets — see stageGdxAssets below for why it's staged rather than
+            // pointed at directly).
+            assets.srcDirs = ['assets', '../core/assets', 'build/gdxAssets']
+        }
+    }
+
+    packagingOptions {
+        // Avoid duplicate META-INF collisions from libGDX/controllers jars.
+        exclude 'META-INF/robovm/ios/robovm.xml'
+    }
+
+    // arm64-v8a only (see defaultConfig.ndk.abiFilters above) — no ABI splits needed since we
+    // only ever build one ABI.
+    splits {
+        abi {
+            enable false
+        }
+    }
+}
+
+// libGDX Android projects conventionally copy a dedicated "natives" configuration's jars'
+// .so files into jniLibs before packaging (gdx-setup normally generates this task). Must be
+// declared before the dependencies block below references it.
+configurations { natives }
+
+dependencies {
+    implementation project(':core')
+    implementation "com.badlogicgames.gdx:gdx-backend-android:$gdxVersion"
+    implementation "com.badlogicgames.gdx-controllers:gdx-controllers-android:$gdxControllersVersion"
+    natives "com.badlogicgames.gdx:gdx-platform:$gdxVersion:natives-arm64-v8a"
+    natives "com.badlogicgames.gdx:gdx-freetype-platform:$gdxVersion:natives-arm64-v8a"
+}
+
+task copyAndroidNatives {
+    doFirst {
+        // libGDX's natives-arm64-v8a jars (gdx-platform, gdx-freetype-platform) ship their
+        // .so files at the JAR ROOT (e.g. "libgdx.so"), not under an "arm64-v8a/" folder inside
+        // the jar — the ABI is only encoded in the jar's own artifact classifier. Android's
+        // jniLibs loader, however, requires the destination layout libs/<ABI>/<name>.so, so this
+        // task supplies the ABI folder itself rather than expecting it to already be in the jar.
+        def outputDir = file("libs/arm64-v8a/")
+        outputDir.mkdirs()
+        configurations.natives.files.each { jar ->
+            copy {
+                from zipTree(jar)
+                into outputDir
+                include "*.so"
+                includeEmptyDirs = false
+            }
+        }
+    }
+}
+tasks.matching { it.name.contains("merge") && it.name.contains("JniLibFolders") }.configureEach {
+    dependsOn copyAndroidNatives
+}
+
+// Game code calls Gdx.files.internal("res/...") — the "res/" segment must survive in the
+// assets tree (matching core/build.gradle's desktop resource sourceSet, which is rooted at
+// '../ceva/src' rather than '../ceva/src/res' for the same reason). AGP's assets.srcDirs has
+// no include/exclude filtering like Gradle's plain `resources {}` block does, and pointing it
+// directly at 'ceva/src' would also bundle all ~80 .java source files as APK assets. So this
+// task stages just the res/ folder (preserving its name) into a build/ output dir instead.
+task stageGdxAssets(type: Copy) {
+    from('../ceva/src/res')
+    into('build/gdxAssets/res')
+}
+tasks.matching { it.name.contains("merge") && it.name.contains("Assets") }.configureEach {
+    dependsOn stageGdxAssets
+}
