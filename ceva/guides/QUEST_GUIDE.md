@@ -35,7 +35,7 @@ Triggers (Tiled / Code / NPC)  start and progress quests at runtime
 Rewards fire automatically     coins, items, fragments, next quest in chain
 ```
 
-All quest **definitions** live in `ceva/src/res/data/quests.json`.  
+All quest **definitions** live in `core/assets/res/data/quests.json`.  
 All quest **logic** is handled by `QuestManager.java` — you rarely need to touch it.  
 QuestManager supports two quest formats:
 
@@ -48,7 +48,7 @@ QuestManager supports two quest formats:
 
 ## quests.json — Defining Quests
 
-Location: `ceva/src/res/data/quests.json`
+Location: `core/assets/res/data/quests.json`
 
 Each quest is a JSON object in an array:
 
@@ -159,7 +159,7 @@ When a quest's **first step is `talk`** and the player speaks to that NPC, Quest
 
 ---
 
-1. Open `ceva/src/res/data/quests.json`
+1. Open `core/assets/res/data/quests.json`
 2. Add a new object to the array:
    ```json
    {

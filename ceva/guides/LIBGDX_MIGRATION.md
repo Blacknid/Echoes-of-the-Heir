@@ -30,7 +30,7 @@ michis-adventure/
     src/main/java/main/       MichiGame (libGDX ApplicationListener)
     (during migration, core also compiles the legacy tree at ../ceva/src via sourceSets)
   lwjgl3/        ← desktop launcher (DesktopLauncher) + packaging (gradle/packaging.gradle)
-  android/       ← STUB (README only; not built yet — a drop-in for the future port)
+  android/       ← Android launcher (gdx-backend-android), now built and buildable
   ceva/src/      ← the game code (rendering rewritten to gfx.*; logic unchanged)
 ```
 

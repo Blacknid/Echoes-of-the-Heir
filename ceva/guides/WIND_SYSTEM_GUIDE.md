@@ -35,8 +35,8 @@ you off-course.
 Wind data is saved to a small companion file next to the map's `.tmx`:
 
 ```
-ceva/src/res/maps/Shattered_Lake.tmx
-ceva/src/res/maps/shattered_lake.windmap   ← wind data (binary grid)
+core/assets/res/maps/Shattered_Lake.tmx
+core/assets/res/maps/shattered_lake.windmap   ← wind data (binary grid)
 ```
 
 The runtime loads `<mapId>.windmap` from the classpath (so it ships in the jar). If none
@@ -64,7 +64,7 @@ This is the "draw the wind over the map with a brush" tool. No separate app.
 | **`R`**          | Toggle the **rain-extra** channel. While on, strokes paint the "windier in rain" value for those tiles instead of the base strength. |
 | **`F`**          | Toggle **fixed heading**: instead of drag direction, the arrow keys set a single heading (Up/Down/Left/Right). Good for a uniform prevailing wind. Press `F` again to go back to drag-direction. |
 | **Delete**       | Clear all wind on this map.                                             |
-| **Ctrl+S**       | Save to `ceva/src/res/maps/<mapId>.windmap`.                            |
+| **Ctrl+S**       | Save to `core/assets/res/maps/<mapId>.windmap`.                         |
 
 ### Test as you paint
 Because the painter writes into the same field the player reads, you feel edits live: paint a

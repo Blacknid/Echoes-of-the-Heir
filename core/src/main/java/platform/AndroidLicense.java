@@ -7,27 +7,25 @@ import com.badlogic.gdx.Application;
 import com.badlogic.gdx.Gdx;
 import com.badlogic.gdx.files.FileHandle;
 
-import data.LicenseManager;
 import main.Main;
 
 /**
- * Android equivalent of the license half of {@link main.Main#bootstrap()} (desktop's mandatory
- * self-update check has no Android equivalent — Play Store/APK reinstall covers that instead).
+ * Android equivalent of desktop's license load (no update check — Play Store/APK reinstall
+ * covers that instead). Reads a signed license.properties baked into the APK
+ * ({@code android/assets/license.properties}, see build_tools/generate_dev_license.py
+ * --machine-fp) with no user-facing gate, and registers it with {@link License}.
  *
- * <p>Cloud saves and multiplayer require a non-null {@code Main.LICENSE_KEY} plus a primed
- * {@link LicenseManager} cache (the server only checks that the RSA signature over
- * "key|machine_fp" verifies against the shared public key — it has no allow-list — so any
- * validly-signed pair works). One such pair is baked into the APK at build time as
- * {@code android/assets/license.properties} (see build_tools/generate_dev_license.py
- * --machine-fp) and loaded here with no user-facing gate.
- *
- * <p>Must run from {@link main.MichiGame#create()} (or later) — NOT from
- * {@code AndroidLauncher.onCreate()} before {@code initialize(...)} is called, since
- * {@code Gdx.app}/{@code Gdx.files} aren't wired up on the Android backend until libGDX's
- * context is live. Calling this before that point throws a NullPointerException on
- * {@code Gdx.files}, crashing the app on launch before any window opens.
+ * <p>Must run from {@code MichiGame#create()} or later, not from
+ * {@code AndroidLauncher.onCreate()} before {@code initialize(...)} — {@code Gdx.files} isn't
+ * wired up yet and this throws a NullPointerException before any window opens.
  */
-public final class AndroidLicense {
+public final class AndroidLicense implements LicenseCheck {
+
+    private static final AndroidLicense INSTANCE = new AndroidLicense();
+
+    private volatile String cachedKey;
+    private volatile String cachedFp;
+    private volatile String cachedSig;
 
     private AndroidLicense() {}
 
@@ -57,8 +55,18 @@ public final class AndroidLicense {
             return;
         }
 
-        LicenseManager.primeForAndroid(key, fp, sig);
+        INSTANCE.cachedKey = key;
+        INSTANCE.cachedFp  = fp;
+        INSTANCE.cachedSig = sig;
+        License.set(INSTANCE);
         Main.LICENSE_KEY = key;
         Gdx.app.log("AndroidLicense", "License primed for cloud save / multiplayer.");
     }
+
+    // No on-disk file to re-check on Android — once primed, stays valid for the session.
+    @Override public boolean verifyCurrent() { return cachedKey != null; }
+    @Override public String getCachedMachineFp() { return cachedFp; }
+    @Override public String getCachedSignature() { return cachedSig; }
+    @Override public String getCachedKey() { return cachedKey; }
+    @Override public boolean isTampered() { return false; }
 }

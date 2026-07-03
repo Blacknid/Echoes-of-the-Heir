@@ -23,15 +23,10 @@ import entity.Player;
 import main.GamePanel;
 
 /**
- * On-screen touch controls for Android: an analog movement joystick (bottom-left) plus a
- * bottom-right action button cluster. Every widget drives the exact same public fields that
- * desktop keyboard/mouse input already drives ({@link main.KeyHandler}'s boolean flags,
- * {@link main.MouseHandler#gameX}/{@code gameY}/{@code leftClicked}) — gameplay code
- * (entity.Player, GamePanel) needs zero changes to accept touch input.
- *
- * <p>Lives in its own {@link Stage} with a screen-space {@link ScreenViewport}, independent of
- * the world {@code OrthographicCamera} — it draws on top of the game, never scrolls with it.
- * Only constructed/updated on the Android backend (see {@link main.MichiGame#create()}).
+ * On-screen touch controls for Android: movement joystick (bottom-left) + action buttons
+ * (bottom-right). Drives the same fields as desktop keyboard/mouse ({@link main.KeyHandler},
+ * {@link main.MouseHandler}), so gameplay code needs no touch-specific changes.
+ * Own {@link Stage}/{@link ScreenViewport}, drawn on top of the world camera.
  */
 public class TouchControlsOverlay {
 
