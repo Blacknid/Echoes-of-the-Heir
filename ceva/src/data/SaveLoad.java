@@ -97,8 +97,8 @@ public class SaveLoad {
         if ("Spell book".equals(name)) return ItemFactory.create(gp, "spell_book");
         if ("Boots".equals(name)) return ItemFactory.create(gp, "boots");
         if ("Compas".equals(name)) return ItemFactory.create(gp, "compas");
-        if ("Wood_Shield".equals(name)) return ItemFactory.create(gp, "shield_wood");
-        if ("Normal Sword".equals(name)) return ItemFactory.create(gp, "sword_normal");
+        if ("Wood_Shield".equals(name)) return ItemFactory.create(gp, "wooden_shield");
+        if ("Normal Sword".equals(name)) return ItemFactory.create(gp, "wooden_sword");
 
         Entity item = ItemFactory.create(gp, name);
         if (item != null) return item;

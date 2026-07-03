@@ -25,9 +25,6 @@ public class OBJ_Chest extends Entity {
 
         type = TYPE_OBSTACLE;
         name = "Chest";
-        image  = setup("/res/objects/Chest_closed", gp.tileSize, gp.tileSize);
-        image1 = setup("/res/objects/Chest_opened", gp.tileSize, gp.tileSize);
-        down1 = image;
         collision = true;
 
         solidArea.x      = gp.tileSize / 8;          // 8 at 64px
@@ -37,8 +34,9 @@ public class OBJ_Chest extends Entity {
         solidAreaDefaultX = solidArea.x;
         solidAreaDefaultY = solidArea.y;
 
-        // Default 2-frame animation (closed → opened)
-        openFrames = new Sprite[]{ image, image1 };
+        // Default 4-frame animation (closed -> opening -> opening -> opened)
+        loadOpenAnimation("/res/objects/chests", 4);
+        down1 = image;
     }
 
     /**

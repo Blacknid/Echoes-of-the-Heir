@@ -370,7 +370,7 @@ public class Player extends Entity {
     private void getPlayerImages() {
         // Sheet order: down=row0, left=row1, right=row2, up=row3 — maps directly to DIR_DOWN=0,LEFT=1,RIGHT=2,UP=3
         int[] framesPerRow = {8, 8, 8, 7};
-        walkFrames = loadSheetVariable("/res/player/Player_walking-sheet_test", framesPerRow);
+        walkFrames = loadSheetVariable("/res/player/player_walking-sheet_test", framesPerRow);
         // 150 ms/frame at default speed; scaled by movement speed at runtime so feet don't slide.
         walkClip = new gfx.AnimClip(walkFrames, 200, com.badlogic.gdx.graphics.g2d.Animation.PlayMode.LOOP);
     }

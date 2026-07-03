@@ -1,11 +1,7 @@
 package map;
 
-import java.net.URL;
-import java.util.Enumeration;
 import java.util.HashMap;
 import java.util.Map;
-import java.util.jar.JarEntry;
-import java.util.jar.JarFile;
 
 import org.w3c.dom.Document;
 import org.w3c.dom.Element;
@@ -89,11 +85,11 @@ public class MapManager {
         mapRegistry.clear();
         String mapsDir = "/res/maps/";
         try {
-            // Try classpath resource listing (works in JAR and filesystem)
-            URL dirUrl = getClass().getResource(mapsDir);
-            if (dirUrl != null && "file".equals(dirUrl.getProtocol())) {
-                // Running from filesystem (IDE / bin folder)
-                java.io.File dir = new java.io.File(dirUrl.toURI());
+            // Dev mode: scan the live source folder first so newly added maps show up
+            // without a rebuild (matches ResourceCache's dev-source live-reload).
+            java.io.File devSourceDir = ResourceCache.getDevSourceDir();
+            if (devSourceDir != null) {
+                java.io.File dir = new java.io.File(devSourceDir, mapsDir);
                 java.io.File[] files = dir.listFiles((d, name) -> name.toLowerCase().endsWith(".tmx"));
                 if (files != null) {
                     for (java.io.File f : files) {
@@ -102,22 +98,19 @@ public class MapManager {
                         mapRegistry.put(id, tmxPath);
                     }
                 }
-            } else if (dirUrl != null && "jar".equals(dirUrl.getProtocol())) {
-                // Running from JAR
-                String jarPath = dirUrl.getPath().substring(5, dirUrl.getPath().indexOf("!"));
-                try (JarFile jar = new JarFile(java.net.URLDecoder.decode(jarPath, "UTF-8"))) {
-                    Enumeration<JarEntry> entries = jar.entries();
-                    while (entries.hasMoreElements()) {
-                        String entryName = entries.nextElement().getName();
-                        // entries are like "res/maps/harta.tmx" (no leading slash)
-                        String prefix = mapsDir.substring(1); // "res/maps/"
-                        if (entryName.startsWith(prefix) && entryName.toLowerCase().endsWith(".tmx")) {
-                            String fileName = entryName.substring(prefix.length());
-                            if (fileName.contains("/")) continue; // skip subdirectories
-                            String tmxPath = mapsDir + fileName;
-                            String id = deriveMapId(fileName, tmxPath);
-                            mapRegistry.put(id, tmxPath);
-                        }
+            }
+
+            // Packaged/runtime: libGDX's FileHandle.list() works uniformly across the desktop
+            // (jar or filesystem classpath) and Android (APK asset) backends, unlike
+            // Class.getResource()/URL, which returns null for Android's opaque asset scheme.
+            if (mapRegistry.isEmpty()) {
+                com.badlogic.gdx.files.FileHandle dir = com.badlogic.gdx.Gdx.files.internal(mapsDir.substring(1));
+                if (dir.exists() && dir.isDirectory()) {
+                    for (com.badlogic.gdx.files.FileHandle f : dir.list()) {
+                        if (!f.extension().equalsIgnoreCase("tmx")) continue;
+                        String tmxPath = mapsDir + f.name();
+                        String id = deriveMapId(f.name(), tmxPath);
+                        mapRegistry.put(id, tmxPath);
                     }
                 }
             }

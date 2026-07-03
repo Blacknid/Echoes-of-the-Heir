@@ -65,6 +65,11 @@ public final class ResourceCache {
         System.out.println("[ResourceCache] Dev source path: " + devSourceDir.getAbsolutePath());
     }
 
+    /** The live dev source directory set by {@link #setDevSourcePath}, or null outside dev mode. */
+    public static synchronized java.io.File getDevSourceDir() {
+        return devSourceDir;
+    }
+
     /** Loads res/atlas/sprites.atlas from the classpath, if it exists, once per run. */
     private static void ensureSpriteAtlasLoaded() {
         if (spriteAtlasLoadAttempted) return;

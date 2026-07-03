@@ -625,8 +625,8 @@ public class MapObjectLoader {
             case "Gem"    -> { return new OBJ_Gem(gp); }
             case "Book"   -> { return ItemFactory.create(gp, "spell_book"); }
             case "Tower"  -> { return new OBJ_Tower(gp); }
-            case "Sword"  -> { return ItemFactory.create(gp, "sword_normal"); }
-            case "Shield" -> { return ItemFactory.create(gp, "shield_wood"); }
+            case "Sword"  -> { return ItemFactory.create(gp, "wooden_sword"); }
+            case "Shield" -> { return ItemFactory.create(gp, "wooden_shield"); }
             case "Heart"  -> { return new OBJ_Heart(gp); }
             case "Mana"   -> { return new OBJ_ManaCrystal(gp); }
             case "Compas" -> { return ItemFactory.create(gp, "compas"); }
@@ -1233,8 +1233,8 @@ public class MapObjectLoader {
             case "Potion"  -> new OBJ_Potion(gp);
             case "Boots"   -> ItemFactory.create(gp, "boots");
             case "Gem"     -> new OBJ_Gem(gp);
-            case "Sword", "Normal Sword"   -> ItemFactory.create(gp, "sword_normal");
-            case "Shield", "Wood Shield"   -> ItemFactory.create(gp, "shield_wood");
+            case "Sword", "Normal Sword"   -> ItemFactory.create(gp, "wooden_sword");
+            case "Shield", "Wood Shield"   -> ItemFactory.create(gp, "wooden_shield");
             case "Heart"   -> new OBJ_Heart(gp);
             case "Mana"    -> new OBJ_ManaCrystal(gp);
             case "Arrow"   -> new OBJ_Arrow(gp);

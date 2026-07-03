@@ -15,7 +15,7 @@ public class OBJ_Potion extends Entity {
         type = Entity.TYPE_CONSUMABLE;
         stackable = true;
         name = "Potion";
-        down1 = setup("/res/objects/Potion", gp.tileSize, gp.tileSize);
+        down1 = setup("/res/consumables/Potion", gp.tileSize, gp.tileSize);
         description = "Restores " + value + " HP.";
         
         // HITBOX: Small item hitbox (28x28) centered
