@@ -1,11 +1,9 @@
-// Michi's Adventure — libGDX multi-module build.
+// Michi's Adventure — libGDX build (android branch).
 //
 // Modules:
 //   core    — engine-agnostic game logic + libGDX rendering.
-//   desktop — desktop launcher (LWJGL3 backend) + jpackage/installer packaging.
 //   android — Android launcher (gdx-backend-android).
 rootProject.name = 'michis-adventure'
 
 include 'core'
-include 'desktop'
 include 'android'

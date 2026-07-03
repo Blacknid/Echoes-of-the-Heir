@@ -1,4 +1,4 @@
-// Root build for Michi's Adventure (libGDX).
+// Root build for Michi's Adventure (libGDX, android branch).
 //
 // Versions are centralized here. libGDX 1.13.x supports Java 21+ toolchains and LWJGL3.
 buildscript {
@@ -19,10 +19,8 @@ allprojects {
 
     // Single source of truth for versions across modules.
     ext {
-        appName       = 'MichisAdventure'
-        appJarName    = 'Michi-s-adventure.jar'
-        mainClassName = 'desktop.DesktopLauncher'
-        gameMainClass = 'main.Main'
+        appName    = 'MichisAdventure'
+        appJarName = 'Michi-s-adventure.jar'
 
         gdxVersion            = '1.13.1'
         gdxControllersVersion = '2.2.4'
