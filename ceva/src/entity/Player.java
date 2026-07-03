@@ -383,8 +383,8 @@ public class Player extends Entity {
      */
     public void getPlayerImages() {
         // Sheet order: down=row0, left=row1, right=row2, up=row3 — maps directly to DIR_DOWN=0,LEFT=1,RIGHT=2,UP=3
-        int[] framesPerRow = {6, 7, 7, 6};
-        walkFrames = loadSheetVariable("/res/player/Player_walking-sheet", framesPerRow);
+        int[] framesPerRow = {8, 8, 8, 7};
+        walkFrames = loadSheetVariable("/res/player/Player_walking-sheet_test", framesPerRow);
     }
 
     public void getPlayerAttackImages() {
