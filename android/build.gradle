@@ -33,7 +33,7 @@ android {
     sourceSets {
         main {
             manifest.srcFile 'AndroidManifest.xml'
-            java.srcDirs = ['src/main/java']
+            java.srcDirs = ['src/main/java/androidlauncher']
             res.srcDirs = ['res']
             jniLibs.srcDirs = ['libs']
             // Reuse core's existing resource roots instead of physically duplicating assets:
