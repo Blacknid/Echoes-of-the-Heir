@@ -1,18 +1,6 @@
-// Root build for Michi's Adventure (libGDX).
+// Root build for Michi's Adventure (libGDX, desktop branch).
 //
 // Versions are centralized here. libGDX 1.13.x supports Java 21+ toolchains and LWJGL3.
-buildscript {
-    repositories {
-        mavenCentral()
-        gradlePluginPortal()
-        google()
-    }
-    dependencies {
-        // Classic buildscript-classpath style (no plugins{} DSL in settings.gradle).
-        classpath 'com.android.tools.build:gradle:9.2.1'
-    }
-}
-
 allprojects {
     apply plugin: 'eclipse'
     apply plugin: 'idea'
@@ -30,7 +18,6 @@ allprojects {
 
     repositories {
         mavenCentral()
-        google()
         maven { url 'https://oss.sonatype.org/content/repositories/snapshots/' }
     }
 }
