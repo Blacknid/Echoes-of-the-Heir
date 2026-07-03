@@ -1,0 +1,99 @@
+# ---------------------------------------------------------------------------
+# Michi's Adventure — all three back-end servers in one stack.
+#
+#   save_server         tcp/5005   cloud saves
+#   patch_server        tcp/5006   game updates (signed patches)
+#   multiplayer_server  tcp/7777   real-time MP
+#
+# Mutable state (saves.db, logs, manifest.json, patches/)
+# is bind-mounted from the host so it survives `docker compose down` and
+# can be edited without rebuilding the image.
+#
+# Quick start:
+#   cd SERVERS
+#   docker compose up -d --build
+#
+# Stop:
+#   docker compose down
+#
+# Tail logs:
+#   docker compose logs -f
+# ---------------------------------------------------------------------------
+
+services:
+
+  save:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: michi-server:latest
+    container_name: michi-save
+    working_dir: /srv/save_server
+    command: ["python", "-u", "server.py"]
+    restart: unless-stopped
+    ports:
+      - "5005:5005"
+    volumes:
+      # Config (live-editable, no rebuild needed)
+      - ./save_server/server_config.json:/srv/save_server/server_config.json:ro
+      - ./save_server/server_private_key.pem:/srv/save_server/server_private_key.pem:ro
+      # Persistent state
+      - ./save_server/saves:/srv/save_server/saves
+      - ./save_server/saves.db:/srv/save_server/saves.db
+      - ./save_server/server.log:/srv/save_server/server.log
+    healthcheck:
+      test: ["CMD-SHELL", "python -c \"import socket,sys; s=socket.socket(); s.settimeout(2); s.connect(('127.0.0.1',5005)); s.close()\" || exit 1"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+
+  patch:
+    image: michi-server:latest
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: michi-patch
+    working_dir: /srv/patch_server
+    command: ["python", "-u", "server.py"]
+    restart: unless-stopped
+    ports:
+      - "5006:5006"
+    volumes:
+      - ./patch_server/patch_config.json:/srv/patch_server/patch_config.json:ro
+      - ./patch_server/manifest.json:/srv/patch_server/manifest.json:ro
+      - ./patch_server/patch_private_key.pem:/srv/patch_server/patch_private_key.pem:ro
+      - ./patch_server/patches:/srv/patch_server/patches:ro
+    healthcheck:
+      test: ["CMD-SHELL", "python -c \"import socket,sys; s=socket.socket(); s.settimeout(2); s.connect(('127.0.0.1',5006)); s.sendall(b'PING\\n'); s.close()\" || exit 1"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+
+  multiplayer:
+    image: michi-server:latest
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: michi-mp
+    working_dir: /srv/multiplayer_server
+    command: ["python", "-u", "server.py"]
+    restart: unless-stopped
+    ports:
+      - "7777:7777"
+      - "8888:8888"
+    volumes:
+      - ./multiplayer_server/mp_config.json:/srv/multiplayer_server/mp_config.json:ro
+      - ./multiplayer_server/server_private_key.pem:/srv/multiplayer_server/server_private_key.pem:ro
+      - ./multiplayer_server/maps:/srv/multiplayer_server/maps:ro
+      # Admin notes persist across container restarts (create the file first: touch ./multiplayer_server/admin_notes.json)
+      - ./multiplayer_server/admin_notes.json:/srv/multiplayer_server/admin_notes.json
+      # Read-only saves.db access for username lookup in the dashboard
+      - ./save_server/saves.db:/srv/save_server/saves.db:ro
+    healthcheck:
+      test: ["CMD-SHELL", "python -c \"import socket,sys; s=socket.socket(); s.settimeout(2); s.connect(('127.0.0.1',7777)); s.close()\" || exit 1"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 10s

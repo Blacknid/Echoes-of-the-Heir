@@ -1,0 +1,31 @@
+{
+  "host": "0.0.0.0",
+  "port": 7777,
+  "private_key_path": "server_private_key.pem",
+
+  "license_public_key_b64": "REPLACE_WITH_PUBLIC_KEY_FROM_generate_license_keys.py",
+  "licenses_db": "licenses.json",
+  "dev_mode": false,
+  "max_players": 8,
+  "rate_limit_per_ip_per_minute": 30,
+
+  "maps_dir": "maps",
+  "_comment_active_map": "REQUIRED: Set this to the map ID you want to host (e.g., 'awakening_cave'). Must match a .tmx file in maps_dir.",
+  "active_map": null,
+  "chunk_size_tiles": 32,
+  "max_chunks_per_tick": 4,
+
+  "max_tile_step_per_move": 4,
+  "player_hitbox_w": 24,
+  "player_hitbox_h": 24,
+
+  "_comment_dashboard": "Admin dashboard (HTTP) — set admin_password to enable. Access at http://<server-ip>:8888/",
+  "dashboard_port": 8888,
+  "admin_password": "CHANGE_ME_BEFORE_DEPLOYING",
+  "saves_db_path": "",
+
+  "maps": {
+    "harta":          { "width": 100, "height": 100 },
+    "awakening_cave": { "width": 50,  "height": 50  }
+  }
+}

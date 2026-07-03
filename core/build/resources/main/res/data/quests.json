@@ -1,0 +1,315 @@
+[
+
+  {
+    "id": "sword_giver_bandage",
+    "name": "Aid the Sword Giver",
+    "description": "A wounded soldier gave you his sword and asked for a bandage.",
+    "target": 1,
+    "autoStart": false,
+      "steps": [
+        { "action": "talk", "npc": "sword_giver_npc", "dialogue": "intro", "give": "wooden_sword",
+          "description": "Talk to the wounded soldier" },
+        { "action": "deliver", "npc": "sword_giver_npc", "item": "bandage", "consume": true,
+          "dialogue": "thanks", "failDialogue": "waiting",
+          "description": "Bring a bandage to the soldier" }
+      ],
+    "rewardCoins": 25,
+    "rewardItemId": "",
+    "rewardFragmentId": "",
+    "chainQuestId": "meet_hurt_soldier"
+  },
+  {
+    "id": "meet_hurt_soldier",
+    "name": "Meet the Hurt Soldier",
+    "description": "Meet the soldier at his residence.",
+    "target": 1,
+    "autoStart": false,
+    "rewardCoins": 100,
+    "rewardItemId": "",
+    "rewardFragmentId": "",
+    "chainQuestId": ""
+  },
+  {
+    "id": "potion_trader_quest",
+    "name": "Help the Potion Trader",
+    "description": "The potion trader needs your help to gather ingredients for his potions.",
+    "target": 3,
+    "autoStart": false,
+    "rewardCoins": 50,
+    "rewardItemId": "",
+    "rewardFragmentId": "",
+    "chainQuestId": "",
+    "steps": [
+      { "action": "talk", "npc": "potion_trader", "dialogue": "training",
+        "description": "Talk to the potion trader." },
+      { "action": "go", "map": "awakening_cave", 
+      "description": "Explore the cave rooms for mushrooms." },
+      { "action": "deliver", "npc": "potion_trader", "item": "mushroom_bundle", "consume": true, "count" : 3,
+        "dialogue": "waiting", "failDialogue": "training",
+        "description": "Bring a bundle of mushrooms to the potion trader." }
+    ]
+  },
+  {
+    "id": "potion_brewer_quest",
+    "name": "The Magic Brewer",
+    "description": "The Magic Trader needs cave mushrooms to brew a special potion.",
+    "target": 3,
+    "autoStart": false,
+    "rewardCoins": 75,
+    "rewardItemId": "canvas_guard",
+    "rewardFragmentId": "",
+    "chainQuestId": "",
+    "steps": [
+      { "action": "talk", "npc": "magic_trader", "dialogue": "training",
+        "description": "Talk to the Magic Trader." },
+      { "action": "go", "map": "awakening_cave",
+        "description": "Explore the cave rooms for mushrooms." },
+      { "action": "deliver", "npc": "magic_trader", "item": "mushroom_bundle", "consume": true, "count": 3,
+        "dialogue": "thanks", "failDialogue": "waiting",
+        "description": "Bring 3 mushroom bundles to the Magic Trader." }
+    ]
+  },
+
+
+
+
+
+
+
+
+
+
+  {
+    "id": "escape_the_cave",
+    "name": "Find the Exit",
+    "description": "Find the exit of the cave and escape.",
+    "target": 1,
+    "autoStart": true,
+    "rewardCoins": 0,
+    "rewardItemId": "",
+    "rewardFragmentId": "",
+    "chainQuestId": "tutorial_shop",
+    "steps": [
+      { "action": "go", "map": "canvas_village", "description": "Reach Canva's Village." }
+    ]
+  },
+  {
+    "id": "tutorial_shop",
+    "name": "Visit the Shop",
+    "description": "Visit the shop and talk to the blacksmith",
+    "target": 1,
+    "autoStart": false,
+    "rewardCoins": 0,
+    "rewardItemId": "",
+    "rewardFragmentId": "",
+    "chainQuestId": "speak_to_elder",
+    "steps": [
+      { "action": "go", "map": "blacksmith_interior", "description": "Go to the blacksmith's shop." },
+      { "action": "talk", "npc": "blacksmith", "dialogue": "intro",
+        "description": "Talk to the blacksmith" }
+    ]
+  },
+  {
+    "id": "speak_to_elder",
+    "name": "Speak to the Elder",
+    "description": "Seek out the village elder",
+    "target": 1,
+    "autoStart": false,
+    "rewardCoins": 0,
+    "rewardItemId": "",
+    "rewardFragmentId": "",
+    "prerequisite": "tutorial_shop",
+    "chainQuestId": "a_familiar_weight",
+    "steps": [
+      { "action": "talk", "npc": "village_elder", "dialogue": "intro",
+        "description": "Talk to the village elder" }
+    ]
+  },
+  {
+    "id": "a_familiar_weight",
+    "name": "A Familiar Weight",
+    "description": "The elder was in a fight with the fisher and lost something important. He asks you to find it for him.",
+    "target": 1,
+    "autoStart": false,
+    "rewardCoins": 50,
+    "rewardItemId": "potion_of_healing",
+    "rewardFragmentId": "frag_familiar_weight",
+    "chainQuestId": "explore_shattered_lake",
+    "steps": [
+      { "action": "go", "map": "fisher_interior", "description": "Visit the fisher's house." },
+      { "action": "talk", "npc": "fisher_trader", "dialogue": "elder_request", "give": "royal_chalice",
+        "description": "Talk to the fisher." },
+      { "action": "deliver", "npc": "village_elder", "dialogue": "after_fisher", "failDialogue": "waiting_for_fisher",
+         "item": "royal_chalice", "consume": true,
+        "description": "Return to the Elder with what you found." }
+    ]
+  },
+  {
+    "id": "explore_shattered_lake",
+    "name": "Explore Shattered Lake",
+    "description": "Explore the mysterious Shattered Lake and find the source of its corruption.",
+    "target": 1,
+    "autoStart": false,
+    "rewardCoins": 0,
+    "rewardItemId": "",
+    "rewardFragmentId": "",
+    "chainQuestId": "defeat_hollow_king",
+    "steps": [
+      { "action": "go", "map": "shattered_lake",
+        "description": "Go to the Fishing Dock and enter the boat." },
+      { "action": "go", "map": "Hollow_King_Arena", "description": "Discover the Whitered Tree's Arena. ( Hand Statue )" }
+    ]
+  },
+  {
+    "id": "defeat_hollow_king",
+    "name": "Defeat the Withered Tree",
+    "description": "Defeat the Withered Tree lurking in the depths of Shattered Lake.",
+    "target": 1,
+    "autoStart": false,
+    "rewardCoins": 1000,
+    "rewardItemId": "royal_scepter",
+    "rewardFragmentId": "his_last_expression",
+    "chainQuestId": "visit_elder_after_boss",
+    "steps": [
+      { "action": "defeat", "enemy": "withered_tree", "description": "Defeat the Withered Tree." }
+    ]
+  },
+  {
+    "id": "visit_elder_after_boss",
+    "name": "Report to the Elder",
+    "description": "Return to the village elder and report your victory.",
+    "target": 1,
+    "autoStart": false,
+    "prerequisite": "defeat_hollow_king",
+    "rewardCoins": 100,
+    "rewardItemId": "",
+    "rewardFragmentId": "",
+    "chainQuestId": "explore_fading_woods",
+    "steps": [
+      { "action": "go", "map": "canvas_village", "description": "Return to the village." },
+      { "action": "talk", "npc": "village_elder", "dialogue": "post_boss1",
+        "description": "Talk to the village elder." }
+    ]
+  },
+  {
+    "id": "explore_fading_woods",
+    "name": "Explore Fading Woods",
+    "description": "Explore the eerie Fading Woods.",
+    "target": 1,
+    "autoStart": false,
+    "rewardCoins": 0,
+    "rewardItemId": "",
+    "rewardFragmentId": "",
+    "chainQuestId": "defeat_gilded_lie",
+    "steps": [
+      { "action": "go", "map": "ashen_woods", "description": "Reach the Ashen Woods." }
+    ]
+  },
+  {
+    "id": "defeat_gilded_lie",
+    "name": "Defeat the Gilded Lie",
+    "description": "Defeat the Gilded Lie lurking in Fading Woods.",
+    "target": 1,
+    "autoStart": false,
+    "rewardCoins": 1500,
+    "rewardItemId": "golden_locket",
+    "rewardFragmentId": "a_mothers_warning",
+    "chainQuestId": "report_to_elder_after_gilded",
+    "steps": [
+      { "action": "defeat", "enemy": "gilded_lie", "description": "Defeat the Gilded Lie." }
+    ]
+  },
+  {
+    "id": "report_to_elder_after_gilded",
+    "name": "Report to the Elder",
+    "description": "Return to the village elder and report your victory.",
+    "target": 1,
+    "autoStart": false,
+    "prerequisite": "defeat_gilded_lie",
+    "rewardCoins": 150,
+    "rewardItemId": "",
+    "rewardFragmentId": "",
+    "chainQuestId": "reclaim_the_citadel",
+    "steps": [
+      { "action": "talk", "npc": "village_elder", "dialogue": "post_boss2",
+        "description": "Talk to the village elder." }
+    ]
+  },
+  {
+    "id": "reclaim_the_citadel",
+    "name": "Reclaim the Citadel",
+    "description": "Reclaim the ancient citadel from the forces of darkness.",
+    "target": 1,
+    "autoStart": false,
+    "rewardCoins": 0,
+    "rewardItemId": "",
+    "rewardFragmentId": "",
+    "chainQuestId": "defeat_green_shade",
+    "steps": [
+      { "action": "go", "map": "painted_citadel", "description": "Reach the Painted Citadel." }
+    ]
+  },
+  {
+    "id": "defeat_green_shade",
+    "name": "Defeat the Green Shade",
+    "description": "Defeat the Green Shade lurking in the citadel.",
+    "target": 1,
+    "autoStart": false,
+    "rewardCoins": 2500,
+    "rewardItemId": "shadow_blade",
+    "rewardFragmentId": "a_name_that_wasnt_mine",
+    "chainQuestId": "report_to_elder_after_green",
+    "steps": [
+      { "action": "defeat", "enemy": "green_shade", "description": "Defeat the Green Shade." }
+    ]
+  },
+  {
+    "id": "report_to_elder_after_green",
+    "name": "Report to the Elder",
+    "description": "Return to the village elder and tell him of your victory.",
+    "target": 1,
+    "autoStart": false,
+    "prerequisite": "defeat_green_shade",
+    "rewardCoins": 200,
+    "rewardItemId": "",
+    "rewardFragmentId": "",
+    "chainQuestId": "enter_the_gallery",
+    "steps": [
+      { "action": "talk", "npc": "village_elder", "dialogue": "post_boss3",
+        "description": "Talk to the village elder." }
+    ]
+  },
+  {
+    "id": "enter_the_gallery",
+    "name": "The Three Trials",
+    "description": "Enter the Gallery and face the three trials of memory.",
+    "target": 1,
+    "autoStart": false,
+    "rewardCoins": 0,
+    "rewardItemId": "",
+    "rewardFragmentId": "",
+    "chainQuestId": "face_the_truth",
+    "steps": [
+      { "action": "go",      "map": "the_gallery", "description": "Enter the Gallery." },
+      { "action": "collect", "count": 1, "description": "Complete the Trial of Identity." },
+      { "action": "collect", "count": 1, "description": "Complete the Trial of Truth." },
+      { "action": "collect", "count": 1, "description": "Complete the Trial of Forgiveness." }
+    ]
+  },
+  {
+
+    "id": "face_the_truth",
+    "name": "Face the Truth",
+    "description": "Face the ultimate truth hidden within the gallery.",
+    "target": 1,
+    "autoStart": false,
+    "rewardCoins": 10000,
+    "rewardItemId": "",
+    "rewardFragmentId": "the_whole_truth",
+    "chainQuestId": "",
+    "steps": [
+      { "action": "defeat", "enemy": "brushstroke", "description": "Defeat the Brushstroke." }
+    ]
+  }
+
+]

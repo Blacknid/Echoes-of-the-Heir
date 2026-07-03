@@ -6,16 +6,30 @@ import java.awt.Graphics2D;
 import java.awt.Rectangle;
 import java.awt.image.BufferedImage;
 import java.io.IOException;
-import javax.imageio.ImageIO;
+
+import audio.SFX;
 import main.GamePanel;
-import main.UtilityTool;
+import util.ResourceCache;
 
 public class Entity {
 
-    GamePanel gp;
+    protected GamePanel gp;
 
-    int pathUpdateCounter = 0;
-    int pathUpdateInterval = 10; // frames
+    private int[] waypointCols = new int[32];
+    private int[] waypointRows = new int[32];
+    private int   waypointCount  = 0;
+    private int   waypointIdx    = 0;
+    private int pathCacheGoalCol = -1;
+    private int pathCacheGoalRow = -1;
+    private int pathStallCounter = 0;  // frames without reaching the next waypoint
+    private static final int PATH_STALL_LIMIT = 10; // force repath after this many stalled frames
+
+    public static final int DIR_DOWN  = 0;
+    public static final int DIR_LEFT  = 1;
+    public static final int DIR_RIGHT = 2;
+    public static final int DIR_UP    = 3;
+    public static final int DIR_ANY   = -1; // for event checks (any facing)
+
 
 
     public int worldX, worldY;
@@ -23,179 +37,790 @@ public class Entity {
     public boolean dying = false;
     boolean hpBarOn = false;
 
-    public BufferedImage up1, up2, up3, up4, up5, up6, up7, down1, down2, down3, down4, down5, down6, down7, left1, left2, left3, left4, left5, left6, left7, left8, right1, right2 ,right3, right4, right5, right6, right7, right8, chest_1, chest_2;
-    public BufferedImage attackUp1, attackUp2, attackUp3, attackUp4, attackUp5, attackUp6,
-    attackDown1, attackDown2, attackDown3, attackDown4, attackDown5, attackDown6,
-    attackLeft1, attackLeft2, attackLeft3, attackLeft4, attackLeft5, attackLeft6,
-    attackRight1, attackRight2, attackRight3, attackRight4, attackRight5, attackRight6;
-    public String direction = "down";
+
+
+    public BufferedImage up1, up2, up3, up4, up5, up6, up7,
+        down1, down2, down3, down4, down5, down6, down7,
+        left1, left2, left3, left4, left5, left6, left7, left8,
+        right1, right2, right3, right4, right5, right6, right7, right8;
+    public BufferedImage[][] walkFrames;   // walk animation per direction
+    public BufferedImage[][] idleFrames;   // idle animation per direction
+    public BufferedImage[][] attackFrames;  // attack animation per direction (combo step 0)
+    public BufferedImage[][] attackFrames2; // combo step 1, 1-tile sprites
+    public BufferedImage[][] attackFrames3; // combo step 2, 1-tile sprites
+    
+    public java.util.HashMap<String, BufferedImage[][]> activityAnimations;   // key → [dir][frame]
+    public java.util.HashMap<String, Integer> activityAnimSpeeds;             // key → ticks between frames
+    public String  currentActivity = null;       // active animation key (null = use default walk/idle)
+    public int     activitySpriteNum = 1;        // current frame (1-based, bouncing)
+    public int     activitySpriteCounter = 0;    // tick counter for frame advance
+    private int    activityFrameDirection = 1;   // +1 or -1 (bounce direction)
+
+    public int direction = DIR_DOWN;
+
+    public int idleDirection = -1;          // -1 = use current direction; >= 0 = forced idle dir
+    public int idleSpriteNum = 1;
+    public int idleSpriteCounter = 0;
+    private int idleFrameDirection = 1;
+    public int idleAnimationInterval = 24;  // ticks between idle frame advances (~0.4 s at 60 UPS)
+    protected boolean entityIdle = true;
 
     public int spriteCounter = 0;
-    public int spriteCounter1 = 0;
     public int spriteNum = 1;
-    public int spriteNum1 = 1;
-    public int dialogueSet = 0;
-    public Rectangle solidArea = new Rectangle(0, 0, 64, 64);
-    public Rectangle attackArea = new Rectangle(0, 0, 0, 0);
-    public int solidAreaDefaultX, solidAreaDefaultY;
-    public boolean  collisionOn = false;
+    public int walkFrameCount = 3;
+    public int animationFrameInterval = 8;
+    private int walkFrameDirection = 1;
     public int actionLockCounter = 0;
-    public boolean invincible = false;
-    boolean attacking = false;
     public int invincibleCounter = 0;
+    public int invincibleDuration = 10; // frames of i-frames after hit (short for combo-friendly combat)
+    public int shotAvailableCounter = 0;
     int dyingCounter = 0;
     int hpBarCounter = 0;
-    public String dialogues[][] = new String[100][100];
-    public int dialogueIndex = 0;
-    public BufferedImage image, image1, image2,  image3, compas_image;
+    public int crowdControlTimer = 0;
 
+    public boolean slowed = false;              // movement speed halved (e.g. Canvas Moth dust)
+    public int     slowedTimer = 0;             // frames remaining
+    public boolean rooted = false;              // cannot move (e.g. Hollow Stump grab)
+    public int     rootedTimer = 0;             // frames remaining
+    public boolean phasing = false;             // toggles invulnerability on a cycle (Portrait Ghost, Drowned Sketch)
+    public int     phasingCycleCounter  = 0;    // current position within the cycle
+    public int     phasingCycleDuration = 180;  // frames per full cycle (half vulnerable, half invulnerable)
+
+    public boolean deathRewardsQueued = false;
+    public int deathRewardExp = 0;
+    public int deathRewardQuestKills = 0;
+    public int deathRewardCoins = 0;
+
+
+
+    public int hitFlashCounter = 0;
+    private static final int HIT_FLASH_DURATION = 6;
+    public int attackWindupFlash = 0;
+    private static final Color HP_BAR_BG = new Color(35, 35, 35);
+    private static final Color HP_BAR_FG = new Color(255, 0, 30);
+    private static final Color SPARK_COLOR_1 = new Color(255, 235, 120);
+    private static final Color SPARK_COLOR_2 = new Color(255, 200, 80);
+    private static final Color COIN_MSG_COLOR = new Color(255, 210, 90);
+    private static final Color SHADOW_COLOR = new Color(0, 0, 0, 60);
+    private BufferedImage hitFlashBuffer;
+    private int hitFlashBufferW, hitFlashBufferH;
+    private java.awt.Graphics2D hitFlashG2;
+
+
+
+    public int footstepParticleCounter = 0;
+
+
+    
+    public String dialogues[][];
+    public int dialogueIndex = 0;
+    public int dialogueSet = 0;
+    public java.util.HashMap<String, Integer> dialogueNameMap = null; // named dialogue key → set index
+
+
+    
+    public String[][] ensureDialogues() {
+        if (dialogues == null) {
+            dialogues = new String[20][20];
+        }
+        return dialogues;
+    }
+
+
+    
+    public BufferedImage image, image1, image2, image3, compas_image;
+
+
+
+    public Rectangle solidArea = new Rectangle(0, 0, 48, 48);
+    public Rectangle attackArea = new Rectangle(0, 0, 0, 0);
+    public int solidAreaDefaultX, solidAreaDefaultY;
+
+    // Optional polygon hurtbox for hit-detection only (tile/movement collision still uses solidArea).
+    // Set via setOctagonHurt() in subclass constructors. Stored in local entity space (origin = worldX/worldY).
+    public java.awt.Polygon hurtPolygon = null;
+
+    /** Replace hurtPolygon with a regular octagon. cx/cy are the center offset from worldX/worldY; r is the radius. */
+    public void setOctagonHurt(int cx, int cy, int r) {
+        int[] xs = new int[8];
+        int[] ys = new int[8];
+        int cut = (int) Math.round(r * 0.2);
+        xs[0] = cx - r + cut; ys[0] = cy - r;
+        xs[1] = cx + r - cut; ys[1] = cy - r;
+        xs[2] = cx + r;       ys[2] = cy - r + cut;
+        xs[3] = cx + r;       ys[3] = cy + r - cut;
+        xs[4] = cx + r - cut; ys[4] = cy + r;
+        xs[5] = cx - r + cut; ys[5] = cy + r;
+        xs[6] = cx - r;       ys[6] = cy + r - cut;
+        xs[7] = cx - r;       ys[7] = cy - r + cut;
+        hurtPolygon = new java.awt.Polygon(xs, ys, 8);
+    }
+    public boolean collisionOn = false;
+    public boolean invincible = false;
+    public boolean attacking = false;
     public boolean collision = false;
     public boolean sleep = false;
     public boolean drawing = true;
     public boolean onPath = false;
+    public boolean knockBack = false;          // true while being pushed by an attack
+    public int knockBackPower = 0;             // magnitude of the push (for debug display)
+    // new vector-based knockback
+    public int knockBackVectorX = 0;
+    public int knockBackVectorY = 0;
+    public double knockBackRemaining = 0;      // distance left to travel
+    public boolean fleeing = false;            // AI state: running away from player
+    public int fleeCounter = 0;
+    public int fleeDuration = 60;
+    public boolean frontalArmor = false;       // blocks 50% of frontal hits (Painted Guard, Painted Crab)
+    public int     rootOnContactDuration = 0; // roots the player on contact for N frames (Hollow Stump)
+    public int alertTick = 0;                 // counts down from ALERT_DURATION when monster first spots player
+    public boolean everAggroed = false;       // true once monster has spotted player; resets only when it loses the player
+    public Entity loot;
+    public boolean opened = false;
 
-    // TYPE
-    public final int type_player = 0;
-    public final int type_npc = 1;
-    public final int type_monster = 2;
-    public final int type_consumable = 6;
-    public final int type_pickupOnly = 7;
-    public final int type_obstacle = 8;
 
-    // CHARACTER ATTRIBUTES
-    public int type; // 0 = player; 1 = npc; 2 = monster
+
+    public int type;
+    public static final int TYPE_PLAYER = 0;
+    public static final int TYPE_NPC = 1;
+    public static final int TYPE_MONSTER = 2;
+    public static final int TYPE_SWORD = 3;
+    public static final int TYPE_BOOK = 4;
+    public static final int TYPE_SHIELD = 5;
+    public static final int TYPE_CONSUMABLE = 6;
+    public static final int TYPE_PICKUP_ONLY = 7;
+    public static final int TYPE_OBSTACLE = 8;
+    public static final int TYPE_BUFFS = 9;
+    public static final int TYPE_ENDING = 10;
+    public static final int TYPE_UTILITY = 11;
+
+
+
     public String name;
+    public int defaultSpeed = 1;
     public int speed;
-    public int maxLife;
-    public int life;
+    public int maxLife; //maximul teoretic de viata
+    public int life; //viata curenta
+    public int maxMana; //maximul teoretic de mana
+    public int mana; //mana curenta
     public int level;
     public int strenght;
     public int dexterity;
-    public int attack;
+    public int attack; //cat atac se da asupra entitatilor
     public int defense;
     public int exp;
     public int nextLevelExp;
     public int coin;
     public Entity currentWeapon;
     public Entity currentShield;
+    public Projectile projectile;
+    public boolean lightSource = false;
+    public int lightRadius = 0;
+    public java.awt.Color lightColor = null; // custom light tint (null = default orange)
+    public boolean eventLayerLight = false; // transient static light loaded from the TMX Events layer
+    public boolean removeOnPickup = true;   // for touch-pickups in the Objects layer; remove from world after a successful pickup
 
-    // ITEM ATTRIBUTES
-    public int attackValue;
-    public int defenseValue;
+    // TILED / EDITOR METADATA
+    public String objectId = null;      // persistent ID set from Tiled 'id' property
+    public boolean invisible = false;   // set from Tiled 'invisible' property (no draw)
+    public int aggroRange = 160;        // aggro distance in pixels (default ~2.5 tiles)
+    public int interactRange = 0;       // if > 0, player can interact when within this radius (facing the NPC)
+    public int depthSortYOffset = 0;    // added to entityY in depth sort — positive pushes entity to draw in front of lower tiles
+    public int wanderRadius = 0;        // max wander pixel offset from spawn (0 = free)
+    public Rectangle confinementZone = null; // if set, monster cannot leave this rectangle (world pixels)
+    public boolean staticNPC = false;   // NPC never wanders or follows paths — stays in place
+    public boolean guardMode  = false;  // Static from spawn; faces the player every tick. Set onPath=true to unlock movement.
+    public String portraitPath = null;  // optional portrait image path (e.g. "/res/NPC/alucard_portrait.png")
+    public int walkToCol = -1;          // after interaction: walk to this tile column, then re-enter guardMode (-1 = unused)
+    public int walkToRow = -1;          // after interaction: walk to this tile row
+    public int walkToDialogueSet = -1;  // dialogue set to use after arriving at walkTo destination (-1 = keep existing logic)
+
+    // ── NPC STEP CHAIN: sequence of (dialogueSet, walkToCol, walkToRow) steps ──
+    // Each step is int[3]: {dialogueSet, col, row}.  col/row < 0 means "stay here" (final step).
+    public final java.util.ArrayList<int[]> npcSteps = new java.util.ArrayList<>();
+    public int npcStepIndex = 0;
+
+    public String onSpeakQuestId = null;   // quest id to progress when player talks to this NPC
+    public int    onSpeakQuestAmount = 1;  // how much to add to that quest on each speak
+
+    public String requiredItem = null;          // item name the player must have to trigger alternate dialogue
+    public int    requiredItemDialogueSet = -1; // which dialogue set to use when the player has the item
+    public boolean requiredItemConsumed = false; // if true, the item is removed from inventory on delivery
+    public String requiredItemQuestId = null;   // quest id progressed when required item is delivered
+    public int    requiredItemQuestAmount = 1;  // how much to add on delivery
+    public int    requiredItemPostQuestSet = -1; // dialogue set used after the delivery phase is complete
+    public int    requiredItemRewardCoins = 0;  // coin reward granted on delivery
+    public String requiredItemRewardItemId = null; // ItemFactory id granted on delivery
+    public String requiredItemRewardFragmentId = null; // MemoryJournal id granted on delivery
+
+    public String  giveItemId          = null;  // ItemFactory id to give on first interaction
+    public int     giveItemDialogueSet  = 0;    // dialogue set played while giving
+    public boolean giveItemGiven        = false; // true after item was given once
+    public String  giveItemQuestId      = null; // quest added when the first gift is given
+    public String  giveItemQuestName    = null;
+    public String  giveItemQuestDesc    = null;
+    public int     giveItemQuestTarget  = 1;
+
+    public String  giveItem2Id         = null;  // ItemFactory id to give after NPC finishes helping (post-walk)
+    public int     giveItem2DialogueSet = -1;   // dialogue set played while giving item 2 (-1 = use walkToDialogueSet)
+    public boolean giveItem2Given       = false; // true after item 2 was given
+
+    // ── MEMORY FRAGMENT SYSTEM ──
+    public String   
+    memoryFragmentId   = null;   // unique ID (e.g. "kings_face")
+    public String   memoryFragmentName = null;   // display name ("His Last Expression")
+    public String[] memoryFragmentText = null;   // 1–5 lines of flashback text
+    public boolean  memoryFragmentClaimed = false;
+    // Trigger conditions — checked to decide if the fragment can be claimed
+    public int    fragmentRequiredCount = -1;     // minimum fragment count (-1 = no requirement)
+    public String fragmentRequiredItem  = null;   // player must hold this item
+    public int    fragmentRequiredBoss  = -1;     // boss # that must be defeated (1–4, -1 = none)
+    public String fragmentRequiredQuest = null;   // quest ID that must be complete
+
+    public String[] dialogueChoices    = null;   // option texts (null = linear dialogue)
+    public int      selectedChoice     = 0;      // cursor index during choice selection
+    public int[]    choiceNextSet      = null;   // dialogue set to jump to per choice index
+    public String   choiceResultKey    = null;   // key to store chosen option in GameState
+
+
+
+    public int attackValue; //pentru arme: cat adauga la atac cand e echipata
+    public int defenseValue; //pentru scuturi: cat adauga la aparare cand e echipat
+    public String itemId = null; // stable ItemFactory identifier for save/load and Tiled references
     public String description = "";
+    public int useCost; //DOAR pentru consumabile: cat mana consuma cand e folosita
+    public boolean stackable = false; //daca un item poate fi adunat intr-un stack de n iteme
+    public int amount = 1; //stack-ul incepe initial de la 1, fie ca e stackable sau nu
+    public float working_power; //cat ia din durabilitatea obiectului (toporul ia mai mult din durabilitatea lemnului decat o sabie)
+    public String tool_type; //pentru ce e folosita unealta (topor pentru lemn)
+    public float spriteScale = 1.0f;           // 1.0 = normal size, 2.0 = double (boss phase scaling)
 
     public Entity(GamePanel gp) {
         this.gp = gp;
     }
-    public int getLeftX() {
-        return worldX + solidArea.x;
-    }
-    public int getRightX() {
-        return worldX + solidArea.x + solidArea.width;
-    }
-    public int getTopY() {
-        return worldY + solidArea.y;
-    }
-    public int getBottomY() {
-        return worldY + solidArea.y + solidArea.height;
-    }
-    public int getCol() {
-        return (worldX + solidArea.x) / gp.tileSize;
-    }
-    public int getRow() {
-        return (worldY + solidArea.y) / gp.tileSize;
-    }
+
+
+
+    public int getLeftX() { return worldX + solidArea.x; }
+    public int getRightX() { return worldX + solidArea.x + solidArea.width; }
+    public int getTopY() { return worldY + solidArea.y; }
+    public int getBottomY() { return worldY + solidArea.y + solidArea.height; }
+    public int getCol() { return (worldX + solidArea.x) / gp.tileSize; }
+    public int getRow() { return (worldY + solidArea.y) / gp.tileSize; }
+    public int getCenterX() { return worldX + solidArea.x + solidArea.width / 2; }    
+    public int getCenterY() { return worldY + solidArea.y + solidArea.height / 2; }    
+    public int getTileCol() { return getCenterX() / gp.tileSize; }    
+    public int getTileRow() { return getCenterY() / gp.tileSize; } 
+
+    public int getMaxLife() { return maxLife; }
+    public int getLife() { return life; }
+    public void setLife(int life) { this.life = life; }
+    public int getAttack() { return attack; }
+    public int getDefense() { return defense; }
+    public boolean isInvincible() { return invincible; }
+    public boolean isDying() { return dying; }
+
+    public BufferedImage getWalkFrame(int direction, int frameIndex) { return getWalkFrameImage(direction, frameIndex); }
+    public int getSpriteNum() { return spriteNum; }
+    public int getDirection() { return direction; }
+
+    public boolean isOnPath() { return onPath; }
+    public void setOnPath(boolean onPath) { this.onPath = onPath; }
+    public int getSpeed() { return speed; }
+    public void setSpeed(int speed) { this.speed = speed; }
+    
     public void resetCounter() {
-
         spriteCounter = 0;
-        spriteCounter1 = 0;
+        spriteNum = 1;
         actionLockCounter = 0;
-
+        invincibleCounter = 0;
+        shotAvailableCounter = 0;
+        dyingCounter = 0;
+        hpBarCounter = 0;
     }
     public void setAction() {}
     public void speak() {}
-    public void facePlayer() {
 
-        switch (gp.player.direction) {
-        case "up": direction = "down"; break;
-        case "down": direction = "up"; break;
-        case "left": direction = "right"; break;
-        case "right": direction = "left"; break;
+    /**
+     * Checks if the player has the required item; if so, starts the alternate dialogue.
+     * Call at the top of speak() — returns true if the item dialogue was triggered.
+     */
+    protected boolean checkRequiredItemDialogue() {
+        if (requiredItem != null && requiredItemDialogueSet >= 0) {
+            int itemIndex = gp.player.searchItemInInventory(requiredItem);
+            if (itemIndex == 999) return false;
+
+            if (requiredItemConsumed && itemIndex < gp.player.inventory.size()) {
+                Entity item = gp.player.inventory.get(itemIndex);
+                if (item.amount > 1) item.amount--;
+                else gp.player.inventory.remove(itemIndex);
+            }
+
+            if (requiredItemQuestId != null && gp.questManager != null) {
+                gp.questManager.progress(requiredItemQuestId, Math.max(1, requiredItemQuestAmount));
+            }
+
+            if (requiredItemRewardCoins > 0) {
+                gp.player.coin += requiredItemRewardCoins;
+                gp.ui.addMessage("Received " + requiredItemRewardCoins + " coins!", COIN_MSG_COLOR);
+            }
+
+            if (requiredItemRewardItemId != null) {
+                Entity rewardItem = data.ItemFactory.create(gp, requiredItemRewardItemId);
+                if (rewardItem != null) {
+                    if (gp.player.canObtainItem(rewardItem)) {
+                        gp.ui.addMessage("Received " + rewardItem.name + "!", Color.WHITE);
+                    } else {
+                        gp.ui.addMessage("Inventory full. Could not receive " + rewardItem.name + ".", Color.WHITE);
+                    }
+                }
+            }
+
+            if (requiredItemRewardFragmentId != null && gp.memoryJournal != null) {
+                data.MemoryJournal.MemoryFragment fragment = gp.memoryJournal.collect(requiredItemRewardFragmentId);
+                if (fragment == null && !gp.memoryJournal.has(requiredItemRewardFragmentId)) {
+                    gp.memoryJournal.addById(requiredItemRewardFragmentId);
+                    gp.ui.addMessage("Memory fragment received: " + requiredItemRewardFragmentId, Color.WHITE);
+                } else if (fragment != null) {
+                    gp.ui.addMessage("Memory fragment received: " + fragment.name, Color.WHITE);
+                }
+            }
+
+            int deliveryDialogueSet = requiredItemDialogueSet;
+            if (requiredItemPostQuestSet >= 0) walkToDialogueSet = requiredItemPostQuestSet;
+            requiredItemDialogueSet = -1;
+            requiredItem = null;
+            startDialogue(this, deliveryDialogueSet);
+            return true;
+        }
+        return false;
+    }
+    public void syncQuestDrivenNpcState() {
+        if (gp == null || gp.questManager == null) return;
+
+        if (giveItemQuestId != null && gp.questManager.hasQuest(giveItemQuestId)) {
+            giveItemGiven = true;
+        }
+
+        String completionQuestId = (requiredItemQuestId != null && !requiredItemQuestId.isBlank())
+                ? requiredItemQuestId : giveItemQuestId;
+        if (completionQuestId != null && gp.questManager.isComplete(completionQuestId)) {
+            giveItemGiven = true;
+            if (requiredItemPostQuestSet >= 0) walkToDialogueSet = requiredItemPostQuestSet;
+            requiredItemDialogueSet = -1;
         }
     }
+    public void setLoot(Entity loot) {}
+    public void facePlayer() {
+        direction = switch (gp.player.direction) {
+            case DIR_UP -> DIR_DOWN;
+            case DIR_DOWN -> DIR_UP;
+            case DIR_LEFT -> DIR_RIGHT;
+            case DIR_RIGHT -> DIR_LEFT;
+            default -> direction;
+        };
+    }
+    /** Turns this entity to face toward the player's actual position, ignoring the player's facing direction. */
+    public void faceTowardPlayer() {
+        int dx = gp.player.worldX - worldX;
+        int dy = gp.player.worldY - worldY;
+        if (Math.abs(dx) >= Math.abs(dy)) {
+            direction = dx >= 0 ? DIR_RIGHT : DIR_LEFT;
+        } else {
+            direction = dy >= 0 ? DIR_DOWN : DIR_UP;
+        }
+    }
+    /**
+     * Called on walkTo arrival. Loads the next step's walkTo coords so the
+     * next speak() will know where to send the NPC (and which dialogue to play).
+     */
+    protected void advanceNpcStep() {
+        if (npcSteps.isEmpty()) return;
+        // npcStepIndex points at the next step to load after the walk that just finished
+        if (npcStepIndex < npcSteps.size()) {
+            int[] step = npcSteps.get(npcStepIndex);
+            walkToDialogueSet = step[0];
+            walkToCol = step[1];
+            walkToRow = step[2];
+            npcStepIndex++; // advance now so next arrival loads the one after this
+        }
+    }
+    public void interact() {}
     public void damageReaction() {}
-    public boolean use ( Entity enitity ) {return false;}
-    public void startDialogue ( Entity entity, int setNum ) {
-
-        gp.gameState = gp.dialogueState;
+    public boolean use(Entity entity) { return false; }
+    public void startDialogue(Entity entity, int setNum) {
+        gp.gameState = GamePanel.dialogueState;
         gp.ui.npc = entity;
         dialogueSet = setNum;
+        // Auto-progress a quest when the player starts talking to this NPC
+        if (entity.onSpeakQuestId != null && gp.questManager != null) {
+            gp.questManager.progress(entity.onSpeakQuestId, entity.onSpeakQuestAmount);
+        }
+    }
+    /** Start dialogue by named key. Resolves via dialogueNameMap, falls back to parseInt, then 0. */
+    public void startNamedDialogue(Entity entity, String dialogueName) {
+        if (dialogueName == null) { startDialogue(entity, 0); return; }
+        if (entity.dialogueNameMap != null) {
+            Integer idx = entity.dialogueNameMap.get(dialogueName);
+            if (idx != null) { startDialogue(entity, idx); return; }
+        }
+        try { startDialogue(entity, Integer.parseInt(dialogueName)); }
+        catch (NumberFormatException e) { startDialogue(entity, 0); }
     }
     public void checkCollision() {
+        
+        collisionOn = false;
+        gp.cChecker.checkTile(this);
+        gp.cChecker.checkObject(this, false);
+        gp.cChecker.checkEntity(this, gp.npc);
+        gp.cChecker.checkEntity(this, gp.monster);
+        boolean contactPlayer = gp.cChecker.checkPlayer(this);
 
-    collisionOn = false;
+        if (type == TYPE_MONSTER && contactPlayer && !gp.player.invincible) {
+            
+            gp.playSE(SFX.PLAYER_HIT);
 
-    gp.cChecker.checkTile(this);
-    gp.cChecker.checkObject(this, false);
-    gp.cChecker.checkEntity(this, gp.npc);
-    gp.cChecker.checkEntity(this, gp.monster);
+            int damage = attack - gp.player.defense;
+            if (damage < 1) {
+                damage = 1;
+            }
 
-    boolean contactPlayer = gp.cChecker.checkPlayer(this);
+            gp.player.life -= damage;
+            gp.player.invincible = true;
 
-    // MONSTER DAMAGES PLAYER
-    if (type == type_monster && contactPlayer && gp.player.invincible == false) {
-
-        gp.playSE(8);
-
-        int damage = attack - gp.player.defense;
-        if (damage < 1) damage = 1;
-
-        gp.player.life -= damage;
-        gp.player.invincible = true;
+            // Grab: root the player if this monster has a rootOnContactDuration
+            if (rootOnContactDuration > 0 && !gp.player.rooted) {
+                gp.player.rooted = true;
+                gp.player.rootedTimer = rootOnContactDuration;
+        }
+        }
     }
-}
+    public Color getParticleColor() {
+        Color color = null;
+        return color;
+    }
+    public int getParticleSize() {
+        int size = 0; // pixels
+        return size;
+    }
+    public int getParticleSpeed() {
+        return 0;
+    }
+    public int getParticleMaxLife() {
+        return 0;
+    }
+    public int getParticleStyle() {
+        return Particle.STYLE_DEFAULT;
+    }
+    public void generateParticle ( Entity generator, Entity target ) {
 
+        Color color = generator.getParticleColor();
+        int size = generator.getParticleSize();
+        int particleSpeed = generator.getParticleSpeed();
+        int particleMaxLife = generator.getParticleMaxLife();
+        int style = generator.getParticleStyle();
+
+        Particle p1 = gp.particlePool.get();
+        p1.setWithPosition(generator, target, color, size, particleSpeed, particleMaxLife, -1, -1, style);
+        gp.particleList.add(p1);
+        
+        Particle p2 = gp.particlePool.get();
+        p2.setWithPosition(generator, target, color, size, speed, maxLife, 0, -1, style);
+        gp.particleList.add(p2);
+        
+        Particle p3 = gp.particlePool.get();
+        p3.setWithPosition(generator, target, color, size, speed, maxLife, 1, -1, style);
+        gp.particleList.add(p3);
+        
+        Particle p4 = gp.particlePool.get();
+        p4.setWithPosition(generator, target, color, size, speed, maxLife, 0, 1, style);
+        gp.particleList.add(p4);
+
+    } 
     public void update() {
+        if (crowdControlTimer > 0) {
+            crowdControlTimer--;
+            if (invincible) {
+                invincibleCounter++;
+                if (invincibleCounter > invincibleDuration) {
+                    invincible = false;
+                    invincibleCounter = 0;
+                }
+            }
+            if (hitFlashCounter > 0) hitFlashCounter--;
+            return;
+        }
 
-        setAction();
+        // handling knockback first — check collision before moving to prevent wall phasing
+        if (knockBack) {
+            int nextX = worldX + knockBackVectorX;
+            int nextY = worldY + knockBackVectorY;
+            gp.cChecker.checkTileNext(this, nextX, nextY);
+            if (!collisionOn) {
+                worldX = nextX;
+                worldY = nextY;
+            }
+
+            double travelled = Math.hypot(knockBackVectorX, knockBackVectorY);
+            knockBackRemaining -= travelled;
+            if (knockBackRemaining <= 0 || collisionOn) {
+                knockBack = false;
+                knockBackVectorX = 0;
+                knockBackVectorY = 0;
+                knockBackRemaining = 0;
+                knockBackPower = 0;
+                // stop any active chase so monster isn't immediately drawn back
+                onPath = false;
+            }
+            return;
+        }
+
+        if (slowedTimer > 0 && --slowedTimer == 0) slowed = false;
+        if (rootedTimer > 0 && --rootedTimer == 0) rooted = false;
+        if (phasing) {
+            if (++phasingCycleCounter >= phasingCycleDuration) phasingCycleCounter = 0;
+            boolean shouldBeInvulnerable = phasingCycleCounter < phasingCycleDuration / 2;
+            if (shouldBeInvulnerable != invincible) {
+                invincible = shouldBeInvulnerable;
+                invincibleCounter = 0;
+            }
+        }
+        if (rooted) {
+            if (invincible) { invincibleCounter++; if (invincibleCounter > invincibleDuration) { invincible = false; invincibleCounter = 0; } }
+            if (hitFlashCounter > 0) hitFlashCounter--;
+            if (shotAvailableCounter < 30) shotAvailableCounter++;
+            return;
+        }
+
+        int previousWorldX = worldX;
+        int previousWorldY = worldY;
+
+        if (!staticNPC && (!guardMode || onPath)) setAction();
+        if (guardMode && !onPath) faceTowardPlayer();
         checkCollision();
 
-        // IF COLLISION IS FALSE, PLAYER CAN MOVE
-        if ( collisionOn == false ) {
-
+        if (!collisionOn && !onPath && !staticNPC && !guardMode) {
+            int moveSpeed = slowed ? Math.max(1, speed / 2) : speed;
             switch (direction) {
-                case "up": worldY -= speed; break;
-                case "down": worldY += speed; break;
-                case "left": worldX -= speed; break;
-                case "right": worldX += speed; break;
+                case DIR_UP -> worldY -= moveSpeed;
+                case DIR_DOWN -> worldY += moveSpeed;
+                case DIR_LEFT -> worldX -= moveSpeed;
+                case DIR_RIGHT -> worldX += moveSpeed;
+                default -> {
+                }
+            }
+        }
+        if (confinementZone != null) {
+            int solidLeft   = worldX + solidArea.x;
+            int solidRight  = worldX + solidArea.x + solidArea.width;
+            int solidTop    = worldY + solidArea.y;
+            int solidBottom = worldY + solidArea.y + solidArea.height;
+            boolean hitBoundary = false;
+            if (solidLeft < confinementZone.x) {
+                worldX = confinementZone.x - solidArea.x;
+                hitBoundary = true;
+            } else if (solidRight > confinementZone.x + confinementZone.width) {
+                worldX = confinementZone.x + confinementZone.width - solidArea.x - solidArea.width;
+                hitBoundary = true;
+            }
+            if (solidTop < confinementZone.y) {
+                worldY = confinementZone.y - solidArea.y;
+                hitBoundary = true;
+            } else if (solidBottom > confinementZone.y + confinementZone.height) {
+                worldY = confinementZone.y + confinementZone.height - solidArea.y - solidArea.height;
+                hitBoundary = true;
+            }
+            if (hitBoundary) {
+                actionLockCounter = 0;
+                onPath = false;
+                direction = switch (direction) {
+                    case DIR_UP -> DIR_DOWN;
+                    case DIR_DOWN -> DIR_UP;
+                    case DIR_LEFT -> DIR_RIGHT;
+                    case DIR_RIGHT -> DIR_LEFT;
+                    default -> direction;
+                };
             }
         }
 
-        spriteCounter++;
-        if ( spriteCounter > 12 ) {
-            if ( spriteNum == 1 ) {
-                spriteNum = 2;
+        boolean movedThisFrame = worldX != previousWorldX || worldY != previousWorldY;
+
+        if (movedThisFrame && gp.tileParticleEmitter != null) {
+            footstepParticleCounter++;
+            if (footstepParticleCounter >= gp.tileParticleEmitter.getEmitInterval()) {
+                footstepParticleCounter = 0;
+                int col = getCenterX() / gp.tileSize;
+                int row = (worldY + gp.tileSize - 1) / gp.tileSize; // feet row
+                int tileType = gp.tileM.getTileType(col, row);
+                gp.tileParticleEmitter.emit(worldX, worldY, tileType, direction);
             }
-            else if ( spriteNum == 2 ) {
-                spriteNum = 3;
+        } else {
+            footstepParticleCounter = 0;
+        }
+
+        if (movedThisFrame) {
+            entityIdle = false;
+            idleSpriteNum = 1;
+            idleSpriteCounter = 0;
+            idleFrameDirection = 1;
+            activitySpriteNum = 1;
+            activitySpriteCounter = 0;
+            activityFrameDirection = 1;
+            spriteCounter++;
+            int walkInterval = Math.max(2, 48 / Math.max(1, speed));
+            if (spriteCounter > walkInterval) {
+                int maxWalkFrames = Math.max(1, Math.min(walkFrameCount, 8));
+
+                if (maxWalkFrames == 1) {
+                    spriteNum = 1;
+                } else {
+                    spriteNum += walkFrameDirection;
+
+                    if (spriteNum >= maxWalkFrames) {
+                        spriteNum = maxWalkFrames;
+                        walkFrameDirection = -1;
+                    }
+                    if (spriteNum <= 1) {
+                        spriteNum = 1;
+                        walkFrameDirection = 1;
+                    }
+                }
+
+                spriteCounter = 0;
             }
-            else if ( spriteNum == 3 ) {
-                spriteNum = 1;
-            }
+        } else {
+            spriteNum = 1;
             spriteCounter = 0;
+            walkFrameDirection = 1;
+            entityIdle = true;
+
+            if (idleFrames != null) {
+                int dir = (idleDirection >= 0) ? idleDirection : direction;
+                if (dir >= 0 && dir < idleFrames.length && idleFrames[dir] != null && idleFrames[dir].length > 0) {
+                    idleSpriteCounter++;
+                    if (idleSpriteCounter > idleAnimationInterval) {
+                        int maxIdle = idleFrames[dir].length;
+                        if (maxIdle == 1) {
+                            idleSpriteNum = 1;
+                        } else {
+                            idleSpriteNum += idleFrameDirection;
+                            if (idleSpriteNum >= maxIdle) {
+                                idleSpriteNum = maxIdle;
+                                idleFrameDirection = -1;
+                            }
+                            if (idleSpriteNum <= 1) {
+                                idleSpriteNum = 1;
+                                idleFrameDirection = 1;
+                            }
+                        }
+                        idleSpriteCounter = 0;
+                    }
+                }
+            }
+
+            if (currentActivity != null && activityAnimations != null) {
+                BufferedImage[][] actFrames = activityAnimations.get(currentActivity);
+                if (actFrames != null) {
+                    int dir = (idleDirection >= 0) ? idleDirection : direction;
+                    if (dir >= 0 && dir < actFrames.length && actFrames[dir] != null && actFrames[dir].length > 0) {
+                        int interval = idleAnimationInterval;
+                        if (activityAnimSpeeds != null) {
+                            Integer customSpeed = activityAnimSpeeds.get(currentActivity);
+                            if (customSpeed != null) interval = customSpeed;
+                        }
+                        activitySpriteCounter++;
+                        if (activitySpriteCounter > interval) {
+                            int maxFrames = actFrames[dir].length;
+                            if (maxFrames == 1) {
+                                activitySpriteNum = 1;
+                            } else {
+                                activitySpriteNum += activityFrameDirection;
+                                if (activitySpriteNum >= maxFrames) {
+                                    activitySpriteNum = maxFrames;
+                                    activityFrameDirection = -1;
+                                }
+                                if (activitySpriteNum <= 1) {
+                                    activitySpriteNum = 1;
+                                    activityFrameDirection = 1;
+                                }
+                            }
+                            activitySpriteCounter = 0;
+                        }
+                    }
+                }
+            }
         }
 
-        if ( invincible == true ) {
+        if (invincible) {
             invincibleCounter++;
-            if ( invincibleCounter > 40 ) {
+            if (invincibleCounter > invincibleDuration) {
                 invincible = false;
                 invincibleCounter = 0;
             }
         }
+        if (hitFlashCounter > 0) hitFlashCounter--;
+        if (alertTick > 0) alertTick--;
+        if (shotAvailableCounter < 30) {
+            shotAvailableCounter++;
+        }
     }
-    public void draw ( Graphics2D g2 ) {
 
-        BufferedImage image = null;
+    /**
+     * Advances idle and activity animation counters without running any AI or movement.
+     * Safe to call during dialogue state so NPC animations keep playing while talking.
+     */
+    public void tickAnimations() {
+        entityIdle = true;
+        // Idle frames
+        if (idleFrames != null) {
+            int dir = (idleDirection >= 0) ? idleDirection : direction;
+            if (dir >= 0 && dir < idleFrames.length && idleFrames[dir] != null && idleFrames[dir].length > 0) {
+                idleSpriteCounter++;
+                if (idleSpriteCounter > idleAnimationInterval) {
+                    int maxIdle = idleFrames[dir].length;
+                    if (maxIdle == 1) {
+                        idleSpriteNum = 1;
+                    } else {
+                        idleSpriteNum += idleFrameDirection;
+                        if (idleSpriteNum >= maxIdle) { idleSpriteNum = maxIdle; idleFrameDirection = -1; }
+                        if (idleSpriteNum <= 1)        { idleSpriteNum = 1;       idleFrameDirection =  1; }
+                    }
+                    idleSpriteCounter = 0;
+                }
+            }
+        }
+        // Activity animation
+        if (currentActivity != null && activityAnimations != null) {
+            BufferedImage[][] actFrames = activityAnimations.get(currentActivity);
+            if (actFrames != null) {
+                int dir = (idleDirection >= 0) ? idleDirection : direction;
+                if (dir >= 0 && dir < actFrames.length && actFrames[dir] != null && actFrames[dir].length > 0) {
+                    int interval = idleAnimationInterval;
+                    if (activityAnimSpeeds != null) {
+                        Integer customSpeed = activityAnimSpeeds.get(currentActivity);
+                        if (customSpeed != null) interval = customSpeed;
+                    }
+                    activitySpriteCounter++;
+                    if (activitySpriteCounter > interval) {
+                        int maxFrames = actFrames[dir].length;
+                        if (maxFrames == 1) {
+                            activitySpriteNum = 1;
+                        } else {
+                            activitySpriteNum += activityFrameDirection;
+                            if (activitySpriteNum >= maxFrames) { activitySpriteNum = maxFrames; activityFrameDirection = -1; }
+                            if (activitySpriteNum <= 1)          { activitySpriteNum = 1;         activityFrameDirection =  1; }
+                        }
+                        activitySpriteCounter = 0;
+                    }
+                }
+            }
+        }
+    }
+
+    public void draw(Graphics2D g2) {
+        
+        BufferedImage currentSprite = null;
+        
         int screenX = worldX - gp.player.worldX + gp.player.screenX;
         int screenY = worldY - gp.player.worldY + gp.player.screenY;
 
@@ -204,125 +829,322 @@ public class Entity {
             worldY + gp.tileSize > gp.player.worldY - gp.player.screenY && 
             worldY - gp.tileSize < gp.player.worldY + gp.player.screenY) {      
 
-            switch (direction) {
-            case "up":
-                if (spriteNum == 1) {image = up1;}
-                if (spriteNum == 2) {image = up2;}
-                if(spriteNum == 3){image = up3;}
-                break;
-            case "down":
-                if (spriteNum == 1) {image = down1;}
-                if (spriteNum == 2) {image = down2;}
-                if (spriteNum == 3) {image = down3;}
-                break;
-            case "left":
-                if (spriteNum == 1) {image = left1;}
-                if (spriteNum == 2) {image = left2;}
-                if (spriteNum == 3) {image = left3;}
-                break;
-            case "right":
-                if (spriteNum == 1) {image = right1;}
-                if (spriteNum == 2) {image = right2;}
-                if (spriteNum == 3) {image = right3;}
-                break;
-        }
+            int drawW = (int)(gp.tileSize * spriteScale);
+            int drawH = (int)(gp.tileSize * spriteScale);
 
-        // Monster HP Bar
-        if ( type == 2 && hpBarOn == true ) {
-
-            double oneScale = (double)gp.tileSize / maxLife;
-            double hpBarValue = oneScale * life;
-
-            g2.setColor(new Color(35, 35, 35));
-            g2.fillRect(screenX - 1, screenY - 16, gp.tileSize + 2, 12);
-
-            g2.setColor(new Color(255, 0, 30));
-            g2.fillRect(screenX, screenY - 15, (int)hpBarValue, 10);
-
-            hpBarCounter++;
-
-            if ( hpBarCounter > 300 ) {
-                hpBarCounter = 0;
-                hpBarOn = false;
+            if (currentSprite == null && entityIdle && currentActivity != null && activityAnimations != null) {
+                BufferedImage[][] actFrames = activityAnimations.get(currentActivity);
+                if (actFrames != null) {
+                    int actDir = (idleDirection >= 0) ? idleDirection : direction;
+                    if (actDir >= 0 && actDir < actFrames.length && actFrames[actDir] != null) {
+                        int idx = activitySpriteNum - 1;
+                        if (idx >= 0 && idx < actFrames[actDir].length) {
+                            currentSprite = actFrames[actDir][idx];
+                        }
+                    }
+                }
             }
-        }
 
-        if ( invincible == true ) {
-            hpBarOn = true;
-            hpBarCounter = 0;
-            changeAlpha(g2, 0.4F);
-        }
-        if ( dying == true ) {
-            dyingAnimation(g2);
-        }
+            if (currentSprite == null && entityIdle && idleFrames != null) {
+                int idleDir = (idleDirection >= 0) ? idleDirection : direction;
+                if (idleDir >= 0 && idleDir < idleFrames.length && idleFrames[idleDir] != null) {
+                    int idx = idleSpriteNum - 1;
+                    if (idx >= 0 && idx < idleFrames[idleDir].length) {
+                        currentSprite = idleFrames[idleDir][idx];
+                    }
+                }
+            }
+            if (currentSprite == null) {
+                currentSprite = getWalkFrameImage(direction, spriteNum);
+            }
+            if (currentSprite == null) {
+                currentSprite = getWalkFrameImage(direction, 1);
+            }
+
+            // Monster HP Bar
+            if (type == TYPE_MONSTER && hpBarOn) {
+                double oneScale = (double)gp.tileSize / maxLife;
+                double hpBarValue = oneScale * life;
+
+                g2.setColor(HP_BAR_BG);
+                g2.fillRect(screenX - 1, screenY - 16, gp.tileSize + 2, 12);
+
+                g2.setColor(HP_BAR_FG);
+                g2.fillRect(screenX, screenY - 15, (int)hpBarValue, 10);
+
+                hpBarCounter++;
+                if (hpBarCounter > 300) {
+                    hpBarCounter = 0;
+                    hpBarOn = false;
+                }
+            }
+
+            if (invincible) {
+                hpBarOn = true;
+                hpBarCounter = 0;
+                // Phasing monsters: more transparent during invulnerable phase
+                changeAlpha(g2, phasing ? 0.25F : 0.4F);
+            }
+            if (dying) {
+                int deathJitter = Math.max(0, 6 - dyingCounter / 8);
+                if (deathJitter > 0) {
+                    screenX += (int) ((Math.random() * (deathJitter * 2 + 1)) - deathJitter);
+                    screenY += (int) ((Math.random() * (deathJitter * 2 + 1)) - deathJitter);
+                }
+
+                // Arcade squash/pop before fade out.
+                if (dyingCounter < 22) {
+                    float t = dyingCounter / 22f;
+                    float stretchX = 1.0f + (float)Math.sin(t * Math.PI) * 0.25f;
+                    float squashY = 1.0f - (float)Math.sin(t * Math.PI) * 0.20f;
+                    drawW = Math.max(1, (int)(gp.tileSize * stretchX));
+                    drawH = Math.max(1, (int)(gp.tileSize * squashY));
+                }
+                dyingAnimation(g2);
+            }
                 
-        g2.drawImage(image, screenX, screenY, gp.tileSize, gp.tileSize, null);
-        changeAlpha(g2, 1F);
+            // DROP SHADOW: oval under entity feet for player/npc/monster
+            if (type == TYPE_PLAYER || type == TYPE_NPC || type == TYPE_MONSTER) {
+                int shadowCX = screenX + solidArea.x + solidArea.width / 2;
+                int shadowCY = screenY + solidArea.y + solidArea.height;
+                int shadowW = (int)(solidArea.width * 0.85);
+                int shadowH = 10;
+                g2.setColor(SHADOW_COLOR);
+                g2.fillOval(shadowCX - shadowW / 2, shadowCY - shadowH / 2, shadowW, shadowH);
+            }
+
+            // Safe guard against null images
+            if (currentSprite != null) {
+                int drawX = screenX - (drawW - gp.tileSize) / 2;
+                int drawY = screenY - (drawH - gp.tileSize);
+                g2.drawImage(currentSprite, drawX, drawY, drawW, drawH, null);
+            }
+
+            // ATTACK TELEGRAPH: tint sprite red when about to attack
+            if (attackWindupFlash > 0 && currentSprite != null && hitFlashCounter == 0) {
+                float telegraphAlpha = Math.min(0.7f, attackWindupFlash / 20f * 0.7f);
+                int sprW = currentSprite.getWidth();
+                int sprH = currentSprite.getHeight();
+                if (hitFlashBuffer == null || hitFlashBufferW < sprW || hitFlashBufferH < sprH) {
+                    hitFlashBufferW = sprW; hitFlashBufferH = sprH;
+                    hitFlashBuffer = new BufferedImage(sprW, sprH, BufferedImage.TYPE_INT_ARGB);
+                    if (hitFlashG2 != null) hitFlashG2.dispose();
+                    hitFlashG2 = hitFlashBuffer.createGraphics();
+                }
+                java.awt.Graphics2D rg = hitFlashG2;
+                rg.setComposite(AlphaComposite.Clear);
+                rg.fillRect(0, 0, hitFlashBufferW, hitFlashBufferH);
+                rg.setComposite(AlphaComposite.SrcOver);
+                rg.drawImage(currentSprite, 0, 0, null);
+                rg.setComposite(AlphaComposite.getInstance(AlphaComposite.SRC_ATOP, telegraphAlpha));
+                rg.setColor(new Color(255, 60, 60));
+                rg.fillRect(0, 0, sprW, sprH);
+                g2.drawImage(hitFlashBuffer, screenX, screenY, gp.tileSize, gp.tileSize, null);
+                attackWindupFlash--;
+            }
+
+            // HIT FLASH: tint sprite white when recently damaged
+            // OPTIMIZATION: Reuse a single buffer and cached Graphics2D instead of createGraphics() every frame
+            if (hitFlashCounter > 0 && currentSprite != null) {
+                float flashAlpha = Math.min(1f, hitFlashCounter / (float) HIT_FLASH_DURATION * 0.8f);
+                int sprW = currentSprite.getWidth();
+                int sprH = currentSprite.getHeight();
+                // Lazily allocate or resize the reusable flash buffer
+                if (hitFlashBuffer == null || hitFlashBufferW < sprW || hitFlashBufferH < sprH) {
+                    hitFlashBufferW = sprW;
+                    hitFlashBufferH = sprH;
+                    hitFlashBuffer = new BufferedImage(sprW, sprH, BufferedImage.TYPE_INT_ARGB);
+                    if (hitFlashG2 != null) hitFlashG2.dispose();
+                    hitFlashG2 = hitFlashBuffer.createGraphics();
+                }
+                java.awt.Graphics2D fg = hitFlashG2;
+                // Clear previous contents
+                fg.setComposite(AlphaComposite.Clear);
+                fg.fillRect(0, 0, hitFlashBufferW, hitFlashBufferH);
+                // Draw sprite then overlay white
+                fg.setComposite(AlphaComposite.SrcOver);
+                fg.drawImage(currentSprite, 0, 0, null);
+                fg.setComposite(AlphaComposite.getInstance(AlphaComposite.SRC_ATOP, flashAlpha));
+                fg.setColor(Color.WHITE);
+                fg.fillRect(0, 0, sprW, sprH);
+                g2.drawImage(hitFlashBuffer, screenX, screenY, gp.tileSize, gp.tileSize, null);
+            }
             
+            changeAlpha(g2, 1F);
         }
     }
-    public void dyingAnimation( Graphics2D g2 ) {
 
+    protected BufferedImage getWalkFrameImage(int dir, int frame) {
+        // Try new array-based storage first (Player, Monster, NPC)
+        if (walkFrames != null && dir >= 0 && dir < walkFrames.length && walkFrames[dir] != null) {
+            int idx = frame - 1;
+            if (idx >= 0 && idx < walkFrames[dir].length) return walkFrames[dir][idx];
+        }
+        // Fall back to legacy named fields (Object/Item classes)
+        return switch (dir) {
+            case DIR_UP -> switch (frame) {
+                case 1 -> up1;  case 2 -> up2;  case 3 -> up3;  case 4 -> up4;
+                case 5 -> up5;  case 6 -> up6;  case 7 -> up7;  default -> null;
+            };
+            case DIR_DOWN -> switch (frame) {
+                case 1 -> down1; case 2 -> down2; case 3 -> down3; case 4 -> down4;
+                case 5 -> down5; case 6 -> down6; case 7 -> down7; default -> null;
+            };
+            case DIR_LEFT -> switch (frame) {
+                case 1 -> left1; case 2 -> left2; case 3 -> left3; case 4 -> left4;
+                case 5 -> left5; case 6 -> left6; case 7 -> left7; case 8 -> left8;
+                default -> null;
+            };
+            case DIR_RIGHT -> switch (frame) {
+                case 1 -> right1; case 2 -> right2; case 3 -> right3; case 4 -> right4;
+                case 5 -> right5; case 6 -> right6; case 7 -> right7; case 8 -> right8;
+                default -> null;
+            };
+            default -> null;
+        };
+    }
+
+    /**
+     * Unified sprite access: returns a sprite for the given animation type, direction, and frame.
+     * New entities should use this instead of legacy named fields.
+     * @param type "walk", "idle", or "attack"
+     * @param dir direction constant (DIR_DOWN, DIR_LEFT, DIR_RIGHT, DIR_UP)
+     * @param frame 0-based frame index
+     * @return the sprite image, or null if not available
+     */
+    public BufferedImage getSprite(String type, int dir, int frame) {
+        BufferedImage[][] frames = switch (type) {
+            case "walk" -> walkFrames;
+            case "idle" -> idleFrames;
+            case "attack" -> attackFrames;
+            default -> {
+                // Check activity animations for custom types (e.g. "forge", "sweep")
+                if (activityAnimations != null) yield activityAnimations.get(type);
+                yield null;
+            }
+        };
+        if (frames != null && dir >= 0 && dir < frames.length && frames[dir] != null) {
+            if (frame >= 0 && frame < frames[dir].length) return frames[dir][frame];
+        }
+        // Walk fallback: try legacy named fields (1-based)
+        if ("walk".equals(type)) {
+            return getWalkFrameImage(dir, frame + 1);
+        }
+        return null;
+    }
+    
+    public void dyingAnimation(Graphics2D g2) {
         dyingCounter++;
 
-        int i = 5;
+        // Phase 1 (frames 1-24): arcade flicker + pulse
+        if (dyingCounter <= 24) {
+            int interval = 3;
+            int phase = (dyingCounter - 1) / interval;
+            changeAlpha(g2, (phase % 2 == 0) ? 0.25f : 0.95f);
 
-        if ( dyingCounter <= i ) {changeAlpha(g2, 0f);}
-        if ( dyingCounter > i && dyingCounter <= i*2 ) {changeAlpha(g2, 1f);}
-        if ( dyingCounter > i*2 && dyingCounter <= i*3 ) {changeAlpha(g2, 0f);}
-        if ( dyingCounter > i*3 && dyingCounter <= i*4) {changeAlpha(g2, 1f);}
-        if ( dyingCounter > i*4 && dyingCounter <= i*5 ) {changeAlpha(g2, 0f);}
-        if ( dyingCounter > i*5 && dyingCounter <= i*6 ) {changeAlpha(g2, 1f);}
-        if ( dyingCounter > i*6 && dyingCounter <= i*7 ) {changeAlpha(g2, 0f);}
-        if ( dyingCounter > i*7 && dyingCounter <= i*8 ) {changeAlpha(g2, 1f);}
-        if ( dyingCounter > i*8 ) {
-            dying = false;
+            if (dyingCounter % 6 == 0) {
+                for (int i = 0; i < 4; i++) {
+                    Particle p = gp.particlePool.get();
+                    float angle = (float)(Math.random() * Math.PI * 2.0);
+                    int dx = (int)Math.round(Math.cos(angle) * 2);
+                    int dy = (int)Math.round(Math.sin(angle) * 2);
+                    p.setWithPosition(this, this, SPARK_COLOR_1, 4, 2, 14, dx, dy, Particle.STYLE_SPARK);
+                    gp.particleList.add(p);
+                }
+            }
+        }
+        // Phase 2 (frames 25-44): fade out
+        else if (dyingCounter <= 44) {
+            float alpha = 1f - ((dyingCounter - 24) / 20f);
+            changeAlpha(g2, Math.max(0f, alpha));
+        }
+        // Phase 3: emit death burst particles and remove
+        else {
+            grantQueuedDeathRewards();
+
+            // Burst of 12 spark particles on death
+            for (int i = 0; i < 12; i++) {
+                Particle p = gp.particlePool.get();
+                float angle = (float)(i * Math.PI * 2 / 12);
+                int dx = (int)(Math.cos(angle) * 3);
+                int dy = (int)(Math.sin(angle) * 3);
+                p.setWithPosition(this, this, SPARK_COLOR_2, 5, 3, 22, dx, dy, Particle.STYLE_SPARK);
+                gp.particleList.add(p);
+            }
             alive = false;
         }
     }
-    public void changeAlpha( Graphics2D g2, float alphaValue ) {
 
+    public void applyCrowdControl(int frames) {
+        if (frames > crowdControlTimer) {
+            crowdControlTimer = frames;
+        }
+    }
+
+    public void beginDeath(int rewardExp, int rewardQuestKills, int rewardCoins) {
+        if (dying || !alive) return;
+
+        dying = true;
+        collision = false;
+        onPath = false;
+        knockBack = false;
+        speed = 0;
+        crowdControlTimer = 0;
+        dyingCounter = 0;
+        deathRewardExp = Math.max(0, rewardExp);
+        deathRewardQuestKills = Math.max(0, rewardQuestKills);
+        deathRewardCoins = Math.max(0, rewardCoins);
+        deathRewardsQueued = true;
+    }
+
+    private void grantQueuedDeathRewards() {
+        if (!deathRewardsQueued) return;
+
+        deathRewardsQueued = false;
+
+        if (type == TYPE_MONSTER) {
+            if (name != null) {
+                gp.ui.addMessage("Killed the " + name + "!", Color.WHITE);
+            }
+            if (deathRewardExp > 0) {
+                gp.player.exp += deathRewardExp;
+                gp.player.checkLevelUp();
+            }
+            if (deathRewardCoins > 0) {
+                gp.player.coin += deathRewardCoins;
+                gp.ui.addMessage("+" + deathRewardCoins + " coins", COIN_MSG_COLOR);
+            }
+        }
+    }
+    public void changeAlpha(Graphics2D g2, float alphaValue) {
         g2.setComposite(AlphaComposite.getInstance(AlphaComposite.SRC_OVER, alphaValue));
     }
     public BufferedImage setup(String imagePath, int width, int height) {
-
-        UtilityTool uTool = new UtilityTool();
-        BufferedImage image = null;
-
-        try {
-            image = ImageIO.read(getClass().getResourceAsStream(imagePath + ".png"));
-            image = uTool.scaleImage(image, width, height);
-
-        }catch(IOException e) {
-            e.printStackTrace();
-        }
-        return image;
-
+        return ResourceCache.loadScaledImageIfPresent(imagePath + ".png", width, height);
     }
-    public int getDetected( Entity entity, Entity target[], String targetName ) {
-
+    public int getDetected(Entity user, Entity target[], String targetName) {
         int index = 999;
+        
+        int nextWorldX = user.getLeftX();
+        int nextWorldY = user.getTopY();
 
-        // CHECK THE SURROUNDING OBJECT
-        int nextWorldX = getLeftX();
-        int nextWorldY = getTopY();
-
-        switch (direction) {
-        case "up": nextWorldY = getTopY() - 1; break;
-        case "down": nextWorldY = getBottomY() + 1; break;
-        case "left": nextWorldX = getLeftX() - 1; break;
-        case "right": nextWorldX = getRightX() + 1; break;
+        switch (user.direction) {
+            case DIR_UP -> nextWorldY = user.getTopY() - gp.player.speed;
+            case DIR_DOWN -> nextWorldY = user.getBottomY() + gp.player.speed;
+            case DIR_LEFT -> nextWorldX = user.getLeftX() - gp.player.speed;
+            case DIR_RIGHT -> nextWorldX = user.getRightX() + gp.player.speed;
+            default -> {
+            }
         }
 
         int col = nextWorldX / gp.tileSize;
         int row = nextWorldY / gp.tileSize;
 
-        for ( int i = 0 ; i < target.length; i++ ) {
-            if ( target[i] != null ) {
-                if ( target[i].getCol() == col &&
+        for (int i = 0; i < target.length; i++) {
+            if (target[i] != null) {
+                if (target[i].getCol() == col &&
                     target[i].getRow() == row && 
                     target[i].name.equals(targetName)) {
-
                     index = i;
                     break;
                 }
@@ -330,124 +1152,329 @@ public class Entity {
         }
         return index;
     }
-    public void searchPath(int goalCol, int goalRow)
-    {
+    
+    // -----------------------------------------------------------------
+    // FIXED SEARCH PATH (with per-entity result caching)
+    // -----------------------------------------------------------------
+    public void searchPath(int goalCol, int goalRow) {
+
         int startCol = (worldX + solidArea.x) / gp.tileSize;
         int startRow = (worldY + solidArea.y) / gp.tileSize;
-        gp.pFinder.setNodes(startCol,startRow,goalCol,goalRow,this);
-        if(gp.pFinder.search() == true)
-        {
-            //Next WorldX and WorldY
-            int nextX = gp.pFinder.pathList.get(0).col * gp.tileSize + gp.tileSize / 2;
-            int nextY = gp.pFinder.pathList.get(0).row * gp.tileSize + gp.tileSize / 2;
 
-            int enCenterX = getCenterX();
-            int enCenterY = getCenterY();
+        // Already standing on the goal — nothing to do
+        if (startCol == goalCol && startRow == goalRow) {
+            onPath = false;
+            waypointCount = 0;
+            waypointIdx = 0;
+            if (walkToCol == goalCol && walkToRow == goalRow) {
+                guardMode = true;
+                walkToCol = -1;
+                walkToRow = -1;
+                advanceNpcStep();
+            }
+            return;
+        }
 
-            int dx = enCenterX - nextX;
-            int dy = enCenterY - nextY;
+        // Reuse cached path while the goal tile hasn't changed
+        if (goalCol == pathCacheGoalCol && goalRow == pathCacheGoalRow
+                && waypointIdx < waypointCount
+                && pathStallCounter < PATH_STALL_LIMIT) {
+            followWaypoints();
+            return;
+        }
 
-            if (Math.abs(dx) > Math.abs(dy)) {
-                direction = (dx > 0) ? "left" : "right";
+        // Goal changed or stalled too long — run A* and cache the result
+        pathStallCounter = 0;
+        pathCacheGoalCol = goalCol;
+        pathCacheGoalRow = goalRow;
+        waypointCount = 0;
+        waypointIdx = 0;
+
+        gp.pFinder.setNodes(startCol, startRow, goalCol, goalRow, this);
+        if (gp.pFinder.search()) {
+            int pathSize = gp.pFinder.pathList.size();
+            // Grow backing arrays if needed — rare (only when path is longer than previous max)
+            if (pathSize > waypointCols.length) {
+                int newCap = Math.max(pathSize, waypointCols.length * 2);
+                waypointCols = new int[newCap];
+                waypointRows = new int[newCap];
+            }
+            for (int i = 0; i < pathSize; i++) {
+                ai.Node nd = gp.pFinder.pathList.get(i);
+                waypointCols[i] = nd.col;
+                waypointRows[i] = nd.row;
+            }
+            waypointCount = pathSize;
+            if (waypointCount > 0) {
+                followWaypoints();
             } else {
-                direction = (dy > 0) ? "up" : "down";
-            }  
-
-            //Entity's solidArea position
-            int enLeftX = worldX + solidArea.x;
-            int enRightX = worldX + solidArea.x + solidArea.width;
-            int enTopY = worldY + solidArea.y;
-            int enBottomY = worldY + solidArea.y + solidArea.height;
-
-            // TOP PATH
-            int xDistance = enCenterX - nextX;
-            int yDistance = enCenterY - nextY;
-
-            if (Math.abs(xDistance) > Math.abs(yDistance)) {
-                if (xDistance > 0) {
-                    direction = "left";
-                } else {
-                    direction = "right";
-                }
-            } else {
-                if (yDistance > 0) {
-                    direction = "up";
-                } else {
-                    direction = "down";
-                }
-            }
-
-            //OTHER EXCEPTIONS
-            if(enTopY > nextY && enLeftX > nextX)
-                        {
-                            // up or left
-                            direction = "up";
-                            checkCollision();
-                            if(collisionOn == true)
-                            {
-                                direction = "left";
-                            }
-                        }
-                        else if(enTopY > nextY && enLeftX < nextX)
-                        {
-                            // up or right
-                            direction = "up";
-                            checkCollision();
-                            if(collisionOn == true)
-                            {
-                                direction = "right";
-                }
-            }
-            else if(enTopY < nextY && enLeftX > nextX)
-            {
-                // down or left
-                direction = "down";
-                checkCollision();
-                if(collisionOn == true)
-                {
-                    direction = "left";
-                }
-            }
-            else if(enTopY < nextY && enLeftX < nextX)
-            {
-                // down or right
-                direction = "down";
-                checkCollision();
-                if(collisionOn == true)
-                {
-                    direction = "right";
-                }
-            }
-           int nextCol = gp.pFinder.pathList.get(0).col;
-            int nextRow = gp.pFinder.pathList.get(0).row;
-           if(nextCol == goalCol && nextRow == goalRow)
-            {
                 onPath = false;
             }
+        } else {
+            directChase(goalCol, goalRow);
         }
     }
 
-    public int getCenterX() {
-        return worldX + solidArea.x + solidArea.width / 2;
-    }   
+    private void followWaypoints() {
+        if (waypointIdx >= waypointCount) {
+            onPath = false;
+            waypointCount = 0;
+            waypointIdx = 0;
+            return;
+        }
 
-    public int getCenterY() {
-        return worldY + solidArea.y + solidArea.height / 2;
-    }   
+        int nextX = waypointCols[waypointIdx] * gp.tileSize;
+        int nextY = waypointRows[waypointIdx] * gp.tileSize;
 
-    public int getTileCol() {
-        return getCenterX() / gp.tileSize;
-    }   
+        int enLeftX   = worldX + solidArea.x;
+        int enTopY    = worldY + solidArea.y;
+        int enCenterX = enLeftX + solidArea.width  / 2;
+        int enCenterY = enTopY  + solidArea.height / 2;
 
-    public int getTileRow() {
-        return getCenterY() / gp.tileSize;
-    }   
+        int nextCenterX = nextX + gp.tileSize / 2;
+        int nextCenterY = nextY + gp.tileSize / 2;
+        int dx = Math.abs(nextCenterX - enCenterX);
+        int dy = Math.abs(nextCenterY - enCenterY);
 
+        // Reached current waypoint — advance to next
+        if (dx <= speed + 1 && dy <= speed + 1) {
+            waypointIdx++;
+            pathStallCounter = 0;
+            if (waypointIdx >= waypointCount) {
+                onPath = false;
+                waypointCount = 0;
+                waypointIdx = 0;
+                if (walkToCol == pathCacheGoalCol && walkToRow == pathCacheGoalRow) {
+                    guardMode = true;
+                    walkToCol = -1;
+                    walkToRow = -1;
+                    advanceNpcStep();
+                }
+            }
+            return;
+        }
+
+        // Move toward the current waypoint
+        if (dy > dx) {
+            boolean moved = tryMoveVertical(enTopY, nextY);
+            if (!moved) tryMoveHorizontal(enLeftX, nextX);
+        } else {
+            boolean moved = tryMoveHorizontal(enLeftX, nextX);
+            if (!moved) tryMoveVertical(enTopY, nextY);
+        }
+
+        // Always count frames spent on this waypoint — triggers repath around obstacles
+        pathStallCounter++;
+    }
+
+    // Try to move vertically toward the target. Returns true if movement occurred.
+    private boolean tryMoveVertical(int enTopY, int nextY) {
+        if (enTopY > nextY) {
+            direction = DIR_UP;
+            checkCollision();
+            if (!collisionOn) { worldY -= speed; return true; }
+        } else if (enTopY < nextY) {
+            direction = DIR_DOWN;
+            checkCollision();
+            if (!collisionOn) { worldY += speed; return true; }
+        }
+        return false;
+    }
+
+    // Try to move horizontally toward the target. Returns true if movement occurred.
+    private boolean tryMoveHorizontal(int enLeftX, int nextX) {
+        if (enLeftX > nextX) {
+            direction = DIR_LEFT;
+            checkCollision();
+            if (!collisionOn) { worldX -= speed; return true; }
+        } else if (enLeftX < nextX) {
+            direction = DIR_RIGHT;
+            checkCollision();
+            if (!collisionOn) { worldX += speed; return true; }
+        }
+        return false;
+    }
+
+
+
+    // Direct chase fallback: move toward the goal tile without A*
+    protected void directChase(int goalCol, int goalRow) {
+        int goalWorldX = goalCol * gp.tileSize;
+        int goalWorldY = goalRow * gp.tileSize;
+        int dx = goalWorldX - worldX;
+        int dy = goalWorldY - worldY;
+
+        boolean moved = false;
+        if (Math.abs(dy) > Math.abs(dx)) {
+            // Try vertical
+            if (dy < 0) { direction = DIR_UP; checkCollision(); if (!collisionOn) { worldY -= speed; moved = true; } }
+            else if (dy > 0) { direction = DIR_DOWN; checkCollision(); if (!collisionOn) { worldY += speed; moved = true; } }
+            if (!moved) {
+                if (dx < 0) { direction = DIR_LEFT; checkCollision(); if (!collisionOn) { worldX -= speed; } }
+                else if (dx > 0) { direction = DIR_RIGHT; checkCollision(); if (!collisionOn) { worldX += speed; } }
+            }
+        } else {
+            // Try horizontal
+            if (dx < 0) { direction = DIR_LEFT; checkCollision(); if (!collisionOn) { worldX -= speed; moved = true; } }
+            else if (dx > 0) { direction = DIR_RIGHT; checkCollision(); if (!collisionOn) { worldX += speed; moved = true; } }
+            if (!moved) {
+                if (dy < 0) { direction = DIR_UP; checkCollision(); if (!collisionOn) { worldY -= speed; } }
+                else if (dy > 0) { direction = DIR_DOWN; checkCollision(); if (!collisionOn) { worldY += speed; } }
+            }
+        }
+    }   
+    
     public boolean isPlayerInRange(int range) {
         int dx = Math.abs(getCenterX() - gp.player.getCenterX());
         int dy = Math.abs(getCenterY() - gp.player.getCenterY());
         return dx < range && dy < range;
-    }   
+    } 
+    public BufferedImage[][] loadSheetVariable(String path, int[] framesPerRow) {
+        int rowsWanted = framesPerRow.length;
+        int maxColsWanted = 0;
+        for (int f : framesPerRow) if (f > maxColsWanted) maxColsWanted = f;
 
+        try {
+            BufferedImage sheet = ResourceCache.loadImage(path + ".png");
+
+            // Determine if the sheet is arranged in multiple rows as requested,
+            // otherwise treat it as a single-row strip and duplicate that row
+            // across the expected directions.
+            int rowsActual;
+            int cellSize;
+            if (sheet.getHeight() % rowsWanted == 0 && sheet.getHeight() / rowsWanted > 0) {
+                rowsActual = rowsWanted;
+                cellSize = sheet.getHeight() / rowsWanted;
+            } else {
+                // Fallback: single-row strip
+                rowsActual = 1;
+                cellSize = sheet.getHeight();
+            }
+
+            int colsActual = Math.max(1, sheet.getWidth() / cellSize);
+
+            BufferedImage[][] frames = new BufferedImage[rowsWanted][];
+
+            for (int y = 0; y < rowsWanted; y++) {
+                int expected = framesPerRow[y];
+                if (colsActual <= 0) {
+                    // Create empty transparent frames if nothing is available
+                    frames[y] = new BufferedImage[expected];
+                    for (int k = 0; k < expected; k++) {
+                        frames[y][k] = new BufferedImage(gp.tileSize, gp.tileSize, BufferedImage.TYPE_INT_ARGB);
+                    }
+                    continue;
+                }
+
+                int available = Math.min(expected, colsActual);
+                BufferedImage[] temp = new BufferedImage[available];
+
+                for (int x = 0; x < available; x++) {
+                    int srcRow = (rowsActual == rowsWanted) ? y : 0;
+                    int sx = x * cellSize;
+                    int sy = srcRow * cellSize;
+                    int sw = Math.min(cellSize, sheet.getWidth() - sx);
+                    int sh = Math.min(cellSize, sheet.getHeight() - sy);
+
+                    BufferedImage crop;
+                    if (sw == cellSize && sh == cellSize) {
+                        crop = sheet.getSubimage(sx, sy, sw, sh);
+                    } else {
+                        BufferedImage padded = new BufferedImage(cellSize, cellSize, BufferedImage.TYPE_INT_ARGB);
+                        java.awt.Graphics2D pg = padded.createGraphics();
+                        pg.drawImage(sheet.getSubimage(sx, sy, sw, sh), 0, 0, null);
+                        pg.dispose();
+                        crop = padded;
+                    }
+
+                    temp[x] = util.UtilityTool.scaleImage(crop, gp.tileSize, gp.tileSize);
+                }
+
+                // Fill expected count, pad by duplicating last available frame if needed
+                frames[y] = new BufferedImage[expected];
+                for (int x = 0; x < expected; x++) {
+                    if (x < temp.length) frames[y][x] = temp[x];
+                    else frames[y][x] = temp[temp.length - 1];
+                }
+            }
+
+            return frames;
+        } catch (IOException e) {
+            // Fallback to original (scaled full-sheet) behaviour for compatibility
+            BufferedImage sheet = setup(path, gp.tileSize * maxColsWanted, gp.tileSize * rowsWanted);
+            BufferedImage[][] frames = new BufferedImage[rowsWanted][];
+
+            for (int y = 0; y < rowsWanted; y++) {
+                frames[y] = new BufferedImage[framesPerRow[y]];
+                for (int x = 0; x < framesPerRow[y]; x++) {
+                    frames[y][x] = sheet.getSubimage(
+                            x * gp.tileSize,
+                            y * gp.tileSize,
+                            gp.tileSize,
+                            gp.tileSize
+                    );
+                }
+            }
+            return frames;
+        }
+    }
+    public BufferedImage[][] loadSpriteMatrix(
+        String path,
+        int spriteWidth,
+        int spriteHeight
+    ) {
+
+        BufferedImage sheet;
+
+        try {
+            sheet = ResourceCache.loadImage(path + ".png");
+        } catch (IOException e) {
+            throw new RuntimeException("Failed to load spritesheet: " + path, e);
+        }
+
+        // NOTE: `spriteWidth`/`spriteHeight` are expected to be the native
+        // cell sizes authored in the spritesheet (e.g. 32x32). Callers should
+        // pass Config.originalTileSize for native sheets. If the sheet image
+        // dimensions are not exact multiples of the provided cell size, we
+        // continue with floor-division but emit a warning to help debugging
+        // resource mismatches (e.g. fruit_trader looking incorrect).
+        if (sheet.getWidth() % spriteWidth != 0 || sheet.getHeight() % spriteHeight != 0) {
+            System.out.println("[Entity] Warning: sprite sheet dimensions not multiples of given cell size for '" + path + "' (sheet: "
+                + sheet.getWidth() + "x" + sheet.getHeight() + ", cell: " + spriteWidth + "x" + spriteHeight + ")");
+        }
+
+        int columns = Math.max(1, sheet.getWidth() / spriteWidth);
+        int rows = Math.max(1, sheet.getHeight() / spriteHeight);
+        // Check if there's a partial extra row (e.g. 400px / 128 = 3 but 4th row visible)
+        int remainderH = sheet.getHeight() - rows * spriteHeight;
+        if (remainderH > spriteHeight / 2) {
+            rows++; // include the partial row
+        }
+
+        BufferedImage[][] matrix = new BufferedImage[rows][columns];
+
+        for (int y = 0; y < rows; y++) {
+            int srcY = y * spriteHeight;
+            int srcH = Math.min(spriteHeight, sheet.getHeight() - srcY);
+            for (int x = 0; x < columns; x++) {
+                if (srcH == spriteHeight) {
+                    matrix[y][x] = sheet.getSubimage(
+                            x * spriteWidth,
+                            srcY,
+                            spriteWidth,
+                            spriteHeight
+                    );
+                } else {
+                    // Partial row: copy into a full-size image
+                    BufferedImage padded = new BufferedImage(spriteWidth, spriteHeight, BufferedImage.TYPE_INT_ARGB);
+                    java.awt.Graphics2D pg = padded.createGraphics();
+                    pg.drawImage(sheet.getSubimage(x * spriteWidth, srcY, spriteWidth, srcH), 0, 0, null);
+                    pg.dispose();
+                    matrix[y][x] = padded;
+                }
+            }
+        }
+
+        return matrix;
+    }
 }
-

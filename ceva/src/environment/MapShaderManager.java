@@ -1,0 +1,505 @@
+package environment;
+
+import java.awt.AlphaComposite;
+import java.awt.Color;
+import java.awt.Composite;
+import java.awt.Graphics2D;
+import java.awt.RadialGradientPaint;
+import java.awt.image.BufferedImage;
+import java.util.Random;
+
+import main.GamePanel;
+
+/**
+ * Provides shader-like visual effects for the map using Java2D.
+ * Effects: water shimmer/waves, ambient floating particles, vignette, color grading.
+ */
+public class MapShaderManager {
+
+    GamePanel gp;
+
+    public long tick = 0;
+
+    public static final int SHIMMER_LEVELS = 36;
+    public Color[] waterShimmerColors;
+
+    // OPTIMIZATION: Pre-computed sine lookup table to avoid Math.sin/cos per tile per frame
+    private static final int SIN_TABLE_SIZE = 1024;
+    private static final float SIN_TABLE_SCALE = SIN_TABLE_SIZE / (float)(2 * Math.PI);
+    private static final float[] SIN_TABLE = new float[SIN_TABLE_SIZE];
+
+    // OPTIMIZATION: AlphaComposite cache — avoids per-frame allocation in weather effects
+    private static final int ALPHA_CACHE_SIZE = 101;
+    private static final AlphaComposite[] alphaCache = new AlphaComposite[ALPHA_CACHE_SIZE];
+    static {
+        for (int i = 0; i < SIN_TABLE_SIZE; i++) {
+            SIN_TABLE[i] = (float) Math.sin(2 * Math.PI * i / SIN_TABLE_SIZE);
+        }
+        for (int i = 0; i < ALPHA_CACHE_SIZE; i++) {
+            alphaCache[i] = AlphaComposite.getInstance(AlphaComposite.SRC_OVER, i / 100f);
+        }
+    }
+    private static AlphaComposite cachedAlpha(float a) {
+        int idx = Math.round(a * 100f);
+        if (idx < 0) idx = 0; else if (idx >= ALPHA_CACHE_SIZE) idx = ALPHA_CACHE_SIZE - 1;
+        return alphaCache[idx];
+    }
+    
+    public static float fastSin(double angle) {
+        int idx = (int)(angle * SIN_TABLE_SCALE) % SIN_TABLE_SIZE;
+        if (idx < 0) idx += SIN_TABLE_SIZE;
+        return SIN_TABLE[idx];
+    }
+    
+    private static float fastCos(double angle) {
+        int idx = (int)((angle + Math.PI * 0.5) * SIN_TABLE_SCALE) % SIN_TABLE_SIZE;
+        if (idx < 0) idx += SIN_TABLE_SIZE;
+        return SIN_TABLE[idx];
+    }
+
+    private BufferedImage vignetteImage;
+    private float vignetteStrength = 0.45f;
+
+    private Color warmOverlay;
+
+    public boolean sepiaMode = false;
+    private static final Color SEPIA_TINT = new Color(112, 66, 20, 50);
+
+    private static final int PARTICLE_COUNT = 35;
+    private float[] pX, pY, pVX, pVY, pAlpha, pSize, pAlphaDir;
+    private Random random = new Random();
+    private float windX = 0.3f;
+    private float windY = -0.1f;
+
+    private float windStrength = -2.0f;
+    private float windGustTarget = -2.0f;
+    private int   windGustTimer  = 0;
+
+    private static final int MAX_RAIN = 220;
+    private float[] rainX, rainY, rainSpeed, rainAlpha, rainLength;
+
+    private static final int MAX_SPLASHES = 80;
+    private float[] splashX, splashY, splashRadius, splashAlpha;
+    private boolean[] splashAlive;
+
+    private static final int MAX_SNOW = 120;
+    private float[] snowX, snowY, snowSpeed, snowSize, snowDrift, snowAlpha;
+
+    private int stormFlashTimer = 0;
+    private int nextFlashIn = 0;
+
+    private static final Color RAIN_TINT  = new Color(40, 80, 160, 12);
+    private static final Color STORM_TINT = new Color(30, 60, 140, 18);
+    private static final Color SNOW_TINT  = new Color(180, 210, 240, 8);
+    private static final Color RAIN_DROP_COLOR      = new Color(200, 225, 255);
+    private static final Color RAIN_DROP_TAIL_COLOR = new Color(150, 190, 240);
+    private static final Color RAIN_SPLASH_COLOR    = new Color(180, 215, 255);
+    private static final Color SNOW_FLAKE_COLOR = new Color(240, 245, 255);
+
+    public MapShaderManager(GamePanel gp) {
+        this.gp = gp;
+    }
+
+    public void setup() {
+        initWaterShimmer();
+        createVignette();
+        initParticles();
+        initWeather();
+        warmOverlay = new Color(255, 220, 160, 7);
+    }
+
+    private void initWaterShimmer() {
+        waterShimmerColors = new Color[SHIMMER_LEVELS];
+        for (int i = 0; i < SHIMMER_LEVELS; i++) {
+            float t = (float) i / (SHIMMER_LEVELS - 1);
+            int alpha = (int) (t * 32); // very subtle highlight
+            waterShimmerColors[i] = new Color(180, 225, 255, alpha);
+        }
+    }
+
+    /** Vertical wave offset for a water tile (call from TileManager). */
+    public int getWaterWaveOffset(int worldCol, int worldRow) {
+        float wave = fastSin(worldCol * 0.7 + worldRow * 0.3 + tick * 0.055) * 1.5f;
+        return (int) wave;
+    }
+
+    /** Shimmer color index for a water tile (call from TileManager). */
+    public int getWaterShimmerIndex(int worldCol, int worldRow) {
+        float phase = fastSin(worldCol * 1.2 + worldRow * 0.8 + tick * 0.09);
+        int idx = (int) ((phase * 0.5f + 0.5f) * (SHIMMER_LEVELS - 1));
+        return Math.max(0, Math.min(SHIMMER_LEVELS - 1, idx));
+    }
+
+    private void initParticles() {
+        pX = new float[PARTICLE_COUNT];
+        pY = new float[PARTICLE_COUNT];
+        pVX = new float[PARTICLE_COUNT];
+        pVY = new float[PARTICLE_COUNT];
+        pAlpha = new float[PARTICLE_COUNT];
+        pSize = new float[PARTICLE_COUNT];
+        pAlphaDir = new float[PARTICLE_COUNT];
+
+        for (int i = 0; i < PARTICLE_COUNT; i++) {
+            resetParticle(i, true);
+        }
+    }
+
+    private void resetParticle(int i, boolean randomizePos) {
+        if (randomizePos) {
+            pX[i] = random.nextFloat() * gp.screenWidth;
+            pY[i] = random.nextFloat() * gp.screenHeight;
+        } else {
+            // Enter from screen edges
+            if (random.nextBoolean()) {
+                pX[i] = random.nextBoolean() ? -5 : gp.screenWidth + 5;
+                pY[i] = random.nextFloat() * gp.screenHeight;
+            } else {
+                pX[i] = random.nextFloat() * gp.screenWidth;
+                pY[i] = random.nextBoolean() ? -5 : gp.screenHeight + 5;
+            }
+        }
+        pVX[i] = (random.nextFloat() - 0.4f) * 0.5f + windX;
+        pVY[i] = (random.nextFloat() - 0.5f) * 0.3f + windY;
+        pAlpha[i] = random.nextFloat() * 0.5f;
+        pSize[i] = 1.5f + random.nextFloat() * 2.5f;
+        pAlphaDir[i] = 0.005f + random.nextFloat() * 0.01f;
+    }
+
+    private void updateParticles() {
+        for (int i = 0; i < PARTICLE_COUNT; i++) {
+            pX[i] += pVX[i];
+            pY[i] += pVY[i];
+
+            // Gentle sine drift (uses fast LUT instead of Math.sin/cos)
+            pX[i] += fastSin(tick * 0.02 + i) * 0.15f;
+            pY[i] += fastCos(tick * 0.015 + i * 0.7) * 0.1f;
+
+            // Fade in / out
+            pAlpha[i] += pAlphaDir[i];
+            if (pAlpha[i] >= 0.55f) {
+                pAlpha[i] = 0.55f;
+                pAlphaDir[i] = -Math.abs(pAlphaDir[i]);
+            }
+            if (pAlpha[i] <= 0f) {
+                pAlpha[i] = 0f;
+                pAlphaDir[i] = Math.abs(pAlphaDir[i]);
+            }
+
+            // Wrap around screen
+            if (pX[i] < -10 || pX[i] > gp.screenWidth + 10 ||
+                pY[i] < -10 || pY[i] > gp.screenHeight + 10) {
+                resetParticle(i, false);
+            }
+        }
+    }
+
+    public void drawAmbientParticles(Graphics2D g2) {
+        /* 
+        Composite original = g2.getComposite();
+
+        for (int i = 0; i < PARTICLE_COUNT; i++) {
+            if (pAlpha[i] <= 0.01f) continue;
+
+            float alpha = Math.min(pAlpha[i], 1.0f);
+            g2.setComposite(AlphaComposite.getInstance(AlphaComposite.SRC_OVER, alpha));
+            g2.setColor(Color.WHITE);
+            int sz = (int) pSize[i];
+            g2.fillOval((int) pX[i], (int) pY[i], sz, sz);
+            
+
+            // Tiny glow halo around larger particles
+            if (pSize[i] > 2.5f) {
+                g2.setComposite(AlphaComposite.getInstance(
+                    AlphaComposite.SRC_OVER, Math.min(alpha * 0.3f, 1.0f)));
+                int glowSz = sz + 3;
+                g2.fillOval((int) pX[i] - 1, (int) pY[i] - 1, glowSz, glowSz);
+            }
+        }
+
+        g2.setComposite(original);*/
+    }
+
+    private void createVignette() {
+        int w = gp.screenWidth;
+        int h = gp.screenHeight;
+        vignetteImage = new BufferedImage(w, h, BufferedImage.TYPE_INT_ARGB);
+        Graphics2D vg = vignetteImage.createGraphics();
+        vg.setRenderingHint(java.awt.RenderingHints.KEY_INTERPOLATION,
+                java.awt.RenderingHints.VALUE_INTERPOLATION_NEAREST_NEIGHBOR);
+
+        float cx = w / 2f;
+        float cy = h / 2f;
+        float radius = (float) Math.sqrt(cx * cx + cy * cy);
+
+        RadialGradientPaint paint = new RadialGradientPaint(
+            cx, cy, radius,
+            new float[]{0.0f, 0.5f, 0.85f, 1.0f},
+            new Color[]{
+                new Color(0, 0, 0, 0),
+                new Color(0, 0, 0, 0),
+                new Color(0, 0, 0, (int)(60 * vignetteStrength)),
+                new Color(0, 0, 0, (int)(160 * vignetteStrength))
+            }
+        );
+
+        vg.setPaint(paint);
+        vg.fillRect(0, 0, w, h);
+        vg.dispose();
+    }
+
+    public void drawVignette(Graphics2D g2) {
+        if (vignetteImage != null) {
+            g2.drawImage(vignetteImage, 0, 0, null);
+        }
+    }
+
+    public void drawColorGrading(Graphics2D g2) {
+        if (sepiaMode) {
+            // Desaturated sepia overlay for memory flashback sequences
+            g2.setColor(SEPIA_TINT);
+            g2.fillRect(0, 0, gp.screenWidth, gp.screenHeight);
+            return;
+        }
+        // Only apply warm overlay during daytime; let the night system handle darkness
+        if (gp.eManager != null && gp.eManager.filterAlpha < 0.5f) {
+            g2.setColor(warmOverlay);
+            g2.fillRect(0, 0, gp.screenWidth, gp.screenHeight);
+        }
+    }
+
+    public void update() {
+        tick++;
+        // NOTE: updateParticles() removed — drawAmbientParticles() is disabled,
+        // so particle computation was wasted CPU every frame.
+        updateWeather();
+    }
+
+    private void initWeather() {
+        rainX = new float[MAX_RAIN];
+        rainY = new float[MAX_RAIN];
+        rainSpeed = new float[MAX_RAIN];
+        rainAlpha = new float[MAX_RAIN];
+        rainLength = new float[MAX_RAIN];
+        for (int i = 0; i < MAX_RAIN; i++) resetRaindrop(i, true);
+
+        splashX      = new float[MAX_SPLASHES];
+        splashY      = new float[MAX_SPLASHES];
+        splashRadius = new float[MAX_SPLASHES];
+        splashAlpha  = new float[MAX_SPLASHES];
+        splashAlive  = new boolean[MAX_SPLASHES];
+
+        snowX = new float[MAX_SNOW];
+        snowY = new float[MAX_SNOW];
+        snowSpeed = new float[MAX_SNOW];
+        snowSize = new float[MAX_SNOW];
+        snowDrift = new float[MAX_SNOW];
+        snowAlpha = new float[MAX_SNOW];
+        for (int i = 0; i < MAX_SNOW; i++) resetSnowflake(i, true);
+
+        nextFlashIn = 300 + random.nextInt(300);
+    }
+
+    private void resetRaindrop(int i, boolean randomY) {
+        // World-space spawn: positions relative to current camera view
+        float camWX = (gp.player != null) ? gp.player.worldX - gp.player.getCamScreenX() : 0f;
+        float camWY = (gp.player != null) ? gp.player.worldY - gp.player.getCamScreenY() : 0f;
+        rainX[i] = camWX + random.nextFloat() * (gp.screenWidth + 120) - 60;
+        rainY[i] = randomY ? camWY + random.nextFloat() * gp.screenHeight
+                           : camWY - random.nextFloat() * 40;
+        rainSpeed[i]  = 16 + random.nextFloat() * 6;
+        rainAlpha[i]  = 0.30f + random.nextFloat() * 0.40f;
+        rainLength[i] = 14 + random.nextFloat() * 8;
+    }
+
+    private void resetSnowflake(int i, boolean randomY) {
+        // World-space spawn: positions relative to current camera view
+        float camWX = (gp.player != null) ? gp.player.worldX - gp.player.getCamScreenX() : 0f;
+        float camWY = (gp.player != null) ? gp.player.worldY - gp.player.getCamScreenY() : 0f;
+        snowX[i] = camWX + random.nextFloat() * (gp.screenWidth + 80) - 40;
+        snowY[i] = randomY ? camWY + random.nextFloat() * gp.screenHeight
+                           : camWY - random.nextFloat() * 30;
+        snowSpeed[i] = 1 + random.nextFloat() * 2;
+        snowSize[i] = 2 + random.nextFloat() * 3;
+        snowDrift[i] = random.nextFloat() * 6.28f; // random phase
+        snowAlpha[i] = 0.3f + random.nextFloat() * 0.5f;
+    }
+
+    private void updateWeather() {
+        if (gp.eManager == null) return;
+        int ws = gp.eManager.weatherState;
+        float intensity = gp.eManager.weatherIntensity;
+        if (intensity <= 0.001f) return;
+
+        // Camera top-left in world space — used for screen-space bounds check only
+        float camWX = (gp.player != null) ? gp.player.worldX - gp.player.getCamScreenX() : 0f;
+        float camWY = (gp.player != null) ? gp.player.worldY - gp.player.getCamScreenY() : 0f;
+
+        if (ws == EnvironmentManager.WEATHER_RAIN || ws == EnvironmentManager.WEATHER_STORM) {
+            int active = (int)(MAX_RAIN * intensity);
+            // 3-tier LOD: full / half / quarter based on FPS
+            if (gp.currentFPS > 0 && gp.currentFPS < 30) active = active / 4;
+            else if (gp.currentFPS > 0 && gp.currentFPS < 45) active = active / 2;
+
+            // Wind gust: smoothly shift rain angle every 3-7 seconds
+            if (--windGustTimer <= 0) {
+                windGustTarget = -(1.5f + random.nextFloat() * 2.0f); // -1.5 to -3.5 px/frame
+                if (random.nextFloat() < 0.15f) windGustTarget *= -0.4f; // rare rightward gust
+                windGustTimer = 180 + random.nextInt(240);
+            }
+            windStrength += (windGustTarget - windStrength) * 0.025f;
+            // Single batch sway offset computed once per tick (replaces per-drop fastSin)
+            float batchSway = fastSin(tick * 0.04) * 0.3f;
+
+            for (int i = 0; i < active; i++) {
+                // Physics entirely in world space
+                rainY[i] += rainSpeed[i];
+                rainX[i] += windStrength + batchSway;
+                // Bounds check using derived screen position
+                float sx = rainX[i] - camWX;
+                float sy = rainY[i] - camWY;
+                if (sy > gp.screenHeight + 20 || sx < -80 || sx > gp.screenWidth + 80) {
+                    if (sy > gp.screenHeight - 30 && sx >= 0 && sx <= gp.screenWidth) {
+                        spawnSplash(rainX[i], rainY[i]);
+                    }
+                    resetRaindrop(i, false);
+                }
+            }
+            // Storm: lightning flash timer
+            if (ws == EnvironmentManager.WEATHER_STORM) {
+                if (stormFlashTimer > 0) stormFlashTimer--;
+                nextFlashIn--;
+                if (nextFlashIn <= 0) {
+                    stormFlashTimer = 4;
+                    nextFlashIn = 300 + random.nextInt(300);
+                }
+            }
+        }
+
+        if (ws == EnvironmentManager.WEATHER_SNOW) {
+            int active = (int)(MAX_SNOW * intensity);
+            if (gp.currentFPS > 0 && gp.currentFPS < 30) active = active / 4;
+            else if (gp.currentFPS > 0 && gp.currentFPS < 45) active = active / 2;
+            for (int i = 0; i < active; i++) {
+                // Physics entirely in world space
+                snowY[i] += snowSpeed[i];
+                snowX[i] += fastSin(tick * 0.03 + snowDrift[i]) * 0.8f;
+                // Bounds check using derived screen position
+                float sx = snowX[i] - camWX;
+                float sy = snowY[i] - camWY;
+                if (sy > gp.screenHeight + 10 || sx < -40 || sx > gp.screenWidth + 40) {
+                    resetSnowflake(i, false);
+                }
+            }
+        }
+
+        // Update splashes
+        for (int i = 0; i < MAX_SPLASHES; i++) {
+            if (!splashAlive[i]) continue;
+            splashRadius[i] += 0.9f;
+            splashAlpha[i]  *= 0.87f;
+            if (splashAlpha[i] < 0.02f) splashAlive[i] = false;
+        }
+    }
+
+    private void spawnSplash(float wx, float wy) {
+        for (int i = 0; i < MAX_SPLASHES; i++) {
+            if (!splashAlive[i]) {
+                splashX[i]      = wx;
+                splashY[i]      = wy;
+                splashRadius[i] = 1f;
+                splashAlpha[i]  = 0.55f + random.nextFloat() * 0.25f;
+                splashAlive[i]  = true;
+                return;
+            }
+        }
+    }
+
+    public void drawWeather(Graphics2D g2) {
+        if (gp.eManager == null) return;
+        int ws = gp.eManager.weatherState;
+        float intensity = gp.eManager.weatherIntensity;
+        if (intensity <= 0.001f && stormFlashTimer <= 0) return;
+
+        Composite original = g2.getComposite();
+
+        // Storm lightning flash (bright white overlay)
+        if (ws == EnvironmentManager.WEATHER_STORM && stormFlashTimer > 0) {
+            float flashA = Math.min(1f, stormFlashTimer / 4f * 0.15f * intensity);
+            g2.setComposite(cachedAlpha(flashA));
+            g2.setColor(Color.WHITE);
+            g2.fillRect(0, 0, gp.screenWidth, gp.screenHeight);
+        }
+
+        if (ws == EnvironmentManager.WEATHER_RAIN || ws == EnvironmentManager.WEATHER_STORM) {
+            // Rain drops as diagonal lines
+            int active = (int)(MAX_RAIN * intensity);
+            if (gp.currentFPS > 0 && gp.currentFPS < 30) active = active / 4;
+            else if (gp.currentFPS > 0 && gp.currentFPS < 45) active = active / 2;
+            float camWX = (gp.player != null) ? gp.player.worldX - gp.player.getCamScreenX() : 0f;
+            float camWY = (gp.player != null) ? gp.player.worldY - gp.player.getCamScreenY() : 0f;
+
+            // Draw tails (dimmer, slightly transparent)
+            g2.setComposite(cachedAlpha(Math.min(1f, 0.28f * intensity)));
+            g2.setColor(RAIN_DROP_TAIL_COLOR);
+            for (int i = 0; i < active; i++) {
+                int hx = (int)(rainX[i] - camWX);
+                int hy = (int)(rainY[i] - camWY);
+                float windAngle = (float) Math.atan2(windStrength, rainSpeed[i]);
+                int tx = hx - (int)(Math.sin(windAngle) * rainLength[i]);
+                int ty = hy - (int)(Math.cos(windAngle) * rainLength[i]);
+                g2.drawLine(hx, hy, tx, ty);
+            }
+
+            // Draw bright heads (small oval at leading tip)
+            g2.setComposite(cachedAlpha(Math.min(1f, 0.55f * intensity)));
+            g2.setColor(RAIN_DROP_COLOR);
+            for (int i = 0; i < active; i++) {
+                int hx = (int)(rainX[i] - camWX);
+                int hy = (int)(rainY[i] - camWY);
+                g2.fillOval(hx - 1, hy - 1, 2, 2);
+            }
+
+            // Draw splashes
+            g2.setColor(RAIN_SPLASH_COLOR);
+            for (int i = 0; i < MAX_SPLASHES; i++) {
+                if (!splashAlive[i]) continue;
+                int sx = (int)(splashX[i] - camWX);
+                int sy = (int)(splashY[i] - camWY);
+                int r  = (int) splashRadius[i];
+                if (r < 1) continue;
+                g2.setComposite(cachedAlpha(Math.min(1f, splashAlpha[i] * intensity)));
+                g2.drawOval(sx - r, sy - r / 3, r * 2, Math.max(1, r * 2 / 3));
+            }
+
+            // Overlay tint
+            Color tint = (ws == EnvironmentManager.WEATHER_STORM) ? STORM_TINT : RAIN_TINT;
+            g2.setComposite(cachedAlpha(Math.min(1f, intensity)));
+            g2.setColor(tint);
+            g2.fillRect(0, 0, gp.screenWidth, gp.screenHeight);
+        }
+
+        if (ws == EnvironmentManager.WEATHER_SNOW) {
+            int active = (int)(MAX_SNOW * intensity);
+            if (gp.currentFPS > 0 && gp.currentFPS < 30) active = active / 4;
+            else if (gp.currentFPS > 0 && gp.currentFPS < 45) active = active / 2;
+            // Set composite + color ONCE before the loop — was 120 setComposite calls, now 1
+            float snowA = Math.min(1f, 0.5f * intensity);
+            g2.setComposite(cachedAlpha(snowA));
+            g2.setColor(SNOW_FLAKE_COLOR);
+            // Convert world coords to screen coords for drawing
+            float camWXs = (gp.player != null) ? gp.player.worldX - gp.player.getCamScreenX() : 0f;
+            float camWYs = (gp.player != null) ? gp.player.worldY - gp.player.getCamScreenY() : 0f;
+            for (int i = 0; i < active; i++) {
+                int sz = (int) snowSize[i];
+                g2.fillOval((int)(snowX[i] - camWXs), (int)(snowY[i] - camWYs), sz, sz);
+            }
+
+            // Overlay tint
+            g2.setComposite(cachedAlpha(Math.min(1f, intensity)));
+            g2.setColor(SNOW_TINT);
+            g2.fillRect(0, 0, gp.screenWidth, gp.screenHeight);
+        }
+
+        g2.setComposite(original);
+    }
+}

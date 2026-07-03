@@ -1,0 +1,31 @@
+__pycache__/
+*.pyc
+config.txt
+save.dat
+ceva/server/saves.db
+ceva/bin/*
+local_aes.key
+local_save.dat
+Michi-s-adventure.jar
+save.dat
+servers.txt
+config.txt
+build/*
+output/*
+*.patch
+/.vscode/*
+/deploy
+
+# Build artifacts
+jpackage_tmp/
+crash_log.txt
+*.log
+*.class
+
+# Server runtime files
+SERVERS/save_server/saves.db
+SERVERS/save_server/server.log
+SERVERS/multiplayer_server/*.db
+
+
+

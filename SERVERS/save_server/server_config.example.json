@@ -1,0 +1,13 @@
+{
+  "host": "0.0.0.0",
+  "port": 5005,
+  "private_key_path": "server_private_key.pem",
+  "license_public_key_b64": "REPLACE_WITH_PUBLIC_KEY_FROM_generate_license_keys.py",
+  "licenses_db": "licenses.json",
+  "dev_mode": false,
+  "rate_limit_per_ip_per_minute": 30,
+  "max_concurrent_connections": 200,
+  "handshake_timeout_seconds": 10,
+  "session_timeout_seconds": 30,
+  "max_payload_bytes": 10485760
+}

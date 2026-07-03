@@ -1,0 +1,13 @@
+{
+  "host": "0.0.0.0",
+  "port": 5005,
+  "private_key_path": "server_private_key.pem",
+  "license_public_key_b64": "MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEA+fKgLpa8kluHVEryc7//SsrLfy+Q5Q7YXRFApBwTBJ4ur81ScoTy8LZjvGE6L+OB1YD/dAHLs2/jyH/3e2CJ30mdjpwq8S4l4t1iIQj9t3aJj6eEedRf6Rbjsovx6099tgGidyPg4yrCXBZ7CrrL+MNEw9FnAnFulUrI/hv2zfakBJmaMh4CfL5uZBRXKUb1RRbbPYExqrPd9DNKDDnIf4m2+Y640+dfB7ZMJpbrieRwh1sJzQsQGom3cAx2Wv5RtUQSAJVWmoBFDWbhephKWPg816PKHaOeGs5zlaRA4s6DJ+Oq6rnMa471fDaSZetIceXttxxRhPyDwoYDOB6g0wIDAQAB",
+  "dev_mode": false,
+  "rate_limit_per_ip_per_minute": 30,
+  "max_concurrent_connections": 200,
+  "handshake_timeout_seconds": 10,
+  "session_timeout_seconds": 30,
+  "max_payload_bytes": 10485760,
+  "internal_api_key": "CHANGE_THIS_TO_A_RANDOM_SECRET"
+}

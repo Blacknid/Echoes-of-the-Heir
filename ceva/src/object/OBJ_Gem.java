@@ -1,35 +1,61 @@
 package object;
 
+import audio.SFX;
 import entity.Entity;
 import main.GamePanel;
 
 public class OBJ_Gem extends Entity {
 
     GamePanel gp;
+    public static final String objName = "Gem";
 
     public OBJ_Gem(GamePanel gp) {
 
         super(gp);
+        this.gp = gp;
 
-        type = type_consumable;
-        name = "Gem";
+        type = TYPE_PICKUP_ONLY;
+        name = objName;
         down1 = setup("/res/objects/Gem", gp.tileSize, gp.tileSize);
-        description = "The Dark Heart of an \nancient castle \n[TO BE CONTINUED].";
+        description = "Dark Heart of an\nancient castle.";
+        
+        // HITBOX: Medium gem hitbox (32x32) centered
+        solidArea.x      = gp.tileSize / 4;   // 16 at 64px
+        solidArea.y      = gp.tileSize / 4;   // 16 at 64px
+        solidArea.width  = gp.tileSize / 2;   // 32 at 64px
+        solidArea.height = gp.tileSize / 2;   // 32 at 64px
+        solidAreaDefaultX = solidArea.x;
+        solidAreaDefaultY = solidArea.y;
 
         setDialogues();
     }
     
     public void setDialogues() {
 
-        dialogues[0][0] = "You pick up a beautiful Dark Gem.";
-        dialogues[0][1] = "You found the Dark Heart , the legendary treasure!";
+        ensureDialogues()[0][0] = "You pick up a beautiful Dark Gem.";
+        ensureDialogues()[0][1] = "You found the Dark Heart , the legendary treasure!";
+        ensureDialogues()[0][2] = "As you hold it, a sudden warmth \nfills your body.";
+        ensureDialogues()[1][0] = "You feel a strange aura \nemanating from the gem.\n It seems you are not\nworthy to possess it yet.";
     }
     public boolean use( Entity entity ) {
-        
-            gp.gameState = gp.cutsceneState;
-            gp.csManager.sceneNum = gp.csManager.ending;
-            startDialogue(this, 0);
+
+        // Prevent repeated gem pickup logic if player already owns it.
+        if (gp.player.hasGem > 0) {
             return true;
+        }
         
+        if ( gp.player.level >= 3 ) {
+            gp.player.hasGem = 1;
+            gp.playSE(SFX.EQUIP);
+            startDialogue(this, 0);
+            gp.gameState = GamePanel.cutsceneState;
+            gp.csManager.sceneNum = gp.csManager.ending;
+            gp.csManager.scenePhase = 0;
+            return true;
+        }
+        else {
+            startDialogue(this, 1);
+            return false;
+        }
     }
 }

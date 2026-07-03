@@ -1,0 +1,29 @@
+[
+  { "id": "VITALITY_CORE",  "name": "Vitality Core",    "description": "+2 max HP, full heal",           "cost": 1, "col": 0, "row": 0, "requires": null },
+  { "id": "BLADE_MASTERY",  "name": "Blade Mastery",    "description": "+15% melee damage",              "cost": 1, "col": 1, "row": 0, "requires": "VITALITY_CORE" },
+  { "id": "IRON_WILL",      "name": "Iron Will",        "description": "Take 15% less damage",           "cost": 2, "col": 2, "row": 0, "requires": "BLADE_MASTERY" },
+  { "id": "VOID_SNARE",     "name": "Void Snare",       "description": "Pull nearby enemies toward you", "cost": 2, "col": 3, "row": 0, "requires": "IRON_WILL" },
+  { "id": "SOUL_REAPER",    "name": "Soul Reaper",      "description": "Killing enemies restores 1 HP",  "cost": 2, "col": 4, "row": 0, "requires": "VOID_SNARE" },
+  { "id": "BERSERKER_FURY", "name": "Berserker Fury",   "description": "Below 30% HP: +50% melee damage","cost": 3, "col": 5, "row": 0, "requires": "SOUL_REAPER" },
+
+  { "id": "WINDSTEP",       "name": "Windstep",         "description": "Unlock Dodge Roll",              "cost": 1, "col": 0, "row": 1, "requires": null },
+  { "id": "PHASE_TUNING",   "name": "Phase Tuning",     "description": "Blink cooldown reduced",         "cost": 1, "col": 1, "row": 1, "requires": "WINDSTEP" },
+  { "id": "OVERDRIVE",      "name": "Overdrive",        "description": "Buff: speed and melee damage",   "cost": 2, "col": 2, "row": 1, "requires": "PHASE_TUNING" },
+  { "id": "QUICK_RECOVERY", "name": "Quick Recovery",   "description": "Halve dodge cooldown, +1 speed", "cost": 2, "col": 3, "row": 1, "requires": "OVERDRIVE" },
+  { "id": "SHADOW_STEP",    "name": "Shadow Step",      "description": "Dash damages nearby enemies",    "cost": 2, "col": 4, "row": 1, "requires": "QUICK_RECOVERY" },
+  { "id": "MOMENTUM",       "name": "Momentum",         "description": "+1 speed, shorter dodge cooldown","cost": 3, "col": 5, "row": 1, "requires": "SHADOW_STEP" },
+
+  { "id": "AETHER_RESERVE", "name": "Aether Reserve",   "description": "+2 max mana, full mana",         "cost": 1, "col": 0, "row": 2, "requires": null },
+  { "id": "SHOCKWAVE",      "name": "Shockwave",        "description": "Unleash a melee burst around you","cost": 1, "col": 1, "row": 2, "requires": "AETHER_RESERVE" },
+  { "id": "FROST_NOVA",     "name": "Frost Nova",       "description": "Freeze nearby enemies briefly",  "cost": 2, "col": 2, "row": 2, "requires": "SHOCKWAVE" },
+  { "id": "ARCANE_MASTERY", "name": "Arcane Mastery",   "description": "+3 max mana, full mana restore",  "cost": 2, "col": 3, "row": 2, "requires": "FROST_NOVA" },
+  { "id": "MANA_SIPHON",    "name": "Mana Siphon",      "description": "Melee hits restore 1 mana",      "cost": 2, "col": 4, "row": 2, "requires": "ARCANE_MASTERY" },
+  { "id": "MANA_SHIELD",    "name": "Mana Shield",      "description": "Spend mana to block damage",     "cost": 3, "col": 5, "row": 2, "requires": "MANA_SIPHON" },
+
+  { "id": "THICK_SKIN",     "name": "Thick Skin",       "description": "+1 defense permanently",         "cost": 1, "col": 0, "row": 3, "requires": null },
+  { "id": "THORNS",         "name": "Thorns",           "description": "Attackers take 2 reflect damage", "cost": 1, "col": 1, "row": 3, "requires": "THICK_SKIN" },
+  { "id": "SECOND_WIND",    "name": "Second Wind",      "description": "Revive once per area at 30% HP", "cost": 2, "col": 2, "row": 3, "requires": "THORNS" },
+  { "id": "VAMPIRIC_STRIKE","name": "Vampiric Strike",  "description": "15% chance to heal 1 HP on hit", "cost": 2, "col": 3, "row": 3, "requires": "SECOND_WIND" },
+  { "id": "LAST_STAND",     "name": "Last Stand",       "description": "Below 20% HP: +3 def, no knockback","cost": 3, "col": 4, "row": 3, "requires": "VAMPIRIC_STRIKE" },
+  { "id": "UNDYING_WILL",   "name": "Undying Will",     "description": "Survive lethal hit once (90s cd)","cost": 3, "col": 5, "row": 3, "requires": "LAST_STAND" }
+]

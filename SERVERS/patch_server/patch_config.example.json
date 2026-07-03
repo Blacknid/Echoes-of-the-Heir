@@ -1,0 +1,10 @@
+{
+  "host": "0.0.0.0",
+  "port": 5006,
+  "private_key_path": "patch_private_key.pem",
+  "patches_dir": "patches",
+  "manifest_path": "manifest.json",
+  "max_concurrent_connections": 32,
+  "rate_limit_per_ip_per_minute": 60,
+  "max_patch_bytes": 268435456
+}

@@ -1,0 +1,53 @@
+{
+  "host": "0.0.0.0",
+  "port": 7777,
+  "private_key_path": "server_private_key.pem",
+  "license_public_key_b64": "MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEA+fKgLpa8kluHVEryc7//SsrLfy+Q5Q7YXRFApBwTBJ4ur81ScoTy8LZjvGE6L+OB1YD/dAHLs2/jyH/3e2CJ30mdjpwq8S4l4t1iIQj9t3aJj6eEedRf6Rbjsovx6099tgGidyPg4yrCXBZ7CrrL+MNEw9FnAnFulUrI/hv2zfakBJmaMh4CfL5uZBRXKUb1RRbbPYExqrPd9DNKDDnIf4m2+Y640+dfB7ZMJpbrieRwh1sJzQsQGom3cAx2Wv5RtUQSAJVWmoBFDWbhephKWPg816PKHaOeGs5zlaRA4s6DJ+Oq6rnMa471fDaSZetIceXttxxRhPyDwoYDOB6g0wIDAQAB",
+  "dev_mode": false,
+  "max_players": 8,
+  "rate_limit_per_ip_per_minute": 30,
+  "maps_dir": "maps",
+  "active_map": "canvas_village",
+  "chunk_size_tiles": 32,
+  "max_chunks_per_tick": 4,
+  "max_tile_step_per_move": 4,
+  "player_hitbox_w": 24,
+  "player_hitbox_h": 24,
+  "save_server_host": "127.0.0.1",
+  "save_server_port": 5005,
+  "internal_api_key": "CHANGE_THIS_TO_A_RANDOM_SECRET",
+  "dashboard_port": 8888,
+  "admin_password": "CHANGE_ME_BEFORE_DEPLOYING",
+  "saves_db_path": "",
+
+  "maps": {
+    "canvas_village": {
+      "width": 100,
+      "height": 100
+    },
+    "awakening_cave": {
+      "width": 40,
+      "height": 30
+    },
+    "shattered_lake": {
+      "width": 80,
+      "height": 80
+    },
+    "blacksmith_interior": {
+      "width": 20,
+      "height": 15
+    },
+    "fisher_interior": {
+      "width": 20,
+      "height": 15
+    },
+    "tavern_interior": {
+      "width": 26,
+      "height": 20
+    },
+    "tavern_2nd_floor": {
+      "width": 26,
+      "height": 20
+    }
+  }
+}
