@@ -795,20 +795,6 @@ public class MapObjectLoader {
         String npcName = getStringProperty(obj, "name", null);
         if (npcName != null && !npcName.isBlank()) npc.name = npcName;
 
-        // lightRadius / lightColor: make this NPC emit light so it beckons the player in dark areas
-        // (e.g. a glowing figure in the Awakening Cave). Data-driven — set lightRadius (tiles) on the
-        // Tiled NPC object; the lighting system carves a hole around any lightSource entity in gp.npc.
-        int npcLightRadius = getIntProperty(obj, "lightRadius", -1);
-        if (npcLightRadius > 0) {
-            npc.lightSource = true;
-            npc.lightRadius = npcLightRadius;
-            String npcLightColor = getStringProperty(obj, "lightColor", null);
-            if (npcLightColor != null && !npcLightColor.isBlank()) {
-                try { npc.lightColor = Color.decode(npcLightColor.trim()); }
-                catch (NumberFormatException ignored) {}
-            }
-        }
-
         // onSpeakQuestId / onSpeakQuestAmount: progress a quest when the player speaks to this NPC
         String qid = getStringProperty(obj, "onSpeakQuestId", null);
         if (qid != null && !qid.isBlank()) {

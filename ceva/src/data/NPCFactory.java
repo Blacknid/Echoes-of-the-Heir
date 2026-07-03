@@ -28,6 +28,8 @@ import main.GamePanel;
  *   "staticNPC": true,
  *   "guardMode": false,
  *   "portrait": "/res/NPC/smith_portrait",
+ *   "lightRadius": 4,
+ *   "lightColor": "#8844ff",
  *   "activities": {
  *     "forge": { "sprite": "/res/NPC/smith_forge-sheet", "frames": [4,4,4,4], "speed": 10 },
  *     "hammer": { "sprite": "/res/NPC/smith_hammer-sheet", "frames": [6,6,6,6], "speed": 8 }
@@ -155,6 +157,19 @@ public class NPCFactory {
         npc.depthSortYOffset = depthSortYOffsetVal;
         String portrait = def.props.get("portrait");
         if (portrait != null && !portrait.isBlank()) npc.portraitPath = portrait;
+
+        // lightRadius / lightColor: make this NPC emit light so it beckons the player in dark areas.
+        // Mirrors MapObjectLoader's Tiled "lightRadius"/"lightColor" NPC properties, but data-driven from npcs.json.
+        int npcLightRadius = intVal(def.props, "lightRadius", -1);
+        if (npcLightRadius > 0) {
+            npc.lightSource = true;
+            npc.lightRadius = npcLightRadius;
+            String npcLightColor = def.props.get("lightColor");
+            if (npcLightColor != null && !npcLightColor.isBlank()) {
+                try { npc.lightColor = gfx.Color.decode(npcLightColor.trim()); }
+                catch (NumberFormatException ignored) {}
+            }
+        }
 
         if (def.props.containsKey("sprite")) npc.spritePath = def.props.get("sprite");
         if (def.props.containsKey("idleSprite")) npc.idleSpritePath = def.props.get("idleSprite");
