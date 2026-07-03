@@ -1,7 +1,8 @@
 package main;
 
-import java.awt.Rectangle;
-import java.awt.Shape;
+import gfx.geom.IntPolygon;
+import gfx.geom.Rect;
+import gfx.geom.Shape;
 import java.util.ArrayList;
 import java.util.Arrays;
 
@@ -11,8 +12,8 @@ public class CollisionChecker {
 
     GamePanel gp;
     
-    // OPTIMIZATION: Reuse Rectangle objects to avoid allocation overhead
-    private Rectangle tempRect = new Rectangle();
+    // OPTIMIZATION: Reuse Rect objects to avoid allocation overhead
+    private Rect tempRect = new Rect();
 
     // OPTIMIZATION: Spatial grid for collision rectangles
     // Divides the world into cells; only check rects in nearby cells
@@ -48,7 +49,7 @@ public class CollisionChecker {
         spatialGrid = new ArrayList[totalCells];
         
         for (int i = 0; i < shapeCount; i++) {
-            Rectangle r = gp.tileM.collisionBounds.get(i);
+            Rect r = gp.tileM.collisionBounds.get(i);
             int minCellX = Math.max(0, r.x / GRID_CELL_SIZE);
             int minCellY = Math.max(0, r.y / GRID_CELL_SIZE);
             int maxCellX = Math.min(gridCols - 1, (r.x + r.width) / GRID_CELL_SIZE);
@@ -69,11 +70,11 @@ public class CollisionChecker {
     }
 
     /**
-     * Checks whether a Rectangle hits any collision shape using the spatial grid.
+     * Checks whether a Rect hits any collision shape using the spatial grid.
      * O(k) where k = shapes in nearby cells, vs the previous O(n) full scan.
      * Used by PathFinder to avoid iterating all collision bounds per A* node.
      */
-    public boolean rectHitsCollision(Rectangle r) {
+    public boolean rectHitsCollision(Rect r) {
         if (spatialGrid != null && gridCols > 0) {
             int minCX = Math.max(0, r.x / GRID_CELL_SIZE);
             int minCY = Math.max(0, r.y / GRID_CELL_SIZE);
@@ -93,7 +94,7 @@ public class CollisionChecker {
             return false;
         }
         // Fallback: linear scan of bounds rectangles
-        ArrayList<Rectangle> rects = gp.tileM.collisionBounds;
+        ArrayList<Rect> rects = gp.tileM.collisionBounds;
         for (int i = 0, size = rects.size(); i < size; i++) {
             if (r.intersects(rects.get(i))) return true;
         }
@@ -104,8 +105,8 @@ public class CollisionChecker {
      * Return a list of collision bounding rectangles that intersect the given rectangle.
      * Uses the spatial grid for fast broad-phase lookup when available.
      */
-    public java.util.ArrayList<Rectangle> getCollisionBoundsInRect(Rectangle r) {
-        java.util.ArrayList<Rectangle> out = new java.util.ArrayList<>();
+    public java.util.ArrayList<Rect> getCollisionBoundsInRect(Rect r) {
+        java.util.ArrayList<Rect> out = new java.util.ArrayList<>();
         getCollisionBoundsInRect(r, out);
         return out;
     }
@@ -118,10 +119,10 @@ public class CollisionChecker {
      * are too large and cause false shadow projections.
      * Simple linear scan is fine: called only when player moves or on map load.
      */
-    public void getLightOccludersInRect(Rectangle r, ArrayList<Rectangle> out) {
-        ArrayList<Rectangle> occ = gp.tileM.lightOccluderRects;
+    public void getLightOccludersInRect(Rect r, ArrayList<Rect> out) {
+        ArrayList<Rect> occ = gp.tileM.lightOccluderRects;
         for (int i = 0, n = occ.size(); i < n; i++) {
-            Rectangle br = occ.get(i);
+            Rect br = occ.get(i);
             if (br.intersects(r)) out.add(br);
         }
     }
@@ -134,7 +135,7 @@ public class CollisionChecker {
      * ArrayList.contains() (O(n) per shape), which previously made this method
      * O(n²) when many shapes span the query region.
      */
-    public void getCollisionBoundsInRect(Rectangle r, java.util.ArrayList<Rectangle> out) {
+    public void getCollisionBoundsInRect(Rect r, java.util.ArrayList<Rect> out) {
         // Bump generation — every shapeIdx with seenGen[idx] != gen is "unseen"
         int gen = ++currentGen;
         // Handle overflow (wraps back to 0 and re-clears the array)
@@ -148,7 +149,7 @@ public class CollisionChecker {
             int minCY = Math.max(0, r.y / GRID_CELL_SIZE);
             int maxCX = Math.min(gridCols - 1, (r.x + r.width) / GRID_CELL_SIZE);
             int maxCY = Math.min(gridRows - 1, (r.y + r.height) / GRID_CELL_SIZE);
-            java.util.ArrayList<Rectangle> bounds = gp.tileM.collisionBounds;
+            java.util.ArrayList<Rect> bounds = gp.tileM.collisionBounds;
             int[] seen = seenGen;
             int seenLen = seen.length;
             for (int cy = minCY; cy <= maxCY; cy++) {
@@ -160,16 +161,16 @@ public class CollisionChecker {
                             int shapeIdx = cell.get(j);
                             if (shapeIdx >= seenLen || seen[shapeIdx] == gen) continue;
                             seen[shapeIdx] = gen;
-                            Rectangle br = bounds.get(shapeIdx);
+                            Rect br = bounds.get(shapeIdx);
                             if (br.intersects(r)) out.add(br);
                         }
                     }
                 }
             }
         } else {
-            java.util.ArrayList<Rectangle> rects = gp.tileM.collisionBounds;
+            java.util.ArrayList<Rect> rects = gp.tileM.collisionBounds;
             for (int i = 0, n = rects.size(); i < n; i++) {
-                Rectangle br = rects.get(i);
+                Rect br = rects.get(i);
                 if (br.intersects(r)) out.add(br); // no dedup needed — linear scan visits each once
             }
         }
@@ -390,8 +391,8 @@ public class CollisionChecker {
                 boolean hit;
                 if (target[i].hurtPolygon != null) {
                     // Translate the local-space polygon to world space for this check
-                    java.awt.Polygon wp = target[i].hurtPolygon;
-                    java.awt.Rectangle attackRect = new java.awt.Rectangle(
+                    IntPolygon wp = target[i].hurtPolygon;
+                    Rect attackRect = new Rect(
                         entityX, entityY, entity.solidArea.width, entity.solidArea.height);
                     // Temporarily translate polygon to world coords
                     wp.translate(target[i].worldX, target[i].worldY);
@@ -409,6 +410,61 @@ public class CollisionChecker {
                     }
                     index = i;
                 }
+            }
+        }
+
+        return index;
+    }
+
+    /**
+     * Cone-vs-entity overlap for the free-aim melee attack hitbox (replaces the old cardinal
+     * {@code Rect} attack box). Broad-phase distance pre-filter, then narrow-phase: samples the
+     * target's hurtPolygon vertices (or solidArea corners/center as a fallback) against
+     * {@link gfx.geom.Cone#contains}, mirroring the vertex-sampling pattern {@code checkEntity}
+     * already uses for polygon targets. Returns the first hit index, or 999 if none.
+     */
+    public int checkEntityCone(gfx.geom.Cone cone, Entity[] target) {
+        int index = 999;
+
+        for (int i = 0; i < target.length; i++) {
+            if (target[i] == null) continue;
+            if (target[i].type == Entity.TYPE_MONSTER &&
+                (target[i].dying || !target[i].alive)) {
+                continue;
+            }
+
+            double dx = cone.apexX - target[i].worldX;
+            double dy = cone.apexY - target[i].worldY;
+            double reach = cone.radius + Math.max(target[i].solidArea.width, target[i].solidArea.height);
+            if (dx * dx + dy * dy > reach * reach) continue;
+
+            boolean hit;
+            if (target[i].hurtPolygon != null) {
+                IntPolygon wp = target[i].hurtPolygon;
+                wp.translate(target[i].worldX, target[i].worldY);
+                hit = false;
+                for (int v = 0; v < wp.npoints; v++) {
+                    if (cone.contains(wp.xpoints[v], wp.ypoints[v])) { hit = true; break; }
+                }
+                if (!hit) {
+                    // Cone apex/rim sample falling inside a target that's small relative to the cone.
+                    Rect b = wp.getBounds();
+                    hit = wp.contains(cone.apexX, cone.apexY) ||
+                          cone.intersects(b.x, b.y, b.width, b.height) && wp.contains((b.x + b.width / 2.0), (b.y + b.height / 2.0));
+                }
+                wp.translate(-target[i].worldX, -target[i].worldY);
+            } else {
+                Rect r = target[i].solidArea;
+                int tx = target[i].worldX + r.x;
+                int ty = target[i].worldY + r.y;
+                hit = cone.contains(tx, ty) || cone.contains(tx + r.width, ty) ||
+                      cone.contains(tx, ty + r.height) || cone.contains(tx + r.width, ty + r.height) ||
+                      cone.contains(tx + r.width / 2.0, ty + r.height / 2.0);
+            }
+
+            if (hit) {
+                index = i;
+                break;
             }
         }
 

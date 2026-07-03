@@ -1,8 +1,10 @@
 package tile;
 
-import java.awt.Color;
-import java.awt.Graphics2D;
-import java.awt.image.BufferedImage;
+import com.badlogic.gdx.graphics.Pixmap;
+import com.badlogic.gdx.graphics.Texture;
+
+import gfx.Color;
+import gfx.Sprite;
 
 import entity.Entity;
 import main.GamePanel;
@@ -38,22 +40,39 @@ public class IT_Pot extends interactiveTile {
 
     public int getParticleMaxLife() { return 15; }
 
-    /** Generate a simple pixel-art pot sprite. */
-    private BufferedImage generatePotSprite(int size) {
-        BufferedImage img = new BufferedImage(size, size, BufferedImage.TYPE_INT_ARGB);
-        Graphics2D g = img.createGraphics();
-
+    /**
+     * Generate a simple pixel-art pot sprite into a libGDX Pixmap (GPU-native replacement for
+     * the old BufferedImage+Graphics2D procedural draw). Ovals are approximated with filled
+     * ellipses via Pixmap primitives — visually identical at tile scale.
+     */
+    private Sprite generatePotSprite(int size) {
+        Pixmap pm = new Pixmap(size, size, Pixmap.Format.RGBA8888);
+        pm.setBlending(Pixmap.Blending.SourceOver);
         int s = size;
-        g.setColor(new Color(160, 100, 60));
-        g.fillOval(s / 6, s / 3, s * 2 / 3, s / 2);
-        g.setColor(new Color(140, 85, 50));
-        g.fillRect(s / 4, s / 4, s / 2, s / 8);
-        g.setColor(new Color(190, 140, 90));
-        g.fillOval(s / 4, s * 2 / 5, s / 6, s / 5);
-        g.setColor(new Color(0, 0, 0, 40));
-        g.fillOval(s / 6, s * 3 / 4, s * 2 / 3, s / 6);
 
-        g.dispose();
-        return img;
+        fillOval(pm, s / 6, s / 3, s * 2 / 3, s / 2, 160, 100, 60, 255);          // body
+        pm.setColor(140 / 255f, 85 / 255f, 50 / 255f, 1f);
+        pm.fillRectangle(s / 4, s / 4, s / 2, s / 8);                              // rim
+        fillOval(pm, s / 4, s * 2 / 5, s / 6, s / 5, 190, 140, 90, 255);          // highlight
+        fillOval(pm, s / 6, s * 3 / 4, s * 2 / 3, s / 6, 0, 0, 0, 40);            // shadow
+
+        Texture tex = new Texture(pm);
+        tex.setFilter(Texture.TextureFilter.Nearest, Texture.TextureFilter.Nearest);
+        pm.dispose();
+        return new Sprite(tex);
+    }
+
+    /** Filled ellipse inscribed in (x,y,w,h), matching the old g.fillOval semantics. */
+    private static void fillOval(Pixmap pm, int x, int y, int w, int h, int r, int g, int b, int a) {
+        pm.setColor(r / 255f, g / 255f, b / 255f, a / 255f);
+        float rx = w / 2f, ry = h / 2f;
+        float cx = x + rx, cy = y + ry;
+        for (int yy = 0; yy < h; yy++) {
+            float ny = (yy + 0.5f - ry) / ry;
+            float span = (float) Math.sqrt(Math.max(0, 1 - ny * ny)) * rx;
+            int x0 = Math.round(cx - span);
+            int x1 = Math.round(cx + span);
+            pm.drawLine(x0, (int) (cy - ry + yy), x1, (int) (cy - ry + yy));
+        }
     }
 }

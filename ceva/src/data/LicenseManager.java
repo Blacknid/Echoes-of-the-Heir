@@ -77,7 +77,31 @@ public final class LicenseManager {
     private static volatile long   cachedFileMtime;
     private static volatile boolean tampered = false;
 
+    // Set once by primeForAndroid(): the registry-bound mtime/fingerprint machinery below
+    // (LICENSE_PATH resolution, reg query, Files.getLastModifiedTime) has no Android
+    // equivalent, so verifyCurrent() short-circuits to "still valid" instead of touching it.
+    private static volatile boolean androidBypass = false;
+
     private LicenseManager() {}
+
+    /**
+     * Android equivalent of {@link #load()}: primes the verified-state cache directly from a
+     * license.properties baked into the APK (read via {@code Gdx.files.internal}, not a
+     * filesystem {@link Path} — {@link #resolveLicensePath()} resolves against a JAR code
+     * source that doesn't exist in an APK's classloader). Skips the RSA/fingerprint checks
+     * since the caller already read and is vouching for a validly-signed triple; skips file
+     * mtime tracking since the bundled asset never changes at runtime — {@link #verifyCurrent()}
+     * will keep returning true for the whole session instead of re-deriving a Windows machine
+     * fingerprint that doesn't apply here.
+     */
+    public static void primeForAndroid(String key, String fp, String sig) {
+        cachedKey       = key;
+        cachedFp        = fp;
+        cachedSig       = sig;
+        cachedMachineFp = fp;
+        tampered        = false;
+        androidBypass   = true;
+    }
 
     /**
      * Read license.properties, verify machine fingerprint and RSA signature.
@@ -161,6 +185,7 @@ public final class LicenseManager {
     public static boolean verifyCurrent() {
         if (cachedKey == null) return false;          // never loaded successfully
         if (tampered)          return false;          // sticky once tripped
+        if (androidBypass)     return true;           // no on-disk file/registry to re-check
 
         try {
             long mtime = safeMtime(LICENSE_PATH);

@@ -1,8 +1,8 @@
 package object;
 
-import java.awt.Color;
-import java.awt.Graphics2D;
-import java.awt.image.BufferedImage;
+import gfx.Color;
+import gfx.GdxRenderer;
+import gfx.Sprite;
 
 import audio.SFX;
 import entity.Entity;
@@ -18,7 +18,7 @@ public class OBJ_Chest extends Entity {
     private int openAnimFrame = 0;
     private int openAnimCounter = 0;
     private static final int OPEN_ANIM_SPEED = 8; // frames between each animation step
-    private BufferedImage[] openFrames; // animation frames (loaded from spritesheet or built from 2 images)
+    private Sprite[] openFrames; // animation frames (loaded from spritesheet or built from 2 images)
 
     public OBJ_Chest(GamePanel gp) {
         super(gp);
@@ -38,7 +38,7 @@ public class OBJ_Chest extends Entity {
         solidAreaDefaultY = solidArea.y;
 
         // Default 2-frame animation (closed → opened)
-        openFrames = new BufferedImage[]{ image, image1 };
+        openFrames = new Sprite[]{ image, image1 };
     }
 
     /**
@@ -46,9 +46,9 @@ public class OBJ_Chest extends Entity {
      * Each frame is tileSize × tileSize, laid out left-to-right.
      */
     public void loadOpenAnimation(String sheetPath, int frameCount) {
-        BufferedImage sheet = setup(sheetPath, gp.tileSize * frameCount, gp.tileSize);
+        Sprite sheet = setup(sheetPath, gp.tileSize * frameCount, gp.tileSize);
         if (sheet != null && frameCount > 1) {
-            openFrames = new BufferedImage[frameCount];
+            openFrames = new Sprite[frameCount];
             int fw = gp.tileSize;
             for (int i = 0; i < frameCount; i++) {
                 openFrames[i] = sheet.getSubimage(i * fw, 0, fw, gp.tileSize);
@@ -113,7 +113,7 @@ public class OBJ_Chest extends Entity {
     }
 
     @Override
-    public void draw(Graphics2D g2) {
+    public void draw(GdxRenderer g2) {
         int screenX = worldX - gp.player.worldX + gp.player.screenX;
         int screenY = worldY - gp.player.worldY + gp.player.screenY;
 
@@ -134,7 +134,7 @@ public class OBJ_Chest extends Entity {
                 }
             }
 
-            BufferedImage sprite;
+            Sprite sprite;
             if (opening && openAnimFrame < openFrames.length) {
                 sprite = openFrames[openAnimFrame];
             } else {
@@ -142,7 +142,7 @@ public class OBJ_Chest extends Entity {
             }
 
             if (sprite != null) {
-                g2.drawImage(sprite, screenX, screenY, null);
+                g2.drawImage(sprite, screenX, screenY);
             }
         }
     }

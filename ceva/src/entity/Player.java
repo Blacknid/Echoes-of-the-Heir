@@ -1,13 +1,12 @@
 package entity;
 
-import java.awt.AlphaComposite;
- import java.awt.Color;
- import java.awt.Graphics2D;
- import java.awt.Rectangle;
- import java.awt.image.BufferedImage;
- import java.util.ArrayList;
+import java.util.ArrayList;
 
  import audio.SFX;
+ import gfx.Color;
+ import gfx.GdxRenderer;
+ import gfx.Sprite;
+ import gfx.geom.Rect;
  import main.GamePanel;
  import main.KeyHandler;
  import main.SkillTree;
@@ -37,17 +36,15 @@ public class Player extends Entity {
     private static final Color COLOR_LEVELUP_MSG = new Color(255, 220, 110);
     private static final Color COLOR_LEVELUP_RING = new Color(160, 200, 255);
 
-    public BufferedImage[][] hitFrames;    // getHit sprite sheet [dir][frame]
-    public BufferedImage[][] deathFrames;  // death sprite sheet  [dir][frame]
+    private Sprite[][] hitFrames;    // getHit sprite sheet [dir][frame]
+    private Sprite[][] deathFrames;  // death sprite sheet  [dir][frame]
     public boolean playerDying = false;     // death animation in progress
     public int playerDeathCounter = 0;      // tick counter for death anim
     public int playerDeathFrame = 0;        // current death frame index
-    public int hitAnimCounter = 0;          // tick counter for hit anim
-    public int hitAnimFrame = 0;            // current hit frame index
-    public int hitAnimDirection = DIR_DOWN;  // locked facing direction for hit anim
+    private int hitAnimCounter = 0;          // tick counter for hit anim
+    private int hitAnimFrame = 0;            // current hit frame index
+    private int hitAnimDirection = DIR_DOWN;  // locked facing direction for hit anim
     public int deathDirection = DIR_DOWN;    // locked facing direction for death anim
-    private static final int HIT_ANIM_SPEED = 6;     // ticks per hit frame
-    private static final int DEATH_ANIM_SPEED = 10;   // ticks per death frame
     private static final int DEATH_HOLD_DELAY = 60;   // hold last frame before game over
     private static final int DEATH_TOTAL_FRAMES = 5;  // frames in death sheet per direction
     private static final int HIT_TOTAL_FRAMES = 4;    // frames in hit sheet per direction
@@ -70,16 +67,52 @@ public class Player extends Entity {
     public int hasArtefact = 0;
     public int hasGem = 0;
     public boolean attackCanceled = false;
-    public int attackSpeed = 1;
 
     private int comboStep = 0;
     private int comboWindow = 0;     // frames remaining to chain next attack
     private static final int COMBO_WINDOW_MAX = 20;
     private boolean attackBuffered = false;
 
+    // Free-aim attack angle (radians, atan2 convention) — independent of the cardinal `direction`
+    // field. `direction` stays cardinal for body sprite/frontal-armor/knockback/AI; `attackAngle`
+    // drives the cone hitbox, the rotated slice VFX, and the attack kick.
+    private double attackAngle = 0.0;
+    public gfx.geom.Cone attackCone;
+    private static final double ATTACK_CONE_RADIUS_SCALE = 1.35; // × tileSize
+    private static final double ATTACK_CONE_HALF_ANGLE = Math.toRadians(55);
+
+    /** Nearest-cardinal snap of a continuous angle, for body-sprite `direction` selection. */
+    private static int angleToCardinal(double angleRad) {
+        double deg = Math.toDegrees(angleRad);
+        int sector = Math.floorMod(Math.round((float) (deg / 90f)), 4);
+        return switch (sector) {
+            case 0 -> DIR_RIGHT;
+            case 1 -> DIR_DOWN;
+            case 2 -> DIR_LEFT;
+            default -> DIR_UP; // 3
+        };
+    }
+
+    // Slash VFX — sliceAnim.png is a 2-frame strip (2 cols x 1 row, 32x96 per cell): frame 0 =
+    // slash peak, frame 1 = fade/trail. Rotated to attackAngle each swing; native tall/narrow
+    // aspect is preserved (uniformly scaled, never stretched independently per axis).
+    private Sprite[] sliceFrames; // [0]=peak, [1]=trail
+    private static final int SLICE_CELL_W = 32, SLICE_CELL_H = 96;
+    // Alternates each swing so consecutive attacks mirror each other (default, flipped, default, ...)
+    // for a smoother back-and-forth feel. Starts false so the FIRST swing is the default (unflipped)
+    // orientation; toggled at swing END so the current swing draws with the value set at its start.
+    private boolean sliceFlip = false;
+
+    // Attack "kick" — a brief forward impulse along attackAngle during the swing, collision-checked.
+    private float kickOffsetX = 0f, kickOffsetY = 0f;
+    private static final float KICK_MAX_PX = 7f;
+
+    // 0..1 across the swing's active frames, -1 when the slice VFX should be hidden.
+    private float swingProgress = -1f;
+
     public int levelUpChoice = 0;
     public String[] levelUpOptions;
-    public int[] levelUpValues;
+    private int[] levelUpValues;
     public int skillPoints = 20;
     public final SkillTree skillTree = new SkillTree();
 
@@ -108,11 +141,6 @@ public class Player extends Entity {
     public int levelUpBannerTimer = 0;
     public String levelUpBannerText = "";
 
-    // Drift / momentum: sub-pixel velocity that decays after keys are released.
-    // DRIFT_FRICTION chosen for a 2-4 frame glide at normal walk speed (feels like grass, not ice).
-    private float driftVx = 0f, driftVy = 0f;
-    private float driftAccumX = 0f, driftAccumY = 0f;
-    private static final float DRIFT_FRICTION = 0.72f; // per-frame multiplier; lower = snappier, higher = more slide
 
     private boolean dashing = false;
     private int dashCounter = 0;
@@ -141,18 +169,14 @@ public class Player extends Entity {
     private int animOffsetX = 0;
     private int animOffsetY = 0;
 
-    // Swing trail afterimages
-    private static final int TRAIL_SIZE = 4;
-    private final int[] trailWorldX = new int[TRAIL_SIZE];
-    private final int[] trailWorldY = new int[TRAIL_SIZE];
-    private int trailIndex = 0;
-    private int trailCount = 0;
-    private boolean trailActive = false;
-
-    private int idleCounter = 0;
-    private int idleFrameDirection = 1;
-    private final int idleFrameInterval = 10;
     private final int idleStartDelayFrames = 120;
+
+    // ── Player animations: frames + ms-per-frame bundled in AnimClip (built in get*Images()). ──
+    // Player drives its own spriteNum for both walk and idle (draw reads spriteNum), so these are
+    // Player-local. walk = LOOP (wrap), idle = LOOP_PINGPONG (bounce), matching the old counters.
+    private gfx.AnimClip walkClip, idleClip, hitClip, deathClip;
+    private float pWalkStateTime = 0f, pIdleStateTime = 0f;
+    private static final float PDT = 1f / 60f;
     private int idleDelayCounter = 0;
     private boolean movingThisFrame = false;
     private boolean wasMovingLastFrame = false;
@@ -163,26 +187,41 @@ public class Player extends Entity {
     private int windDownCounter = 0;
     private static final int WIND_DOWN_FRAMES = 2;
 
-    // Acceleration / inertia
-    private float player_weight = 65f; //kg, basically the mass of the player on which we calculate the inertia
+    // Physics-based movement: F_D = 0.5 * rho * v^2 * C_D * A
+    // rho=1.225 kg/m^3, C_D=1.0, A=0.5 m^2, mass=60 kg — scaled to pixel/frame units.
+    private static final float PLAYER_MASS  = 60f;    // kg
+    private static final float DRAG_K       = 1.44f;  // 0.5 * rho * C_D * A, tuned to pixel space
+    private static final float DRIVE_ACCEL  = 0.4f;   // px/frame^2 drive force per unit mass while key held
     private float currentSpeed = 0f;
     private float inertiaVelX = 0f;
     private float inertiaVelY = 0f;
-    private static final float ACCEL_RATE   = 0.4f; // speed gained per frame while key held
-    private static final float DECEL_RATE   = 0.55f; // speed lost per frame after key released (inertia)
+
+    // Wind: a real force vector sampled from the map's WindField, applied as F/mass per frame.
+    // Only the component along the player's movement axis is used (tailwind faster / headwind
+    // slower) — the sideways component is discarded so the player is never pushed off-course.
+    private static final float WIND_FORCE_SCALE = 9.0f; // converts WindField strength (0..1) to px/frame^2 force
+    // The "inertia hitbox" — the body area the wind pushes on. Larger than the collision solidArea
+    // so it is visually balanced with the on-screen player sprite (a person-sized sail, not just feet).
+    private final Rect inertiaArea = new Rect();
 
     public Player(GamePanel gp, KeyHandler keyH) {
         super(gp);
         this.keyH = keyH;
         screenX = gp.screenWidth / 2 - (gp.tileSize / 2);
         screenY = gp.screenHeight / 2 - (gp.tileSize / 2);
-        solidArea = new Rectangle();
+        solidArea = new Rect();
         solidArea.x = gp.tileSize * 20 / 64;   // 20px at 64px tile, scales proportionally
         solidArea.y = gp.tileSize * 22 / 64;   // 22px at 64px tile
         solidAreaDefaultX = solidArea.x;
         solidAreaDefaultY = solidArea.y;
         solidArea.width  = gp.tileSize * 24 / 64;  // 24px at 64px tile
         solidArea.height = gp.tileSize * 22 / 64;  // 22px at 64px tile
+        // Inertia/wind hitbox: covers most of the on-screen body so wind pushes on a
+        // person-sized area, not just the feet. ~44px wide × ~52px tall at a 64px tile.
+        inertiaArea.x = gp.tileSize * 10 / 64;
+        inertiaArea.y = gp.tileSize *  8 / 64;
+        inertiaArea.width  = gp.tileSize * 44 / 64;
+        inertiaArea.height = gp.tileSize * 52 / 64;
         setDefaultValues();
     }
 
@@ -250,11 +289,11 @@ public class Player extends Entity {
         setDialogue();
     }
 
-    public void setItems() {
+    private void setItems() {
         // Equipment is set but not added to inventory at game start
     }
 
-    public void setDialogue() {
+    private void setDialogue() {
         ensureDialogues()[0][0] = "You are level " + level + " now!\n" + "Your stats have increased, keep going!";
     }
 
@@ -328,130 +367,147 @@ public class Player extends Entity {
     /**
      * Adaugam un sistem de incarcare a unui spritesheet cu un numar variabil de cadre pe rand.
      */
-    public void getPlayerImages() {
+    private void getPlayerImages() {
         // Sheet order: down=row0, left=row1, right=row2, up=row3 — maps directly to DIR_DOWN=0,LEFT=1,RIGHT=2,UP=3
-        int[] framesPerRow = {6, 7, 7, 6};
-        walkFrames = loadSheetVariable("/res/player/Player_walking-sheet", framesPerRow);
+        int[] framesPerRow = {8, 8, 8, 7};
+        walkFrames = loadSheetVariable("/res/player/Player_walking-sheet_test", framesPerRow);
+        // 150 ms/frame at default speed; scaled by movement speed at runtime so feet don't slide.
+        walkClip = new gfx.AnimClip(walkFrames, 200, com.badlogic.gdx.graphics.g2d.Animation.PlayMode.LOOP);
     }
 
     public void getPlayerAttackImages() {
-        attackFrames = new BufferedImage[4][5];
-        attackFrames[DIR_UP][0] = setup("/res/player/b.attack/attack 1/up/u1", gp.tileSize, gp.tileSize * 2);
-        attackFrames[DIR_UP][1] = setup("/res/player/b.attack/attack 1/up/u2", gp.tileSize, gp.tileSize * 2);
-        attackFrames[DIR_UP][2] = setup("/res/player/b.attack/attack 1/up/u3", gp.tileSize, gp.tileSize * 2);
-        attackFrames[DIR_UP][3] = setup("/res/player/b.attack/attack 1/up/u4", gp.tileSize, gp.tileSize * 2);
-        attackFrames[DIR_UP][4] = setup("/res/player/b.attack/attack 1/up/u5", gp.tileSize, gp.tileSize * 2);
-        attackFrames[DIR_DOWN][0] = setup("/res/player/b.attack/attack 1/front/f1", gp.tileSize, gp.tileSize * 2);
-        attackFrames[DIR_DOWN][1] = setup("/res/player/b.attack/attack 1/front/f2", gp.tileSize, gp.tileSize * 2);
-        attackFrames[DIR_DOWN][2] = setup("/res/player/b.attack/attack 1/front/f3", gp.tileSize, gp.tileSize * 2);
-        attackFrames[DIR_DOWN][3] = setup("/res/player/b.attack/attack 1/front/f4", gp.tileSize, gp.tileSize * 2);
-        attackFrames[DIR_DOWN][4] = setup("/res/player/b.attack/attack 1/front/f5", gp.tileSize, gp.tileSize * 2);
-        attackFrames[DIR_LEFT][0] = setup("/res/player/b.attack/attack 1/left/l1", gp.tileSize * 2, gp.tileSize);
-        attackFrames[DIR_LEFT][1] = setup("/res/player/b.attack/attack 1/left/l2", gp.tileSize * 2, gp.tileSize);
-        attackFrames[DIR_LEFT][2] = setup("/res/player/b.attack/attack 1/left/l3", gp.tileSize * 2, gp.tileSize);
-        attackFrames[DIR_LEFT][3] = setup("/res/player/b.attack/attack 1/left/l4", gp.tileSize * 2, gp.tileSize);
-        attackFrames[DIR_LEFT][4] = setup("/res/player/b.attack/attack 1/left/l5", gp.tileSize * 2, gp.tileSize);
-        attackFrames[DIR_RIGHT][0] = setup("/res/player/b.attack/attack 1/right/r1", gp.tileSize * 2, gp.tileSize);
-        attackFrames[DIR_RIGHT][1] = setup("/res/player/b.attack/attack 1/right/r2", gp.tileSize * 2, gp.tileSize);
-        attackFrames[DIR_RIGHT][2] = setup("/res/player/b.attack/attack 1/right/r3", gp.tileSize * 2, gp.tileSize);
-        attackFrames[DIR_RIGHT][3] = setup("/res/player/b.attack/attack 1/right/r4", gp.tileSize * 2, gp.tileSize);
-        attackFrames[DIR_RIGHT][4] = setup("/res/player/b.attack/attack 1/right/r5", gp.tileSize * 2, gp.tileSize);
-        // Combo step 1 — attack2_sheet (4 rows × 5 cols, 1-tile each: down/left/right/up)
-        int[] a2 = {5, 5, 5, 5};
-        BufferedImage[][] raw2 = loadSheetVariable("/res/player/b.attack/attack2_sheet", a2);
-        attackFrames2 = new BufferedImage[4][];
-        attackFrames2[DIR_DOWN]  = raw2[0];
-        attackFrames2[DIR_LEFT]  = raw2[1];
-        attackFrames2[DIR_RIGHT] = raw2[2];
-        attackFrames2[DIR_UP]    = raw2[3];
-        // Combo step 2 — attack3_sheet (4 rows × 6 cols, 1-tile each: down/left/right/up)
-        int[] a3 = {6, 6, 6, 6};
-        BufferedImage[][] raw3 = loadSheetVariable("/res/player/b.attack/attack3_sheet", a3);
-        attackFrames3 = new BufferedImage[4][];
-        attackFrames3[DIR_DOWN]  = raw3[0];
-        attackFrames3[DIR_LEFT]  = raw3[1];
-        attackFrames3[DIR_RIGHT] = raw3[2];
-        attackFrames3[DIR_UP]    = raw3[3];
+        // Unified attack sheet (4 rows × 5 cols, 1-tile each: down/left/right/up) — same sheet
+        // reused for all 3 combo steps; only per-step timing (frameDurations in attacking())
+        // and the free-aim cone/slice differ, not the body sprite.
+        int[] a = {5, 5, 5, 5};
+        Sprite[][] raw = loadSheetVariable("/res/player/player_attacking_test", a);
+        attackFrames = new Sprite[4][];
+        attackFrames[DIR_DOWN]  = raw[0];
+        attackFrames[DIR_LEFT]  = raw[1];
+        attackFrames[DIR_RIGHT] = raw[2];
+        attackFrames[DIR_UP]    = raw[3];
+        attackFrames2 = attackFrames;
+        attackFrames3 = attackFrames;
+
+        getSliceEffectImages();
     }
 
-    public void getPlayerHitImages() {
+    /** sliceAnim.png is a 2-frame strip (2 cols x 1 row, 32x96 per cell) — not square, so it
+     *  can't go through loadSheetVariable (which force-scales cells to a square tileSize).
+     *  Sliced manually, keeping the native tall/narrow aspect for the rotated VFX quad. */
+    private void getSliceEffectImages() {
+        Sprite sheet = util.ResourceCache.loadImageIfPresent("/res/effects/sliceAnim.png");
+        if (sheet == null) { sliceFrames = null; return; }
+        sliceFrames = new Sprite[2];
+        sliceFrames[0] = sheet.getSubimage(0, 0, SLICE_CELL_W, SLICE_CELL_H);
+        sliceFrames[1] = sheet.getSubimage(SLICE_CELL_W, 0, SLICE_CELL_W, SLICE_CELL_H);
+    }
+
+    private void getPlayerHitImages() {
         int[] framesPerRow = {4, 4, 4, 4}; // sheet rows: down, left, up, right
-        BufferedImage[][] frames = loadSheetVariable("/res/player/Player_getHit", framesPerRow);
-        hitFrames = new BufferedImage[4][];
+        Sprite[][] frames = loadSheetVariable("/res/player/Player_getHit", framesPerRow);
+        hitFrames = new Sprite[4][];
         hitFrames[DIR_UP]    = frames[0]; // row 0 = up
         hitFrames[DIR_RIGHT] = frames[3]; // row 1 = right
         hitFrames[DIR_DOWN]  = frames[1]; // row 2 = down
         hitFrames[DIR_LEFT]  = frames[2]; // row 3 = left
+        hitClip = new gfx.AnimClip(hitFrames, 100, com.badlogic.gdx.graphics.g2d.Animation.PlayMode.LOOP); // 100 ms/frame
     }
 
-    public void getPlayerDeathImages() {
+    /** Hit recovery plays on a raw counter; source its per-frame ticks from hitClip's ms (100 ms = 6 ticks). */
+    private int hitTicksPerFrame() { return Math.max(1, Math.round(hitClip.frameMs * 60f / 1000f)); }
+
+    private void getPlayerDeathImages() {
         int[] framesPerRow = {5, 5, 5, 5}; // sheet rows: up, down, left, right
-        BufferedImage[][] frames = loadSheetVariable("/res/player/Player_death", framesPerRow);
-        deathFrames = new BufferedImage[4][];
+        Sprite[][] frames = loadSheetVariable("/res/player/Player_death", framesPerRow);
+        deathFrames = new Sprite[4][];
         deathFrames[DIR_DOWN]  = frames[0]; // row 0 = down
         deathFrames[DIR_RIGHT] = frames[2]; // row 2 = right
         deathFrames[DIR_UP]    = frames[1]; // row 1 = up
         deathFrames[DIR_LEFT]  = frames[3]; // row 3 = left
+        deathClip = new gfx.AnimClip(deathFrames, 167, com.badlogic.gdx.graphics.g2d.Animation.PlayMode.LOOP); // 167 ms/frame
     }
 
-    public void getPlayerIdleImages() {
+    /** Death plays on a raw counter (also drives game-over/fade timing); source its per-frame ticks
+     *  from deathClip's ms (167 ms = 10 ticks), so all coupled timing stays in ticks. */
+    private int deathTicksPerFrame() { return Math.max(1, Math.round(deathClip.frameMs * 60f / 1000f)); }
+
+    private void getPlayerIdleImages() {
         int[] framesPerRow = {6, 6, 6, 6}; // sheet rows: up, down, left, right
-        BufferedImage[][] frames = loadSheetVariable("/res/player/Player_idle-sheet", framesPerRow);
-        idleFrames = new BufferedImage[4][];
+        Sprite[][] frames = loadSheetVariable("/res/player/Player_idle-sheet", framesPerRow);
+        idleFrames = new Sprite[4][];
         idleFrames[DIR_UP]    = frames[0]; // row 0 = up
         idleFrames[DIR_DOWN]  = frames[1]; // row 1 = down
         idleFrames[DIR_LEFT]  = frames[2]; // row 2 = left
         idleFrames[DIR_RIGHT] = frames[3]; // row 3 = right
+        // 167 ms/frame; LOOP_PINGPONG = the old 1..6..1 bounce.
+        idleClip = new gfx.AnimClip(idleFrames, 175, com.badlogic.gdx.graphics.g2d.Animation.PlayMode.LOOP_PINGPONG);
     }
 
     @Override
     public void update() {
-        if (levelUpBannerTimer > 0) {
-            levelUpBannerTimer--;
-        }
+        if (levelUpBannerTimer > 0) levelUpBannerTimer--;
 
-        if (playerDying) {
-            playerDeathCounter++;
-            int frameIndex = playerDeathCounter / DEATH_ANIM_SPEED;
-            if (frameIndex < DEATH_TOTAL_FRAMES) {
-                playerDeathFrame = frameIndex;
-            } else {
-                playerDeathFrame = DEATH_TOTAL_FRAMES - 1; // hold last frame
-                // After holding the last frame for DEATH_HOLD_DELAY, trigger game over
-                int holdTick = playerDeathCounter - (DEATH_TOTAL_FRAMES * DEATH_ANIM_SPEED);
-                if (holdTick >= DEATH_HOLD_DELAY) {
-                    if (gp.gameState != GamePanel.gameOverState) {
-                        gp.ui.commandNum = 0;
-                    }
-                    gp.gameState = GamePanel.gameOverState;
-                    gp.stopMusic();
-                    if (!gp.deathSoundPlayed) {
-                        gp.playSE(4);
-                        gp.deathSoundPlayed = true;
-                    }
+        if (updateDeathAnimation()) return;   // death consumes the frame
+        updateHitAnimation();
+        freezeForDialogueOrCutscene();
+        updateDashAndEvade();
+        tickCooldownsAndTimers();
+        handleAbilityInputs();
+        tickComboWindow();
+        if (updateAttackingOrMovement()) return; // returns true when input is locked mid-frame
+        updateCamera();
+    }
+
+    /** Advances the death animation and triggers game-over. Returns true while dying (frame consumed). */
+    private boolean updateDeathAnimation() {
+        if (!playerDying) return false;
+        playerDeathCounter++;
+        int frameIndex = playerDeathCounter / deathTicksPerFrame();
+        if (frameIndex < DEATH_TOTAL_FRAMES) {
+            playerDeathFrame = frameIndex;
+        } else {
+            playerDeathFrame = DEATH_TOTAL_FRAMES - 1; // hold last frame
+            // After holding the last frame for DEATH_HOLD_DELAY, trigger game over
+            int holdTick = playerDeathCounter - (DEATH_TOTAL_FRAMES * deathTicksPerFrame());
+            if (holdTick >= DEATH_HOLD_DELAY) {
+                if (gp.gameState != GamePanel.gameOverState) {
+                    gp.ui.commandNum = 0;
+                }
+                gp.gameState = GamePanel.gameOverState;
+                gp.stopMusic();
+                if (!gp.deathSoundPlayed) {
+                    gp.playSE(4);
+                    gp.deathSoundPlayed = true;
                 }
             }
-            return; // block all movement/combat during death
         }
+        return true; // block all movement/combat during death
+    }
 
-        if (hitAnimCounter > 0) {
-            hitAnimCounter--;
-            hitAnimFrame = (HIT_TOTAL_FRAMES - 1) - (hitAnimCounter / HIT_ANIM_SPEED);
-            if (hitAnimFrame >= HIT_TOTAL_FRAMES) hitAnimFrame = HIT_TOTAL_FRAMES - 1;
-            if (hitAnimFrame < 0) hitAnimFrame = 0;
-        }
+    private void updateHitAnimation() {
+        if (hitAnimCounter <= 0) return;
+        hitAnimCounter--;
+        int spd = hitTicksPerFrame();
+        hitAnimFrame = (HIT_TOTAL_FRAMES - 1) - (hitAnimCounter / spd);
+        if (hitAnimFrame >= HIT_TOTAL_FRAMES) hitAnimFrame = HIT_TOTAL_FRAMES - 1;
+        if (hitAnimFrame < 0) hitAnimFrame = 0;
+    }
 
-        if (gp.gameState == GamePanel.dialogueState || gp.gameState == GamePanel.cutsceneState) {
-            attacking = false;
-            spriteCounter = 0;
-            spriteNum = 1;
-            anticipationTimer = -1;
-            animOffsetX = 0;
-            animOffsetY = 0;
-            idleDelayCounter = 0;
-            movingThisFrame = false;
-        }
+    private void freezeForDialogueOrCutscene() {
+        if (gp.gameState != GamePanel.dialogueState && gp.gameState != GamePanel.cutsceneState) return;
+        attacking = false;
+        spriteCounter = 0;
+        spriteNum = 1;
+        anticipationTimer = -1;
+        animOffsetX = 0;
+        animOffsetY = 0;
+        idleDelayCounter = 0;
+        movingThisFrame = false;
+    }
 
+    /** Dash trigger, dash physics (with shadow-step strike), and the post-dash evade recovery. */
+    private void updateDashAndEvade() {
         if (dashUnlocked && keyH.dashPressed && dashCooldown == 0 && !dashing && !attacking && evadeRecovery == 0) {
             dashing = true;
             dashCounter = dashDuration;
@@ -476,29 +532,7 @@ public class Player extends Entity {
                 speed = Math.max(1, defaultSpeed - 1); // brief heavy landing
                 evadeRecovery = EVADE_RECOVERY_FRAMES;
                 invincibleCounter = 54;
-                if (shadowStepUnlocked) {
-                    for (int si = 0; si < gp.monster.length; si++) {
-                        Entity m = gp.monster[si];
-                        if (m != null && m.alive && !m.dying && !m.invincible) {
-                            int sdx = Math.abs(getCenterX() - m.getCenterX());
-                            int sdy = Math.abs(getCenterY() - m.getCenterY());
-                            if (sdx < gp.tileSize * 2 && sdy < gp.tileSize * 2) {
-                                int dmg = Math.max(1, (int)(attack * getTotalMeleeMultiplier()) - m.defense);
-                                m.life -= dmg;
-                                m.invincible = true;
-                                m.hitFlashCounter = 6;
-                                m.damageReaction();
-                                spawnDamageNumber(m, dmg, false);
-                                if (m.life <= 0) killMonster(m);
-                                // Sync mob damage to other players in multiplayer
-                                if (gp.mpClient != null && gp.mpClient.isConnected()) {
-                                    gp.mpClient.sendMobDamage(si, dmg, m.life, m.maxLife, m.name);
-                                }
-                            }
-                        }
-                    }
-                    gp.screenShake.shakeLight();
-                }
+                if (shadowStepUnlocked) applyShadowStepStrike();
             }
         }
         if (evadeRecovery > 0) {
@@ -507,6 +541,35 @@ public class Player extends Entity {
                 speed = defaultSpeed;
             }
         }
+    }
+
+    /** On dash end (if unlocked), strike any monsters within 2 tiles of the player. */
+    private void applyShadowStepStrike() {
+        for (int si = 0; si < gp.monster.length; si++) {
+            Entity m = gp.monster[si];
+            if (m != null && m.alive && !m.dying && !m.invincible) {
+                int sdx = Math.abs(getCenterX() - m.getCenterX());
+                int sdy = Math.abs(getCenterY() - m.getCenterY());
+                if (sdx < gp.tileSize * 2 && sdy < gp.tileSize * 2) {
+                    int dmg = Math.max(1, (int)(attack * getTotalMeleeMultiplier()) - m.defense);
+                    m.life -= dmg;
+                    m.invincible = true;
+                    m.hitFlashCounter = 6;
+                    m.damageReaction();
+                    spawnDamageNumber(m, dmg, false);
+                    if (m.life <= 0) killMonster(m);
+                    // Sync mob damage to other players in multiplayer
+                    if (gp.mpClient != null && gp.mpClient.isConnected()) {
+                        gp.mpClient.sendMobDamage(si, dmg, m.life, m.maxLife, m.name);
+                    }
+                }
+            }
+        }
+        gp.screenShake.shakeLight();
+    }
+
+    /** Decrement all per-frame cooldowns/timers and apply the overdrive aura + speed reset. */
+    private void tickCooldownsAndTimers() {
         if (dashCooldown > 0) dashCooldown--;
         if (spawnFadeAlpha < 1.0f) spawnFadeAlpha = Math.min(1.0f, spawnFadeAlpha + 0.025f);
 
@@ -534,270 +597,315 @@ public class Player extends Entity {
         } else if (!dashing) {
             speed = defaultSpeed;
         }
+    }
 
-        handleAbilityInputs();
-
+    private void tickComboWindow() {
         if (comboWindow > 0) comboWindow--;
         if (comboWindow <= 0 && !attacking) comboStep = 0;
+    }
 
+    /**
+     * The main combat/movement branch. When mid-attack, runs the lunge + coin scan; otherwise runs
+     * the full movement/wind/inertia physics, interaction, and mouse/projectile actions.
+     * Returns true when input is locked (frame consumed before the camera update).
+     */
+    private boolean updateAttackingOrMovement() {
         if (attacking && !attackCanceled) {
-            if (keyH.enterPressed) {
-                attackBuffered = true;
-                keyH.enterPressed = false;
+            updateAttackingState();
+            return false;
+        }
+
+        if (gp.inputLocked) return true;
+
+        boolean canMove = !rooted;
+        boolean movingUp    = canMove && keyH.upPressed;
+        boolean movingDown  = canMove && keyH.downPressed;
+        boolean movingLeft  = canMove && keyH.leftPressed;
+        boolean movingRight = canMove && keyH.rightPressed;
+        // During a dash the burst must propel the player even if they've released the movement key
+        // (a dash is a committed lunge, not a hold-to-move). Force motion in the facing direction
+        // so the dash always travels; without this the speed boost applied above did nothing when
+        // no direction key was held, which is why the dash "did nothing".
+        if (dashing && canMove && !movingUp && !movingDown && !movingLeft && !movingRight) {
+            switch (direction) {
+                case DIR_UP    -> movingUp    = true;
+                case DIR_DOWN  -> movingDown  = true;
+                case DIR_LEFT  -> movingLeft  = true;
+                case DIR_RIGHT -> movingRight = true;
             }
-            attacking();
-            int attackMoveSpeed = Math.max(1, speed / 2);
-            int nextX = worldX;
-            int nextY = worldY;
-            switch(direction) {
-                case DIR_UP:    if (keyH.upPressed)    nextY -= attackMoveSpeed; break;
-                case DIR_DOWN:  if (keyH.downPressed)  nextY += attackMoveSpeed; break;
-                case DIR_LEFT:  if (keyH.leftPressed)  nextX -= attackMoveSpeed; break;
-                case DIR_RIGHT: if (keyH.rightPressed) nextX += attackMoveSpeed; break;
+        }
+        boolean movingH = movingLeft || movingRight;
+        boolean movingV = movingUp   || movingDown;
+        boolean moving  = movingH    || movingV;
+        movingThisFrame = moving;
+
+        if (moving) {
+            // Vertical direction takes priority for diagonals (walk up/down anim while strafing)
+            if      (movingUp)    direction = DIR_UP;
+            else if (movingDown)  direction = DIR_DOWN;
+            else if (movingLeft)  direction = DIR_LEFT;
+            else if (movingRight) direction = DIR_RIGHT;
+        }
+
+        if (moving || keyH.enterPressed) {
+            windingDown = false;
+            idleDelayCounter = 0;
+
+            // Accelerate currentSpeed toward target speed
+            float targetSpeed = speed;
+            if (slowed && !dashing) targetSpeed *= 0.5f;
+            if (!dashing && gp.eHandler.isInWaterZone(
+                    worldX + solidArea.x, worldY + solidArea.y,
+                    solidArea.width, solidArea.height)) {
+                targetSpeed *= 0.6f;
             }
-            int originalX = worldX;
-            int originalY = worldY;
-            worldX = nextX;
-            worldY = nextY;
+            if (dashing) {
+                // Dash is a burst, not a driven walk: snap straight to the dash speed. The quadratic
+                // air-drag model below has a terminal velocity of ~4 px/frame (0.4 = 0.024*v²), which
+                // is BELOW walking speed — so ramping toward it made the dash feel like normal walking.
+                // Bypassing drag here is what makes the dash actually lunge forward.
+                currentSpeed = targetSpeed;
+            } else {
+                // Drive force accelerates toward target; air drag (quadratic) opposes motion.
+                float drag = DRAG_K * currentSpeed * currentSpeed / PLAYER_MASS;
+                currentSpeed = Math.min(targetSpeed, currentSpeed + DRIVE_ACCEL - drag);
+            }
+
+            // Wind: project the wind force onto the player's movement direction only.
+            // Tailwind (force aligned with motion) adds speed; headwind subtracts it.
+            // The perpendicular component is discarded — no sideways shove.
+            float windAccel = windForceAlongMovement(movingLeft, movingRight, movingUp, movingDown);
+            currentSpeed = Math.max(0.5f, currentSpeed + windAccel);
+            // Allow tailwind to push the player past their normal top speed (capped).
+            currentSpeed = Math.min(currentSpeed, targetSpeed + Math.max(0f, windAccel) * 6f);
+
+            // Diagonal: scale each axis by 1/√2 so total speed equals cardinal
+            boolean diagonal = movingH && movingV;
+            int sx = diagonal ? Math.max(1, Math.round(currentSpeed * 0.7071f)) : Math.max(1, Math.round(currentSpeed));
+            int sy = sx;
+
+            // Build velocity vector from current keys
+            float csX = currentSpeed;
+            float csY = currentSpeed;
+            if (diagonal) {
+                csX = Math.max(0.5f, csX * 0.7071f);
+                csY = Math.max(0.5f, csY * 0.7071f);
+            }
+
+            inertiaVelX = movingLeft ? -csX : movingRight ? csX : 0f;
+            inertiaVelY = movingUp   ? -csY : movingDown  ? csY : 0f;
+
+            if (movingH && !keyH.enterPressed) moveAxis(movingLeft ? DIR_LEFT : DIR_RIGHT, movingLeft ? -sx : sx, 0);
+            else if (!movingH) { inertiaVelX = 0f; }
+
+            if (movingV && !keyH.enterPressed) moveAxis(movingUp ? DIR_UP : DIR_DOWN, 0, movingUp ? -sy : sy);
+            else if (!movingV) { inertiaVelY = 0f; }
+
+            // Restore final facing direction after axis checks
+            if      (movingUp)    direction = DIR_UP;
+            else if (movingDown)  direction = DIR_DOWN;
+            else if (movingLeft)  direction = DIR_LEFT;
+            else if (movingRight) direction = DIR_RIGHT;
+
             collisionOn = false;
             gp.cChecker.checkTile(this);
             int objIndex = gp.cChecker.checkObject(this, true);
-            if (objIndex != 999) collisionOn = true;
+            gp.nearbyInteractable = null;
+            pickUpObject(objIndex);
             int npcIndex = gp.cChecker.checkEntity(this, gp.npc);
-            if (npcIndex != 999 && gp.npc[npcIndex].collision) collisionOn = true;
+            interactNPC(npcIndex);
             int monsterIndex = gp.cChecker.checkEntity(this, gp.monster);
-            if (monsterIndex != 999 && gp.monster[monsterIndex].collision) collisionOn = true;
-            int iTileIndex = gp.cChecker.checkEntity(this, gp.iTile);
-            if (iTileIndex != 999 && gp.iTile[iTileIndex] != null) {
-                if (gp.iTile[iTileIndex].collision) collisionOn = true;
-                if (gp.iTile[iTileIndex] instanceof tile.IT_Coins) {
-                    tile.IT_Coins coinTile = (tile.IT_Coins) gp.iTile[iTileIndex];
-                    coin += coinTile.coinValue;
-                    gp.playSE(SFX.GOT_GEM);
-                    generateParticle(coinTile, coinTile);
-                    gp.iTile[iTileIndex] = null;
-                }
-            }
-            if (collisionOn) {
-                worldX = originalX;
-                worldY = originalY;
-            }
-        } else {
-            if (gp.inputLocked) return;
+            contactMonster(monsterIndex);
+            gp.cChecker.checkEntity(this, gp.iTile);
+            gp.eHandler.checkEvent();
 
-            boolean canMove = !rooted;
-            boolean movingUp    = canMove && keyH.upPressed;
-            boolean movingDown  = canMove && keyH.downPressed;
-            boolean movingLeft  = canMove && keyH.leftPressed;
-            boolean movingRight = canMove && keyH.rightPressed;
-            boolean movingH = movingLeft || movingRight;
-            boolean movingV = movingUp   || movingDown;
-            boolean moving  = movingH    || movingV;
-            movingThisFrame = moving;
-
-            if (moving) {
-                // Vertical direction takes priority for diagonals (walk up/down anim while strafing)
-                if      (movingUp)    direction = DIR_UP;
-                else if (movingDown)  direction = DIR_DOWN;
-                else if (movingLeft)  direction = DIR_LEFT;
-                else if (movingRight) direction = DIR_RIGHT;
-            }
-
-            if (moving || keyH.enterPressed) {
-                windingDown = false;
-                idleCounter = 0;
-                idleFrameDirection = 1;
-                idleDelayCounter = 0;
-
-                // Accelerate currentSpeed toward target speed
-                float targetSpeed = speed;
-                if (slowed && !dashing) targetSpeed *= 0.5f;
-                if (!dashing && gp.eHandler.isInWaterZone(
-                        worldX + solidArea.x, worldY + solidArea.y,
-                        solidArea.width, solidArea.height)) {
-                    targetSpeed *= 0.6f;
-                }
-                currentSpeed = Math.min(targetSpeed, currentSpeed + ACCEL_RATE);
-
-                // Diagonal: scale each axis by 1/√2 so total speed equals cardinal
-                boolean diagonal = movingH && movingV;
-                int sx = diagonal ? Math.max(1, Math.round(currentSpeed * 0.7071f)) : Math.max(1, Math.round(currentSpeed));
-                int sy = sx;
-
-                // Build velocity vector from current keys
-                float csX = currentSpeed;
-                float csY = currentSpeed;
-                if (diagonal) {
-                    csX = Math.max(0.5f, csX * 0.7071f);
-                    csY = Math.max(0.5f, csY * 0.7071f);
-                }
-
-                inertiaVelX = movingLeft ? -csX : movingRight ? csX : 0f;
-                inertiaVelY = movingUp   ? -csY : movingDown  ? csY : 0f;
-
-                int moveSpeedX = Math.max(1, Math.round(Math.abs(inertiaVelX)));
-                int moveSpeedY = Math.max(1, Math.round(Math.abs(inertiaVelY)));
-
-                if (movingH && !keyH.enterPressed) moveAxis(movingLeft ? DIR_LEFT : DIR_RIGHT, movingLeft ? -sx : sx, 0);
-                else if (!movingH) driftVx = 0f;
-
-                if (movingV && !keyH.enterPressed) moveAxis(movingUp ? DIR_UP : DIR_DOWN, 0, movingUp ? -sy : sy);
-                else if (!movingV) driftVy = 0f;
-
-                // Restore final facing direction after axis checks
-                if      (movingUp)    direction = DIR_UP;
-                else if (movingDown)  direction = DIR_DOWN;
-                else if (movingLeft)  direction = DIR_LEFT;
-                else if (movingRight) direction = DIR_RIGHT;
-
-                collisionOn = false;
-                gp.cChecker.checkTile(this);
-                int objIndex = gp.cChecker.checkObject(this, true);
-                gp.nearbyInteractable = null;
-                pickUpObject(objIndex);
-                int npcIndex = gp.cChecker.checkEntity(this, gp.npc);
-                interactNPC(npcIndex);
-                int monsterIndex = gp.cChecker.checkEntity(this, gp.monster);
-                contactMonster(monsterIndex);
-                gp.cChecker.checkEntity(this, gp.iTile);
-                gp.eHandler.checkEvent();
-
-                if ((keyH.enterPressed || attackBuffered) && !attackCanceled && !dashing && currentWeapon != null) {
-                    attacking = true;
-                    spriteCounter = 0;
-                    attackBuffered = false;
-                    if (comboWindow > 0 && comboStep < 2) comboStep++;
-                    else if (comboWindow <= 0) comboStep = 0;
-                }
-                attackCanceled = false;
-                attackBuffered = false;
-                keyH.enterPressed = false;
-                if (!wasMovingLastFrame) {
-                    spawnBobParticle(1);
-                    footstepParticleCounter = 0;
-                }
-                wasMovingLastFrame = true;
-                updateSprite();
-                if (!dashing) {
-                    footstepParticleCounter++;
-                    int bobInterval = Math.max(2, 48 / Math.max(1, speed)) * 4;
-                    if (footstepParticleCounter >= bobInterval) {
-                        footstepParticleCounter = 0;
-                        spawnBobParticle(1);
-                    }
-                }
-
-            } else {
-                footstepParticleCounter = 0;
-
-                // Inertia: keep sliding in last direction, decelerating each frame
-                if (currentSpeed > 0f) {
-                    currentSpeed = Math.max(0f, currentSpeed - DECEL_RATE);
-                    if (currentSpeed > 0f && (Math.abs(inertiaVelX) > 0f || Math.abs(inertiaVelY) > 0f)) {
-                        float mag = (float) Math.sqrt(inertiaVelX * inertiaVelX + inertiaVelY * inertiaVelY);
-                        float nx = inertiaVelX / mag;
-                        float ny = inertiaVelY / mag;
-                        int ivx = Math.round(nx * currentSpeed);
-                        int ivy = Math.round(ny * currentSpeed);
-
-                        if (ivx != 0) {
-                            int savedDir = direction;
-                            direction = ivx < 0 ? DIR_LEFT : DIR_RIGHT;
-                            collisionOn = false;
-                            gp.cChecker.checkTile(this);
-                            gp.cChecker.checkObject(this, false);
-                            gp.cChecker.checkEntity(this, gp.npc);
-                            gp.cChecker.checkEntity(this, gp.monster);
-                            gp.cChecker.checkEntity(this, gp.iTile);
-                            if (!collisionOn) worldX += ivx;
-                            else { inertiaVelX = 0f; }
-                            direction = savedDir;
-                        }
-                        if (ivy != 0) {
-                            int savedDir = direction;
-                            direction = ivy < 0 ? DIR_UP : DIR_DOWN;
-                            collisionOn = false;
-                            gp.cChecker.checkTile(this);
-                            gp.cChecker.checkObject(this, false);
-                            gp.cChecker.checkEntity(this, gp.npc);
-                            gp.cChecker.checkEntity(this, gp.monster);
-                            gp.cChecker.checkEntity(this, gp.iTile);
-                            if (!collisionOn) worldY += ivy;
-                            else { inertiaVelY = 0f; }
-                            direction = savedDir;
-                        }
-                    }
-                }
-
-                // Wind-down: trigger whenever we just stopped moving, regardless of which frame we're on
-                if (!windingDown && wasMovingLastFrame) {
-                    windingDown = true;
-                    windDownFramesLeft = WIND_DOWN_FRAMES;
-                    windDownCounter = 0;
-                }
-                wasMovingLastFrame = false;
-
-                // Drift: glide to a stop after keys released
-                driftVx *= DRIFT_FRICTION;
-                driftVy *= DRIFT_FRICTION;
-                if (Math.abs(driftVx) < 0.2f) driftVx = 0f;
-                if (Math.abs(driftVy) < 0.2f) driftVy = 0f;
-                applyDrift(DIR_LEFT, DIR_RIGHT, true);
-                applyDrift(DIR_UP, DIR_DOWN, false);
-
-                if (windingDown) {
-                    int interval = Math.max(1, 32 / Math.max(1, speed));
-                    windDownCounter++;
-                    if (windDownCounter > interval) {
-                        windDownCounter = 0;
-                        int frameCount = (walkFrames != null && walkFrames[direction] != null)
-                                ? walkFrames[direction].length : 7;
-                        spriteNum = (spriteNum % frameCount) + 1;
-                        windDownFramesLeft--;
-                    }
-                    if (windDownFramesLeft <= 0) {
-                        windingDown = false;
-                        spriteNum = 1;
-                        idleDelayCounter = 0;
-                    }
-                } else {
-                    idleDelayCounter++;
-                    if (idleDelayCounter >= idleStartDelayFrames) {
-                        updateIdleSprite();
-                    } else {
-                        spriteNum = 1;
-                    }
-                }
-            }
-            // Mouse left-click attack — fires whether standing still or moving
-            if (gp.mouseH.leftClicked && !attacking && !dashing && currentWeapon != null) {
-                gp.mouseH.leftClicked = false;
-                direction = gp.mouseH.getAttackDirectionFromMouse();
+            if ((keyH.enterPressed || attackBuffered) && !attackCanceled && !dashing && currentWeapon != null) {
                 attacking = true;
                 spriteCounter = 0;
-                windingDown = false;
+                attackBuffered = false;
+                attackAngle = main.MouseHandler.angleForDirection(direction);
                 if (comboWindow > 0 && comboStep < 2) comboStep++;
                 else if (comboWindow <= 0) comboStep = 0;
+                gp.playSE(SFX.WEAPON_SWING);
             }
-            if(gp.keyH.shotKeyPressed && !projectile.alive && shotAvailableCounter == 30 && projectile.haveResource(this)) {
-                projectile.set(worldX, worldY, direction, true, this);
-                projectile.subtractResource(this);
-                gp.projectilesList.add(projectile);
-                shotAvailableCounter = 0;
-                gp.playSE(SFX.ARROW);
+            attackCanceled = false;
+            attackBuffered = false;
+            keyH.enterPressed = false;
+            if (!wasMovingLastFrame) {
+                spawnBobParticle(1);
+                footstepParticleCounter = 0;
+                pWalkStateTime = 0f; // restart the walk cycle cleanly on movement start
             }
-            if (shotAvailableCounter < 30) {
-                shotAvailableCounter++;
-            }
-            if (invincible) {
-                invincibleCounter++;
-                if (invincibleCounter > 60) {
-                    invincible = false;
-                    invincibleCounter = 0;
+            wasMovingLastFrame = true;
+            updateSprite();
+            if (!dashing) {
+                footstepParticleCounter++;
+                int bobInterval = Math.max(2, 48 / Math.max(1, speed)) * 4;
+                if (footstepParticleCounter >= bobInterval) {
+                    footstepParticleCounter = 0;
+                    spawnBobParticle(1);
                 }
             }
+
+        } else {
+            footstepParticleCounter = 0;
+            applyInertiaGlide();
+            updateWindDownOrIdle();
         }
 
+        fireMouseAttackIfRequested();
+        fireProjectileIfRequested();
+        updateInvincibility();
+        return false;
+    }
+
+    /** Mid-attack: run the lunge (via attacking()), bleed off walk speed, and scan for coins under the lunge. */
+    private void updateAttackingState() {
+        if (keyH.enterPressed) {
+            attackBuffered = true;
+            keyH.enterPressed = false;
+        }
+        attacking();
+        // While attacking the player STOPS walking — no key-driven movement; only the lunge from
+        // attacking() carries them forward. Speed is bled off so that resuming walking after the
+        // swing has to ramp back up from near-zero (see post-attack ramp below).
+        currentSpeed = Math.min(currentSpeed, defaultSpeed * 0.25f);
+        movingThisFrame = false;
+        // Still scan the tile/entity the player is standing on so pickups/coins under the lunge
+        // register, but don't apply any positional key movement.
+        collisionOn = false;
+        int iTileIndex = gp.cChecker.checkEntity(this, gp.iTile);
+        if (iTileIndex != 999 && gp.iTile[iTileIndex] != null
+                && gp.iTile[iTileIndex] instanceof tile.IT_Coins) {
+            tile.IT_Coins coinTile = (tile.IT_Coins) gp.iTile[iTileIndex];
+            coin += coinTile.coinValue;
+            gp.playSE(SFX.GOT_GEM);
+            generateParticle(coinTile, coinTile);
+            gp.iTile[iTileIndex] = null;
+        }
+    }
+
+    /** When not pressing a direction: coast on air-drag using the last inertia vector, collision-checked. */
+    private void applyInertiaGlide() {
+        // Air-drag deceleration: F_D = k*v^2, a = -F_D/m
+        if (currentSpeed <= 0f) return;
+        float drag = DRAG_K * currentSpeed * currentSpeed / PLAYER_MASS;
+        currentSpeed = Math.max(0f, currentSpeed - drag);
+        if (currentSpeed > 0f && (Math.abs(inertiaVelX) > 0f || Math.abs(inertiaVelY) > 0f)) {
+            float mag = (float) Math.sqrt(inertiaVelX * inertiaVelX + inertiaVelY * inertiaVelY);
+            float nx = inertiaVelX / mag;
+            float ny = inertiaVelY / mag;
+            int ivx = Math.round(nx * currentSpeed);
+            int ivy = Math.round(ny * currentSpeed);
+
+            if (ivx != 0) {
+                int savedDir = direction;
+                direction = ivx < 0 ? DIR_LEFT : DIR_RIGHT;
+                collisionOn = false;
+                gp.cChecker.checkTile(this);
+                gp.cChecker.checkObject(this, false);
+                gp.cChecker.checkEntity(this, gp.npc);
+                gp.cChecker.checkEntity(this, gp.monster);
+                gp.cChecker.checkEntity(this, gp.iTile);
+                if (!collisionOn) worldX += ivx;
+                else { inertiaVelX = 0f; }
+                direction = savedDir;
+            }
+            if (ivy != 0) {
+                int savedDir = direction;
+                direction = ivy < 0 ? DIR_UP : DIR_DOWN;
+                collisionOn = false;
+                gp.cChecker.checkTile(this);
+                gp.cChecker.checkObject(this, false);
+                gp.cChecker.checkEntity(this, gp.npc);
+                gp.cChecker.checkEntity(this, gp.monster);
+                gp.cChecker.checkEntity(this, gp.iTile);
+                if (!collisionOn) worldY += ivy;
+                else { inertiaVelY = 0f; }
+                direction = savedDir;
+            }
+        }
+    }
+
+    /** After stopping: play the brief wind-down walk frames, then fall into the delayed idle bounce. */
+    private void updateWindDownOrIdle() {
+        // Wind-down: trigger whenever we just stopped moving, regardless of which frame we're on
+        if (!windingDown && wasMovingLastFrame) {
+            windingDown = true;
+            windDownFramesLeft = WIND_DOWN_FRAMES;
+            windDownCounter = 0;
+        }
+        wasMovingLastFrame = false;
+
+        if (windingDown) {
+            int interval = Math.max(1, 32 / Math.max(1, speed));
+            windDownCounter++;
+            if (windDownCounter > interval) {
+                windDownCounter = 0;
+                int frameCount = (walkFrames != null && walkFrames[direction] != null)
+                        ? walkFrames[direction].length : 7;
+                spriteNum = (spriteNum % frameCount) + 1;
+                windDownFramesLeft--;
+            }
+            if (windDownFramesLeft <= 0) {
+                windingDown = false;
+                spriteNum = 1;
+                idleDelayCounter = 0;
+            }
+        } else {
+            idleDelayCounter++;
+            if (idleDelayCounter >= idleStartDelayFrames) {
+                updateIdleSprite();
+            } else {
+                spriteNum = 1;
+            }
+        }
+    }
+
+    /** Left-click free-aim attack (suppressed while the wind painter is active). */
+    private void fireMouseAttackIfRequested() {
+        // Mouse left-click attack — fires whether standing still or moving
+        // (suppressed while the wind painter is active: the mouse is painting, not attacking)
+        boolean windPainting = gp.windPainter != null && gp.windPainter.isActive();
+        if (windPainting) gp.mouseH.leftClicked = false;
+        if (gp.mouseH.leftClicked && !attacking && !dashing && currentWeapon != null) {
+            gp.mouseH.leftClicked = false;
+            attackAngle = gp.mouseH.getAttackAngleFromMouse();
+            direction = angleToCardinal(attackAngle); // body sprite snaps to nearest cardinal
+            attacking = true;
+            spriteCounter = 0;
+            windingDown = false;
+            if (comboWindow > 0 && comboStep < 2) comboStep++;
+            else if (comboWindow <= 0) comboStep = 0;
+            gp.playSE(SFX.WEAPON_SWING);
+        }
+    }
+
+    private void fireProjectileIfRequested() {
+        if(gp.keyH.shotKeyPressed && !projectile.alive && shotAvailableCounter == 30 && projectile.haveResource(this)) {
+            projectile.set(worldX, worldY, direction, true, this);
+            projectile.subtractResource(this);
+            gp.projectilesList.add(projectile);
+            shotAvailableCounter = 0;
+            gp.playSE(SFX.ARROW);
+        }
+        if (shotAvailableCounter < 30) {
+            shotAvailableCounter++;
+        }
+    }
+
+    private void updateInvincibility() {
+        if (invincible) {
+            invincibleCounter++;
+            if (invincibleCounter > 60) {
+                invincible = false;
+                invincibleCounter = 0;
+            }
+        }
+    }
+
+    /** Follow the player with a dead-zone lerp, clamped to the map bounds; writes screenX/screenY. */
+    private void updateCamera() {
         int mapPixelW = gp.tileM.currentMapCols * gp.tileSize;
         int mapPixelH = gp.tileM.currentMapRows * gp.tileSize;
         int defaultScreenX = gp.screenWidth / 2 - (gp.tileSize / 2);
@@ -858,77 +966,61 @@ public class Player extends Entity {
         if (!collisionOn) {
             worldX += dx;
             worldY += dy;
-            if (dx != 0) driftVx = dx;
-            if (dy != 0) driftVy = dy;
         } else {
-            if (dx != 0) driftVx = 0f;
-            if (dy != 0) driftVy = 0f;
+            if (dx != 0) inertiaVelX = 0f;
+            if (dy != 0) inertiaVelY = 0f;
         }
         direction = savedDir;
     }
 
-    private void applyDrift(int negDir, int posDir, boolean horizontal) {
-        float vel = horizontal ? driftVx : driftVy;
-        if (vel == 0f) {
-            if (horizontal) driftAccumX = 0f; else driftAccumY = 0f;
-            return;
-        }
-        if (horizontal) driftAccumX += vel; else driftAccumY += vel;
-        int delta = (int)(horizontal ? driftAccumX : driftAccumY);
-        if (delta == 0) return;
-        int savedDir = direction;
-        direction = delta < 0 ? negDir : posDir;
-        collisionOn = false;
-        gp.cChecker.checkTile(this);
-        gp.cChecker.checkObject(this, false);
-        gp.cChecker.checkEntity(this, gp.npc);
-        gp.cChecker.checkEntity(this, gp.monster);
-        gp.cChecker.checkEntity(this, gp.iTile);
-        if (!collisionOn) {
-            if (horizontal) { worldX += delta; driftAccumX -= delta; }
-            else            { worldY += delta; driftAccumY -= delta; }
-        } else {
-            if (horizontal) { driftVx = 0f; driftAccumX = 0f; }
-            else            { driftVy = 0f; driftAccumY = 0f; }
-        }
-        direction = savedDir;
+    /**
+     * Returns the wind force (as a per-frame acceleration, px/frame²) projected onto the
+     * player's current movement direction. Positive = tailwind (speed up), negative = headwind
+     * (slow down). The perpendicular component is intentionally dropped so wind never pushes the
+     * player sideways. Force is sampled over the enlarged {@link #inertiaArea} and divided by mass.
+     */
+    private float windForceAlongMovement(boolean left, boolean right, boolean up, boolean down) {
+        if (gp.windField == null) return 0f;
+        // Sample wind at the centre of the inertia hitbox (the body, not the feet).
+        int sampleX = worldX + inertiaArea.x + inertiaArea.width  / 2;
+        int sampleY = worldY + inertiaArea.y + inertiaArea.height / 2;
+        float wfx = gp.windField.sampleX(sampleX, sampleY);
+        float wfy = gp.windField.sampleY(sampleX, sampleY);
+        if (wfx == 0f && wfy == 0f) return 0f;
+
+        // Unit movement vector from current keys.
+        float mvx = (left ? -1f : 0f) + (right ? 1f : 0f);
+        float mvy = (up   ? -1f : 0f) + (down  ? 1f : 0f);
+        float mag = (float) Math.sqrt(mvx * mvx + mvy * mvy);
+        if (mag == 0f) return 0f;
+        mvx /= mag; mvy /= mag;
+
+        // Dot product = component of the wind force along the movement direction.
+        float along = wfx * mvx + wfy * mvy;           // in WindField strength units
+        return (along * WIND_FORCE_SCALE) / PLAYER_MASS; // F/m → acceleration
     }
 
     private void updateSprite() {
-        spriteCounter++;
-        // Tie animation cadence to movement speed so feet never slide.
-        // At defaultSpeed (5) interval = 48/5 = 9 ticks (~6.7 frame-advances/sec).
-        // During a dash (speed ~16) interval = 3 ticks — snappy but not strobing.
-        int interval = Math.max(2, 48 / Math.max(1, speed));
-        int frameCount = (walkFrames != null && walkFrames[direction] != null)
-                ? walkFrames[direction].length : 7;
-        if (spriteCounter > interval) {
-            spriteNum = (spriteNum % frameCount) + 1;
-            spriteCounter = 0;
-        }
+        // Walk cadence tied to movement speed so feet never slide (baseline 150 ms at speed 5).
+        walkClip.setFrameMs(walkMsForSpeed());
+        pWalkStateTime += PDT;
+        spriteNum = walkClip.frameIndex(direction, pWalkStateTime) + 1;
+    }
+
+    /** Walk baseline 150 ms at speed 5 (=9 ticks). Scale inversely with speed, same law as before. */
+    private int walkMsForSpeed() {
+        int ticks = Math.max(2, 48 / Math.max(1, speed));
+        return Math.round(ticks * 1000f / 60f);
     }
 
     private void updateIdleSprite() {
-        idleCounter++;
-        int maxIdleFrame = 6;
-
-        if (idleCounter > idleFrameInterval) {
-            spriteNum += idleFrameDirection;
-
-            if (spriteNum >= maxIdleFrame) {
-                spriteNum = maxIdleFrame;
-                idleFrameDirection = -1;
-            }
-            if (spriteNum <= 1) {
-                spriteNum = 1;
-                idleFrameDirection = 1;
-            }
-
-            idleCounter = 0;
-        }
+        // Idle cycle: LOOP_PINGPONG = the old 1..6..1 bounce.
+        if (idleClip == null || idleClip.frameCount(direction) == 0) return;
+        pIdleStateTime += PDT;
+        spriteNum = idleClip.frameIndex(direction, pIdleStateTime) + 1;
     }
 
-    public void attacking() {
+    private void attacking() {
         // Variable per-frame hold durations for each combo step.
         // Format: {frame1, frame2, frame3, frame4, frame5}
         // Frames 2-3 (swing) are snappiest, frame 1 (windup) and 4-5 (recovery) linger.
@@ -947,11 +1039,11 @@ public class Player extends Entity {
                 default -> 4;  // heavy finisher: deliberate
             };
             spriteCounter = 0;
-            trailCount = 0;
-            trailIndex = 0;
-            trailActive = false;
             animOffsetX = 0;
             animOffsetY = 0;
+            kickOffsetX = 0f;
+            kickOffsetY = 0f;
+            swingProgress = -1f; // hides the slice VFX during anticipation
         }
         if (anticipationTimer > 0) {
             anticipationTimer--;
@@ -983,6 +1075,21 @@ public class Player extends Entity {
         for (int d : durations) totalDuration += d;
 
         int maxLean = (comboStep == 2) ? 3 : 2;
+        float kickMax = (comboStep == 2) ? KICK_MAX_PX * 1.5f : KICK_MAX_PX;
+
+        // Lunge driven off the CONTINUOUS spriteCounter (ticks every 60Hz frame) rather than the coarse
+        // integer currentFrame, so the push interpolates smoothly instead of snapping in ~3 steps. The
+        // out-phase spans the first ~65% of the swing; a smoothstep (ease-in-out) accelerates then
+        // decelerates so it glides into the final position. After that it HOLDS (Moonshire lunge — keep
+        // the ground gained; only the visual lean recovers, worldX/Y stay put, no snap-back).
+        float swingT = totalDuration > 0 ? Math.min(1f, spriteCounter / (float) totalDuration) : 1f;
+        float outEnd = 0.85f; // spread the push across most of the swing for a longer, softer glide
+        float lungeT = Math.min(1f, swingT / outEnd);
+        // smootherstep (6t^5-15t^4+10t^3): flatter start AND flatter arrival than smoothstep, so the
+        // lunge eases in and settles without any abrupt stop at the end.
+        float eased = lungeT * lungeT * lungeT * (lungeT * (lungeT * 6f - 15f) + 10f);
+        applyAttackKick(kickMax * eased);
+
         if (currentFrame <= 3) {
             float progress = Math.min(1f, currentFrame / 3f);
             int lean = Math.round(maxLean * progress);
@@ -1003,12 +1110,9 @@ public class Player extends Entity {
             }
         }
 
-        if (currentFrame >= 2 && currentFrame <= 4) {
-            trailWorldX[trailIndex] = worldX;
-            trailWorldY[trailIndex] = worldY;
-            trailIndex = (trailIndex + 1) % TRAIL_SIZE;
-            if (trailCount < TRAIL_SIZE) trailCount++;
-        }
+        // Slash VFX progress spans the swing window (frames 2..4); -1 outside it (hidden).
+        swingProgress = (currentFrame >= 2 && currentFrame <= 4)
+            ? Math.min(1f, (currentFrame - 2) / 2f) : -1f;
 
         int frame3Start = durations[0] + durations[1] + 1;
         if (currentFrame == 3 && spriteCounter == frame3Start) {
@@ -1017,53 +1121,44 @@ public class Player extends Entity {
         if (spriteCounter >= totalDuration) {
             spriteCounter = 0;
             attacking = false;
+            sliceFlip = !sliceFlip; // next swing mirrors this one (default, flipped, default, ...)
             anticipationTimer = -1;
-            trailActive = false;
-            trailCount = 0;
             animOffsetX = 0;
             animOffsetY = 0;
+            kickOffsetX = 0f;
+            kickOffsetY = 0f;
+            swingProgress = -1f;
+            attackCone = null; // clear so debug draw never shows a stale cone after the swing ends
             comboWindow = (comboStep == 2) ? 10 : COMBO_WINDOW_MAX;
         }
     }
 
-    private void performAttackHitbox() {
-        Entity attackHitbox = new Entity(gp);
-        attackHitbox.worldX = worldX;
-        attackHitbox.worldY = worldY;
-        attackHitbox.solidArea = new Rectangle(solidArea);
-        
-        int ts = gp.tileSize;
-        int quarter = ts / 4;  // 16px at 64px tile — scales with tile size
-        int eighth  = ts / 8;  // 8px  at 64px tile — scales with tile size
-        switch(direction) {
-            case DIR_UP:
-                attackHitbox.solidArea.width  = ts - quarter;  // 48 at 64px
-                attackHitbox.solidArea.height = ts + quarter;  // 80 at 64px
-                attackHitbox.worldX += eighth;                 // center horizontally
-                attackHitbox.worldY -= ts + quarter;           // extend upward
-                break;
-            case DIR_DOWN:
-                attackHitbox.solidArea.width  = ts - quarter;  // 48 at 64px
-                attackHitbox.solidArea.height = ts + quarter;  // 80 at 64px
-                attackHitbox.worldX += eighth;                 // center horizontally
-                attackHitbox.worldY += ts;                     // extend downward
-                break;
-            case DIR_LEFT:
-                attackHitbox.solidArea.width  = ts + quarter;  // 80 at 64px
-                attackHitbox.solidArea.height = ts - quarter;  // 48 at 64px
-                attackHitbox.worldX -= ts + quarter;           // extend leftward
-                attackHitbox.worldY += eighth;                 // center vertically
-                break;
-            case DIR_RIGHT:
-                attackHitbox.solidArea.width  = ts + quarter;  // 80 at 64px
-                attackHitbox.solidArea.height = ts - quarter;  // 48 at 64px
-                attackHitbox.worldX += ts;                     // extend rightward
-                attackHitbox.worldY += eighth;                 // center vertically
-                break;
+    /** Eases the player a few px forward along attackAngle during the swing, wall-checked.
+     *  Uses checkTileNext (tests a hypothetical position without depending on cardinal
+     *  `direction`) since the kick vector is a free angle, not one of the 4 cardinals. */
+    private void applyAttackKick(float targetPx) {
+        float kx = (float) (Math.cos(attackAngle) * targetPx);
+        float ky = (float) (Math.sin(attackAngle) * targetPx);
+        int dxPx = Math.round(kx - kickOffsetX);
+        int dyPx = Math.round(ky - kickOffsetY);
+        if (dxPx != 0) {
+            gp.cChecker.checkTileNext(this, worldX + dxPx, worldY);
+            if (!collisionOn) { worldX += dxPx; kickOffsetX += dxPx; }
         }
-        int iTileIndex = gp.cChecker.checkEntity(attackHitbox, gp.iTile);
+        if (dyPx != 0) {
+            gp.cChecker.checkTileNext(this, worldX, worldY + dyPx);
+            if (!collisionOn) { worldY += dyPx; kickOffsetY += dyPx; }
+        }
+        collisionOn = false;
+    }
+
+    private void performAttackHitbox() {
+        double radius = gp.tileSize * ATTACK_CONE_RADIUS_SCALE;
+        attackCone = new gfx.geom.Cone(getCenterX(), getCenterY(), radius, attackAngle, ATTACK_CONE_HALF_ANGLE);
+
+        int iTileIndex = gp.cChecker.checkEntityCone(attackCone, gp.iTile);
         damageInteractiveTile(iTileIndex);
-        int monsterIndex = gp.cChecker.checkEntity(attackHitbox, gp.monster);
+        int monsterIndex = gp.cChecker.checkEntityCone(attackCone, gp.monster);
         damageMonster(monsterIndex, attack);
     }
 
@@ -1371,7 +1466,7 @@ public class Player extends Entity {
         entity.knockBack = true;
     }
 
-    public void contactMonster(int i) {
+    private void contactMonster(int i) {
         if (i != 999 && !invincible) {
             // ignore dying/dead monsters entirely
             if (gp.monster[i].dying || !gp.monster[i].alive) {
@@ -1407,7 +1502,7 @@ public class Player extends Entity {
 
             // HIT FLASH + SHAKE + HITSTOP when player takes damage
             hitFlashCounter = 6;
-            hitAnimCounter = HIT_TOTAL_FRAMES * HIT_ANIM_SPEED; // start hit sprite animation
+            hitAnimCounter = HIT_TOTAL_FRAMES * hitTicksPerFrame(); // start hit sprite animation
             hitAnimFrame = 0;
             hitAnimDirection = direction; // lock current facing for hit animation
             gp.screenShake.shakeMedium();
@@ -1573,7 +1668,7 @@ public class Player extends Entity {
     }
 
     // Interaction methods
-    public void pickUpObject(int i) {
+    private void pickUpObject(int i) {
         if (i != 999) {
             // Non-interactive technical entities (light sources, markers) are never pickable
             if (gp.obj[i].lightSource) return;
@@ -1648,7 +1743,7 @@ public class Player extends Entity {
         }
     }
 
-    public void interactNPC(int i) {
+    private void interactNPC(int i) {
         if (gp.keyH.enterPressed) {
             if (i != 999) {
                 attackCanceled = true;
@@ -1699,7 +1794,7 @@ public class Player extends Entity {
         return bestIdx;
     }
 
-    public void damageInteractiveTile(int i) {
+    private void damageInteractiveTile(int i) {
         if (i != 999 && gp.iTile[i].destructible && gp.iTile[i].isCorrectItem(this) && !gp.iTile[i].invincible) {
             Entity tile = gp.iTile[i];
             gp.iTile[i] = null;
@@ -1840,30 +1935,30 @@ public class Player extends Entity {
 
     // Rendering methods
     @Override
-    public void draw(Graphics2D g2) {
+    public void draw(GdxRenderer g2) {
         // ── DEATH ANIMATION ──
         if (playerDying) {
             int drawX = screenX;
             int drawY = screenY;
-            BufferedImage deathImg = null;
+            Sprite deathImg = null;
             if (deathFrames != null && deathDirection >= 0 && deathDirection < deathFrames.length
                     && deathFrames[deathDirection] != null && playerDeathFrame < deathFrames[deathDirection].length) {
                 deathImg = deathFrames[deathDirection][playerDeathFrame];
             }
             if (deathImg != null) {
                 // Fade out during the hold phase (after all frames played)
-                int holdTick = playerDeathCounter - (DEATH_TOTAL_FRAMES * DEATH_ANIM_SPEED);
+                int holdTick = playerDeathCounter - (DEATH_TOTAL_FRAMES * deathTicksPerFrame());
                 if (holdTick > 0) {
                     float fadeAlpha = Math.max(0.15f, 1f - (holdTick / (float) DEATH_HOLD_DELAY));
-                    g2.setComposite(AlphaComposite.getInstance(AlphaComposite.SRC_OVER, fadeAlpha));
+                    g2.setAlpha(fadeAlpha);
                 }
-                g2.drawImage(deathImg, drawX, drawY, gp.tileSize, gp.tileSize, null);
-                g2.setComposite(AlphaComposite.getInstance(AlphaComposite.SRC_OVER, 1f));
+                g2.drawImage(deathImg, drawX, drawY, gp.tileSize, gp.tileSize);
+                g2.setAlpha(1f);
             }
             return;
         }
 
-        BufferedImage image;
+        Sprite image;
         int tempScreenX = screenX;
         int tempScreenY = screenY;
         int frame = Math.max(1, spriteNum);
@@ -1873,56 +1968,9 @@ public class Player extends Entity {
 
         if (attacking) {
             image = getAttackFrame(direction, frame);
-            // Attack1 sprites are 2-tile — set doubled draw size and offset (attack2/3 are 1-tile)
-            if (comboStep == 0) {
-                switch(direction) {
-                    case DIR_UP -> {
-                        drawW = (int)(gp.tileSize * spriteScale);
-                        drawH = (int)(gp.tileSize * 2 * spriteScale);
-                        tempScreenY -= gp.tileSize * spriteScale;
-                    }
-                    case DIR_DOWN -> {
-                        drawW = (int)(gp.tileSize * spriteScale);
-                        drawH = (int)(gp.tileSize * 2 * spriteScale);
-                    }
-                    case DIR_LEFT -> {
-                        drawW = (int)(gp.tileSize * 2 * spriteScale);
-                        drawH = (int)(gp.tileSize * spriteScale);
-                        tempScreenX -= gp.tileSize * spriteScale;
-                    }
-                    case DIR_RIGHT -> {
-                        drawW = (int)(gp.tileSize * 2 * spriteScale);
-                        drawH = (int)(gp.tileSize * spriteScale);
-                    }
-                }
-            }
 
-            // --- SWING TRAIL: draw warm-tinted afterimages behind the active swing ---
-            if (trailActive && trailCount > 0 && image != null) {
-                java.awt.Composite savedTrail = g2.getComposite();
-                float[] trailAlphas = {0.22f, 0.14f, 0.08f, 0.04f};
-                int playerWX = gp.player.worldX;
-                int playerWY = gp.player.worldY;
-                int playerSX = gp.player.screenX;
-                int playerSY = gp.player.screenY;
-                for (int ti = 0; ti < trailCount; ti++) {
-                    // Read from ring buffer: newest = (trailIndex - 1), oldest first
-                    int idx = (trailIndex - trailCount + ti + TRAIL_SIZE) % TRAIL_SIZE;
-                    int tSX = trailWorldX[idx] - playerWX + playerSX;
-                    int tSY = trailWorldY[idx] - playerWY + playerSY;
-                    // Apply same attack offset as main sprite (only for attack1's 2-tile sprites)
-                    if (comboStep == 0) {
-                        switch (direction) {
-                            case DIR_UP   -> tSY -= gp.tileSize;
-                            case DIR_LEFT -> tSX -= gp.tileSize;
-                        }
-                    }
-                    float alpha = (ti < trailAlphas.length) ? trailAlphas[ti] : 0.03f;
-                    g2.setComposite(AlphaComposite.getInstance(AlphaComposite.SRC_OVER, alpha));
-                    g2.drawImage(image, tSX, tSY, drawW, drawH, null);
-                }
-                g2.setComposite(savedTrail);
-            }
+            // --- SLASH VFX: single arc texture, rotated to attackAngle, eased scale/alpha ---
+            drawSliceVfx(g2, tempScreenX, tempScreenY);
         } else if (hitAnimCounter > 0 && hitFrames != null && hitAnimDirection >= 0 && hitAnimDirection < hitFrames.length
                    && hitFrames[hitAnimDirection] != null && hitAnimFrame < hitFrames[hitAnimDirection].length) {
             image = hitFrames[hitAnimDirection][hitAnimFrame];
@@ -1960,12 +2008,64 @@ public class Player extends Entity {
 
         float drawAlpha = spawnFadeAlpha;
         if (invincible && !dashing) drawAlpha *= (invincibleCounter % 4 < 2) ? 0.5f : 0.85f;
-        if (drawAlpha < 1.0f) g2.setComposite(AlphaComposite.getInstance(AlphaComposite.SRC_OVER, Math.max(0f, drawAlpha)));
-        g2.drawImage(image, drawX, drawY, drawW, drawH, null);
-        g2.setComposite(AlphaComposite.getInstance(AlphaComposite.SRC_OVER, 1f));
+        if (drawAlpha < 1.0f) g2.setAlpha(Math.max(0f, drawAlpha));
+        g2.drawImage(image, drawX, drawY, drawW, drawH);
+        g2.setAlpha(1f);
     }
 
-    private BufferedImage getIdleFrame(int dir, int frame) {
+    /**
+     * Draws the slash VFX: sliceAnim.png's 2 frames (peak/trail) are shown across the swing's
+     * active window (swingProgress 0..1), rotated to attackAngle. Anchored at the attack cone's
+     * apex (player center); the sprite's own long axis runs along its height (32 wide x 96 tall),
+     * so the rotation origin sits near the bottom of the cell (the "hilt" end) so the crescent
+     * sweeps outward from the player rather than pivoting on its own midpoint.
+     *
+     * <p>The applied rotation is {@code attackAngle + 90} (see the rotationDeg comment below).
+     */
+    private void drawSliceVfx(GdxRenderer g2, int tempScreenX, int tempScreenY) {
+        if (sliceFrames == null || swingProgress < 0f) return;
+        // Frame 0 (peak) for the first tick of the window, frame 1 (trail) for the rest — the old
+        // 0.6 threshold only let frame 1 show on the single last tick before the swing ended,
+        // making it effectively invisible.
+        Sprite frame = sliceFrames[swingProgress < 0.34f ? 0 : 1];
+        if (frame == null) return;
+
+        float scale = (gp.tileSize / (float) SLICE_CELL_W) * (comboStep == 2 ? 1.15f : 1f);
+        float alpha = 1f - (float) Math.pow(swingProgress, 3); // hold, then fade near the end
+        if (alpha <= 0.02f) return;
+
+        float w = SLICE_CELL_W * scale;
+        float h = SLICE_CELL_H * scale;
+        // Player center in screen space.
+        float pcx = tempScreenX + solidArea.x + solidArea.width  / 2f;
+        float pcy = tempScreenY + solidArea.y + solidArea.height / 2f;
+        // Place the crescent's own center a fixed distance in FRONT of the player along attackAngle,
+        // so it sits directly ahead rather than off to one side.
+        float frontDist = gp.tileSize * 0.6f;
+        float centerX = pcx + (float) Math.cos(attackAngle) * frontDist;
+        float centerY = pcy + (float) Math.sin(attackAngle) * frontDist;
+        // Pivot at the sprite's geometric center so rotation spins in place about that front point.
+        float originX = w / 2f;
+        float originY = h / 2f;
+        float drawX = centerX - originX;
+        float drawY = centerY - originY;
+        // sliceAnim.png's neutral (unrotated) crescent is vertical (long axis top-to-bottom), convex
+        // bulging RIGHT and concave facing LEFT — i.e. the neutral pose already IS a correct right-facing
+        // slash (concave toward a player on the left). attackAngle uses the atan2 convention
+        // (0=right, +90=down) matching drawImageRotated's clockwise-positive screen rotation, so rotating
+        // the neutral pose straight by attackAngle keeps the concave side facing the player for every
+        // direction (e.g. down attack -> concave faces up toward the player). No offset, no flip.
+        float rotationDeg = (float) Math.toDegrees(attackAngle);
+
+        g2.setAlpha(alpha);
+        // sliceFlip alternates each swing: flipY mirrors the crescent top<->bottom in its local space,
+        // swapping the arc direction for a back-and-forth slash feel without changing which side the
+        // concave faces (that stays toward the player).
+        g2.drawImageRotated(frame, drawX, drawY, w, h, originX, originY, rotationDeg, false, sliceFlip);
+        g2.setAlpha(1f);
+    }
+
+    private Sprite getIdleFrame(int dir, int frame) {
         if (idleFrames != null && dir >= 0 && dir < idleFrames.length && idleFrames[dir] != null) {
             int idx = frame - 1;
             if (idx >= 0 && idx < idleFrames[dir].length) return idleFrames[dir][idx];
@@ -1974,8 +2074,8 @@ public class Player extends Entity {
         return null;
     }
 
-    private BufferedImage getAttackFrame(int dir, int frame) {
-        BufferedImage[][] frames = switch (comboStep) {
+    private Sprite getAttackFrame(int dir, int frame) {
+        Sprite[][] frames = switch (comboStep) {
             case 1  -> attackFrames2 != null ? attackFrames2 : attackFrames;
             case 2  -> attackFrames3 != null ? attackFrames3 : attackFrames;
             default -> attackFrames;
@@ -2093,7 +2193,7 @@ public class Player extends Entity {
         }
     }
 
-    public int getDashCooldownMax() {
+    private int getDashCooldownMax() {
         int cd = dashCooldownMax - dashCooldownBonus;
         return Math.max(18, cd);
     }
@@ -2133,10 +2233,6 @@ public class Player extends Entity {
 
     public int getOverdriveCooldown() {
         return overdriveCooldown;
-    }
-
-    public int getOverdriveTimer() {
-        return overdriveTimer;
     }
 
     private float getTotalMeleeMultiplier() {
@@ -2274,43 +2370,6 @@ public class Player extends Entity {
             return Particle.STYLE_DUST;
         }
         return Particle.STYLE_BLOOD;
-    }
-
-    public Color getParticleColor1() {
-        Color color = new Color(255, 50, 0);
-        return color;
-    }
-
-    public int getParticleSize1() {
-        int size = 10; // pixels
-        return size;
-    }
-
-    public int getParticleSpeed1() {
-        int speed = 1;
-        return speed;
-    }
-
-    public int getParticleMaxLife1() {
-        int maxLife = 20;
-        return maxLife;
-    }
-
-    // Dash particles (medieval earth tones)
-    public Color getParticleColorDash() {
-        return new Color(170, 145, 110);
-    }
-
-    public int getParticleSizeDash() {
-        return 5;
-    }
-
-    public int getParticleSpeedDash() {
-        return 1;
-    }
-
-    public int getParticleMaxLifeDash() {
-        return 10;
     }
 
 }

@@ -1,11 +1,9 @@
 package environment;
 
-import java.awt.AlphaComposite;
-import java.awt.Color;
-import java.awt.Font;
-import java.awt.FontMetrics;
-import java.awt.Graphics2D;
-import java.awt.RenderingHints;
+import gfx.Color;
+import gfx.Font;
+import gfx.FontMetrics;
+import gfx.GdxRenderer;
 
 import data.MemoryJournal.MemoryFragment;
 import main.GamePanel;
@@ -109,7 +107,7 @@ public class MemoryFlashback {
     }
 
     /** Draw the flashback overlay. Call after all other rendering. */
-    public void draw(Graphics2D g2) {
+    public void draw(GdxRenderer g2) {
         if (state == INACTIVE || state == DONE) return;
 
         int w = gp.screenWidth;
@@ -117,21 +115,19 @@ public class MemoryFlashback {
 
         switch (state) {
             case FADE_TO_WHITE:
-                g2.setComposite(AlphaComposite.getInstance(AlphaComposite.SRC_OVER, alpha));
+                g2.setAlpha(alpha);
                 g2.setColor(WHITE);
                 g2.fillRect(0, 0, w, h);
-                g2.setComposite(AlphaComposite.getInstance(AlphaComposite.SRC_OVER, 1f));
+                g2.setAlpha(1f);
                 break;
 
             case SEPIA_TEXT:
                 g2.setColor(WHITE);
                 g2.fillRect(0, 0, w, h);
-                g2.setComposite(AlphaComposite.getInstance(AlphaComposite.SRC_OVER, 0.6f));
+                g2.setAlpha(0.6f);
                 g2.setColor(SEPIA_OVERLAY);
                 g2.fillRect(0, 0, w, h);
-                g2.setComposite(AlphaComposite.getInstance(AlphaComposite.SRC_OVER, 1f));
-
-                g2.setRenderingHint(RenderingHints.KEY_TEXT_ANTIALIASING, RenderingHints.VALUE_TEXT_ANTIALIAS_ON);
+                g2.setAlpha(1f);
                 g2.setFont(TITLE_FONT);
                 FontMetrics fmTitle = g2.getFontMetrics();
                 int titleW = fmTitle.stringWidth(displayTitle);
@@ -166,15 +162,15 @@ public class MemoryFlashback {
                 break;
 
             case FADE_BACK:
-                g2.setComposite(AlphaComposite.getInstance(AlphaComposite.SRC_OVER, alpha));
+                g2.setAlpha(alpha);
                 g2.setColor(WHITE);
                 g2.fillRect(0, 0, w, h);
                 if (alpha > 0.3f) {
-                    g2.setComposite(AlphaComposite.getInstance(AlphaComposite.SRC_OVER, alpha * 0.6f));
+                    g2.setAlpha(alpha * 0.6f);
                     g2.setColor(SEPIA_OVERLAY);
                     g2.fillRect(0, 0, w, h);
                 }
-                g2.setComposite(AlphaComposite.getInstance(AlphaComposite.SRC_OVER, 1f));
+                g2.setAlpha(1f);
                 break;
         }
     }

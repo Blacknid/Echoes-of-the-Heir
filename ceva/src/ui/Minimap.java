@@ -1,14 +1,14 @@
 package ui;
 
-import java.awt.AlphaComposite;
-import java.awt.BasicStroke;
-import java.awt.Color;
-import java.awt.Graphics2D;
-import java.awt.RadialGradientPaint;
-import java.awt.RenderingHints;
-import java.awt.Shape;
-import java.awt.geom.Ellipse2D;
-import java.awt.image.BufferedImage;
+import com.badlogic.gdx.graphics.Pixmap;
+import com.badlogic.gdx.graphics.Texture;
+
+import gfx.Color;
+import gfx.Font;
+import gfx.GdxRenderer;
+import gfx.RadialGradient;
+import gfx.Sprite;
+import gfx.Stroke;
 import java.util.HashMap;
 import java.util.Map;
 
@@ -61,28 +61,28 @@ public class Minimap {
     private static final Color OBJECT_COLOR  = new Color(180, 140,  80);
 
     // Cached fonts for world map overlay
-    private static final java.awt.Font MAP_LABEL_FONT = new java.awt.Font("Georgia", java.awt.Font.BOLD | java.awt.Font.ITALIC, 15);
-    private static final java.awt.Font MAP_HINT_FONT  = new java.awt.Font("Georgia", java.awt.Font.PLAIN, 11);
+    private static final Font MAP_LABEL_FONT = new Font("Georgia", Font.BOLD | Font.ITALIC, 15);
+    private static final Font MAP_HINT_FONT  = new Font("Georgia", Font.PLAIN, 11);
     private static final Color VIEWPORT_COLOR= new Color(255, 255, 255, 80);
 
-    private static final BasicStroke BORDER_OUTER_STROKE = new BasicStroke(BORDER_WIDTH + 3 + 4); // large mode
-    private static final BasicStroke BORDER_MID_STROKE   = new BasicStroke(BORDER_WIDTH + 4);
-    private static final BasicStroke BORDER_INNER_STROKE = new BasicStroke(1.8f);
-    private static final BasicStroke BORDER_HIGHLIGHT_STROKE = new BasicStroke(1.0f);
-    private static final BasicStroke BORDER_OUTER_STROKE_SM = new BasicStroke(BORDER_WIDTH + 3);
-    private static final BasicStroke BORDER_MID_STROKE_SM   = new BasicStroke(BORDER_WIDTH);
+    private static final Stroke BORDER_OUTER_STROKE = new Stroke(BORDER_WIDTH + 3 + 4); // large mode
+    private static final Stroke BORDER_MID_STROKE   = new Stroke(BORDER_WIDTH + 4);
+    private static final Stroke BORDER_INNER_STROKE = new Stroke(1.8f);
+    private static final Stroke BORDER_HIGHLIGHT_STROKE = new Stroke(1.0f);
+    private static final Stroke BORDER_OUTER_STROKE_SM = new Stroke(BORDER_WIDTH + 3);
+    private static final Stroke BORDER_MID_STROKE_SM   = new Stroke(BORDER_WIDTH);
     private static final Color BORDER_OUTER_COLOR    = new Color(6, 5, 3);
     private static final Color BORDER_MID_COLOR      = new Color(55, 42, 22);
     private static final Color BORDER_INNER_COLOR    = new Color(140, 108, 55, 210);
     private static final Color BORDER_HIGHLIGHT_COLOR= new Color(85, 68, 36, 110);
 
-    private final HashMap<Integer, BufferedImage> vignetteCache = new HashMap<>();
+    private final HashMap<Integer, Sprite> vignetteCache = new HashMap<>();
 
     private static final int BAKE_PIXELS_PER_TILE = 4;
 
-    private BufferedImage terrainImage;
+    private Sprite terrainImage;
     private boolean worldMapOpen = false;
-    private final Map<String, BufferedImage> bakedTerrainCache = new HashMap<>();
+    private final Map<String, Sprite> bakedTerrainCache = new HashMap<>();
 
     public Minimap(GamePanel gp) {
         this.gp = gp;
@@ -91,7 +91,7 @@ public class Minimap {
     /** Bake the world terrain as flat DST-style biome colours. Call after map loads. */
     public void bakeTerrainImage() {
         String cacheKey = getCacheKey();
-        BufferedImage cached = bakedTerrainCache.get(cacheKey);
+        Sprite cached = bakedTerrainCache.get(cacheKey);
         if (cached != null) {
             terrainImage = cached;
             return;
@@ -101,12 +101,19 @@ public class Minimap {
         int mapRows = gp.tileM.currentMapRows;
         int w = mapCols * BAKE_PIXELS_PER_TILE;
         int h = mapRows * BAKE_PIXELS_PER_TILE;
-        terrainImage = new BufferedImage(w, h, BufferedImage.TYPE_INT_ARGB);
 
-        Graphics2D mapG = terrainImage.createGraphics();
-        mapG.setColor(COL_BG);
-        mapG.fillRect(0, 0, w, h);
+        // GPU port: bake the flat-colour terrain into a Pixmap once (replaces the
+        // BufferedImage + Graphics2D per-tile fill), upload as a Texture.
+        Pixmap pm = new Pixmap(w, h, Pixmap.Format.RGBA8888);
+        pm.setBlending(Pixmap.Blending.None);
+        pm.setColor(COL_BG.getRed() / 255f, COL_BG.getGreen() / 255f, COL_BG.getBlue() / 255f, 1f);
+        pm.fill();
 
+        // Batch the per-GID pixel samples: gidToColor()->sampleTileColor()->Sprite.getRGB() decodes
+        // a tileset PNG on each new GID. On big maps (hundreds of unique GIDs) that was ~10s on the
+        // first bake. The batch decodes each tileset texture once and disposes them at the end.
+        Sprite.beginPixelBatch();
+        try {
         for (int l = 0; l < gp.tileM.mapLayers.size(); l++) {
             int[][] layer = gp.tileM.mapLayers.get(l);
             for (int row = 0; row < mapRows; row++) {
@@ -115,14 +122,20 @@ public class Minimap {
                     if (gid == 0) continue;
                     Color c = gidToColor(gid, col, row);
                     if (c == null) continue;
-                    mapG.setColor(c);
-                    mapG.fillRect(col * BAKE_PIXELS_PER_TILE, row * BAKE_PIXELS_PER_TILE,
-                                  BAKE_PIXELS_PER_TILE, BAKE_PIXELS_PER_TILE);
+                    pm.setColor(c.getRed() / 255f, c.getGreen() / 255f, c.getBlue() / 255f, c.getAlpha() / 255f);
+                    pm.fillRectangle(col * BAKE_PIXELS_PER_TILE, row * BAKE_PIXELS_PER_TILE,
+                                     BAKE_PIXELS_PER_TILE, BAKE_PIXELS_PER_TILE);
                 }
             }
         }
+        } finally {
+            Sprite.endPixelBatch();
+        }
 
-        mapG.dispose();
+        Texture tex = new Texture(pm);
+        tex.setFilter(Texture.TextureFilter.Linear, Texture.TextureFilter.Linear);
+        pm.dispose();
+        terrainImage = new Sprite(tex);
         bakedTerrainCache.put(cacheKey, terrainImage);
     }
 
@@ -149,15 +162,13 @@ public class Minimap {
 
     // Full world map overlay
 
-    public void drawWorldMap(Graphics2D g2) {
+    public void drawWorldMap(GdxRenderer g2) {
         if (!worldMapOpen || terrainImage == null) return;
 
-        java.awt.Composite savedComp = g2.getComposite();
-
-        g2.setComposite(AlphaComposite.getInstance(AlphaComposite.SRC_OVER, FULL_MAP_BG_ALPHA));
+        g2.setAlpha(FULL_MAP_BG_ALPHA);
         g2.setColor(COL_BG);
         g2.fillRect(0, 0, gp.screenWidth, gp.screenHeight);
-        g2.setComposite(AlphaComposite.getInstance(AlphaComposite.SRC_OVER, 1f));
+        g2.setAlpha(1f);
 
         int mapRadius = Math.min(gp.screenWidth, gp.screenHeight) / 2 - 54;
         int cx = gp.screenWidth  / 2;
@@ -165,7 +176,7 @@ public class Minimap {
 
         drawCircularMap(g2, cx, cy, mapRadius, true);
 
-        g2.setComposite(AlphaComposite.getInstance(AlphaComposite.SRC_OVER, 0.72f));
+        g2.setAlpha(0.72f);
         int labelY = cy + mapRadius + BORDER_WIDTH + 26;
         g2.setColor(new Color(195, 168, 100));
         g2.setFont(MAP_LABEL_FONT);
@@ -178,48 +189,39 @@ public class Minimap {
         int hw = g2.getFontMetrics().stringWidth(hint);
         g2.drawString(hint, cx - hw / 2, labelY + 16);
 
-        g2.setComposite(savedComp);
+        g2.setAlpha(1f);
     }
 
     // Shared circular renderer  (used by both HUD and world map)
 
-    private void drawCircularMap(Graphics2D g2, int cx, int cy, int radius, boolean largeMode) {
-        Shape           savedClip   = g2.getClip();
-        java.awt.Stroke savedStroke = g2.getStroke();
-        Object savedInterp = g2.getRenderingHint(RenderingHints.KEY_INTERPOLATION);
-        Object savedRender = g2.getRenderingHint(RenderingHints.KEY_RENDERING);
-        Object savedAA     = g2.getRenderingHint(RenderingHints.KEY_ANTIALIASING);
+    private void drawCircularMap(GdxRenderer g2, int cx, int cy, int radius, boolean largeMode) {
+        Stroke savedStroke = g2.getStroke();
 
-        g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
-        g2.setRenderingHint(RenderingHints.KEY_RENDERING,    RenderingHints.VALUE_RENDER_QUALITY);
-
+        // Dark circular base.
         g2.setColor(COL_BG);
         g2.fillOval(cx - radius, cy - radius, radius * 2, radius * 2);
 
-        Ellipse2D circle = new Ellipse2D.Float(cx - radius, cy - radius, radius * 2, radius * 2);
-        g2.setClip(circle);
-        g2.setRenderingHint(RenderingHints.KEY_INTERPOLATION, RenderingHints.VALUE_INTERPOLATION_BILINEAR);
-        g2.drawImage(terrainImage, cx - radius, cy - radius, radius * 2, radius * 2, null);
+        // Terrain: drawn as a square. GL scissor can't do a circular clip, so instead the
+        // baked radial vignette below (opaque black at the rim) plus the ring border mask the
+        // square corners — visually equivalent to the old Ellipse2D clip.
+        g2.drawImage(terrainImage, cx - radius, cy - radius, radius * 2, radius * 2);
 
         float scaleX = (float)(radius * 2) / gp.tileM.currentMapCols;
         float scaleY = (float)(radius * 2) / gp.tileM.currentMapRows;
         drawEntities(g2, cx - radius, cy - radius, scaleX, scaleY, largeMode);
 
-        BufferedImage vig = vignetteCache.get(radius);
+        // Radial vignette baked once per radius (replaces RadialGradientPaint); its opaque rim
+        // also hides the terrain square's corners outside the circle.
+        Sprite vig = vignetteCache.get(radius);
         if (vig == null) {
             int diam = radius * 2;
-            vig = new BufferedImage(diam, diam, BufferedImage.TYPE_INT_ARGB);
-            Graphics2D vg = vig.createGraphics();
-            float[] vigFracs  = { 0.50f, 1.0f };
-            Color[] vigColors = { new Color(0, 0, 0, 0), new Color(0, 0, 0, 215) };
-            vg.setPaint(new RadialGradientPaint(radius, radius, radius, vigFracs, vigColors));
-            vg.fillOval(0, 0, diam, diam);
-            vg.dispose();
+            RadialGradient vg = new RadialGradient(radius, radius, radius,
+                new float[]{ 0.50f, 0.97f, 1.0f },
+                new Color[]{ new Color(0, 0, 0, 0), new Color(0, 0, 0, 215), new Color(0, 0, 0, 255) });
+            vig = GdxRenderer.bakeRadialGradient(vg, diam, diam);
             vignetteCache.put(radius, vig);
         }
-        g2.drawImage(vig, cx - radius, cy - radius, null);
-
-        g2.setClip(savedClip);
+        g2.drawImage(vig, cx - radius, cy - radius, radius * 2, radius * 2);
 
         int bw = largeMode ? BORDER_WIDTH + 4 : BORDER_WIDTH;
 
@@ -243,13 +245,10 @@ public class Minimap {
                     radius * 2 + bw * 2, radius * 2 + bw * 2);
 
         g2.setStroke(savedStroke);
-        if (savedInterp != null) g2.setRenderingHint(RenderingHints.KEY_INTERPOLATION, savedInterp);
-        if (savedRender != null) g2.setRenderingHint(RenderingHints.KEY_RENDERING,     savedRender);
-        if (savedAA     != null) g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING,  savedAA);
     }
 
 
-    private void drawEntities(Graphics2D g2, int originX, int originY,
+    private void drawEntities(GdxRenderer g2, int originX, int originY,
                               float scaleX, float scaleY, boolean largeMode) {
         int monSize    = largeMode ? 5 : 3;
         int npcSize    = largeMode ? 5 : 3;
@@ -294,15 +293,14 @@ public class Minimap {
         g2.setColor(PLAYER_COLOR);
         g2.fillOval(px - playerSize / 2, py - playerSize / 2, playerSize, playerSize);
 
-        java.awt.Composite prevComp = g2.getComposite();
-        g2.setComposite(AlphaComposite.getInstance(AlphaComposite.SRC_OVER, largeMode ? 0.40f : 0.22f));
+        g2.setAlpha(largeMode ? 0.40f : 0.22f);
         g2.setColor(VIEWPORT_COLOR);
         int vpX = originX + (int)(((gp.player.worldX - gp.player.screenX) / (float)gp.tileSize) * scaleX);
         int vpY = originY + (int)(((gp.player.worldY - gp.player.screenY) / (float)gp.tileSize) * scaleY);
         int vpW = Math.max(1, (int)(gp.maxScreenCol * scaleX));
         int vpH = Math.max(1, (int)(gp.maxScreenRow * scaleY));
         g2.drawRect(vpX, vpY, vpW, vpH);
-        g2.setComposite(prevComp);
+        g2.setAlpha(1f);
     }
 
     private int normalizeBakedGid(int gid) {

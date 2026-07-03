@@ -38,7 +38,7 @@ public class ItemFactory {
         if (loaded) return;
         loaded = true;
 
-        try (InputStream is = ItemFactory.class.getResourceAsStream("/res/data/items.json")) {
+        try (InputStream is = util.ResourceCache.openClasspathStream("/res/data/items.json")) {
             if (is == null) {
                 System.out.println("[ItemFactory] items.json not found");
                 return;

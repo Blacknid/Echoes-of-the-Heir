@@ -1,12 +1,10 @@
 package ui;
 
-import java.awt.AlphaComposite;
-import java.awt.BasicStroke;
-import java.awt.Color;
-import java.awt.Font;
-import java.awt.FontMetrics;
-import java.awt.Graphics2D;
-import java.awt.RenderingHints;
+import gfx.Color;
+import gfx.Font;
+import gfx.FontMetrics;
+import gfx.GdxRenderer;
+import gfx.Stroke;
 
 import audio.SFX;
 import main.GamePanel;
@@ -14,7 +12,7 @@ import main.GamePanel;
 public class CutsceneManager {
 
     GamePanel gp;
-    Graphics2D g2;
+    GdxRenderer g2;
     public int sceneNum;
     public int scenePhase;
 
@@ -71,8 +69,8 @@ public class CutsceneManager {
 
         try {
             pixelFont = Font.createFont(Font.TRUETYPE_FONT,
-                    getClass().getResourceAsStream("/res/fonts/Pixeloid Sans.ttf"));
-            java.awt.GraphicsEnvironment.getLocalGraphicsEnvironment().registerFont(pixelFont);
+                    util.ResourceCache.openClasspathStream("/res/fonts/Pixeloid Sans.ttf"),
+                    "Pixeloid Sans");
         } catch (Exception e) {
             pixelFont = new Font("Segoe UI", Font.PLAIN, 12);
         }
@@ -103,7 +101,7 @@ public class CutsceneManager {
                 + "Youtube helper : RyiSnow\n"
                 + "Sites : Pixabay.com , CraftPix.net";
     }
-    public void draw ( Graphics2D g2 ) {
+    public void draw ( GdxRenderer g2 ) {
         this.g2 = g2;
 
         switch (sceneNum) {
@@ -327,16 +325,12 @@ public class CutsceneManager {
 
     private void drawWhiteBackground(float a) {
         float clamped = Math.max(0f, Math.min(1f, a));
-        // SRC composite at full alpha completely replaces whatever is beneath —
+        // At full alpha this opaque fill completely replaces whatever is beneath —
         // prevents game-world lights/glows from bleeding through the cutscene overlay.
-        if (clamped >= 1f) {
-            g2.setComposite(AlphaComposite.getInstance(AlphaComposite.SRC));
-        } else {
-            g2.setComposite(AlphaComposite.getInstance(AlphaComposite.SRC_OVER, clamped));
-        }
+        g2.setAlpha(clamped);
         g2.setColor(Color.white);
         g2.fillRect(0, 0, gp.screenWidth, gp.screenHeight);
-        g2.setComposite(AlphaComposite.getInstance(AlphaComposite.SRC_OVER, 1f));
+        g2.setAlpha(1f);
     }
 
     // Deep dark warm background — like waking in near-darkness
@@ -344,21 +338,15 @@ public class CutsceneManager {
 
     private void drawDarkBackground(float a) {
         float clamped = Math.max(0f, Math.min(1f, a));
-        if (clamped >= 1f) {
-            g2.setComposite(AlphaComposite.getInstance(AlphaComposite.SRC));
-        } else {
-            g2.setComposite(AlphaComposite.getInstance(AlphaComposite.SRC_OVER, clamped));
-        }
+        g2.setAlpha(clamped);
         g2.setColor(DARK_BG);
         g2.fillRect(0, 0, gp.screenWidth, gp.screenHeight);
-        g2.setComposite(AlphaComposite.getInstance(AlphaComposite.SRC_OVER, 1f));
+        g2.setAlpha(1f);
     }
 
     /** Draw typewriter text centered on the dark cutscene background. */
     private void drawTypewriterText(String fullText, float yFraction, float fontSize) {
         String visible = fullText.substring(0, Math.min(typewriterIndex, fullText.length()));
-        g2.setRenderingHint(RenderingHints.KEY_TEXT_ANTIALIASING, RenderingHints.VALUE_TEXT_ANTIALIAS_OFF);
-        g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_OFF);
         g2.setFont(getCutsceneFont((int) fontSize));
         FontMetrics fm = g2.getFontMetrics();
         int tx = (gp.screenWidth - fm.stringWidth(visible)) / 2;
@@ -373,20 +361,18 @@ public class CutsceneManager {
     /** Draw semi-transparent overlay text at the bottom of the screen during gameplay reveal. */
     private void drawOverlayText(String fullText, float yFraction, float fontSize) {
         String visible = fullText.substring(0, Math.min(typewriterIndex, fullText.length()));
-        g2.setRenderingHint(RenderingHints.KEY_TEXT_ANTIALIASING, RenderingHints.VALUE_TEXT_ANTIALIAS_LCD_HRGB);
         int barH = 60;
         int barY = (int) (gp.screenHeight * yFraction) - 35;
-        g2.setComposite(AlphaComposite.getInstance(AlphaComposite.SRC_OVER, 0.5f));
+        g2.setAlpha(0.5f);
         g2.setColor(Color.black);
         g2.fillRect(0, barY, gp.screenWidth, barH);
-        g2.setComposite(AlphaComposite.getInstance(AlphaComposite.SRC_OVER, 1f));
+        g2.setAlpha(1f);
         g2.setFont(getCutsceneFont((int) fontSize));
         g2.setColor(new Color(240, 230, 210));
         FontMetrics fmOverlay = g2.getFontMetrics();
         int txOverlay = (gp.screenWidth - fmOverlay.stringWidth(visible)) / 2;
         int tyOverlay = (int) (gp.screenHeight * yFraction);
         g2.drawString(visible, txOverlay, tyOverlay);
-        g2.setRenderingHint(RenderingHints.KEY_TEXT_ANTIALIASING, RenderingHints.VALUE_TEXT_ANTIALIAS_LCD_HRGB);
     }
 
     public void scene_ending() {
@@ -521,9 +507,9 @@ public class CutsceneManager {
 
     private void updateAndDrawRain(float overallAlpha) {
         if (!rainInitialized) initRain();
-        g2.setComposite(AlphaComposite.getInstance(AlphaComposite.SRC_OVER, 0.45f * overallAlpha));
+        g2.setAlpha(0.45f * overallAlpha);
         g2.setColor(new Color(180, 210, 255));
-        g2.setStroke(new BasicStroke(1f));
+        g2.setStroke(new Stroke(1f));
         for (int i = 0; i < RAIN_COUNT; i++) {
             rY[i] += rSpeed[i];
             rX[i] -= 1.2f;
@@ -531,8 +517,8 @@ public class CutsceneManager {
             g2.drawLine((int) rX[i], (int) rY[i],
                         (int)(rX[i] + 2), (int)(rY[i] + rLen[i]));
         }
-        g2.setComposite(AlphaComposite.getInstance(AlphaComposite.SRC_OVER, 1f));
-        g2.setStroke(new BasicStroke(1f));
+        g2.setAlpha(1f);
+        g2.setStroke(new Stroke(1f));
     }
 
     private boolean isSectionHeader(String line) {
@@ -554,21 +540,15 @@ public class CutsceneManager {
     }
     public void drawBlackBackground ( float alpha ) {
         float clamped = Math.max(0f, Math.min(1f, alpha));
-        if (clamped >= 1f) {
-            g2.setComposite(AlphaComposite.getInstance(AlphaComposite.SRC));
-        } else {
-            g2.setComposite(AlphaComposite.getInstance(AlphaComposite.SRC_OVER, clamped));
-        }
+        g2.setAlpha(clamped);
         g2.setColor(Color.black);
         g2.fillRect(0, 0, gp.screenWidth, gp.screenHeight);
-        g2.setComposite(AlphaComposite.getInstance(AlphaComposite.SRC_OVER, 1f));
+        g2.setAlpha(1f);
     }
 
     public void drawString( float alpha, float fontSize, int y, String text, int lineHeigh) {
-        g2.setComposite(AlphaComposite.getInstance(AlphaComposite.SRC_OVER, alpha));
+        g2.setAlpha(alpha);
         g2.setFont(fontCache.computeIfAbsent(fontSize, s -> pixelFont.deriveFont(Font.PLAIN, s)));
-        g2.setRenderingHint(RenderingHints.KEY_TEXT_ANTIALIASING, RenderingHints.VALUE_TEXT_ANTIALIAS_OFF);
-        g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_OFF);
         FontMetrics fm = g2.getFontMetrics();
         for ( String line: text.split("\n")) {
             int x = (gp.screenWidth - fm.stringWidth(line)) / 2;
@@ -576,6 +556,6 @@ public class CutsceneManager {
             g2.drawString(line, x, y);
             y += lineHeigh;
         }
-        g2.setComposite(AlphaComposite.getInstance(AlphaComposite.SRC_OVER, 1f));
+        g2.setAlpha(1f);
     }
 }

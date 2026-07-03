@@ -53,7 +53,7 @@ public class SkillTree {
 
     /** Load skill nodes from res/data/skilltree.json. */
     private SkillNode[] loadFromJson() {
-        try (InputStream is = getClass().getResourceAsStream("/res/data/skilltree.json")) {
+        try (InputStream is = util.ResourceCache.openClasspathStream("/res/data/skilltree.json")) {
             if (is == null) throw new RuntimeException("skilltree.json not found in resources");
             BufferedReader br = new BufferedReader(new InputStreamReader(is, "UTF-8"));
             StringBuilder sb = new StringBuilder();

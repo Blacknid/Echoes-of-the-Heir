@@ -2,13 +2,13 @@ package main;
 
 import java.io.BufferedReader;
 import java.io.BufferedWriter;
-import java.io.FileReader;
-import java.io.FileWriter;
 import java.io.IOException;
 import java.io.InputStream;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Properties;
+
+import platform.GameStorage;
 
 public class Config {
 
@@ -23,7 +23,7 @@ public class Config {
     }
 
     private static void loadBuildProperties() {
-        try (InputStream is = Config.class.getResourceAsStream("/res/build.properties")) {
+        try (InputStream is = util.ResourceCache.openClasspathStream("/res/build.properties")) {
             if (is != null) {
                 Properties props = new Properties();
                 props.load(is);
@@ -89,7 +89,7 @@ public class Config {
 
     public void saveConfig () {
 
-        try (BufferedWriter bw = new BufferedWriter(new FileWriter("config.txt"))) {
+        try (BufferedWriter bw = GameStorage.bufferedWriter("config.txt")) {
 
             bw.write("fullscreen=" + (gp.fullScreenOn ? "On" : "Off")); bw.newLine();
             bw.write("musicVolume=" + gp.audio.getMusicVolume());        bw.newLine();
@@ -98,18 +98,10 @@ public class Config {
             bw.write("fpsTarget=" + fpsTarget);                           bw.newLine();
             bw.write("graphicsQuality=" + graphicsQuality);                bw.newLine();
             bw.write("stretchToFill=" + (Config.stretchToFill ? "On" : "Off")); bw.newLine();
-            // Save window position: use live coords when windowed, saved bounds when fullscreen
-            int wx, wy;
-            if (!gp.fullScreenOn && Main.window != null) {
-                wx = Main.window.getX();
-                wy = Main.window.getY();
-            } else if (gp.windowedBounds != null) {
-                wx = gp.windowedBounds.x;
-                wy = gp.windowedBounds.y;
-            } else {
-                wx = windowX;
-                wy = windowY;
-            }
+            // Save window position. The window is owned by libGDX (backend-specific); to keep
+            // core backend-agnostic (Android-portable), we persist the last saved coords rather
+            // than querying the live window here.
+            int wx = windowX, wy = windowY;
             if (wx >= 0 && wy >= 0) {
                 bw.write("windowX=" + wx); bw.newLine();
                 bw.write("windowY=" + wy); bw.newLine();
@@ -121,7 +113,7 @@ public class Config {
     }
     public void loadConfig () {
 
-        try (BufferedReader br = new BufferedReader(new FileReader("config.txt"))) {
+        try (BufferedReader br = GameStorage.bufferedReader("config.txt")) {
 
             Map<String, String> map = new HashMap<>();
             String line;

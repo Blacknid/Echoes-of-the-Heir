@@ -1,37 +1,19 @@
 package util;
 
-import java.awt.Graphics2D;
-import java.awt.GraphicsConfiguration;
-import java.awt.GraphicsEnvironment;
-import java.awt.RenderingHints;
-import java.awt.Transparency;
-import java.awt.image.BufferedImage;
+import gfx.Sprite;
 
+/**
+ * Image helper. libGDX migration: "scaling" a sprite no longer rasterizes a new bitmap —
+ * GPU textures scale at draw time with nearest-neighbor filtering. {@link #scaleImage} therefore
+ * returns a logical-size VIEW of the same texture, preserving the old API
+ * ({@code getWidth()/getHeight()} report the requested size, draws use it) without any per-pixel work.
+ */
 public final class UtilityTool {
-
-    private static final GraphicsConfiguration GC =
-        GraphicsEnvironment.getLocalGraphicsEnvironment()
-            .getDefaultScreenDevice().getDefaultConfiguration();
 
     private UtilityTool() {}
 
-    public static BufferedImage scaleImage(BufferedImage original, int width, int height) {
-
-        if (original.getWidth() == width && original.getHeight() == height) {
-            return original;
-        }
-
-        // TRANSLUCENT produces TYPE_INT_ARGB_PRE — fastest for OpenGL pipeline compositing
-        // and preserves semi-transparent (anti-aliased) sprite edges correctly.
-        BufferedImage scaleImage = GC.createCompatibleImage(width, height, Transparency.TRANSLUCENT);
-        Graphics2D g2 = scaleImage.createGraphics();
-        g2.setRenderingHint(RenderingHints.KEY_INTERPOLATION, RenderingHints.VALUE_INTERPOLATION_NEAREST_NEIGHBOR);
-        g2.setRenderingHint(RenderingHints.KEY_RENDERING, RenderingHints.VALUE_RENDER_SPEED);
-        g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_OFF);
-        g2.drawImage(original, 0, 0, width, height, null);
-        g2.dispose();
-
-        return scaleImage;
+    public static Sprite scaleImage(Sprite original, int width, int height) {
+        if (original == null) return null;
+        return original.withLogicalSize(width, height);
     }
-
 }

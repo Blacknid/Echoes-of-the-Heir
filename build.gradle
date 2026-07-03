@@ -1,0 +1,53 @@
+// Root build for Michi's Adventure (libGDX).
+//
+// Versions are centralized here. libGDX 1.13.x supports Java 21+ toolchains and LWJGL3.
+buildscript {
+    repositories {
+        mavenCentral()
+        gradlePluginPortal()
+        google()
+    }
+    dependencies {
+        // Android Gradle Plugin — classic buildscript-classpath style (matches this project's
+        // apply-plugin convention elsewhere; there's no pluginManagement block in settings.gradle
+        // for the modern plugins{} DSL). AGP 9.x tracks the Gradle 9.x major line we're already on.
+        classpath 'com.android.tools.build:gradle:9.2.1'
+    }
+}
+
+allprojects {
+    apply plugin: 'eclipse'
+    apply plugin: 'idea'
+
+    // Single source of truth for versions across modules.
+    ext {
+        appName       = 'MichisAdventure'
+        appJarName    = 'Michi-s-adventure.jar'
+        mainClassName = 'lwjgl3.DesktopLauncher'
+        gameMainClass = 'main.Main'   // legacy entry (retired after Stage 1); kept for reference
+
+        gdxVersion            = '1.13.1'
+        gdxControllersVersion = '2.2.4'
+        // MP3/OGG/WAV are handled natively by libGDX audio after Stage 6, so the legacy
+        // javax.sound MP3 SPI jars (jl/tritonus/mp3spi) are NOT needed once audio migrates.
+        // Until then, core compiles fine without them because audio is isolated behind
+        // PlatformAudio and the legacy Sound.java is excluded from the libGDX build.
+    }
+
+    repositories {
+        mavenCentral()
+        google()
+        maven { url 'https://oss.sonatype.org/content/repositories/snapshots/' }
+    }
+}
+
+// Read version/build from the existing build.properties so Gradle and the game agree.
+ext.loadGameVersion = {
+    def props = new Properties()
+    def f = file('ceva/src/res/build.properties')
+    if (f.exists()) { f.withInputStream { props.load(it) } }
+    return [version: props.getProperty('version', '2.0'),
+            build:   props.getProperty('build', '0')]
+}
+ext.gameVersion = loadGameVersion()
+version = ext.gameVersion.version

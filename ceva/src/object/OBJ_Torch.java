@@ -1,6 +1,6 @@
 package object;
 
-import java.awt.image.BufferedImage;
+import gfx.Sprite;
 
 import entity.Entity;
 import main.Config;
@@ -17,7 +17,7 @@ public class OBJ_Torch extends Entity {
         lightSource = true;
         lightRadius = 6;
 
-        BufferedImage spritesheet[][] = loadSpriteMatrix("/res/objects/torchNew", Config.originalTileSize, Config.originalTileSize);
+        Sprite spritesheet[][] = loadSpriteMatrix("/res/objects/torchNew", Config.originalTileSize, Config.originalTileSize);
         down1 = spritesheet[0][0];
         down2 = spritesheet[0][0];
         down3 = spritesheet[0][0];

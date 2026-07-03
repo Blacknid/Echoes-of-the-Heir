@@ -1,0 +1,18 @@
+// Michi's Adventure — libGDX multi-module build.
+//
+// Modules:
+//   core    — engine-agnostic game logic + libGDX rendering (the bulk of the game).
+//             During migration, core's sources/assets point at the legacy ceva/src tree
+//             (see core/build.gradle sourceSets) so we avoid a giant file move until the
+//             build is green. The physical move into core/src + core/assets happens as a
+//             separate, clean commit at the end of Stage 0.
+//   lwjgl3  — desktop launcher (LWJGL3 backend) + jpackage/installer packaging.
+//   android — STUB ONLY for now. Not built; present so the Android port is a drop-in later.
+//
+rootProject.name = 'michis-adventure'
+
+include 'core'
+include 'lwjgl3'
+// 'android' is intentionally NOT included yet — it is a stub for a future port.
+// Uncomment when the Android SDK + plugin are set up:
+include 'android'

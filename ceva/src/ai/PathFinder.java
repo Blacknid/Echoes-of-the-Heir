@@ -1,6 +1,6 @@
 package ai;
 
-import java.awt.Rectangle;
+import gfx.geom.Rect;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.PriorityQueue;
@@ -19,8 +19,8 @@ public class PathFinder {
     boolean goalReached;
     int step;
 
-    private final Rectangle futureHitbox = new Rectangle();
-    private final Rectangle tempHitbox = new Rectangle();
+    private final Rect futureHitbox = new Rect();
+    private final Rect tempHitbox = new Rect();
 
     // Track only nodes modified this search so resetNodes() is O(visited)
     // instead of O(maxWorldCol × maxWorldRow). Typical search visits <200 nodes vs 10000+.

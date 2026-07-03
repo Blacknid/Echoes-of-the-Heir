@@ -51,7 +51,7 @@ public class AssetValidator {
     }
 
     private void check(String resourcePath) {
-        InputStream is = getClass().getResourceAsStream(resourcePath);
+        InputStream is = util.ResourceCache.openClasspathStream(resourcePath);
         if (is == null) {
             System.out.println("[AssetValidator] MISSING: " + resourcePath);
             missing++;

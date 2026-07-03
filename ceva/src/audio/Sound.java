@@ -1,114 +1,128 @@
 package audio;
 
-import java.io.IOException;
-import java.net.URL;
+import com.badlogic.gdx.Gdx;
+import com.badlogic.gdx.audio.Music;
+import com.badlogic.gdx.files.FileHandle;
 
-import javax.sound.sampled.AudioInputStream;
-import javax.sound.sampled.AudioSystem;
-import javax.sound.sampled.Clip;
-import javax.sound.sampled.FloatControl;
-import javax.sound.sampled.LineUnavailableException;
-import javax.sound.sampled.UnsupportedAudioFileException;
-
+/**
+ * Audio playback backed by libGDX (cross-platform incl. Android), replacing the desktop-only
+ * {@code javax.sound.sampled} pipeline. Each instance plays one "current" clip selected by index
+ * via {@link #setFile(int)}; {@link AudioManager} uses one Sound for music and one for SE.
+ *
+ * <p>libGDX distinguishes streaming {@link Music} (long, loopable tracks) from {@code Sound}
+ * (short SFX). Music slots (soundtracks/long loops) are streamed via Music; everything else plays
+ * as a fire-and-forget {@code Sound}. The public API ({@code setFile/play/loop/stop/checkVolume},
+ * {@code volumeScale}) is preserved so callers are unchanged. {@code .mp3}/{@code .wav}/{@code .ogg}
+ * are all supported natively.
+ */
 public class Sound {
 
-    Clip clip;
-    URL soundURL[] = new URL[30];
-    FloatControl fc;
-    int volumeScale = 3;
-    float volume;
+    // Slots that are long, loopable tracks → streamed as Music. (Soundtracks + music box.)
+    private static final java.util.Set<Integer> MUSIC_SLOTS = java.util.Set.of(0, 1, 2, 15);
 
-    // Concurrent SFX: up to POOL clips per sound index for overlapping playback
-    private static final int POOL = 3;
-    private final Clip[][] clipPool = new Clip[30][POOL];
-    private final int[] clipRobin = new int[30]; // round-robin index per slot
+    private final String[] soundPath = new String[30];
+    private final com.badlogic.gdx.audio.Sound[] sfxCache = new com.badlogic.gdx.audio.Sound[30];
+
+    private Music currentMusic;     // active streamed track (if the current slot is a music slot)
+    private int   currentSfxSlot = -1; // active SFX slot (for play())
+    private boolean loopCurrent = false;
+
+    public int volumeScale = 3;
+    float volume; // 0..1 linear gain (kept as a field for API parity)
 
     public Sound() {
-
-        soundURL[0] = getClass().getResource("/res/sound/Soundtracks/Main_Theme.wav"); // Officially the Main Theme for Echoes of the Heir, but also used for the title screen and some boss fights
-        soundURL[1] = getClass().getResource("/res/sound/Soundtracks/Awakening Cave.mp3"); // The Awakening Cave theme, also used for the tutorial area and some later zones
-        soundURL[2] = getClass().getResource("/res/sound/Soundtracks/Canvas Village.mp3"); // The main village theme, also used for the world map
-        
-        soundURL[3] = getClass().getResource("/res/sound/Door.wav");
-        soundURL[4] = getClass().getResource("/res/sound/Equip.wav"); 
-        soundURL[5] = getClass().getResource("/res/sound/Options.wav");
-        soundURL[6] = getClass().getResource("/res/sound/GameOver.wav");
-        soundURL[7] = getClass().getResource("/res/sound/GotGem.wav");
-        soundURL[8] = getClass().getResource("/res/sound/Victory.wav");
-        soundURL[9] = getClass().getResource("/res/sound/Selections.wav");
-        soundURL[10] = getClass().getResource("/res/sound/Michiduta Receive Hit.wav");
-        soundURL[11] = getClass().getResource("/res/sound/Monster Hit.wav");
-        soundURL[12] = getClass().getResource("/res/sound/Weapon Swing.wav");
-        soundURL[13] = getClass().getResource("/res/sound/Level Up.wav");
-        soundURL[14] = getClass().getResource("/res/sound/Arrow.wav");
-        soundURL[15] = getClass().getResource("/res/sound/piano_soundtrack/Music Box 1.wav");
+        soundPath[0]  = "res/sound/Soundtracks/Main_Theme.wav";
+        soundPath[1]  = "res/sound/Soundtracks/Awakening Cave.mp3";
+        soundPath[2]  = "res/sound/Soundtracks/Canvas Village.mp3";
+        soundPath[3]  = "res/sound/Door.wav";
+        soundPath[4]  = "res/sound/Equip.wav";
+        soundPath[5]  = "res/sound/Options.wav";
+        soundPath[6]  = "res/sound/GameOver.wav";
+        soundPath[7]  = "res/sound/GotGem.wav";
+        soundPath[8]  = "res/sound/Victory.wav";
+        soundPath[9]  = "res/sound/Selections.wav";
+        soundPath[10] = "res/sound/Michiduta Receive Hit.wav";
+        soundPath[11] = "res/sound/Monster Hit.wav";
+        soundPath[12] = "res/sound/Weapon Swing.wav";
+        soundPath[13] = "res/sound/Level Up.wav";
+        soundPath[14] = "res/sound/Arrow.wav";
+        soundPath[15] = "res/sound/piano_soundtrack/Music Box 1.wav";
+        checkVolume();
     }
 
+    private FileHandle handle(int i) {
+        String p = (i >= 0 && i < soundPath.length) ? soundPath[i] : null;
+        if (p == null) return null;
+        FileHandle fh = Gdx.files.internal(p);
+        return fh.exists() ? fh : null;
+    }
+
+    /** Select the clip for slot i (does not start playback — call play()/loop()). */
     public void setFile(int i) {
-        try {
-            if (soundURL[i] == null) {
-                System.out.println("Sound: missing audio resource for slot " + i);
-                return;
+        FileHandle fh = handle(i);
+        if (fh == null) {
+            System.out.println("Sound: missing audio resource for slot " + i);
+            currentSfxSlot = -1;
+            return;
+        }
+        if (MUSIC_SLOTS.contains(i)) {
+            // Switch streamed track.
+            if (currentMusic != null) { currentMusic.stop(); currentMusic.dispose(); currentMusic = null; }
+            try {
+                currentMusic = Gdx.audio.newMusic(fh);
+                currentMusic.setVolume(linearVolume());
+            } catch (Exception e) {
+                System.out.println("Sound: failed to load music slot " + i + ": " + e.getMessage());
             }
-
-            // Round-robin through the pool for this sound index
-            int slot = clipRobin[i];
-            clipRobin[i] = (slot + 1) % POOL;
-
-            if (clipPool[i][slot] != null && clipPool[i][slot].isOpen()) {
-                clip = clipPool[i][slot];
-                clip.stop();
-                clip.setFramePosition(0);
-            } else {
-                // Close previous clip in this slot to prevent resource leak
-                if (clipPool[i][slot] != null) {
-                    clipPool[i][slot].close();
-                }
-                clip = AudioSystem.getClip();
-                try (AudioInputStream ais = AudioSystem.getAudioInputStream(soundURL[i])) {
-                    // MP3 files must be transcoded to PCM before a Clip can open them
-                    clip.open(ais);
-                }
-                clipPool[i][slot] = clip;
+            currentSfxSlot = -1;
+        } else {
+            // SFX: lazily decode + cache.
+            if (sfxCache[i] == null) {
+                try { sfxCache[i] = Gdx.audio.newSound(fh); }
+                catch (Exception e) { System.out.println("Sound: failed to load SE slot " + i + ": " + e.getMessage()); }
             }
-            if (clip.isControlSupported(FloatControl.Type.MASTER_GAIN)) {
-                fc = (FloatControl) clip.getControl(FloatControl.Type.MASTER_GAIN);
-            } else {
-                fc = null;
-            }
-            checkVolume();
-        } catch (IOException | LineUnavailableException | UnsupportedAudioFileException e) {
-            System.out.println("Sound: failed to load slot " + i + ": " + e.getMessage());
+            currentSfxSlot = i;
         }
     }
+
     public void play() {
-        if (clip != null) {
-            clip.setFramePosition(0);
-            clip.start();
+        loopCurrent = false;
+        if (currentMusic != null) {
+            currentMusic.setLooping(false);
+            currentMusic.setVolume(linearVolume());
+            currentMusic.play();
+        } else if (currentSfxSlot >= 0 && sfxCache[currentSfxSlot] != null) {
+            sfxCache[currentSfxSlot].play(linearVolume());
         }
     }
+
     public void loop() {
-        if (clip != null) {
-            clip.loop(Clip.LOOP_CONTINUOUSLY);
+        loopCurrent = true;
+        if (currentMusic != null) {
+            currentMusic.setLooping(true);
+            currentMusic.setVolume(linearVolume());
+            currentMusic.play();
         }
+        // (SFX are not looped in this game.)
     }
+
     public void stop() {
-        if (clip != null) {
-            clip.stop();
-        }
+        if (currentMusic != null) currentMusic.stop();
     }
+
+    /** Map the 0..5 volumeScale to a 0..1 linear gain (mirrors the old dB curve, perceptually). */
     public void checkVolume() {
         volume = switch (volumeScale) {
-            case 0 -> -80f;
-            case 1 -> -20f;
-            case 2 -> -12f;
-            case 3 -> -5f;
-            case 4 -> 1f;
-            case 5 -> 6f;
+            case 0 -> 0f;
+            case 1 -> 0.15f;
+            case 2 -> 0.30f;
+            case 3 -> 0.55f;
+            case 4 -> 0.80f;
+            case 5 -> 1f;
             default -> volume;
         };
-        if (fc != null) {
-            fc.setValue(volume);
-        }
+        if (currentMusic != null) currentMusic.setVolume(volume);
     }
+
+    private float linearVolume() { checkVolume(); return volume; }
 }

@@ -1,8 +1,8 @@
 package entity;
 
-import java.awt.Color;
-import java.awt.Font;
-import java.awt.Graphics2D;
+import gfx.Color;
+import gfx.Font;
+import gfx.GdxRenderer;
 
 import main.GamePanel;
 import util.ObjectPool.Poolable;
@@ -63,7 +63,7 @@ public class DamageNumber extends Entity implements Poolable {
     }
 
     @Override
-    public void draw(Graphics2D g2) {
+    public void draw(GdxRenderer g2) {
         if (!alive || text == null) return;
 
         int screenX = worldX - gp.player.worldX + gp.player.screenX;

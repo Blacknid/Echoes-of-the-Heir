@@ -1,13 +1,11 @@
 package entity;
 
-import java.awt.AlphaComposite;
-import java.awt.BasicStroke;
-import java.awt.Color;
-import java.awt.Font;
-import java.awt.FontMetrics;
-import java.awt.Graphics2D;
-import java.awt.Stroke;
-import java.awt.image.BufferedImage;
+import gfx.Color;
+import gfx.Font;
+import gfx.FontMetrics;
+import gfx.GdxRenderer;
+import gfx.Sprite;
+import gfx.Stroke;
 import java.util.Random;
 
 import audio.SFX;
@@ -28,7 +26,7 @@ public class BOSS_WitheredTree extends Entity {
 
     private static final Font BOSS_NAME_FONT = new Font("SansSerif", Font.BOLD, 16);
     private static final Font BOSS_PHASE_FONT = new Font("SansSerif", Font.ITALIC, 12);
-    private static final BasicStroke BOSS_BAR_STROKE = new BasicStroke(2f);
+    private static final Stroke BOSS_BAR_STROKE = new Stroke(2f);
     private static final Color BOSS_BAR_BORDER_COLOR = new Color(160, 140, 100);
     private static final Color BOSS_NAME_SHADOW = new Color(0, 0, 0, 180);
 
@@ -37,12 +35,12 @@ public class BOSS_WitheredTree extends Entity {
     private static final float PHASE_3_THRESHOLD = 0.33f;
 
     // Sprite storage per phase: [phase][direction][frame]
-    private final BufferedImage[][][] phaseWalkFrames  = new BufferedImage[3][][];
-    private final BufferedImage[][][] phaseIdleFrames  = new BufferedImage[3][][];
-    private final BufferedImage[][][] phaseAttackFrames = new BufferedImage[3][][];
-    private final BufferedImage[][][] phaseHurtFrames  = new BufferedImage[3][][];
-    private final BufferedImage[][][] phaseDeathFrames = new BufferedImage[3][][];
-    private final BufferedImage[][][] phaseSwingFrames = new BufferedImage[3][][];
+    private final Sprite[][][] phaseWalkFrames  = new Sprite[3][][];
+    private final Sprite[][][] phaseIdleFrames  = new Sprite[3][][];
+    private final Sprite[][][] phaseAttackFrames = new Sprite[3][][];
+    private final Sprite[][][] phaseHurtFrames  = new Sprite[3][][];
+    private final Sprite[][][] phaseDeathFrames = new Sprite[3][][];
+    private final Sprite[][][] phaseSwingFrames = new Sprite[3][][];
 
     private int currentPhase = 0;
 
@@ -54,7 +52,7 @@ public class BOSS_WitheredTree extends Entity {
     private static final int ATK_TRIPLE_BOLT = 5;
     private static final int ATK_THORN_RING  = 6;
 
-    private BufferedImage[][] leafBoltFrames; // [direction][frame]
+    private Sprite[][] leafBoltFrames; // [direction][frame]
     private static final int LEAF_BOLT_SPEED = 4;
     private static final int LEAF_BOLT_LIFE  = 120; // frames before disappearing
     private static final int LEAF_BOLT_DMG   = 3;
@@ -133,10 +131,7 @@ public class BOSS_WitheredTree extends Entity {
     private static final int     ATTACK_RANGE     = 96;
     private static final int     STOMP_RANGE      = 240; // wider than melee
 
-    // Hit flash buffer (reused to avoid allocation per frame)
-    private BufferedImage bossFlashBuffer;
-    private int bossFlashW, bossFlashH;
-    private Graphics2D bossFlashG2; // OPTIMIZATION: cached Graphics2D for flash overlay
+    // (Hit flash now tints on the GPU via the batch — no intermediate buffer fields needed.)
 
     private static final Random rng = new Random();
 
@@ -230,9 +225,9 @@ public class BOSS_WitheredTree extends Entity {
         }
 
         // Load leaf projectile frames from Ent2's leaves spritesheet
-        BufferedImage[][] leafSheet = swapLeftRight(loadSpriteMatrix("/res/bosses/Ent2/Parts/Ent2_Attack_leaves", SPRITE_SIZE, SPRITE_SIZE));
+        Sprite[][] leafSheet = swapLeftRight(loadSpriteMatrix("/res/bosses/Ent2/Parts/Ent2_Attack_leaves", SPRITE_SIZE, SPRITE_SIZE));
         // leafSheet is [4 directions][7 frames]; pick a single visible frame per direction for the projectile
-        leafBoltFrames = new BufferedImage[4][2];
+        leafBoltFrames = new Sprite[4][2];
         for (int d = 0; d < 4 && d < leafSheet.length; d++) {
             leafBoltFrames[d][0] = leafSheet[d][3]; // mid-animation frame
             leafBoltFrames[d][1] = leafSheet[d][4]; // alternate for animation
@@ -240,9 +235,9 @@ public class BOSS_WitheredTree extends Entity {
     }
 
     /** Swap rows 1 (LEFT) and 2 (RIGHT) to match game direction constants. */
-    private static BufferedImage[][] swapLeftRight(BufferedImage[][] matrix) {
+    private static Sprite[][] swapLeftRight(Sprite[][] matrix) {
         if (matrix.length >= 3) {
-            BufferedImage[] tmp = matrix[1];
+            Sprite[] tmp = matrix[1];
             matrix[1] = matrix[2];
             matrix[2] = tmp;
         }
@@ -1246,7 +1241,7 @@ public class BOSS_WitheredTree extends Entity {
 
 
     @Override
-    public void draw(Graphics2D g2) {
+    public void draw(GdxRenderer g2) {
         int screenX = worldX - gp.player.worldX + gp.player.screenX;
         int screenY = worldY - gp.player.worldY + gp.player.screenY;
         int drawSize = gp.tileSize * BOSS_SCALE;
@@ -1280,7 +1275,7 @@ public class BOSS_WitheredTree extends Entity {
             Color ring = new Color(STOMP_RING.getRed(), STOMP_RING.getGreen(), STOMP_RING.getBlue(), Math.min(255, Math.max(0, ringAlpha)));
             g2.setColor(ring);
             Stroke oldStroke = g2.getStroke();
-            g2.setStroke(new BasicStroke(4f));
+            g2.setStroke(new Stroke(4f));
             int r = (int) stompRingRadius;
             g2.drawOval(bossCX - r, bossCY - r, r * 2, r * 2);
             // Inner fill
@@ -1334,7 +1329,7 @@ public class BOSS_WitheredTree extends Entity {
             int trailR = (int)(ATTACK_RANGE * 1.3);
             g2.setColor(WHIRL_TRAIL);
             Stroke oldStroke = g2.getStroke();
-            g2.setStroke(new BasicStroke(3f));
+            g2.setStroke(new Stroke(3f));
             g2.drawOval(bossCX - trailR, bossCY - trailR, trailR * 2, trailR * 2);
             g2.setStroke(oldStroke);
             changeAlpha(g2, 1f);
@@ -1349,13 +1344,13 @@ public class BOSS_WitheredTree extends Entity {
             g2.setColor(new Color(180, 220, 60, Math.min(255, Math.max(0, glowAlpha))));
             g2.fillOval(bossCX - glowR, bossCY - glowR, glowR * 2, glowR * 2);
             Stroke oldStroke = g2.getStroke();
-            g2.setStroke(new BasicStroke(2f + 2f * windupPct));
+            g2.setStroke(new Stroke(2f + 2f * windupPct));
             g2.setColor(new Color(120, 200, 40, Math.min(255, Math.max(0, glowAlpha + 40))));
             g2.drawOval(bossCX - glowR, bossCY - glowR, glowR * 2, glowR * 2);
             g2.setStroke(oldStroke);
         }
 
-        BufferedImage currentSprite = getCurrentSprite();
+        Sprite currentSprite = getCurrentSprite();
 
         // Boss HP bar: draw at top of screen when player is within 20 tiles
         if (hpBarOn && isPlayerInRange(20 * gp.tileSize)) {
@@ -1386,39 +1381,22 @@ public class BOSS_WitheredTree extends Entity {
         if (currentSprite != null) {
             int drawX = bossCX - drawW / 2;
             int drawY = bossCY - drawH / 2;
-            g2.drawImage(currentSprite, drawX, drawY, drawW, drawH, null);
+            g2.drawImage(currentSprite, drawX, drawY, drawW, drawH);
         }
 
-        // Hit flash overlay
+        // Hit flash overlay — GPU-native white silhouette tint (no intermediate buffer).
         if (hitFlashCounter > 0 && currentSprite != null) {
             float flashAlpha = Math.min(1f, hitFlashCounter / 6f * 0.8f);
-            int sprW = currentSprite.getWidth();
-            int sprH = currentSprite.getHeight();
-            if (bossFlashBuffer == null || bossFlashW < sprW || bossFlashH < sprH) {
-                bossFlashW = sprW;
-                bossFlashH = sprH;
-                bossFlashBuffer = new BufferedImage(sprW, sprH, BufferedImage.TYPE_INT_ARGB);
-                if (bossFlashG2 != null) bossFlashG2.dispose();
-                bossFlashG2 = bossFlashBuffer.createGraphics();
-            }
-            Graphics2D fg = bossFlashG2;
-            fg.setComposite(AlphaComposite.Clear);
-            fg.fillRect(0, 0, bossFlashW, bossFlashH);
-            fg.setComposite(AlphaComposite.SrcOver);
-            fg.drawImage(currentSprite, 0, 0, null);
-            fg.setComposite(AlphaComposite.getInstance(AlphaComposite.SRC_ATOP, flashAlpha));
-            fg.setColor(Color.WHITE);
-            fg.fillRect(0, 0, sprW, sprH);
             int drawX = bossCX - drawSize / 2;
             int drawY = bossCY - drawSize / 2;
-            g2.drawImage(bossFlashBuffer, drawX, drawY, drawSize, drawSize, null);
+            g2.drawImageTinted(currentSprite, drawX, drawY, drawSize, drawSize, Color.WHITE, flashAlpha);
         }
 
         changeAlpha(g2, 1f);
     }
 
 
-    private void drawDeathSequence(Graphics2D g2, int screenX, int screenY, int drawSize) {
+    private void drawDeathSequence(GdxRenderer g2, int screenX, int screenY, int drawSize) {
         int drawW;
         int drawH;
         // Center offset relative to screenX/screenY (jitter/collapse shift screenX/Y)
@@ -1491,18 +1469,18 @@ public class BOSS_WitheredTree extends Entity {
 
         dyingAnimation(g2);
 
-        BufferedImage currentSprite = getCurrentSprite();
+        Sprite currentSprite = getCurrentSprite();
         if (currentSprite != null) {
             int drawX = screenX + cxOff - drawW / 2;
             int drawY = screenY + cyOff - drawH / 2;
-            g2.drawImage(currentSprite, drawX, drawY, drawW, drawH, null);
+            g2.drawImage(currentSprite, drawX, drawY, drawW, drawH);
         }
 
         changeAlpha(g2, 1f);
     }
 
     @Override
-    public void dyingAnimation(Graphics2D g2) {
+    public void dyingAnimation(GdxRenderer g2) {
         boolean wasAlive = alive;
         super.dyingAnimation(g2);
         if (wasAlive && !alive) {
@@ -1516,7 +1494,7 @@ public class BOSS_WitheredTree extends Entity {
         }
     }
 
-    private BufferedImage getCurrentSprite() {
+    private Sprite getCurrentSprite() {
         if (dying) {
             int deathFrame = Math.min(dyingCounter / 8, 5);
             return safeFrameWithFallback(phaseDeathFrames[currentPhase], direction, deathFrame);
@@ -1529,13 +1507,13 @@ public class BOSS_WitheredTree extends Entity {
             return safeFrameWithFallback(phaseHurtFrames[currentPhase], direction, hurtFrame);
         }
         if (isMoving) {
-            BufferedImage walk = getWalkFrameImage(direction, spriteNum);
+            Sprite walk = getWalkFrameImage(direction, spriteNum);
             if (walk == null) walk = getWalkFrameImage(DIR_DOWN, spriteNum);
             if (walk == null) walk = safeFrameWithFallback(idleFrames, direction, 0);
             return walk;
         }
         // Idle
-        BufferedImage idle = safeFrame(idleFrames, direction, idleFrameIndex);
+        Sprite idle = safeFrame(idleFrames, direction, idleFrameIndex);
         if (idle == null) idle = safeFrame(idleFrames, DIR_DOWN, idleFrameIndex);
         if (idle == null) idle = getWalkFrameImage(direction, 1);
         if (idle == null) idle = getWalkFrameImage(DIR_DOWN, 1);
@@ -1543,14 +1521,14 @@ public class BOSS_WitheredTree extends Entity {
     }
 
     /** safeFrame with automatic fallback to DIR_DOWN if the requested direction row doesn't exist. */
-    private static BufferedImage safeFrameWithFallback(BufferedImage[][] frames, int dir, int frame) {
-        BufferedImage img = safeFrame(frames, dir, frame);
+    private static Sprite safeFrameWithFallback(Sprite[][] frames, int dir, int frame) {
+        Sprite img = safeFrame(frames, dir, frame);
         if (img == null) img = safeFrame(frames, DIR_DOWN, frame);
         if (img == null) img = safeFrame(frames, DIR_DOWN, 0);
         return img;
     }
 
-    private void drawBossHPBar(Graphics2D g2) {
+    private void drawBossHPBar(GdxRenderer g2) {
         int barWidth  = gp.screenWidth / 2;
         int barHeight = 18;
         int barX = (gp.screenWidth - barWidth) / 2;
@@ -1642,7 +1620,7 @@ public class BOSS_WitheredTree extends Entity {
     }
 
 
-    private static BufferedImage safeFrame(BufferedImage[][] frames, int dir, int frame) {
+    private static Sprite safeFrame(Sprite[][] frames, int dir, int frame) {
         if (frames != null && dir >= 0 && dir < frames.length
                 && frames[dir] != null && frame >= 0 && frame < frames[dir].length) {
             return frames[dir][frame];
@@ -1650,7 +1628,7 @@ public class BOSS_WitheredTree extends Entity {
         return null;
     }
 
-    private static int safeLen(BufferedImage[][] frames, int dir, int fallback) {
+    private static int safeLen(Sprite[][] frames, int dir, int fallback) {
         if (frames != null && dir >= 0 && dir < frames.length && frames[dir] != null) {
             return frames[dir].length;
         }

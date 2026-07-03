@@ -1,7 +1,7 @@
 package object;
 
-import java.awt.Graphics2D;
-import java.awt.image.BufferedImage;
+import gfx.GdxRenderer;
+import gfx.Sprite;
 
 import entity.Entity;
 import entity.Eye;
@@ -57,7 +57,7 @@ public class OBJ_Tower extends Entity {
     }
 
     @Override
-    public void draw(Graphics2D g2) {
+    public void draw(GdxRenderer g2) {
         int screenX = worldX - gpRef.player.worldX + gpRef.player.screenX;
         int screenY = worldY - gpRef.player.worldY + gpRef.player.screenY;
 
@@ -68,21 +68,21 @@ public class OBJ_Tower extends Entity {
 
             // Draw bottom part (Tower_jos)
             if (down2 != null) {
-                g2.drawImage(down2, screenX, screenY, gpRef.tileSize, gpRef.tileSize, null);
+                g2.drawImage(down2, screenX, screenY, gpRef.tileSize, gpRef.tileSize);
             }
 
             // Draw top part (Tower_sus) one tile above
             if (down1 != null) {
-                g2.drawImage(down1, screenX, screenY - gpRef.tileSize, gpRef.tileSize, gpRef.tileSize, null);
+                g2.drawImage(down1, screenX, screenY - gpRef.tileSize, gpRef.tileSize, gpRef.tileSize);
             }
 
             // Draw the spawned Eye a bit larger and centered on top of the tower.
-            BufferedImage currentEyeSprite = (spawnedEye != null) ? spawnedEye.getCurrentSprite() : null;
+            Sprite currentEyeSprite = (spawnedEye != null) ? spawnedEye.getCurrentSprite() : null;
             if (currentEyeSprite != null) {
                 int eyeSize = (int) (gpRef.tileSize * 2.5);
                 int eyeX = screenX - (eyeSize - gpRef.tileSize) / 2;
                 int eyeY = screenY + spawnedEye.solidArea.y - (eyeSize - spawnedEye.solidArea.height) / 2 - 12;
-                g2.drawImage(currentEyeSprite, eyeX, eyeY, eyeSize, eyeSize, null);
+                g2.drawImage(currentEyeSprite, eyeX, eyeY, eyeSize, eyeSize);
             }
         }
     }

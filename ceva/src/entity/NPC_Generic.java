@@ -1,6 +1,6 @@
 package entity;
 
-import java.awt.image.BufferedImage;
+import gfx.Sprite;
 import java.util.Random;
 
 import main.GamePanel;
@@ -100,25 +100,30 @@ public class NPC_Generic extends Entity {
     }
 
     /** Cheama dupa setarea spritePath / idleSpritePath pentru a incarca foile. Sigur de apelat de mai multe ori. */
+    // GPU port: visible-pixel bounding-box cropping uses Sprite.getRGB; the per-frame
+    // crop+scale+bottom-align uses Sprite.croppedBottomAligned (Pixmap composite at load time).
     public void getImage() {
         if (imageLoaded) return;
+        // Batch CPU pixel reads: getRGB()/croppedBottomAligned() below are called thousands of
+        // times per sheet; without batching each call re-decodes the whole PNG (~12s on class
+        // select). The batch decodes each source texture once and disposes it at the end.
+        Sprite.beginPixelBatch();
+        try {
         if (spritePath != null) {
             try {
-                walkFrames = new BufferedImage[4][];
+                walkFrames = new Sprite[4][];
                 if (spriteAspect != 1.0f) {
                     // Foaie walk non-patrata: calculeaza dimensiunile celulei din inaltimea foii
-                    java.io.InputStream is = getClass().getResourceAsStream(spritePath + ".png");
-                    if (is != null) {
-                        BufferedImage rawWalk = javax.imageio.ImageIO.read(is);
-                        is.close();
+                    Sprite rawWalk = util.ResourceCache.loadImageIfPresent(spritePath + ".png");
+                    if (rawWalk != null) {
                         int cellH = rawWalk.getHeight() / 4;
                         int cellW = Math.max(1, Math.round(cellH * spriteAspect));
-                        BufferedImage[][] matrix = loadSpriteMatrix(spritePath, cellW, cellH);
+                        Sprite[][] matrix = loadSpriteMatrix(spritePath, cellW, cellH);
                         int ts = gp.tileSize;
                         // Scale each frame to tileSize x tileSize and map directions (0=DOWN,1=LEFT,2=RIGHT,3=UP)
                         int[] dirMap = {DIR_DOWN, DIR_LEFT, DIR_RIGHT, DIR_UP};
                         for (int r = 0; r < Math.min(matrix.length, dirMap.length); r++) {
-                            walkFrames[dirMap[r]] = new BufferedImage[matrix[r].length];
+                            walkFrames[dirMap[r]] = new Sprite[matrix[r].length];
                             for (int c = 0; c < matrix[r].length; c++) {
                                 walkFrames[dirMap[r]][c] = util.UtilityTool.scaleImage(matrix[r][c], ts, ts);
                             }
@@ -126,7 +131,7 @@ public class NPC_Generic extends Entity {
                     }
                 } else {
                     int[] framesPerRow = {6, 6, 6, 6};
-                    BufferedImage[][] frames = loadSheetVariable(spritePath, framesPerRow);
+                    Sprite[][] frames = loadSheetVariable(spritePath, framesPerRow);
                     walkFrames[DIR_DOWN]  = frames[0];
                     walkFrames[DIR_UP]    = frames[3];
                     walkFrames[DIR_LEFT]  = frames[1];
@@ -139,7 +144,7 @@ public class NPC_Generic extends Entity {
         // Foaie sprite inactiv — ordinea randurilor: jos / stanga / dreapta / sus
         if (idleSpritePath != null) {
             try {
-                BufferedImage raw = util.ResourceCache.loadImageIfPresent(idleSpritePath + ".png");
+                Sprite raw = util.ResourceCache.loadImageIfPresent(idleSpritePath + ".png");
                 if (raw != null) {
                     int rows = idleRows;
                     int cellH = raw.getHeight() / rows; // inaltimea celulei
@@ -194,7 +199,7 @@ public class NPC_Generic extends Entity {
                         System.out.println("[NPC_GENERIC DEBUG] Loading idle sprite: " + idleSpritePath +
                                 " rawWxH=" + raw.getWidth() + "x" + raw.getHeight() + " cellWxH=" + cellW + "x" + cellH + " maxCols=" + maxCols + " rows=" + rows);
                     }
-                    idleFrames = new BufferedImage[4][];
+                    idleFrames = new Sprite[4][];
                     for (int r = 0; r < rows; r++) {
                         int cropMinX = rowMinX[r];
                         int cropMaxX = rowMaxX[r];
@@ -211,11 +216,8 @@ public class NPC_Generic extends Entity {
                         if (cropW <= 0) cropW = cellW;
                         if (cropH2 <= 0) cropH2 = cellH;
 
-                        BufferedImage[] rowFrames = new BufferedImage[actualFrames[r]];
+                        Sprite[] rowFrames = new Sprite[actualFrames[r]];
                         for (int f = 0; f < actualFrames[r]; f++) {
-                            BufferedImage crop = raw.getSubimage(
-                                f * cellW + cropMinX, r * cellH + cropMinY, cropW, cropH2);
-
                             // Scalare pe inaltime: prefera umplerea inaltimii tile-ului
                             // pentru ca personajele sa foloseasca tot spatiul vertical.
                             float scale = (float) ts / (float) cropH2;
@@ -224,16 +226,9 @@ public class NPC_Generic extends Entity {
                             if (debugFruit) {
                                 System.out.println("[NPC_GENERIC DEBUG] frame=" + f + " scale=" + scale + " dw=" + dw + " dh=" + dh);
                             }
-                            int ox = (ts - dw) / 2;
-                            int oy = ts - dh; // bottom-align
-
-                            BufferedImage frame = new BufferedImage(ts, ts, BufferedImage.TYPE_INT_ARGB);
-                            java.awt.Graphics2D sg = frame.createGraphics();
-                            sg.setRenderingHint(java.awt.RenderingHints.KEY_INTERPOLATION,
-                                                java.awt.RenderingHints.VALUE_INTERPOLATION_NEAREST_NEIGHBOR);
-                            sg.drawImage(crop, ox, oy, dw, dh, null);
-                            sg.dispose();
-                            rowFrames[f] = frame;
+                            // GPU-native crop+scale+bottom-align into a tile-sized transparent cell.
+                            rowFrames[f] = raw.croppedBottomAligned(
+                                f * cellW + cropMinX, r * cellH + cropMinY, cropW, cropH2, dw, dh, ts, ts);
                         }
 
                         if (r < dirMap.length) {
@@ -253,11 +248,14 @@ public class NPC_Generic extends Entity {
                 System.out.println("NPC_Generic: Failed to load idle sprite '" + idleSpritePath + "': " + e.getMessage());
             }
         }
+        } finally {
+            Sprite.endPixelBatch();
+        }
         imageLoaded = true;
     }
 
     /** Returneaza true daca orice pixel din dreptunghiul dat are alpha > 0. */
-    private boolean hasVisiblePixel(BufferedImage img, int x, int y, int w, int h) {
+    private boolean hasVisiblePixel(Sprite img, int x, int y, int w, int h) {
         int x2 = Math.min(x + w, img.getWidth());
         int y2 = Math.min(y + h, img.getHeight());
         for (int py = y; py < y2; py++) {

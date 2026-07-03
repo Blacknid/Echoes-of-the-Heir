@@ -3,7 +3,7 @@
  <properties>
   <property name="actTitle" value="Act I: The Awakening Cave"/>
   <property name="actTitleNewGameOnly" type="bool" value="true"/>
-  <property name="ambientLight" type="float" value="0.7"/>
+  <property name="ambientLight" type="float" value="0.92"/>
   <property name="music" type="int" value="0"/>
   <property name="weather" value="CLEAR"/>
   <property name="weatherCycle" type="bool" value="false"/>
@@ -4581,6 +4581,8 @@
   <object id="83" name="Soldier" type="NPC_Generic" x="928" y="768">
    <properties>
     <property name="npcId" value="sword_giver_npc"/>
+    <property name="lightRadius" type="int" value="5"/>
+    <property name="lightColor" value="#ffcf8c"/>
    </properties>
    <point/>
   </object>

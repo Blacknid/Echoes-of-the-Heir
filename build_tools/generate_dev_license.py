@@ -74,6 +74,10 @@ def main() -> None:
                    help="Specific license key to embed (default: random).")
     p.add_argument("--priv", type=Path, default=DEFAULT_PRIV,
                    help="Path to PKCS#8 base64 RSA private key.")
+    p.add_argument("--machine-fp", default=None,
+                   help="Fixed 16-hex-char fingerprint to embed instead of deriving one from "
+                        "this machine's registry (e.g. for baking a license into an Android "
+                        "build, which has no Windows MachineGuid to read at runtime).")
     args = p.parse_args()
 
     if not args.priv.exists():
@@ -95,7 +99,7 @@ def main() -> None:
     priv     = serialization.load_der_private_key(priv_der, password=None)
 
     license_key = args.key or generate_key()
-    fp = machine_fingerprint()
+    fp = args.machine_fp or machine_fingerprint()
     msg = f"{license_key}|{fp}".encode("utf-8")
     sig = priv.sign(msg, rsa_padding.PKCS1v15(), hashes.SHA256())
     sig_b64 = base64.b64encode(sig).decode("ascii")

@@ -2,11 +2,10 @@ package main;
 
 import java.io.BufferedReader;
 import java.io.BufferedWriter;
-import java.io.File;
-import java.io.FileReader;
-import java.io.FileWriter;
 import java.io.IOException;
 import java.util.ArrayList;
+
+import platform.GameStorage;
 
 /**
  * Manages a persistent list of saved multiplayer servers.
@@ -39,9 +38,8 @@ public class ServerListManager {
 
     private void load() {
         servers.clear();
-        File f = new File(FILE_PATH);
-        if (!f.exists()) return;
-        try (BufferedReader br = new BufferedReader(new FileReader(f))) {
+        if (!GameStorage.exists(FILE_PATH)) return;
+        try (BufferedReader br = GameStorage.bufferedReader(FILE_PATH)) {
             String line;
             while ((line = br.readLine()) != null) {
                 line = line.trim();
@@ -57,7 +55,7 @@ public class ServerListManager {
     }
 
     private void save() {
-        try (BufferedWriter bw = new BufferedWriter(new FileWriter(FILE_PATH))) {
+        try (BufferedWriter bw = GameStorage.bufferedWriter(FILE_PATH)) {
             for (String[] s : servers) {
                 bw.write(s[0] + "|" + s[1] + "|" + s[2]);
                 bw.newLine();

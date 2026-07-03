@@ -1,11 +1,9 @@
 package environment;
 
-import java.awt.AlphaComposite;
-import java.awt.Color;
-import java.awt.Composite;
-import java.awt.Graphics2D;
-import java.awt.RadialGradientPaint;
-import java.awt.image.BufferedImage;
+import gfx.Color;
+import gfx.GdxRenderer;
+import gfx.RadialGradient;
+import gfx.Sprite;
 import java.util.Random;
 
 import main.GamePanel;
@@ -28,23 +26,16 @@ public class MapShaderManager {
     private static final float SIN_TABLE_SCALE = SIN_TABLE_SIZE / (float)(2 * Math.PI);
     private static final float[] SIN_TABLE = new float[SIN_TABLE_SIZE];
 
-    // OPTIMIZATION: AlphaComposite cache — avoids per-frame allocation in weather effects
-    private static final int ALPHA_CACHE_SIZE = 101;
-    private static final AlphaComposite[] alphaCache = new AlphaComposite[ALPHA_CACHE_SIZE];
     static {
         for (int i = 0; i < SIN_TABLE_SIZE; i++) {
             SIN_TABLE[i] = (float) Math.sin(2 * Math.PI * i / SIN_TABLE_SIZE);
         }
-        for (int i = 0; i < ALPHA_CACHE_SIZE; i++) {
-            alphaCache[i] = AlphaComposite.getInstance(AlphaComposite.SRC_OVER, i / 100f);
-        }
     }
-    private static AlphaComposite cachedAlpha(float a) {
-        int idx = Math.round(a * 100f);
-        if (idx < 0) idx = 0; else if (idx >= ALPHA_CACHE_SIZE) idx = ALPHA_CACHE_SIZE - 1;
-        return alphaCache[idx];
+    // Alpha is a plain float on the GPU facade; clamp helper keeps call sites tidy.
+    private static float clampAlpha(float a) {
+        return a < 0f ? 0f : (a > 1f ? 1f : a);
     }
-    
+
     public static float fastSin(double angle) {
         int idx = (int)(angle * SIN_TABLE_SCALE) % SIN_TABLE_SIZE;
         if (idx < 0) idx += SIN_TABLE_SIZE;
@@ -57,7 +48,7 @@ public class MapShaderManager {
         return SIN_TABLE[idx];
     }
 
-    private BufferedImage vignetteImage;
+    private Sprite vignetteImage;
     private float vignetteStrength = 0.45f;
 
     private Color warmOverlay;
@@ -193,45 +184,38 @@ public class MapShaderManager {
         }
     }
 
-    public void drawAmbientParticles(Graphics2D g2) {
-        /* 
-        Composite original = g2.getComposite();
-
+    public void drawAmbientParticles(GdxRenderer g2) {
+        /*
         for (int i = 0; i < PARTICLE_COUNT; i++) {
             if (pAlpha[i] <= 0.01f) continue;
 
             float alpha = Math.min(pAlpha[i], 1.0f);
-            g2.setComposite(AlphaComposite.getInstance(AlphaComposite.SRC_OVER, alpha));
+            g2.setAlpha(alpha);
             g2.setColor(Color.WHITE);
             int sz = (int) pSize[i];
             g2.fillOval((int) pX[i], (int) pY[i], sz, sz);
-            
+
 
             // Tiny glow halo around larger particles
             if (pSize[i] > 2.5f) {
-                g2.setComposite(AlphaComposite.getInstance(
-                    AlphaComposite.SRC_OVER, Math.min(alpha * 0.3f, 1.0f)));
+                g2.setAlpha(Math.min(alpha * 0.3f, 1.0f));
                 int glowSz = sz + 3;
                 g2.fillOval((int) pX[i] - 1, (int) pY[i] - 1, glowSz, glowSz);
             }
         }
-
-        g2.setComposite(original);*/
+        g2.setAlpha(1f);*/
     }
 
     private void createVignette() {
+        // GPU-native: bake the radial vignette gradient to a texture once (replaces
+        // RadialGradientPaint + per-frame BufferedImage), then draw it each frame.
         int w = gp.screenWidth;
         int h = gp.screenHeight;
-        vignetteImage = new BufferedImage(w, h, BufferedImage.TYPE_INT_ARGB);
-        Graphics2D vg = vignetteImage.createGraphics();
-        vg.setRenderingHint(java.awt.RenderingHints.KEY_INTERPOLATION,
-                java.awt.RenderingHints.VALUE_INTERPOLATION_NEAREST_NEIGHBOR);
-
         float cx = w / 2f;
         float cy = h / 2f;
         float radius = (float) Math.sqrt(cx * cx + cy * cy);
 
-        RadialGradientPaint paint = new RadialGradientPaint(
+        RadialGradient grad = new RadialGradient(
             cx, cy, radius,
             new float[]{0.0f, 0.5f, 0.85f, 1.0f},
             new Color[]{
@@ -241,19 +225,16 @@ public class MapShaderManager {
                 new Color(0, 0, 0, (int)(160 * vignetteStrength))
             }
         );
-
-        vg.setPaint(paint);
-        vg.fillRect(0, 0, w, h);
-        vg.dispose();
+        vignetteImage = GdxRenderer.bakeRadialGradient(grad, w, h);
     }
 
-    public void drawVignette(Graphics2D g2) {
+    public void drawVignette(GdxRenderer g2) {
         if (vignetteImage != null) {
-            g2.drawImage(vignetteImage, 0, 0, null);
+            g2.drawImage(vignetteImage, 0, 0, gp.screenWidth, gp.screenHeight);
         }
     }
 
-    public void drawColorGrading(Graphics2D g2) {
+    public void drawColorGrading(GdxRenderer g2) {
         if (sepiaMode) {
             // Desaturated sepia overlay for memory flashback sequences
             g2.setColor(SEPIA_TINT);
@@ -414,18 +395,16 @@ public class MapShaderManager {
         }
     }
 
-    public void drawWeather(Graphics2D g2) {
+    public void drawWeather(GdxRenderer g2) {
         if (gp.eManager == null) return;
         int ws = gp.eManager.weatherState;
         float intensity = gp.eManager.weatherIntensity;
         if (intensity <= 0.001f && stormFlashTimer <= 0) return;
 
-        Composite original = g2.getComposite();
-
         // Storm lightning flash (bright white overlay)
         if (ws == EnvironmentManager.WEATHER_STORM && stormFlashTimer > 0) {
             float flashA = Math.min(1f, stormFlashTimer / 4f * 0.15f * intensity);
-            g2.setComposite(cachedAlpha(flashA));
+            g2.setAlpha(clampAlpha(flashA));
             g2.setColor(Color.WHITE);
             g2.fillRect(0, 0, gp.screenWidth, gp.screenHeight);
         }
@@ -439,7 +418,7 @@ public class MapShaderManager {
             float camWY = (gp.player != null) ? gp.player.worldY - gp.player.getCamScreenY() : 0f;
 
             // Draw tails (dimmer, slightly transparent)
-            g2.setComposite(cachedAlpha(Math.min(1f, 0.28f * intensity)));
+            g2.setAlpha(clampAlpha(Math.min(1f, 0.28f * intensity)));
             g2.setColor(RAIN_DROP_TAIL_COLOR);
             for (int i = 0; i < active; i++) {
                 int hx = (int)(rainX[i] - camWX);
@@ -451,7 +430,7 @@ public class MapShaderManager {
             }
 
             // Draw bright heads (small oval at leading tip)
-            g2.setComposite(cachedAlpha(Math.min(1f, 0.55f * intensity)));
+            g2.setAlpha(clampAlpha(Math.min(1f, 0.55f * intensity)));
             g2.setColor(RAIN_DROP_COLOR);
             for (int i = 0; i < active; i++) {
                 int hx = (int)(rainX[i] - camWX);
@@ -467,13 +446,13 @@ public class MapShaderManager {
                 int sy = (int)(splashY[i] - camWY);
                 int r  = (int) splashRadius[i];
                 if (r < 1) continue;
-                g2.setComposite(cachedAlpha(Math.min(1f, splashAlpha[i] * intensity)));
+                g2.setAlpha(clampAlpha(Math.min(1f, splashAlpha[i] * intensity)));
                 g2.drawOval(sx - r, sy - r / 3, r * 2, Math.max(1, r * 2 / 3));
             }
 
             // Overlay tint
             Color tint = (ws == EnvironmentManager.WEATHER_STORM) ? STORM_TINT : RAIN_TINT;
-            g2.setComposite(cachedAlpha(Math.min(1f, intensity)));
+            g2.setAlpha(clampAlpha(Math.min(1f, intensity)));
             g2.setColor(tint);
             g2.fillRect(0, 0, gp.screenWidth, gp.screenHeight);
         }
@@ -484,7 +463,7 @@ public class MapShaderManager {
             else if (gp.currentFPS > 0 && gp.currentFPS < 45) active = active / 2;
             // Set composite + color ONCE before the loop — was 120 setComposite calls, now 1
             float snowA = Math.min(1f, 0.5f * intensity);
-            g2.setComposite(cachedAlpha(snowA));
+            g2.setAlpha(clampAlpha(snowA));
             g2.setColor(SNOW_FLAKE_COLOR);
             // Convert world coords to screen coords for drawing
             float camWXs = (gp.player != null) ? gp.player.worldX - gp.player.getCamScreenX() : 0f;
@@ -495,11 +474,11 @@ public class MapShaderManager {
             }
 
             // Overlay tint
-            g2.setComposite(cachedAlpha(Math.min(1f, intensity)));
+            g2.setAlpha(clampAlpha(Math.min(1f, intensity)));
             g2.setColor(SNOW_TINT);
             g2.fillRect(0, 0, gp.screenWidth, gp.screenHeight);
         }
 
-        g2.setComposite(original);
+        g2.setAlpha(1f);
     }
 }

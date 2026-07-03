@@ -1,20 +1,13 @@
 package ui;
 
-import java.awt.AlphaComposite;
-import java.awt.BasicStroke;
-import java.awt.Color;
-import java.awt.Composite;
-import java.awt.Font;
-import java.awt.FontMetrics;
-import java.awt.Graphics2D;
-import java.awt.GraphicsConfiguration;
-import java.awt.GraphicsEnvironment;
-import java.awt.Rectangle;
-import java.awt.Shape;
-import java.awt.Stroke;
-import java.awt.Transparency;
-import java.awt.geom.AffineTransform;
-import java.awt.image.BufferedImage;
+import gfx.Color;
+import gfx.Font;
+import gfx.FontMetrics;
+import gfx.GdxRenderer;
+import gfx.Sprite;
+import gfx.Stroke;
+import gfx.geom.Rect;
+import gfx.geom.Shape;
 import java.util.ArrayList;
 import java.util.Comparator;
 
@@ -28,12 +21,13 @@ import main.GamePanel;
 public class RenderPipeline {
 
     private final GamePanel gp;
-    private BufferedImage worldFrame;
-    private Graphics2D worldGraphics;
+    // NOTE: the legacy Sprite worldFrame cache (reused for paused/menu states) is dropped
+    // for the GPU port — drawWorldLayers re-renders each frame. A FrameBuffer-backed cache can be
+    // re-added in the optimization pass if paused-state CPU cost ever matters (it won't on the GPU).
     private boolean worldCacheValid = false;
 
-    private BufferedImage agroIndicator;
-    private BufferedImage agroEnemyIndicator;
+    private Sprite agroIndicator;
+    private Sprite agroEnemyIndicator;
 
     ArrayList<Entity> entityList = new ArrayList<>(150);
     int entityListIndex = 0;
@@ -57,56 +51,17 @@ public class RenderPipeline {
 
     public RenderPipeline(GamePanel gp) {
         this.gp = gp;
-        ensureWorldFrame();
         agroIndicator = util.ResourceCache.loadScaledImageIfPresent(
             "/res/effects/aggro_indicator.png", gp.tileSize / 2, gp.tileSize / 2);
         agroEnemyIndicator = util.ResourceCache.loadScaledImageIfPresent(
             "/res/effects/aggro_enemy.png", gp.tileSize, gp.tileSize);
     }
 
-    private void ensureWorldFrame() {
-        if (worldFrame != null) {
-            return;
-        }
-        try {
-            GraphicsConfiguration gc = GraphicsEnvironment
-                .getLocalGraphicsEnvironment().getDefaultScreenDevice().getDefaultConfiguration();
-            worldFrame = gc.createCompatibleImage(gp.screenWidth, gp.screenHeight, Transparency.OPAQUE);
-        } catch (Exception e) {
-            worldFrame = new BufferedImage(gp.screenWidth, gp.screenHeight, BufferedImage.TYPE_INT_RGB);
-        }
-        worldGraphics = worldFrame.createGraphics();
-    }
-
     public void invalidateWorldCache() {
         worldCacheValid = false;
     }
 
-    private boolean shouldReuseWorldCache() {
-        return switch (gp.gameState) {
-            case GamePanel.pauseState,
-                 GamePanel.dialogueState,
-                 GamePanel.characterState,
-                 GamePanel.optionsState,
-                 GamePanel.gameOverState,
-                 GamePanel.skillTreeState,
-                 GamePanel.journalState -> true;
-            default -> false;
-        };
-    }
-
-    private void refreshWorldCache() {
-        ensureWorldFrame();
-        worldGraphics.setTransform(new AffineTransform());
-        worldGraphics.setComposite(AlphaComposite.SrcOver);
-        worldGraphics.setClip(null);
-        worldGraphics.setBackground(gp.mapManager != null ? gp.mapManager.mapBackgroundColor : Color.BLACK);
-        worldGraphics.clearRect(0, 0, gp.screenWidth, gp.screenHeight);
-        drawWorldLayers(worldGraphics);
-        worldCacheValid = true;
-    }
-
-    public void drawCurrentState(Graphics2D g2) {
+    public void drawCurrentState(GdxRenderer g2) {
         switch (gp.gameState) {
             case GamePanel.titleState:
                 invalidateWorldCache();
@@ -117,19 +72,14 @@ public class RenderPipeline {
                 gp.ui.draw(g2);
                 break;
             default:
-                if (!shouldReuseWorldCache() || !worldCacheValid) {
-                    refreshWorldCache();
-                }
-                g2.drawImage(worldFrame, 0, 0, null);
+                // GPU port: re-render the world directly each frame (no Sprite cache).
+                drawWorldLayers(g2);
                 drawWorldOverlays(g2);
                 break;
         }
     }
 
-    private void drawWorldLayers(Graphics2D g2) {
-        g2.setRenderingHint(java.awt.RenderingHints.KEY_ANTIALIASING, java.awt.RenderingHints.VALUE_ANTIALIAS_OFF);
-        g2.setRenderingHint(java.awt.RenderingHints.KEY_TEXT_ANTIALIASING, java.awt.RenderingHints.VALUE_TEXT_ANTIALIAS_OFF);
-
+    private void drawWorldLayers(GdxRenderer g2) {
         int shakeX = gp.screenShake.getOffsetX();
         int shakeY = gp.screenShake.getOffsetY();
         if (shakeX != 0 || shakeY != 0) {
@@ -156,7 +106,6 @@ public class RenderPipeline {
         int depthTileCount = gp.tileM.getDepthTileCount();
         int depthTileIdx = 0;
 
-        java.awt.Composite savedComp = g2.getComposite();
         for (int i = 0; i < entityListIndex; i++) {
             Entity e = entityList.get(i);
             int entityY = e.worldY + gp.tileSize + e.depthSortYOffset;
@@ -169,7 +118,7 @@ public class RenderPipeline {
                 if (nextY > entityY) break;
 
                 if (nextDepthTileY <= nextParticleY) {
-                    g2.setComposite(savedComp);
+                    g2.setAlpha(1f);
                     gp.tileM.drawDepthTile(g2, depthTileIdx);
                     depthTileIdx++;
                 } else {
@@ -178,7 +127,7 @@ public class RenderPipeline {
                 }
             }
 
-            g2.setComposite(savedComp);
+            g2.setAlpha(1f);
             e.draw(g2);
         }
 
@@ -187,7 +136,7 @@ public class RenderPipeline {
             float nextParticleY = tpIdx < tpCount ? gp.tileParticleEmitter.getSortY(tpIdx) : Float.MAX_VALUE;
 
             if (nextDepthTileY <= nextParticleY) {
-                g2.setComposite(savedComp);
+                g2.setAlpha(1f);
                 gp.tileM.drawDepthTile(g2, depthTileIdx);
                 depthTileIdx++;
             } else {
@@ -195,7 +144,7 @@ public class RenderPipeline {
                 tpIdx++;
             }
         }
-        g2.setComposite(savedComp);
+        g2.setAlpha(1f);
 
         if (gp.mpClient != null && gp.mpClient.isConnected()) {
             gp.drawRemotePlayers(g2);
@@ -221,6 +170,10 @@ public class RenderPipeline {
             drawHitboxDebug(g2);
         }
 
+        if (gp.windPainter != null && gp.windPainter.isActive()) {
+            gp.windPainter.draw(g2);
+        }
+
         if (shakeX != 0 || shakeY != 0) {
             g2.translate(-shakeX, -shakeY);
         }
@@ -239,7 +192,7 @@ public class RenderPipeline {
         }
     }
 
-    private void drawWorldOverlays(Graphics2D g2) {
+    private void drawWorldOverlays(GdxRenderer g2) {
         gp.ui.draw(g2);
 
         if (gp.questManager != null && gp.gameState == GamePanel.playState) {
@@ -255,9 +208,61 @@ public class RenderPipeline {
         }
     }
 
+    /**
+     * Debug-only attack cone visualization, styled after Moonshire (Challacade)'s telegraph: a fan
+     * of small rotated rectangular ticks (not continuous lines) radiating out from a gap around the
+     * apex, plus a bright glow at the apex. Never drawn outside debug mode (gp.HitBoxes).
+     */
+    private static final int CONE_DEBUG_RAY_COUNT = 16;
+    private static final float CONE_DEBUG_TICK_LEN = 0.62f;    // fraction of radius the tick spans
+    private static final float CONE_DEBUG_TICK_INNER = 0.30f;  // fraction of radius before the tick starts (gap at apex)
+    private static final float CONE_DEBUG_TICK_WIDTH = 3.5f;   // px, across the ray
+
+    private void drawAttackConeDebug(GdxRenderer g2, gfx.geom.Cone cone) {
+        double apexX = cone.apexX, apexY = cone.apexY;
+        double radius = cone.radius;
+
+        // Radiating tick marks (small rotated rectangles), evenly spaced across the sector.
+        g2.setColor(new Color(255, 255, 255, 210));
+        for (int i = 0; i <= CONE_DEBUG_RAY_COUNT; i++) {
+            double t = -cone.halfAngle + (2 * cone.halfAngle) * i / (double) CONE_DEBUG_RAY_COUNT;
+            double a = cone.centerAngle + t;
+            double cosA = Math.cos(a), sinA = Math.sin(a);
+            // Perpendicular unit vector (for the tick's width).
+            double px = -sinA, py = cosA;
+
+            double rInner = radius * CONE_DEBUG_TICK_INNER;
+            double rOuter = radius * (CONE_DEBUG_TICK_INNER + CONE_DEBUG_TICK_LEN);
+            double halfW = CONE_DEBUG_TICK_WIDTH / 2.0;
+
+            double ix = apexX + cosA * rInner, iy = apexY + sinA * rInner;
+            double ox = apexX + cosA * rOuter, oy = apexY + sinA * rOuter;
+
+            int[] xs = {
+                (int) Math.round(ix - px * halfW), (int) Math.round(ix + px * halfW),
+                (int) Math.round(ox + px * halfW), (int) Math.round(ox - px * halfW)
+            };
+            int[] ys = {
+                (int) Math.round(iy - py * halfW), (int) Math.round(iy + py * halfW),
+                (int) Math.round(oy + py * halfW), (int) Math.round(oy - py * halfW)
+            };
+            g2.fill(new gfx.geom.IntPolygon(xs, ys, 4));
+        }
+
+        // Bright glow at the apex, like a small flash/spark — sits in the gap the ticks leave.
+        int glowR = 7;
+        g2.setAlpha(0.9f);
+        g2.setColor(Color.WHITE);
+        g2.fillOval((int) apexX - glowR, (int) apexY - glowR, glowR * 2, glowR * 2);
+        g2.setAlpha(1f);
+
+        g2.setColor(Color.WHITE);
+        g2.drawString("ATTACK", (int) apexX, (int) apexY - glowR - 6);
+    }
+
     /** Draw a filled+outlined octagon for entity e at its screen position. Uses hurtPolygon if set, else builds one from solidArea. */
-    private void drawEntityOctagon(Graphics2D g2, Entity e, int offX, int offY, Color fill, Color border, String label) {
-        java.awt.Polygon poly = e.hurtPolygon;
+    private void drawEntityOctagon(GdxRenderer g2, Entity e, int offX, int offY, Color fill, Color border, String label) {
+        gfx.geom.IntPolygon poly = e.hurtPolygon;
         if (poly != null) {
             poly.translate(e.worldX + offX, e.worldY + offY);
             g2.setColor(fill);
@@ -266,7 +271,7 @@ public class RenderPipeline {
             g2.draw(poly);
             poly.translate(-(e.worldX + offX), -(e.worldY + offY));
         } else {
-            Rectangle r = e.solidArea;
+            Rect r = e.solidArea;
             int cx = e.worldX + offX + r.x + r.width  / 2;
             int cy = e.worldY + offY + r.y + r.height / 2;
             int rx = r.width  / 2;
@@ -275,14 +280,14 @@ public class RenderPipeline {
             int cutY = (int)(ry * 0.5);
             int[] xs = { cx-rx+cutX, cx+rx-cutX, cx+rx,       cx+rx,       cx+rx-cutX, cx-rx+cutX, cx-rx,       cx-rx       };
             int[] ys = { cy-ry,      cy-ry,      cy-ry+cutY,  cy+ry-cutY,  cy+ry,      cy+ry,      cy+ry-cutY,  cy-ry+cutY  };
-            java.awt.Polygon tmp = new java.awt.Polygon(xs, ys, 8);
+            gfx.geom.IntPolygon tmp = new gfx.geom.IntPolygon(xs, ys, 8);
             g2.setColor(fill);
             g2.fill(tmp);
             g2.setColor(border);
             g2.draw(tmp);
         }
         if (label != null) {
-            Rectangle r = e.solidArea;
+            Rect r = e.solidArea;
             int lx = e.worldX + offX + r.x;
             int ly = e.worldY + offY + r.y;
             g2.setColor(fill);
@@ -290,11 +295,10 @@ public class RenderPipeline {
         }
     }
 
-    void drawHitboxDebug(Graphics2D g2) {
+    void drawHitboxDebug(GdxRenderer g2) {
         g2.setFont(DBG_FONT);
         Stroke    oldStroke = g2.getStroke();
-        Composite oldComp   = g2.getComposite();
-        g2.setStroke(new BasicStroke(1.5f));
+        g2.setStroke(new Stroke(1.5f));
 
         int pwx = gp.player.worldX;
         int pwy = gp.player.worldY;
@@ -304,8 +308,20 @@ public class RenderPipeline {
         // Player
         {
             drawEntityOctagon(g2, gp.player, -pwx + psx, -pwy + psy, DBG_PLAYER, DBG_PLAYER.darker(), "PLAYER");
+            // Pink solid rectangle (actual AABB used for tile/wall collision)
+            {
+                Rect r = gp.player.solidArea;
+                int rx = psx + r.x;
+                int ry = psy + r.y;
+                g2.setAlpha(0.25f);
+                g2.setColor(new Color(255, 105, 180));
+                g2.fillRect(rx, ry, r.width, r.height);
+                g2.setAlpha(1f);
+                g2.setColor(new Color(255, 20, 147));
+                g2.drawRect(rx, ry, r.width, r.height);
+            }
             if (gp.player.knockBack) {
-                Rectangle r = gp.player.solidArea;
+                Rect r = gp.player.solidArea;
                 int px = psx + r.x;
                 int py = psy + r.y;
                 g2.setColor(DBG_KNOCK);
@@ -315,31 +331,20 @@ public class RenderPipeline {
                 int cy = py + r.height / 2;
                 int vx = gp.player.knockBackVectorX * 24;
                 int vy = gp.player.knockBackVectorY * 24;
-                g2.setStroke(new BasicStroke(2f));
+                g2.setStroke(new Stroke(2f));
                 g2.drawLine(cx, cy, cx + vx, cy + vy);
                 g2.fillOval(cx + vx - 3, cy + vy - 3, 6, 6);
-                g2.setStroke(new BasicStroke(1.5f));
+                g2.setStroke(new Stroke(1.5f));
             }
         }
 
-        if (gp.player.attacking) {
-            g2.setColor(DBG_ATTACK);
-            int ts = gp.tileSize;
-            int quarter = ts / 4;
-            int eighth  = ts / 8;
-            int attackWorldX = pwx, attackWorldY = pwy;
-            int aw = 0, ah = 0;
-            switch (gp.player.direction) {
-                case Entity.DIR_UP:    aw = ts - quarter; ah = ts + quarter; attackWorldX += eighth;    attackWorldY -= ts + quarter; break;
-                case Entity.DIR_DOWN:  aw = ts - quarter; ah = ts + quarter; attackWorldX += eighth;    attackWorldY += ts;            break;
-                case Entity.DIR_LEFT:  aw = ts + quarter; ah = ts - quarter; attackWorldX -= ts + quarter; attackWorldY += eighth;    break;
-                case Entity.DIR_RIGHT: aw = ts + quarter; ah = ts - quarter; attackWorldX += ts;        attackWorldY += eighth;        break;
-            }
-            int asx = attackWorldX - pwx + psx;
-            int asy = attackWorldY - pwy + psy;
-            g2.fillRect(asx, asy, aw, ah);
-            g2.setColor(Color.WHITE);
-            g2.drawString("ATTACK", asx, asy - 3);
+        if (gp.player.attacking && gp.player.attackCone != null) {
+            // attackCone is stored in world space (apex = player world center); translate into
+            // screen space like the tile-collision-shapes debug loop below does.
+            float oldTX = g2.getTranslateX(); float oldTY = g2.getTranslateY();
+            g2.translate(-pwx + psx, -pwy + psy);
+            drawAttackConeDebug(g2, gp.player.attackCone);
+            g2.setTranslate(oldTX, oldTY);
         }
 
         // NPCs
@@ -352,14 +357,13 @@ public class RenderPipeline {
                 int rad = n.interactRange;
                 Color rangeColor = new Color(255, 220, 60, 60);
                 Color rangeBorder = new Color(255, 220, 60, 200);
-                Composite prevComp = g2.getComposite();
-                g2.setComposite(AlphaComposite.SrcOver);
+                g2.setAlpha(1f);
                 g2.setColor(rangeColor);
                 g2.fillOval(ncx - rad, ncy - rad, rad * 2, rad * 2);
                 g2.setColor(rangeBorder);
-                g2.setStroke(new BasicStroke(1.5f));
+                g2.setStroke(new Stroke(1.5f));
                 g2.drawOval(ncx - rad, ncy - rad, rad * 2, rad * 2);
-                g2.setComposite(prevComp);
+                g2.setAlpha(1f);
                 g2.setColor(new Color(255, 220, 60));
                 g2.setFont(DBG_FONT);
                 g2.drawString("range:" + rad, ncx - 18, ncy + rad + 12);
@@ -371,7 +375,7 @@ public class RenderPipeline {
             if (m == null) continue;
             drawEntityOctagon(g2, m, -pwx + psx, -pwy + psy, DBG_MONSTER, DBG_MONSTER.darker(), m.name != null ? m.name : "MON");
             if (m.knockBack) {
-                Rectangle r = m.solidArea;
+                Rect r = m.solidArea;
                 int mx = m.worldX - pwx + psx + r.x;
                 int my = m.worldY - pwy + psy + r.y;
                 g2.setColor(DBG_KNOCK);
@@ -381,10 +385,10 @@ public class RenderPipeline {
                 int cy = my + r.height / 2;
                 int vx = m.knockBackVectorX * 24;
                 int vy = m.knockBackVectorY * 24;
-                g2.setStroke(new BasicStroke(2f));
+                g2.setStroke(new Stroke(2f));
                 g2.drawLine(cx, cy, cx + vx, cy + vy);
                 g2.fillOval(cx + vx - 3, cy + vy - 3, 6, 6);
-                g2.setStroke(new BasicStroke(1.5f));
+                g2.setStroke(new Stroke(1.5f));
             }
         }
 
@@ -409,7 +413,7 @@ public class RenderPipeline {
 
         if (gp.tileM.collisionShapes != null && !gp.tileM.collisionShapes.isEmpty()) {
             g2.setColor(DBG_COLLIDE);
-            AffineTransform oldTransform = g2.getTransform();
+            float oldTX = g2.getTranslateX(); float oldTY = g2.getTranslateY();
             g2.translate(-pwx + psx, -pwy + psy);
             for (Shape shape : gp.tileM.collisionShapes) {
                 g2.fill(shape);
@@ -417,7 +421,7 @@ public class RenderPipeline {
                 g2.draw(shape);
                 g2.setColor(DBG_COLLIDE);
             }
-            g2.setTransform(oldTransform);
+            g2.setTranslate(oldTX, oldTY);
         }
 
         if (gp.eHandler != null) {
@@ -425,12 +429,12 @@ public class RenderPipeline {
         }
 
         g2.setStroke(oldStroke);
-        g2.setComposite(oldComp);
+        g2.setAlpha(1f);
         drawHitboxLegend(g2);
     }
 
     /** Draws a semi-transparent legend box in the top-left corner. */
-    private void drawHitboxLegend(Graphics2D g2) {
+    private void drawHitboxLegend(GdxRenderer g2) {
         String[] labels = {
             "PLAYER", "ATTACK", "NPC",   "MONSTER",
             "OBJECT", "iTILE",  "PROJ",  "COLLIDE",
@@ -480,7 +484,7 @@ public class RenderPipeline {
     }
 
     /** Draws a small centred label above a hitbox rectangle. */
-    private void dbgLabel(Graphics2D g2, String text, int rx, int ry, int rw) {
+    private void dbgLabel(GdxRenderer g2, String text, int rx, int ry, int rw) {
         FontMetrics fm = g2.getFontMetrics(DBG_FONT);
         int tw = fm.stringWidth(text);
         int tx = rx + (rw - tw) / 2;
@@ -544,7 +548,7 @@ public class RenderPipeline {
 
     private static final int ALERT_DURATION = 60;
 
-    private void drawEnemyAlertIndicators(Graphics2D g2) {
+    private void drawEnemyAlertIndicators(GdxRenderer g2) {
         if (agroEnemyIndicator == null || gp.gameState != GamePanel.playState) return;
         int pwx = gp.player.worldX, pwy = gp.player.worldY;
         int psx = gp.player.screenX, psy = gp.player.screenY;
@@ -565,14 +569,13 @@ public class RenderPipeline {
             int sy = m.worldY - pwy + psy;
             int drawX = sx + (gp.tileSize - drawW) / 2;
             int drawY = sy - drawH - 6;
-            java.awt.Composite prev = g2.getComposite();
-            g2.setComposite(AlphaComposite.getInstance(AlphaComposite.SRC_OVER, alpha));
-            g2.drawImage(agroEnemyIndicator, drawX, drawY, drawW, drawH, null);
-            g2.setComposite(prev);
+            g2.setAlpha(alpha);
+            g2.drawImage(agroEnemyIndicator, drawX, drawY, drawW, drawH);
+            g2.setAlpha(1f);
         }
     }
 
-    private void drawNPCInteractIndicators(Graphics2D g2) {
+    private void drawNPCInteractIndicators(GdxRenderer g2) {
         if (agroIndicator == null || gp.gameState != GamePanel.playState) return;
         int pwx = gp.player.worldX;
         int pwy = gp.player.worldY;
@@ -593,7 +596,7 @@ public class RenderPipeline {
             // centre the indicator horizontally above the NPC sprite, bobbing slightly
             int drawX = sx + (gp.tileSize - iw) / 2;
             int drawY = sy - ih - 4 + (int)(Math.sin(System.currentTimeMillis() / 300.0) * 3);
-            g2.drawImage(agroIndicator, drawX, drawY, null);
+            g2.drawImage(agroIndicator, drawX, drawY);
         }
     }
 }

@@ -1,6 +1,6 @@
 package tile;
 
-import java.awt.Color;
+import gfx.Color;
 import main.GamePanel;
 
 public class IT_Coins extends interactiveTile {

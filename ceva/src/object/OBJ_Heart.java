@@ -33,7 +33,7 @@ public class OBJ_Heart extends Entity {
         if (entity.life < entity.maxLife) {
             entity.life += 2;
             if (entity.life > entity.maxLife) entity.life = entity.maxLife;
-            gp.ui.addMessage("+2 HP!", new java.awt.Color(80, 220, 80));
+            gp.ui.addMessage("+2 HP!", new gfx.Color(80, 220, 80));
             gp.playSE(SFX.EQUIP);
             return true;
         }

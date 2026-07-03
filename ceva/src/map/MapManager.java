@@ -47,7 +47,7 @@ public class MapManager {
     public int defaultSpawnRow = -1;
     /** True once a SpawnPoint with newGame=true has been registered for the current map load. */
     public boolean hasNewGameSpawn = false;
-    public java.awt.Color mapBackgroundColor = java.awt.Color.BLACK;
+    public gfx.Color mapBackgroundColor = gfx.Color.BLACK;
     /** Named spawn point to resolve after map loads. */
     public String nextSpawnId = "";
     /** Message to display once after the player spawns on this map (from dialogueTrigger TMX property). */
@@ -207,6 +207,7 @@ public class MapManager {
             }
         }
 
+        try {
         gp.tileM.mapLayers.clear();
         gp.tileM.loadMapFromTMX(path);
         gp.tileM.loadCollisionLayer(path);
@@ -235,6 +236,9 @@ public class MapManager {
         }
 
         gp.eHandler.reset();
+
+        // Load this map's painted wind field (or code gradient fallback).
+        gp.windField.loadForMap(currentMapId, gp.tileM.currentMapCols, gp.tileM.currentMapRows);
 
         if (savedObjects.containsKey(currentMapId)) {
             restoreMapEntities(currentMapId);
@@ -285,7 +289,7 @@ public class MapManager {
         // Skip during save-game loading so stale map messages don't pop up.
         if (!pendingDialogueTrigger.isEmpty()) {
             if (!loadingGame) {
-                gp.ui.addMessage(pendingDialogueTrigger, new java.awt.Color(255, 240, 180), pendingDialogueTriggerDuration);
+                gp.ui.addMessage(pendingDialogueTrigger, new gfx.Color(255, 240, 180), pendingDialogueTriggerDuration);
             }
             pendingDialogueTrigger = "";
         }
@@ -311,6 +315,29 @@ public class MapManager {
         // Notify quest manager so "go" steps complete on map arrival
         if (gp.questManager != null) {
             gp.questManager.notifyMapEntered(currentMapId);
+        }
+        } catch (Throwable t) {
+            // A failure here (bad TMX, missing asset, etc.) used to propagate up through the
+            // render loop and kill the whole app mid-transition (black screen, music cut).
+            // Log the full trace so the real cause is visible, and keep the app alive.
+            System.out.println("[MapManager] changeMap FAILED for '" + mapIdOrPath + "' (path=" + path + "):");
+            t.printStackTrace(System.out);
+            try {
+                // GameStorage.outputStream always truncates (no append mode across both
+                // backends) — read-modify-write to preserve prior crash entries in the file.
+                byte[] prior = new byte[0];
+                if (platform.GameStorage.exists("crash_log.txt")) {
+                    try (java.io.InputStream is = platform.GameStorage.inputStream("crash_log.txt")) {
+                        prior = is.readAllBytes();
+                    }
+                }
+                try (java.io.OutputStream os = platform.GameStorage.outputStream("crash_log.txt");
+                     java.io.PrintWriter pw = new java.io.PrintWriter(os)) {
+                    os.write(prior);
+                    pw.println("=== changeMap FAILED for '" + mapIdOrPath + "' (path=" + path + ") ===");
+                    t.printStackTrace(pw);
+                }
+            } catch (Exception ignored) {}
         }
     }
 

@@ -1,11 +1,12 @@
 package map;
 
-import java.awt.AlphaComposite;
-import java.awt.BasicStroke;
-import java.awt.Color;
-import java.awt.Font;
-import java.awt.Graphics2D;
-import java.awt.Stroke;
+import gfx.Color;
+import gfx.Font;
+import gfx.GdxRenderer;
+import gfx.Stroke;
+import gfx.geom.IntPolygon;
+import gfx.geom.Rect;
+import gfx.geom.Shape;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
@@ -56,7 +57,7 @@ public class EventHandler {
     final List<PixelEvent<ThoughtData>>      thoughtTriggers   = new ArrayList<>();
     final List<PixelEvent<FragmentTriggerData>> fragmentTriggers  = new ArrayList<>();
 
-    final List<java.awt.Shape> waterZones = new ArrayList<>();
+    final List<Shape> waterZones = new ArrayList<>();
 
     final List<SpawnZoneData> spawnZones = new ArrayList<>();
     private final Random spawnRnd = new Random();
@@ -129,7 +130,7 @@ public class EventHandler {
 
     static class SpawnZoneData {
         int worldX, worldY, areaW, areaH;
-        java.awt.Polygon poly;  // null = rectangle, non-null = exact polygon shape for spawning
+        IntPolygon poly;  // null = rectangle, non-null = exact polygon shape for spawning
         String monsterType;
         int maxAmount, intervalFrames, spawnTimer;
         boolean confined;       // if true, spawned monsters cannot leave this zone
@@ -141,7 +142,7 @@ public class EventHandler {
         boolean lootGiven;      // true once the loot has been awarded
         /** Indices into gp.monster[] that this zone has spawned and not yet replaced. */
         final List<Integer> trackedSlots = new ArrayList<>();
-        SpawnZoneData(int wx, int wy, int aw, int ah, java.awt.Polygon poly,
+        SpawnZoneData(int wx, int wy, int aw, int ah, IntPolygon poly,
                       String mt, int max, int interval,
                       boolean confined, int activationRange, int totalLimit,
                       String lootItem, String lootFragment) {
@@ -168,10 +169,10 @@ public class EventHandler {
 
     /** Wrapper that pairs an event payload with its exact world-space hitbox. */
     static class PixelEvent<T> {
-        final java.awt.Rectangle hitbox;
+        final Rect hitbox;
         final T data;
         PixelEvent(int wx, int wy, int w, int h, T data) {
-            hitbox = new java.awt.Rectangle(wx, wy, Math.max(1, w), Math.max(1, h));
+            hitbox = new Rect(wx, wy, Math.max(1, w), Math.max(1, h));
             this.data = data;
         }
     }
@@ -205,18 +206,18 @@ public class EventHandler {
     }
 
     public void registerWaterZone(int wx, int wy, int w, int h) {
-        waterZones.add(new java.awt.Rectangle(wx, wy, Math.max(1, w), Math.max(1, h)));
+        waterZones.add(new Rect(wx, wy, Math.max(1, w), Math.max(1, h)));
     }
 
-    public void registerWaterZone(java.awt.Shape shape) {
+    public void registerWaterZone(Shape shape) {
         waterZones.add(shape);
     }
 
     public boolean isInWaterZone(int x, int y, int w, int h) {
-        java.awt.geom.Rectangle2D playerRect = new java.awt.geom.Rectangle2D.Float(
-            x, y, Math.max(1, w), Math.max(1, h));
-        for (java.awt.Shape zone : waterZones) {
-            if (zone.intersects(playerRect)) return true;
+        int pw = Math.max(1, w);
+        int ph = Math.max(1, h);
+        for (Shape zone : waterZones) {
+            if (zone.intersects(x, y, pw, ph)) return true;
         }
         return false;
     }
@@ -317,7 +318,7 @@ public class EventHandler {
     }
 
     public void registerSpawnZone(int worldX, int worldY, int areaW, int areaH,
-                                   java.awt.Polygon poly,
+                                   IntPolygon poly,
                                    String monsterType, int maxAmount, int intervalFrames,
                                    boolean confined, int activationRange,
                                    int totalLimit, String lootItem, String lootFragment) {
@@ -350,10 +351,10 @@ public class EventHandler {
                     entity.Entity item = gp.mapObjectLoader.createEntityByName(zone.lootItem);
                     if (item != null && gp.player.canObtainItem(item)) {
                         gp.ui.addMessage("You obtained " + item.name + "!",
-                            new java.awt.Color(255, 230, 100));
+                            new Color(255, 230, 100));
                     } else if (item != null) {
                         gp.ui.addMessage("You found " + item.name + ", but your inventory is full!",
-                            new java.awt.Color(255, 100, 100));
+                            new Color(255, 100, 100));
                     }
                 }
                 if (!zone.lootFragment.isEmpty() && gp.memoryJournal != null) {
@@ -398,7 +399,7 @@ public class EventHandler {
             int ts   = gp.tileSize;
             int cols = Math.max(1, zone.areaW / ts);
             int rows = Math.max(1, zone.areaH / ts);
-            java.awt.Rectangle candidate = new java.awt.Rectangle();
+            Rect candidate = new Rect();
             int col = -1, row = -1;
             boolean found = false;
             for (int attempt = 0; attempt < 20; attempt++) {
@@ -424,9 +425,9 @@ public class EventHandler {
             entity.Entity m = gp.mapObjectLoader.createMonsterByName(zone.monsterType, col, row);
             if (m != null) {
                 if (zone.confined) {
-                    java.awt.Rectangle confRect = (zone.poly != null)
+                    Rect confRect = (zone.poly != null)
                         ? zone.poly.getBounds()
-                        : new java.awt.Rectangle(zone.worldX, zone.worldY, zone.areaW, zone.areaH);
+                        : new Rect(zone.worldX, zone.worldY, zone.areaW, zone.areaH);
                     m.confinementZone = confRect;
                 }
                 gp.monster[slot] = m;
@@ -437,10 +438,10 @@ public class EventHandler {
     }
 
     /** Returns true if {@code rect} overlaps the solid area of any currently alive monster. */
-    private boolean overlapsAnyMonster(java.awt.Rectangle rect) {
+    private boolean overlapsAnyMonster(Rect rect) {
         for (entity.Entity mon : gp.monster) {
             if (mon == null || !mon.alive || mon.dying) continue;
-            java.awt.Rectangle solid = mon.solidArea;
+            Rect solid = mon.solidArea;
             int mx = mon.worldX + solid.x;
             int my = mon.worldY + solid.y;
             if (rect.intersects(mx, my, solid.width, solid.height)) return true;
@@ -449,7 +450,7 @@ public class EventHandler {
     }
 
     // Reusable rectangle for player's world-space solid area
-    private final java.awt.Rectangle playerRect = new java.awt.Rectangle();
+    private final Rect playerRect = new Rect();
 
     public void checkEvent() {
         int xDist = Math.abs(gp.player.worldX - previousEventX);
@@ -737,7 +738,7 @@ public class EventHandler {
             gp.memoryFlashback.trigger(frag);
         }
         gp.ui.addMessage("Memory fragment found: " + ft.fragmentId,
-            new java.awt.Color(180, 140, 255));
+            new Color(180, 140, 255));
         if (ft.oneShot) ft.triggered = true;
         touchConsumed();
     }
@@ -772,16 +773,15 @@ public class EventHandler {
     // ---- Debug visualisation --------------------------------------------------
 
     /** Draws coloured outlines for every registered event zone. Called by RenderPipeline. */
-    public void drawEventDebug(Graphics2D g2,
+    public void drawEventDebug(GdxRenderer g2,
                                int playerWorldX, int playerWorldY,
                                int pScreenX,     int pScreenY,
                                int tileSize) {
         Font   labelFont = new Font("Arial", Font.BOLD, 10);
         Stroke oldStroke = g2.getStroke();
-        java.awt.Composite oldComp = g2.getComposite();
         g2.setFont(labelFont);
-        g2.setStroke(new BasicStroke(2f));
-        g2.setComposite(AlphaComposite.getInstance(AlphaComposite.SRC_OVER, 0.75f));
+        g2.setStroke(new Stroke(2f));
+        g2.setAlpha(0.75f);
 
         // Map transitions — magenta
         drawEventLayer(g2, mapTransitions,   playerWorldX, playerWorldY, pScreenX, pScreenY,
@@ -814,24 +814,29 @@ public class EventHandler {
         // Water zones — light blue filled + outline (supports both rectangles and polygons)
         int camOffX = pScreenX - playerWorldX;
         int camOffY = pScreenY - playerWorldY;
-        java.awt.geom.AffineTransform savedTx = g2.getTransform();
+        // Save/restore the translate offset (the only transform state the gfx facade tracks).
+        float savedTx = g2.getTranslateX();
+        float savedTy = g2.getTranslateY();
         g2.translate(camOffX, camOffY);
-        g2.setComposite(AlphaComposite.getInstance(AlphaComposite.SRC_OVER, 0.25f));
+        g2.setAlpha(0.25f);
         g2.setColor(new Color(80, 160, 255));
-        for (java.awt.Shape wz : waterZones) g2.fill(wz);
-        g2.setComposite(AlphaComposite.getInstance(AlphaComposite.SRC_OVER, 0.75f));
+        // TODO(gfx-stage5): GdxRenderer.fill/draw(Shape) only handle Rect/Ellipse/Polygon, not
+        // IntPolygon — polygon water/spawn zones won't render in debug overlay until that branch
+        // is added. Rect zones render fine. Debug-only; no gameplay impact.
+        for (Shape wz : waterZones) g2.fill(wz);
+        g2.setAlpha(0.75f);
         g2.setColor(new Color(80, 160, 255));
-        for (java.awt.Shape wz : waterZones) {
+        for (Shape wz : waterZones) {
             g2.draw(wz);
-            java.awt.Rectangle b = wz.getBounds();
+            Rect b = wz.getBounds();
             g2.drawString("WATER", b.x + 3, b.y + 13);
         }
-        g2.setTransform(savedTx);
+        g2.setTranslate(savedTx, savedTy);
 
         // Spawn zones — draw exact polygon when present, otherwise fall back to AABB rect
-        g2.setTransform(savedTx);          // ensure we're back on the default transform
+        g2.setTranslate(savedTx, savedTy); // ensure we're back on the default transform
         g2.translate(camOffX, camOffY);    // switch to world-space camera transform
-        g2.setComposite(AlphaComposite.getInstance(AlphaComposite.SRC_OVER, 0.30f));
+        g2.setAlpha(0.30f);
         g2.setColor(new Color(255, 160, 0));
         for (SpawnZoneData sz : spawnZones) {
             if (sz.poly != null) {
@@ -840,19 +845,19 @@ public class EventHandler {
                 g2.fillRect(sz.worldX, sz.worldY, sz.areaW, sz.areaH);
             }
         }
-        g2.setComposite(AlphaComposite.getInstance(AlphaComposite.SRC_OVER, 0.85f));
+        g2.setAlpha(0.85f);
         g2.setColor(new Color(255, 160, 0));
         for (SpawnZoneData sz : spawnZones) {
             if (sz.poly != null) {
                 g2.draw(sz.poly);
-                java.awt.Rectangle zb = sz.poly.getBounds();
+                Rect zb = sz.poly.getBounds();
                 g2.drawString("ZONE:" + sz.monsterType, zb.x + 3, zb.y + 13);
             } else {
                 g2.drawRect(sz.worldX, sz.worldY, sz.areaW, sz.areaH);
                 g2.drawString("ZONE:" + sz.monsterType, sz.worldX + 3, sz.worldY + 13);
             }
         }
-        g2.setTransform(savedTx);          // restore before drawing spawn points
+        g2.setTranslate(savedTx, savedTy); // restore before drawing spawn points
 
         // Named spawn points — lime
         g2.setColor(new Color(160, 255, 80));
@@ -865,11 +870,11 @@ public class EventHandler {
         }
 
         g2.setStroke(oldStroke);
-        g2.setComposite(oldComp);
+        g2.setAlpha(1f);
     }
 
     /** Draws one pixel-precise event layer with a given colour and label. */
-    private <T> void drawEventLayer(Graphics2D g2, List<PixelEvent<T>> events,
+    private <T> void drawEventLayer(GdxRenderer g2, List<PixelEvent<T>> events,
                                     int playerWorldX, int playerWorldY,
                                     int pScreenX, int pScreenY,
                                     Color color, String label) {

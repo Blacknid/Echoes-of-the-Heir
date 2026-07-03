@@ -478,14 +478,14 @@ public class MultiplayerClient {
                     rp.worldX = extractInt(json, "x", 0) * coordScale;
                     rp.worldY = extractInt(json, "y", 0) * coordScale;
                     remotePlayers.put(id, rp);
-                    gp.ui.addMessage(rp.name + " joined!", new java.awt.Color(100, 220, 100));
+                    gp.ui.addMessage(rp.name + " joined!", new gfx.Color(100, 220, 100));
                 }
             }
             case "player_leave" -> {
                 int id = extractInt(json, "id", -1);
                 RemotePlayerState removed = remotePlayers.remove(id);
                 if (removed != null) {
-                    gp.ui.addMessage(removed.name + " left.", new java.awt.Color(220, 100, 100));
+                    gp.ui.addMessage(removed.name + " left.", new gfx.Color(220, 100, 100));
                 }
             }
             case "player_update" -> {
@@ -550,7 +550,7 @@ public class MultiplayerClient {
                 String from = extractString(json, "from");
                 String msg  = extractString(json, "msg");
                 if (from != null && msg != null) {
-                    gp.ui.addMessage(from + ": " + msg, new java.awt.Color(200, 200, 255));
+                    gp.ui.addMessage(from + ": " + msg, new gfx.Color(200, 200, 255));
                 }
             }
             case "chat_throttled" -> { /* silently dropped — UI optional */ }
@@ -1013,7 +1013,7 @@ public class MultiplayerClient {
                 DamageNumber dn = gp.damageNumberPool.get();
                 int x = mob.worldX + gp.tileSize / 4;
                 int y = mob.worldY - 8;
-                dn.set(x, y, String.valueOf(damage), new java.awt.Color(255, 80, 60), false);
+                dn.set(x, y, String.valueOf(damage), new gfx.Color(255, 80, 60), false);
                 gp.damageNumbers.add(dn);
             }
 
