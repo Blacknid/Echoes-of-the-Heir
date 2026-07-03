@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<map version="1.10" tiledversion="1.12.1" orientation="orthogonal" renderorder="right-down" width="100" height="100" tilewidth="32" tileheight="32" infinite="0" nextlayerid="76" nextobjectid="388">
+<map version="1.10" tiledversion="1.12.1" orientation="orthogonal" renderorder="right-down" width="100" height="100" tilewidth="32" tileheight="32" infinite="0" nextlayerid="76" nextobjectid="389">
  <properties>
   <property name="actTitle" value="THE CANVAS VILLAGE"/>
   <property name="ambientLight" type="float" value="0"/>
@@ -14517,6 +14517,9 @@
    <point/>
   </object>
   <object id="387" type="IT_Grass" x="2624" y="1536">
+   <point/>
+  </object>
+  <object id="388" type="IT_Tree" x="2592" y="1600">
    <point/>
   </object>
  </objectgroup>

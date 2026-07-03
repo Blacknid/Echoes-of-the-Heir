@@ -49,6 +49,11 @@ public class SpriteAnimation {
         return Math.max(1, ticks) / 60f;
     }
 
+    /** Convert a per-frame millisecond interval to seconds. */
+    public static float durationForMillis(int ms) {
+        return Math.max(1, ms) / 1000f;
+    }
+
     /** Change the seconds-per-frame at runtime (e.g. walk cadence tied to movement speed). */
     public void setFrameDuration(float seconds) {
         if (animation != null) animation.setFrameDuration(Math.max(1e-4f, seconds));
