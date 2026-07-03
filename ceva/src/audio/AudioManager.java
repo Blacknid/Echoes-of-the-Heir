@@ -13,6 +13,10 @@ public class AudioManager {
 
     private final Sound music = new Sound();
     private final Sound se = new Sound();
+    // Separate channel from music/se: needs independent loop()/stop() while dialogue is
+    // typing out, without interrupting background music or one-shot SFX.
+    private final Sound dialogueTyping = new Sound();
+    private boolean dialogueTypingActive = false;
 
     public void playMusic(int index) {
         music.stop();
@@ -28,6 +32,21 @@ public class AudioManager {
     public void playSE(int index) {
         se.setFile(index);
         se.play();
+    }
+
+    /** Start looping the dialogue typing sound. No-op if it's already playing. */
+    public void startDialogueTyping() {
+        if (dialogueTypingActive) return;
+        dialogueTypingActive = true;
+        dialogueTyping.setFile(SFX.DIALOGUE_TYPE);
+        dialogueTyping.loop();
+    }
+
+    /** Stop the dialogue typing sound immediately (skip/advance/end of dialogue). */
+    public void stopDialogueTyping() {
+        if (!dialogueTypingActive) return;
+        dialogueTypingActive = false;
+        dialogueTyping.stop();
     }
 
     public int getMusicVolume() { return music.volumeScale; }

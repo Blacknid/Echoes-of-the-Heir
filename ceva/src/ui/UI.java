@@ -30,6 +30,47 @@ public class UI {
     public Sprite Compas;
     public Sprite titleBackground;
     private Sprite titleBackgroundRaw;
+
+    // ── Nine-slice UI panel (palette-swappable) ──────────────────────────────
+    // One authored 96x96 texture (/res/ui/UI.png) reused for every window via drawPanel(). The
+    // PNG is painted with fixed MARKER colors (one per material role); each drawPanel() call
+    // remaps those markers to the real per-window colors via a cached palette-swap bake.
+    private Sprite uiPanelRaw; // loaded UI.png, or null → drawPanel falls back to the old vector look
+    // Marker colors as painted in UI.png. Must match the PNG pixel-for-pixel (no anti-aliasing).
+    private static final Color UI_MARK_MAIN   = hex("#D4A877"); // main body
+    private static final Color UI_MARK_SHADOW = hex("#C79D70"); // shadow
+    private static final Color UI_MARK_HL      = hex("#DFB17D"); // highlight
+    private static final Color UI_MARK_HL2     = hex("#CCB980"); // 2nd highlight
+    private static final Color[] UI_MARKERS = { UI_MARK_MAIN, UI_MARK_SHADOW, UI_MARK_HL, UI_MARK_HL2 };
+    // Cache of recolored textures keyed by the 4 target colors (bake once per unique theme).
+    private final HashMap<Long, Sprite> uiPanelCache = new HashMap<>();
+
+    // A window's 4-role color theme for the nine-slice panel. Each role is a plain hex string —
+    // to recolor a window, just change its hex codes below. To add a new window, add a THEME_* and
+    // pass it to drawPanel(...) at that window's draw. Accepts "#RRGGBB" or "RRGGBB".
+    public record PanelTheme(Color main, Color shadow, Color highlight, Color highlight2) {
+        static PanelTheme of(String main, String shadow, String highlight, String highlight2) {
+            return new PanelTheme(hex(main), hex(shadow), hex(highlight), hex(highlight2));
+        }
+    }
+
+    /** Parse a "#RRGGBB" (or "RRGGBB") hex color. */
+    private static Color hex(String s) {
+        String h = s.startsWith("#") ? s.substring(1) : s;
+        return new Color(Integer.parseInt(h, 16));
+    }
+
+    // Per-window themes — main / shadow / highlight / 2nd-highlight, as hex codes.
+    private static final PanelTheme THEME_DEFAULT   = PanelTheme.of("#0F0A08", "#644B1E", "#B48C3C", "#DAAF3E");
+    private static final PanelTheme THEME_DIALOGUE  = PanelTheme.of("#0F0A08", "#644B1E", "#B48C3C", "#DAAF3E");
+    private static final PanelTheme THEME_JOURNAL   = PanelTheme.of("#120E18", "#46375A", "#9678BE", "#C8AFEB");
+    private static final PanelTheme THEME_OPTIONS   = PanelTheme.of("#000000", "#46465A", "#9696AF", "#D2D2E6");
+    private static final PanelTheme THEME_CHARACTER = PanelTheme.of("#030202", "#5A3C23", "#AF8246", "#E1B45A");
+    private static final PanelTheme THEME_INVENTORY = PanelTheme.of("#0C0C0E", "#3C463C", "#789678", "#B4D7B4");
+    private static final PanelTheme THEME_LEVELUP   = PanelTheme.of("#140F23", "#5A4628", "#C8AA50", "#FFC83C");
+    private static final PanelTheme THEME_SKILLTREE = PanelTheme.of("#000000", "#503C1E", "#C8A046", "#FFC850");
+    private static final PanelTheme THEME_PAUSE     = PanelTheme.of("#0A0810", "#5A4623", "#B48C3C", "#DCAF46");
+    private static final PanelTheme THEME_HUD       = PanelTheme.of("#06040E", "#282234", "#463C5A", "#6E5F82");
     public boolean messageOn = false;
     ArrayList<String> message = new ArrayList<>();
     ArrayList<Integer> messageCounter = new ArrayList<>();
@@ -39,6 +80,18 @@ public class UI {
     public boolean gameFinished = false;
     public String currentDialogue = "";
     public int commandNum = 0;
+
+    /** Whether a save file exists — decides if the title screen shows a "CONTINUE" entry. */
+    public boolean titleHasSave() {
+        return platform.GameStorage.exists("save.dat");
+    }
+
+    /** Title screen main-menu labels, "CONTINUE" prepended only when a save file exists. */
+    public String[] titleMenuItems() {
+        return titleHasSave()
+            ? new String[]{"CONTINUE", "NEW GAME", "MULTIPLAYER", "QUIT"}
+            : new String[]{"NEW GAME", "MULTIPLAYER", "QUIT"};
+    }
     public int titleScreenState = 0; // 0 : the first screen, 1: the second screen
     public int slotCol = 0;
     public int slotRow = 0;
@@ -260,6 +313,13 @@ public class UI {
                 System.out.println("Title background loaded successfully!");
             } else {
                 System.out.println("Title background file found but could not be loaded");
+            }
+
+            // Nine-slice UI panel texture (optional; drawPanel falls back to vector panels if absent).
+            uiPanelRaw = ResourceCache.loadImageIfPresent("/res/ui/UI.png");
+            if (uiPanelRaw != null) {
+                System.out.println("UI panel texture loaded (" + uiPanelRaw.nativeWidth()
+                        + "x" + uiPanelRaw.nativeHeight() + ")");
             }
         } catch(Exception e) {
             System.out.println("Title background not found at /res/background.png, using default black background");
@@ -507,16 +567,12 @@ public class UI {
         float pulse = fastPulse(animTick, 1);       // 0..1 slow breathe (~1 Hz at 60 UPS)
         float hpFastPulse = fastPulse(animTick, 3); // faster pulse for HP glow
 
-        int panelW = (int)(270 * sf);
-        int panelH = (int)(82 * sf);
-        g2.setColor(HUD_PANEL_BG);
-        g2.fillRoundRect(margin, margin, panelW, panelH, 12, 12);
+        int panelW = (int)(275 * sf);
+        int panelH = (int)(85 * sf);
+        drawPanel(margin, margin, panelW, panelH, THEME_HUD);
         int accentH = (int)(2 * sf);
         g2.setColor(cachedColor(230, 60, 80, (int)(60 + 30 * pulse)));
         g2.fillRoundRect(margin + 4, margin, panelW - 8, accentH, 4, 4);
-        g2.setColor(cachedColor(70, 60, 90, (int)(60 + 20 * pulse)));
-        g2.setStroke(STROKE_1);
-        g2.drawRoundRect(margin, margin, panelW, panelH, 12, 12);
 
         int badgeSize = (int)(34 * sf);
         int badgeX = margin + (int)(8 * sf);
@@ -935,8 +991,6 @@ public class UI {
         if(titleScreenState == 0) {
             float pulse = fastPulse(animTick, 1); // 0.0 .. 1.0
 
-            g2.setColor(cachedColor(6, 2, 18, 162)); // TODO(gfx): gradient
-            g2.fillRect(0, 0, gp.screenWidth, 200);
             int vigTop = gp.screenHeight - 380;
             g2.setColor(cachedColor(3, 1, 12, 0)); // TODO(gfx): gradient
             g2.fillRect(0, vigTop, gp.screenWidth, 380);
@@ -985,7 +1039,7 @@ public class UI {
             g2.fillOval(sx - 24, sy + spriteSize - 20, spriteSize + 48, 30);
             g2.drawImage(gp.player.down1, sx, sy, spriteSize, spriteSize);
 
-            String[] menuItems = {"NEW GAME", "LOAD GAME", "MULTIPLAYER", "QUIT"};
+            String[] menuItems = titleMenuItems();
             int menuStartY = (int)(gp.screenHeight * 0.77f);
             g2.setFont(cachedFont(Font.BOLD, 27F));
 
@@ -1526,11 +1580,13 @@ public class UI {
         g2.setColor(cachedColor(8, 8, 15, (int)(160 * pauseAlpha)));
         g2.fillRect(0, 0, gp.screenWidth, gp.screenHeight);
 
+        // Framed nine-slice panel, faded in with pauseAlpha (setAlpha is multiplied by drawImage).
         int frameInset = gp.tileSize * 3;
-        g2.setColor(cachedColor(180, 140, 60, (int)(40 * pauseAlpha)));
-        g2.setStroke(STROKE_1);
-        g2.drawRoundRect(frameInset, gp.tileSize * 2, gp.screenWidth - frameInset * 2,
-                gp.screenHeight - gp.tileSize * 4, 20, 20);
+        float prevAlpha = g2.getAlpha();
+        g2.setAlpha(prevAlpha * pauseAlpha);
+        drawPanel(frameInset, gp.tileSize * 2, gp.screenWidth - frameInset * 2,
+                gp.screenHeight - gp.tileSize * 4, THEME_PAUSE);
+        g2.setAlpha(prevAlpha);
 
         float breathe = fastPulse(animTick, 1);
         g2.setFont(cachedFont(Font.BOLD, 72F));
@@ -1688,8 +1744,10 @@ public class UI {
         if (fullLine != null) {
             // Typewriter: one char per update tick (60 UPS = ~60 chars/sec, FPS-independent).
             if (charIndex < fullLineLen) {
+                if (charIndex == 0) gp.startDialogueTyping();
                 dialogueBuilder.append(fullLine.charAt(charIndex));
                 charIndex++;
+                if (charIndex >= fullLineLen) gp.stopDialogueTyping();
             }
             // When typing is complete, reuse the original String object so that
             // wrapTextCached()'s reference-equality fast-path fires on every draw frame.
@@ -1702,11 +1760,13 @@ public class UI {
                     currentDialogue = fullLine;
                     dialogueBuilder.setLength(0);
                     gp.keyH.enterPressed = false;
+                    gp.stopDialogueTyping();
                 } else {
                     // Line already complete — advance to next
                     charIndex = 0;
                     combinedText = "";
                     dialogueBuilder.setLength(0);
+                    gp.stopDialogueTyping();
 
                     if (gp.gameState == GamePanel.dialogueState || gp.gameState == GamePanel.cutsceneState) {
                         // Choice confirmation: if choices are showing, apply the selected choice
@@ -1742,6 +1802,7 @@ public class UI {
             npc.dialogueIndex = 0;
             dialogueBuilder.setLength(0);
             currentDialogue = "";
+            gp.stopDialogueTyping();
 
             if (gp.gameState == GamePanel.dialogueState) {
                 gp.gameState = GamePanel.playState;
@@ -1762,7 +1823,7 @@ public class UI {
         int width = gp.screenWidth - (gp.tileSize * 4);
         int height = gp.tileSize * 5;
 
-        drawSubWindow(x, y, width, height);
+        drawSubWindow(x, y, width, height, THEME_DIALOGUE);
 
         if (npc != null && npc.name != null && !npc.name.isEmpty()) {
             int nameTagW = cachedFM(cachedFont(Font.BOLD, 20F))
@@ -1850,7 +1911,7 @@ public class UI {
         int optionH = 36;
         int totalH = npc.dialogueChoices.length * optionH + 20;
 
-        drawSubWindow(boxX, boxY, boxWidth, totalH);
+        drawSubWindow(boxX, boxY, boxWidth, totalH, THEME_DIALOGUE);
 
         g2.setFont(cachedFont(Font.PLAIN, 22F));
         int textX = boxX + gp.tileSize;
@@ -1907,7 +1968,7 @@ public class UI {
         int panelY = 100;
         int panelW = gp.screenWidth / 3;
         int panelH = gp.screenHeight - 140;
-        drawSubWindow(panelX, panelY, panelW, panelH);
+        drawSubWindow(panelX, panelY, panelW, panelH, THEME_JOURNAL);
 
         g2.setFont(cachedFont(Font.PLAIN, 18F));
         int listX = panelX + 20;
@@ -1940,7 +2001,7 @@ public class UI {
         int rightY = panelY;
         int rightW = gp.screenWidth - rightX - gp.tileSize;
         int rightH = panelH;
-        drawSubWindow(rightX, rightY, rightW, rightH);
+        drawSubWindow(rightX, rightY, rightW, rightH, THEME_JOURNAL);
 
         if (journalSelectedIndex >= 0 && journalSelectedIndex < allFragments.size()) {
             data.MemoryJournal.MemoryFragment selected = allFragments.get(journalSelectedIndex);
@@ -2079,7 +2140,7 @@ public class UI {
         int frameHeight = Math.min(660, (int)(gp.screenHeight * 0.92f));
         int frameX = (gp.screenWidth  - frameWidth)  / 2;
         int frameY = (gp.screenHeight - frameHeight) / 2;
-        drawSubWindow(frameX, frameY, frameWidth, frameHeight);
+        drawSubWindow(frameX, frameY, frameWidth, frameHeight, THEME_OPTIONS);
 
         switch (subState) {
             case 0: options_top ( frameX, frameY ); break;
@@ -2099,7 +2160,7 @@ public class UI {
         final int frameHeight = gp.screenHeight - 24;
         final int frameX = (int)(gp.screenWidth * 0.02f);
         final int frameY = 12;
-        drawSubWindow(frameX, frameY, frameWidth, frameHeight);
+        drawSubWindow(frameX, frameY, frameWidth, frameHeight, THEME_CHARACTER);
 
         final int pad = 16;
         final int leftX = frameX + pad;
@@ -2260,7 +2321,7 @@ public class UI {
         int frameHeight = gp.tileSize * 5;
         int frameX = gp.screenWidth - frameWidth - 16;  // right-aligned: works at any tileSize/resolution
         int frameY = gp.tileSize;
-        drawSubWindow(frameX, frameY, frameWidth, frameHeight);
+        drawSubWindow(frameX, frameY, frameWidth, frameHeight, THEME_INVENTORY);
 
         g2.setColor(Color.white);
             counter++;
@@ -2372,7 +2433,7 @@ public class UI {
         if (itemIndex < gp.player.inventory.size()) {
             Entity item = gp.player.inventory.get(itemIndex);
             if (item != null) {
-                drawSubWindow(dFrameX, dFrameY, dFrameWidth, dFrameHeight);
+                drawSubWindow(dFrameX, dFrameY, dFrameWidth, dFrameHeight, THEME_INVENTORY);
                 int iconX = dFrameX + 20;
                 int iconY = dFrameY + 20;
                 g2.drawImage(item.down1, iconX, iconY, gp.tileSize, gp.tileSize);
@@ -2877,15 +2938,8 @@ public class UI {
         g2.setColor(cachedColor(0, 0, 0, 255));
         g2.fillRect(0, 0, gp.screenWidth, gp.screenHeight);
 
-        g2.setColor(cachedColor(20, 15, 35, 240)); // TODO(gfx): gradient
-        g2.fillRoundRect(x, y, w, h, 16, 16);
-
-        g2.setColor(cachedColor(255, 200, 60, 40));
-        g2.setStroke(STROKE_6);
-        g2.drawRoundRect(x - 1, y - 1, w + 2, h + 2, 18, 18);
-        g2.setColor(cachedColor(200, 170, 80));
-        g2.setStroke(STROKE_2);
-        g2.drawRoundRect(x + 2, y + 2, w - 4, h - 4, 14, 14);
+        // Level-up panel.
+        drawPanel(x, y, w, h, THEME_LEVELUP);
 
         g2.setColor(cachedColor(255, 200, 60, 0)); // TODO(gfx): gradient
         g2.setStroke(STROKE_15);
@@ -3087,15 +3141,8 @@ public class UI {
         g2.setColor(cachedColor(3, 4, 8, 215));
         g2.fillRect(0, 0, gp.screenWidth, gp.screenHeight);
 
-        // panel background
-        g2.setColor(cachedColor(14, 11, 22, 252)); // TODO(gfx): gradient
-        g2.fillRoundRect(PX, PY, PW, PH, 22, 22);
-        g2.setColor(cachedColor(200, 160, 70, 160));
-        g2.setStroke(STROKE_2);
-        g2.drawRoundRect(PX + 2, PY + 2, PW - 4, PH - 4, 20, 20);
-        g2.setColor(cachedColor(255, 200, 80, 35));
-        g2.setStroke(STROKE_1);
-        g2.drawRoundRect(PX + 5, PY + 5, PW - 10, PH - 10, 16, 16);
+        // panel background.
+        drawPanel(PX, PY, PW, PH, THEME_SKILLTREE);
 
         g2.setFont(cachedFont(Font.BOLD, 26f));
         String title = "SKILL TREE";
@@ -3399,8 +3446,50 @@ public class UI {
         };
     }
 
-    public void drawSubWindow(int x, int y, int width, int height) {
+    /** Draw a window background with a specific per-window theme. */
+    public void drawSubWindow(int x, int y, int width, int height, PanelTheme theme) {
+        drawPanel(x, y, width, height, theme);
+    }
 
+    /** Draw a window background with the default gold-on-dark theme. */
+    public void drawSubWindow(int x, int y, int width, int height) {
+        drawPanel(x, y, width, height, THEME_DEFAULT);
+    }
+
+    /** Nine-slice panel with the 4 role colors given explicitly. */
+    public void drawPanel(int x, int y, int width, int height,
+                          Color main, Color shadow, Color highlight, Color highlight2) {
+        drawPanel(x, y, width, height, new PanelTheme(main, shadow, highlight, highlight2));
+    }
+
+    /**
+     * Draw a UI window background using the nine-slice UI.png, recolored to {@code theme}: the PNG's
+     * marker colors (main/shadow/highlight/highlight2) are remapped to the theme's colors. The
+     * recolored texture is baked once per unique color-set and cached. If UI.png isn't present,
+     * falls back to the previous vector look so the game still renders.
+     */
+    public void drawPanel(int x, int y, int width, int height, PanelTheme theme) {
+        if (uiPanelRaw == null) { drawSubWindowVector(x, y, width, height); return; }
+        long key = paletteKey(theme.main(), theme.shadow(), theme.highlight(), theme.highlight2());
+        Sprite themed = uiPanelCache.get(key);
+        if (themed == null) {
+            themed = GdxRenderer.bakePaletteSwap(uiPanelRaw, UI_MARKERS,
+                    new Color[]{ theme.main(), theme.shadow(), theme.highlight(), theme.highlight2() });
+            uiPanelCache.put(key, themed);
+        }
+        g2.drawNineSlice(themed, x, y, width, height);
+    }
+
+    /** Pack the 4 theme colors' 24-bit RGBs into a stable cache key. */
+    private static long paletteKey(Color a, Color b, Color c, Color d) {
+        long ka = a.getRGB() & 0xFFFFFFL, kb = b.getRGB() & 0xFFFFFFL;
+        long kc = c.getRGB() & 0xFFFFFFL, kd = d.getRGB() & 0xFFFFFFL;
+        // Mix the four 24-bit values; collisions are harmless (just a rare redundant bake).
+        return (ka * 1000003L + kb) * 1000003L + kc ^ (kd << 1);
+    }
+
+    /** The original vector panel look; used as a fallback when UI.png is missing. */
+    private void drawSubWindowVector(int x, int y, int width, int height) {
         // Dark background with leather feel
         g2.setColor(OPT_BG_DARK);
         g2.fillRoundRect(x, y, width, height, 20, 20);

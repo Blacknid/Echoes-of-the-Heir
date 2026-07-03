@@ -17,8 +17,9 @@ import com.badlogic.gdx.files.FileHandle;
  */
 public class Sound {
 
-    // Slots that are long, loopable tracks → streamed as Music. (Soundtracks + music box.)
-    private static final java.util.Set<Integer> MUSIC_SLOTS = java.util.Set.of(0, 1, 2, 15);
+    // Slots that are long, loopable tracks → streamed as Music. (Soundtracks + music box +
+    // dialogue typing loop, which also needs clean loop()/stop() semantics.)
+    private static final java.util.Set<Integer> MUSIC_SLOTS = java.util.Set.of(0, 1, 2, 15, 16);
 
     private final String[] soundPath = new String[30];
     private final com.badlogic.gdx.audio.Sound[] sfxCache = new com.badlogic.gdx.audio.Sound[30];
@@ -47,6 +48,7 @@ public class Sound {
         soundPath[13] = "res/sound/Level Up.wav";
         soundPath[14] = "res/sound/Arrow.wav";
         soundPath[15] = "res/sound/piano_soundtrack/Music Box 1.wav";
+        soundPath[16] = "res/sound/Dialogue.mp3";
         checkVolume();
     }
 

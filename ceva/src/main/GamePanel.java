@@ -231,6 +231,7 @@ public class GamePanel {
 
     // GAME STATE — integer constants kept for backward compatibility
     public int gameState;
+    private int previousGameState = -1; // tracks titleState entry/exit to drive title music
     public static final int titleState = 0;
     public static final int playState = 1;
     public static final int pauseState = 2;
@@ -515,6 +516,18 @@ public class GamePanel {
 
     public void update() {
         tickCounter++;
+
+        // TITLE MUSIC: start Main_Theme on entering the title screen, stop it on leaving —
+        // one place instead of every titleState entry/exit site (new game, continue, quit to
+        // title from pause/game-over, cutscene end, etc.).
+        if (gameState != previousGameState) {
+            if (gameState == titleState) {
+                playMusic(SFX.MAIN_THEME);
+            } else if (previousGameState == titleState) {
+                stopMusic();
+            }
+            previousGameState = gameState;
+        }
 
         // PENDING DEBUG RELOADS — executed here on the game-loop thread to avoid race conditions
         if (pendingReloadAll)      { pendingReloadAll      = false; doReloadAll(); }
@@ -1085,6 +1098,12 @@ public class GamePanel {
     }
     public void playSE(int i) {
         audio.playSE(i);
+    }
+    public void startDialogueTyping() {
+        audio.startDialogueTyping();
+    }
+    public void stopDialogueTyping() {
+        audio.stopDialogueTyping();
     }
 
     private static final gfx.Color NAMETAG_BOX_BG     = new gfx.Color(10, 8, 20, 170);

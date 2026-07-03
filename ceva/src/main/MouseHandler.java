@@ -135,7 +135,7 @@ public class MouseHandler implements InputProcessor {
 
     // ════════════════════════════════════════════════════════════════════════
     // TITLE SCREEN
-    // Items: NEW GAME, LOAD GAME, MULTIPLAYER, QUIT
+    // Items: [CONTINUE,] NEW GAME, MULTIPLAYER, QUIT — CONTINUE only if a save exists
     // menuStartY = screenHeight*0.77, each item 40px apart
     // ════════════════════════════════════════════════════════════════════════
 
@@ -143,7 +143,8 @@ public class MouseHandler implements InputProcessor {
         if (gp.ui.titleScreenState != 0) return -1;
         int menuStartY = (int)(gp.screenHeight * 0.77f);
         int itemH = 40;
-        for (int i = 0; i < 4; i++) {
+        int menuCount = gp.ui.titleMenuItems().length;
+        for (int i = 0; i < menuCount; i++) {
             int top = menuStartY + i * itemH - 24;
             if (gameY >= top && gameY < top + itemH) return i;
         }
@@ -201,14 +202,20 @@ public class MouseHandler implements InputProcessor {
 
     private void executeTitleAction(int i) {
         gp.playSE(audio.SFX.MENU_SELECT);
-        switch (i) {
-            case 0 -> gp.ui.titleScreenState = 1;
-            case 1 -> { gp.saveLoad.load(); startGame(); }
-            case 2 -> { gp.ui.titleScreenState = 3; gp.ui.mpServerSelection = 0; gp.ui.commandNum = 0; }
-            // Gdx.app.exit() over System.exit(0): lets libGDX run its own shutdown/dispose()
-            // sequence and maps to Activity.finish() on Android instead of killing the process.
-            case 3 -> Gdx.app.exit();
+        boolean hasSave = gp.ui.titleHasSave();
+        // With a save: 0=CONTINUE 1=NEW GAME 2=MULTIPLAYER 3=QUIT
+        // Without:     0=NEW GAME  1=MULTIPLAYER            2=QUIT
+        if (hasSave && i == 0) { gp.saveLoad.load(); startGame(); return; }
+        int newGameIdx = hasSave ? 1 : 0;
+        int multiplayerIdx = hasSave ? 2 : 1;
+        int quitIdx = hasSave ? 3 : 2;
+        if (i == newGameIdx) { gp.ui.titleScreenState = 1; }
+        else if (i == multiplayerIdx) {
+            gp.ui.titleScreenState = 3; gp.ui.mpServerSelection = 0; gp.ui.commandNum = 0;
         }
+        // Gdx.app.exit() over System.exit(0): lets libGDX run its own shutdown/dispose()
+        // sequence and maps to Activity.finish() on Android instead of killing the process.
+        else if (i == quitIdx) { Gdx.app.exit(); }
     }
 
     private void startGame() {

@@ -1,0 +1,13 @@
+{
+    "version": "0.2.0",
+    "configurations": [
+        {
+            "type": "java",
+            "name": "Run Michi's Adventure (Desktop)",
+            "request": "launch",
+            "mainClass": "lwjgl3.DesktopLauncher",
+            "projectName": "lwjgl3",
+            "cwd": "${workspaceFolder}"
+        }
+    ]
+}
