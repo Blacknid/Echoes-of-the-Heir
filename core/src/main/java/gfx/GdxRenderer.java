@@ -208,6 +208,108 @@ public class GdxRenderer {
                 Math.abs(dx2 - dx1), Math.abs(dy2 - dy1));
     }
 
+    /**
+     * Draw a square texture as a 3x3 nine-slice into the (x,y,w,h) rect: the four corner cells
+     * stay a fixed slice size, the four edges stretch along one axis, and the center stretches
+     * both ways. Slice size is {@code tex.nativeWidth()/3} (UI.png is 96x96 → 32px slices), so any
+     * square texture works. Respects the current {@link #alpha} (drawImage multiplies it), so
+     * panel fade-ins keep working. The texture is expected to be already recolored (see
+     * {@link #bakePaletteSwap}); this method is palette-agnostic.
+     */
+    public void drawNineSlice(Sprite tex, int x, int y, int w, int h) {
+        if (tex == null) return;
+        int s = tex.nativeWidth() / 3;
+        if (s <= 0) return;
+        // Clamp so corners never overlap on panels smaller than 2 slices; center may collapse to 0.
+        int sw = Math.min(s, w / 2); // horizontal corner width
+        int sh = Math.min(s, h / 2); // vertical corner height
+        int midW = w - 2 * sw;       // stretched horizontal span
+        int midH = h - 2 * sh;       // stretched vertical span
+
+        // Native (top-left) source cells of the 3x3 grid.
+        Sprite tl = tex.getSubimage(0, 0, s, s);
+        Sprite tc = tex.getSubimage(s, 0, s, s);
+        Sprite tr = tex.getSubimage(2 * s, 0, s, s);
+        Sprite ml = tex.getSubimage(0, s, s, s);
+        Sprite mc = tex.getSubimage(s, s, s, s);
+        Sprite mr = tex.getSubimage(2 * s, s, s, s);
+        Sprite bl = tex.getSubimage(0, 2 * s, s, s);
+        Sprite bc = tex.getSubimage(s, 2 * s, s, s);
+        Sprite br = tex.getSubimage(2 * s, 2 * s, s, s);
+
+        int xL = x, xC = x + sw, xR = x + sw + midW;
+        int yT = y, yC = y + sh, yB = y + sh + midH;
+
+        // Corners (fixed).
+        drawImage(tl, xL, yT, sw, sh);
+        drawImage(tr, xR, yT, sw, sh);
+        drawImage(bl, xL, yB, sw, sh);
+        drawImage(br, xR, yB, sw, sh);
+        // Edges (stretch on one axis) — only if there's span to fill.
+        if (midW > 0) {
+            drawImage(tc, xC, yT, midW, sh);
+            drawImage(bc, xC, yB, midW, sh);
+        }
+        if (midH > 0) {
+            drawImage(ml, xL, yC, sw, midH);
+            drawImage(mr, xR, yC, sw, midH);
+        }
+        // Center (stretch both).
+        if (midW > 0 && midH > 0) {
+            drawImage(mc, xC, yC, midW, midH);
+        }
+    }
+
+    /**
+     * Build a recolored copy of {@code src} by exact-match palette swap: every pixel whose RGB
+     * matches {@code markers[i]} becomes {@code targets[i]} (its original alpha is preserved);
+     * every other pixel is copied through unchanged (including transparency). This is the
+     * CPU/Pixmap-baked, shader-free way to give one authored UI.png per-window color themes
+     * (main/shadow/highlight/...). Mirrors the one-time {@link #bakeRadialGradient} bake — the
+     * caller should cache the result per color-set (it is NOT free; it decodes + re-uploads a
+     * texture), never call it per frame.
+     */
+    public static Sprite bakePaletteSwap(Sprite src, Color[] markers, Color[] targets) {
+        if (src == null) return null;
+        int w = src.nativeWidth(), h = src.nativeHeight();
+        com.badlogic.gdx.graphics.Pixmap out =
+            new com.badlogic.gdx.graphics.Pixmap(w, h, com.badlogic.gdx.graphics.Pixmap.Format.RGBA8888);
+        out.setBlending(com.badlogic.gdx.graphics.Pixmap.Blending.None);
+        out.setFilter(com.badlogic.gdx.graphics.Pixmap.Filter.NearestNeighbour);
+        // Precompute marker RGBs (0xRRGGBB) once.
+        int[] mRGB = new int[markers.length];
+        for (int i = 0; i < markers.length; i++) {
+            mRGB[i] = (markers[i].getRed() << 16) | (markers[i].getGreen() << 8) | markers[i].getBlue();
+        }
+        // Batch the decode: getRGB() otherwise re-decodes the whole PNG on EVERY call. One batch
+        // decodes the source texture once and reuses it for all w*h pixel reads.
+        Sprite.beginPixelBatch();
+        try {
+            for (int py = 0; py < h; py++) {
+                for (int px = 0; px < w; px++) {
+                    int argb = src.getRGB(px, py);         // 0xAARRGGBB (local coords)
+                    int a   = (argb >>> 24) & 0xFF;
+                    int rgb = argb & 0xFFFFFF;
+                    int r = (rgb >> 16) & 0xFF, g = (rgb >> 8) & 0xFF, b = rgb & 0xFF;
+                    for (int i = 0; i < mRGB.length; i++) {
+                        if (rgb == mRGB[i]) { // exact RGB match → remap, keep original alpha
+                            r = targets[i].getRed(); g = targets[i].getGreen(); b = targets[i].getBlue();
+                            break;
+                        }
+                    }
+                    // Pixmap wants RGBA8888 packed as 0xRRGGBBAA.
+                    out.drawPixel(px, py, (r << 24) | (g << 16) | (b << 8) | a);
+                }
+            }
+        } finally {
+            Sprite.endPixelBatch();
+        }
+        Texture tex = new Texture(out);
+        tex.setFilter(Texture.TextureFilter.Nearest, Texture.TextureFilter.Nearest);
+        out.dispose();
+        return new Sprite(tex);
+    }
+
     /** Draw with an explicit RGBA tint (used by tile tint layers and effects). */
     public void drawImageTinted(Sprite img, int x, int y, int w, int h, Color tint, float a) {
         if (img == null) return;

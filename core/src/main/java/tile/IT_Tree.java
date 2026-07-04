@@ -1,83 +1,164 @@
 package tile;
 
-import gfx.Sprite;
-import gfx.GdxRenderer;
+import java.util.HashMap;
+import java.util.Map;
 
 import entity.Entity;
+import gfx.Color;
+import gfx.GdxRenderer;
+import gfx.Sprite;
 import main.GamePanel;
 import util.ResourceCache;
 import util.UtilityTool;
 
-/**
- * Decorative tree: a static trunk with a canopy that idly sways
- * (Moonshire/Challacade-style breathing). The canopy is sliced into thin
- * horizontal bands, each offset by a sine sampled at its vertical position —
- * a continuous top-to-bottom wave rather than 2-3 rigid slabs, which avoids
- * visible seams on a round, non-rectangular canopy silhouette.
- */
+// Tiled Editor : new String variant = "nume copac".
+
 public class IT_Tree extends interactiveTile {
 
-    // Shared across all instances — loaded/sliced once
-    private static Sprite trunkImg = null;
-    private static Sprite[] canopyBands = null;
-    // Cumulative top-Y of each band, derived from each band's actual scaled height (not
-    // recomputed independently) so bands draw edge-to-edge with no rounding gap/overlap seam.
-    private static int[] canopyBandY = null;
+    // Toti parametrii unui copac :
+    private record Variant(String trunkPath, String[] canopyPaths, int bandCount, float swayPixels,
+                            float hitboxWidth, float hitboxHeight,
+                            float shadowWidth, float shadowHeight, float shadowOffsetX, float shadowOffsetY) {
+        Variant(String trunkPath, String canopyPath, int bandCount, float swayPixels,
+                float hitboxWidth, float hitboxHeight,
+                float shadowWidth, float shadowHeight, float shadowOffsetX, float shadowOffsetY) {
+            this(trunkPath, new String[] { canopyPath }, bandCount, swayPixels,
+                    hitboxWidth, hitboxHeight, shadowWidth, shadowHeight, shadowOffsetX, shadowOffsetY);
+        }
+    }
 
-    private static final int BAND_COUNT = 3;
-    private static final float SWAY_PIXELS = 1f; // max horizontal offset, in draw pixels
+    private static final String DEFAULT_VARIANT = "default";
 
-    // Draw size in tiles — the tree occupies a 2x2 tile footprint on screen so it reads as
-    // a full-sized tree rather than a single-tile bush. The interaction/collision anchor
-    // (worldX/worldY, inherited from interactiveTile) stays a single tile at the trunk base.
-    private static final int SIZE_IN_TILES = 2;
+    private static final Map<String, Variant> VARIANTS = new HashMap<>();
+    static {
+        VARIANTS.put(DEFAULT_VARIANT, new Variant(
+                "/res/Interactive/Trees/Simple_trunk.png",
+                "/res/Interactive/Trees/Simple_canopy.png",
+                3, 2f, 1.5f, 1f, 
+                3f, 1f, 0f, 0.5f));
+        VARIANTS.put("Fruit", new Variant(
+                "/res/Interactive/Trees/Bigger_trunk.png",
+                "/res/Interactive/Trees/Bigger_canopy.png",
+                3, 1f, 1.5f, 1f, 
+                3f, 1f, 0f, 0.25f));
+        /*VARIANTS.put("Yellow", new Variant(
+                 "/res/Interactive/Trees/Yellow_trunk.png",
+                 new String[] {
+                         "/res/Interactive/Trees/Yellow_top_canopy.png",
+                         "/res/Interactive/Trees/Yellow_middle_canopy.png",
+                         "/res/Interactive/Trees/Yellow_bottom_canopy.png",
+                 },
+                3, 1f, 1.5f, 1f, 
+                3f, 1f, 0f, 0.25f));*/
+        
+       
 
-    // Per-instance sway state
+                
+        // Exemplu copac cu multiple ramuri ( mnai multe animatii separate )
+        // VARIANTS.put("bushy", new Variant(
+        //         "/res/tiles/CANVAS VILLAGE/Field/trunk.png",
+        //         new String[] {
+        //                 "/res/tiles/CANVAS VILLAGE/Field/tree.png",
+        //                 "/res/tiles/CANVAS VILLAGE/Field/tree_branches.png"
+        //         },
+        //         3, 1.5f, 2f, 1.25f, 1.8f, 0.35f, 0f, 0.5f));
+    }
+
+    /** One canopy image, sliced into sway bands. */
+    private static final class CanopyLayer {
+        final Sprite[] bands;
+        final int[] bandY; // cumulative top-Y of each band (derived from real scaled heights)
+
+        CanopyLayer(String path, int bandCount, int drawSize) {
+            Sprite raw = ResourceCache.loadImageIfPresent(path);
+            if (raw == null) {
+                bands = null;
+                bandY = null;
+                return;
+            }
+            // Slice into bands FIRST, in the source image's native pixel coordinates, then scale
+            // each band up. getSubimage() reads native pixel rects — slicing an already
+            // logical-size-scaled Sprite would read out-of-bounds/garbled regions, since
+            // scaleImage() only changes the reported logical draw size, never the texture.
+            int nativeW = raw.getWidth();
+            int nativeH = raw.getHeight();
+            bands = new Sprite[bandCount];
+            bandY = new int[bandCount];
+            int cumulativeY = 0;
+            for (int b = 0; b < bandCount; b++) {
+                int y0 = b * nativeH / bandCount;
+                int y1 = (b == bandCount - 1) ? nativeH : (b + 1) * nativeH / bandCount;
+                Sprite nativeBand = raw.getSubimage(0, y0, nativeW, y1 - y0);
+                // Last band takes whatever pixels remain up to drawSize, so the stack always
+                // sums to exactly drawSize regardless of per-band rounding.
+                int scaledBandH = (b == bandCount - 1)
+                    ? drawSize - cumulativeY
+                    : (y1 - y0) * drawSize / nativeH;
+                bands[b] = UtilityTool.scaleImage(nativeBand, drawSize, scaledBandH);
+                bandY[b] = cumulativeY;
+                cumulativeY += scaledBandH;
+            }
+        }
+    }
+
+    private static final class VariantAssets {
+        final Sprite trunkImg;
+        final CanopyLayer[] canopyLayers;
+        final int bandCount;
+        final float swayPixels;
+
+        VariantAssets(Variant v, int drawSize) {
+            this.bandCount = v.bandCount();
+            this.swayPixels = v.swayPixels();
+
+            Sprite trunkRaw = ResourceCache.loadImageIfPresent(v.trunkPath());
+            trunkImg = (trunkRaw != null) ? UtilityTool.scaleImage(trunkRaw, drawSize, drawSize) : null;
+
+            canopyLayers = new CanopyLayer[v.canopyPaths().length];
+            for (int i = 0; i < canopyLayers.length; i++) {
+                canopyLayers[i] = new CanopyLayer(v.canopyPaths()[i], bandCount, drawSize);
+            }
+        }
+    }
+
+    private static final Map<String, VariantAssets> ASSET_CACHE = new HashMap<>();
+
+    private static final Color SHADOW_COLOR = new Color(0, 0, 0, 60);
+
+    private static final int SIZE_IN_TILES = 4; // Desenarea copacului in TileSizes
+
+    private final VariantAssets assets;
+    private final Variant variant;
+
     private float phase;
     private final float swaySpeed;
 
     public IT_Tree(GamePanel gp, int col, int row) {
+        this(gp, col, row, DEFAULT_VARIANT);
+    }
+
+    public IT_Tree(GamePanel gp, int col, int row, String variantId) {
         super(gp, col, row);
-        collision = true; // trunk blocks movement like a normal tree
+        collision = true; // Coliziune
 
         int drawSize = gp.tileSize * SIZE_IN_TILES;
+        String id = (variantId == null || variantId.isBlank() || !VARIANTS.containsKey(variantId))
+                ? DEFAULT_VARIANT : variantId;
+        variant = VARIANTS.get(id);
+        assets = ASSET_CACHE.computeIfAbsent(id, key -> new VariantAssets(variant, drawSize));
 
-        if (trunkImg == null) {
-            Sprite trunkRaw = ResourceCache.loadImageIfPresent("/res/tiles/CANVAS VILLAGE/Field/trunk.png");
-            Sprite canopyRaw = ResourceCache.loadImageIfPresent("/res/tiles/CANVAS VILLAGE/Field/tree.png");
-            if (trunkRaw != null) trunkImg = UtilityTool.scaleImage(trunkRaw, drawSize, drawSize);
-            if (canopyRaw != null) {
-                // Slice into bands FIRST, in the source image's native pixel coordinates, then scale
-                // each band up. getSubimage() reads native pixel rects — slicing an already
-                // logical-size-scaled Sprite (whose native rect is still the original size) would
-                // read out-of-bounds/garbled regions, since scaleImage() only changes the reported
-                // logical draw size and never rasterizes a bigger texture.
-                int nativeW = canopyRaw.getWidth();
-                int nativeH = canopyRaw.getHeight();
-                canopyBands = new Sprite[BAND_COUNT];
-                canopyBandY = new int[BAND_COUNT];
-                int cumulativeY = 0;
-                for (int b = 0; b < BAND_COUNT; b++) {
-                    int y0 = b * nativeH / BAND_COUNT;
-                    int y1 = (b == BAND_COUNT - 1) ? nativeH : (b + 1) * nativeH / BAND_COUNT;
-                    Sprite nativeBand = canopyRaw.getSubimage(0, y0, nativeW, y1 - y0);
-                    // Last band takes whatever pixels remain up to drawSize, so the stack always
-                    // sums to exactly drawSize regardless of per-band rounding.
-                    int scaledBandH = (b == BAND_COUNT - 1)
-                        ? drawSize - cumulativeY
-                        : (y1 - y0) * drawSize / nativeH;
-                    canopyBands[b] = UtilityTool.scaleImage(nativeBand, drawSize, scaledBandH);
-                    canopyBandY[b] = cumulativeY;
-                    cumulativeY += scaledBandH;
-                }
-            }
-        }
+        int hitboxW = Math.round(gp.tileSize * variant.hitboxWidth());
+        int hitboxH = Math.round(gp.tileSize * variant.hitboxHeight());
+        solidArea.width = hitboxW;
+        solidArea.height = hitboxH;
+        solidArea.x = (gp.tileSize - hitboxW) / 2;
+        solidArea.y = gp.tileSize - hitboxH;
+        solidAreaDefaultX = solidArea.x;
+        solidAreaDefaultY = solidArea.y;
 
-        // Randomize phase/speed per tile so neighboring trees don't sway in lockstep
         int seed = (col * 7 + row * 13) & 0xFF;
         phase = seed * 0.0245f;
-        swaySpeed = 0.5f;
-        //0.02f + (seed % 13) * 0.001f;
+        swaySpeed = 0.1f; // Cat de repede se misca animatia copacului.
     }
 
     @Override
@@ -86,41 +167,92 @@ public class IT_Tree extends interactiveTile {
         phase += swaySpeed;
     }
 
+    private int anchorX(int drawSize) { return worldX - (drawSize - gp.tileSize) / 2; }
+    private int anchorY(int drawSize) { return worldY - (drawSize - gp.tileSize); }
+    private int screenX(int drawSize) { return anchorX(drawSize) - gp.player.worldX + gp.player.screenX; }
+    private int screenY(int drawSize) { return anchorY(drawSize) - gp.player.worldY + gp.player.screenY; }
+
+    private boolean offscreen(int drawSize) {
+        int ax = anchorX(drawSize), ay = anchorY(drawSize);
+        return ax + drawSize <= gp.player.worldX - gp.player.screenX ||
+               ax - drawSize >= gp.player.worldX + gp.player.screenX ||
+               ay + drawSize <= gp.player.worldY - gp.player.screenY ||
+               ay - drawSize >= gp.player.worldY + gp.player.screenY;
+    }
+
+    @Override
+    public void drawShadow(GdxRenderer g2) {
+        int drawSize = gp.tileSize * SIZE_IN_TILES;
+        if (offscreen(drawSize)) return;
+
+        // Umbra in stil Pixelat , forma ovala pe orizontal
+        int shadowCX = screenX(drawSize) + drawSize / 2 + Math.round(gp.tileSize * variant.shadowOffsetX());
+        int shadowCY = screenY(drawSize) + drawSize - Math.round(gp.tileSize * variant.shadowOffsetY());
+        int shadowW = Math.round(gp.tileSize * variant.shadowWidth());
+        int shadowH = Math.round(gp.tileSize * variant.shadowHeight());
+        drawPixelOvalShadow(g2, shadowCX, shadowCY, shadowW, shadowH);
+    }
+
     @Override
     public void draw(GdxRenderer g2) {
         int drawSize = gp.tileSize * SIZE_IN_TILES;
+        if (offscreen(drawSize)) return;
 
-        // Anchor the sprite's bottom-center on the tree's single-tile position (trunk base),
-        // so the enlarged canopy grows up and outward from its footprint instead of the extra
-        // size being pushed down into the ground/collision tile below.
-        int anchorX = worldX - (drawSize - gp.tileSize) / 2;
-        int anchorY = worldY - (drawSize - gp.tileSize);
+        int screenX = screenX(drawSize);
+        int screenY = screenY(drawSize);
 
-        int screenX = anchorX - gp.player.worldX + gp.player.screenX;
-        int screenY = anchorY - gp.player.worldY + gp.player.screenY;
-
-        if (anchorX + drawSize <= gp.player.worldX - gp.player.screenX ||
-            anchorX - drawSize >= gp.player.worldX + gp.player.screenX ||
-            anchorY + drawSize <= gp.player.worldY - gp.player.screenY ||
-            anchorY - drawSize >= gp.player.worldY + gp.player.screenY) return;
-
-        // Trunk stays perfectly still.
-        if (trunkImg != null) {
-            g2.drawImage(trunkImg, screenX, screenY, drawSize, drawSize);
+        if (assets.trunkImg != null) {
+            g2.drawImage(assets.trunkImg, screenX, screenY, drawSize, drawSize);
         }
 
-        if (canopyBands != null) {
-            for (int b = 0; b < BAND_COUNT; b++) {
-                if (canopyBands[b] == null) continue;
-                // Sample point at this band's vertical center, mapped to a full sine period
-                // across the canopy height — gives a continuous wave, so band N+1 always
-                // starts almost where band N left off (no visible step at the seam).
-                float t = (b + 0.5f) / BAND_COUNT;
-                float offset = (float) Math.sin(phase + t * Math.PI * 2) * SWAY_PIXELS;
-                int bandY = canopyBandY[b];
-                int bandH = canopyBands[b].getHeight();
-                g2.drawImage(canopyBands[b], screenX + Math.round(offset), screenY + bandY,
-                        drawSize, bandH);
+        // Draw each canopy layer in order (later entries in VARIANTS' canopyPaths draw on top,
+        // e.g. an extra branch layer over the base canopy). Every layer sways the same way.
+        for (CanopyLayer layer : assets.canopyLayers) {
+            drawCanopyLayer(g2, layer, screenX, screenY, drawSize);
+        }
+    }
+
+    private void drawCanopyLayer(GdxRenderer g2, CanopyLayer layer, int screenX, int screenY, int drawSize) {
+        if (layer.bands == null) return;
+        int bandCount = assets.bandCount;
+        // Draw bottom-to-top so each band overlaps 1px on top of the band below it — matches
+        // natural stacking order and means the overlap pixel always belongs to whichever band
+        // is "in front".
+        for (int b = bandCount - 1; b >= 0; b--) {
+            if (layer.bands[b] == null) continue;
+            // Even bands (0, 2, 4, ...) sway one way, odd bands (1, 3, ...) sway the opposite
+            // way — a simple parity flip that works for any bandCount, giving the "1st/3rd
+            // together, 2nd opposite" look.
+            float swayDir = (b % 2 == 0) ? 1f : -1f;
+            float offset = (float) Math.sin(phase) * assets.swayPixels * swayDir;
+            int bandY = layer.bandY[b];
+            int bandH = layer.bands[b].getHeight();
+            // Adjacent bands sway in different directions, so their rounded X offsets can differ
+            // and leave a 1px seam. Fix: extend this band's draw rect 1px upward (reusing its own
+            // top edge pixels via scaling) so it overlaps the band above by 1px, hiding the seam
+            // with no net height change — the bottom band's bottom edge is untouched.
+            int growTop = (b == 0) ? 0 : 1;
+            g2.drawImage(layer.bands[b], screenX + Math.round(offset), screenY + bandY - growTop,
+                    drawSize, bandH + growTop);
+        }
+    }
+
+    // Size of one shadow "pixel" block, in screen pixels — bigger than the real tile pixel scale
+    // so the oval reads as blocky/pixelated rather than smooth, matching the tile art style.
+    private static final int SHADOW_BLOCK = 4;
+
+    /** Draws a flat horizontal oval built from coarse square blocks (not a smooth fillOval),
+     * so the shadow matches the game's pixel-art look. centerX/centerY is the oval's center. */
+    private void drawPixelOvalShadow(GdxRenderer g2, int centerX, int centerY, int w, int h) {
+        g2.setColor(SHADOW_COLOR);
+        int radiusX = w / 2;
+        int radiusY = Math.max(SHADOW_BLOCK / 2, h / 2);
+        for (int y = -radiusY; y < radiusY; y += SHADOW_BLOCK) {
+            float t = (y + SHADOW_BLOCK / 2f) / radiusY;
+            int rowHalfWidth = Math.round(radiusX * (float) Math.sqrt(Math.max(0, 1 - t * t)));
+            if (rowHalfWidth <= 0) continue;
+            for (int x = -rowHalfWidth; x < rowHalfWidth; x += SHADOW_BLOCK) {
+                g2.fillRect(centerX + x, centerY + y, SHADOW_BLOCK, SHADOW_BLOCK);
             }
         }
     }

@@ -23,4 +23,5 @@ public final class SFX {
     public static final int LEVEL_UP       = 13;
     public static final int ARROW          = 14;
     public static final int MUSIC_BOX_1    = 15;
+    public static final int DIALOGUE_TYPE  = 16;
 }

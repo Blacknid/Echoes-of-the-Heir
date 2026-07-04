@@ -615,6 +615,11 @@ public class TileManager {
             if (mw != null && !mw.isEmpty()) currentMapCols = Integer.parseInt(mw);
             if (mh != null && !mh.isEmpty()) currentMapRows = Integer.parseInt(mh);
 
+            // Resize the world grid (and everything sized by maxWorldCol/Row) to THIS map before any
+            // tile layer / lit map / pathfinder array is allocated below. This is what lets maps be
+            // bigger (or smaller) than the old fixed 100x100.
+            gp.setWorldDimensions(currentMapCols, currentMapRows);
+
             resetCollisionConfig();
             applyMapCollisionProperties(mapRoot);
 

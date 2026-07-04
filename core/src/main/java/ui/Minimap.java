@@ -116,8 +116,13 @@ public class Minimap {
         try {
         for (int l = 0; l < gp.tileM.mapLayers.size(); l++) {
             int[][] layer = gp.tileM.mapLayers.get(l);
+            // Clamp to the actual layer array bounds. currentMapCols/Rows come from the TMX header
+            // and can exceed the fixed maxWorldCol/Row (100) that layer arrays are allocated at, so
+            // iterating by mapCols/mapRows alone overflows on maps bigger than 100 tiles.
+            int colLimit = Math.min(mapCols, layer.length);
             for (int row = 0; row < mapRows; row++) {
-                for (int col = 0; col < mapCols; col++) {
+                for (int col = 0; col < colLimit; col++) {
+                    if (row >= layer[col].length) continue;
                     int gid = normalizeBakedGid(layer[col][row]);
                     if (gid == 0) continue;
                     Color c = gidToColor(gid, col, row);

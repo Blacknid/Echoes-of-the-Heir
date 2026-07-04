@@ -931,7 +931,7 @@ public class MapObjectLoader {
         switch (type) {
             case "IT_Pot"   -> { return new IT_Pot(gp, col, row); }
             case "IT_Grass" -> { return new IT_Grass(gp, col, row); }
-            case "IT_Tree"  -> { return new IT_Tree(gp, col, row); }
+            case "IT_Tree"  -> { return new IT_Tree(gp, col, row, getStringProperty(obj, "variant", "default")); }
             case "IT_Coins" -> {
                 IT_Coins ic = new IT_Coins(gp, col, row);
                 ic.coinValue = getIntProperty(obj, "amount", 1);

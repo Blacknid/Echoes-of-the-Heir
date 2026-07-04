@@ -13,7 +13,6 @@ config.txt
 build/*
 output/*
 *.patch
-/.vscode/*
 /deploy
 
 # Build artifacts

@@ -135,38 +135,21 @@ public class MouseHandler implements InputProcessor {
 
     // ════════════════════════════════════════════════════════════════════════
     // TITLE SCREEN
-    // Items: NEW GAME, LOAD GAME, MULTIPLAYER, QUIT
+    // Items: [CONTINUE,] NEW GAME, MULTIPLAYER, QUIT — CONTINUE only if a save exists
     // menuStartY = screenHeight*0.77, each item 40px apart
     // ════════════════════════════════════════════════════════════════════════
 
     private int titleItemUnderMouse() {
         if (gp.ui.titleScreenState != 0) return -1;
-        int menuStartY = (int)(gp.screenHeight * 0.77f);
-        int itemH = 40;
-        for (int i = 0; i < 4; i++) {
-            int top = menuStartY + i * itemH - 24;
-            if (gameY >= top && gameY < top + itemH) return i;
-        }
-        return -1;
+        // The title draw loop records each row's rect into titleMenu(); just query it.
+        return gp.ui.titleMenu().itemAt(gameX, gameY);
     }
 
-    // Class selection screen (titleScreenState == 1)
-    // Panel: 500×420 centred; 3 class rows at optY + i*(60+14), h=60; Back below
+    // Class selection screen (titleScreenState == 1). The draw code records its button rects into
+    // classMenu() each frame, so hit-testing is just a query — no duplicated, drift-prone geometry.
     private int classItemUnderMouse() {
         if (gp.ui.titleScreenState != 1) return -1;
-        int panelW = 500, panelH = 420;
-        int px  = (gp.screenWidth  - panelW) / 2;
-        int py  = (gp.screenHeight - panelH) / 2;
-        int optX = px + 30, optW = panelW - 60, optH = 60;
-        int optY = py + 85;
-        for (int i = 0; i < 3; i++) {
-            int oy = optY + i * (optH + 14);
-            if (gameX >= optX && gameX < optX + optW && gameY >= oy && gameY < oy + optH) return i;
-        }
-        // Back button
-        int backY = optY + 3 * (optH + 14) + 10;
-        if (gameY >= backY - 20 && gameY < backY + 10) return 3;
-        return -1;
+        return gp.ui.classMenu().itemAt(gameX, gameY);
     }
 
     private void hoverTitle() {
@@ -201,14 +184,20 @@ public class MouseHandler implements InputProcessor {
 
     private void executeTitleAction(int i) {
         gp.playSE(audio.SFX.MENU_SELECT);
-        switch (i) {
-            case 0 -> gp.ui.titleScreenState = 1;
-            case 1 -> { gp.saveLoad.load(); startGame(); }
-            case 2 -> { gp.ui.titleScreenState = 3; gp.ui.mpServerSelection = 0; gp.ui.commandNum = 0; }
-            // Gdx.app.exit() over System.exit(0): lets libGDX run its own shutdown/dispose()
-            // sequence and maps to Activity.finish() on Android instead of killing the process.
-            case 3 -> Gdx.app.exit();
+        boolean hasSave = gp.ui.titleHasSave();
+        // With a save: 0=CONTINUE 1=NEW GAME 2=MULTIPLAYER 3=QUIT
+        // Without:     0=NEW GAME  1=MULTIPLAYER            2=QUIT
+        if (hasSave && i == 0) { gp.saveLoad.load(); startGame(); return; }
+        int newGameIdx = hasSave ? 1 : 0;
+        int multiplayerIdx = hasSave ? 2 : 1;
+        int quitIdx = hasSave ? 3 : 2;
+        if (i == newGameIdx) { gp.ui.titleScreenState = 1; }
+        else if (i == multiplayerIdx) {
+            gp.ui.titleScreenState = 3; gp.ui.mpServerSelection = 0; gp.ui.commandNum = 0;
         }
+        // Gdx.app.exit() over System.exit(0): lets libGDX run its own shutdown/dispose()
+        // sequence and maps to Activity.finish() on Android instead of killing the process.
+        else if (i == quitIdx) { Gdx.app.exit(); }
     }
 
     private void startGame() {
@@ -338,19 +327,8 @@ public class MouseHandler implements InputProcessor {
     // ════════════════════════════════════════════════════════════════════════
 
     private int gameOverButtonUnderMouse() {
-        int y0      = gp.screenHeight / 2 - gp.tileSize * 2;  // "YOU DIED" baseline
-        int line2Y  = y0 + 70;
-        int buttonW = gp.tileSize * 5;
-        int buttonH = (int)(gp.tileSize * 0.9f);
-        int buttonX = gp.screenWidth / 2 - buttonW / 2;
-        int startY  = line2Y + gp.tileSize;
-        for (int i = 0; i < 2; i++) {
-            int btnY  = startY + i * (buttonH + 20);
-            int rectY = btnY - buttonH + 16;
-            if (gameX >= buttonX && gameX < buttonX + buttonW &&
-                gameY >= rectY   && gameY < rectY + buttonH) return i;
-        }
-        return -1;
+        // The game-over draw loop records its button rects into gameOverMenu(); just query them.
+        return gp.ui.gameOverMenu().itemAt(gameX, gameY);
     }
 
     private void hoverGameOver() {
@@ -395,39 +373,15 @@ public class MouseHandler implements InputProcessor {
 
     private int optionsItemUnderMouse() {
         if (gp.ui.subState != 0) return -1;
-        int frameY  = optionsFrameY();
-        int startY  = frameY + 48 + 42;  // titleY + 42 (title baseline = frameY+48)
-        int lineH   = 46;
-        for (int i = 0; i < 10; i++) {
-            int itemY = startY + i * lineH;
-            int top   = itemY - lineH + 16;  // matches selection bar barY
-            if (gameY >= top && gameY < top + lineH - 4) return i;
-        }
-        return -1;
+        // Ask the Menu what its last drawn frame put under the cursor — always matches the visuals.
+        return gp.ui.optionsMenu().itemAt(gameX, gameY);
     }
 
-    // Slider geometry (matches drawMedievalSlider called from options_top):
-    //   rightCol = frameX + fw - pad - 155  (pad=20)
-    //   ctrlY    = itemY - 17
-    //   barW=150, barH=18, max=5
-    // Returns 0..5 if click is inside the slider for row rowIndex, else -1.
+    // Returns 0..max if the cursor is inside the slider bar for menu row rowIndex, else -1.
+    // Delegates to the Menu, which knows exactly where it last drew the bar (no duplicated geometry).
     private int sliderValueUnderMouse(int rowIndex) {
         if (gp.ui.subState != 0) return -1;
-        int fw      = Math.min(520, (int)(gp.screenWidth * 0.42f));
-        int frameX  = (gp.screenWidth - fw) / 2;
-        int frameY  = optionsFrameY();
-        int pad     = 20;
-        int rightCol = frameX + fw - pad - 155;
-        int lineH   = 46;
-        int startY  = frameY + 48 + 42;
-        int itemY   = startY + rowIndex * lineH;
-        int ctrlY   = itemY - 17;
-        int barW    = 150, barH = 18;
-        int cy      = ctrlY + 2;
-        if (gameX < rightCol || gameX >= rightCol + barW) return -1;
-        if (gameY < cy       || gameY >= cy + barH)       return -1;
-        int val = Math.round((gameX - rightCol) / (float) barW * 5);
-        return Math.max(0, Math.min(5, val));
+        return gp.ui.optionsMenu().sliderValueAt(rowIndex, gameX, gameY);
     }
 
     // Apply a slider click/drag for music (row 4) or SFX (row 5).

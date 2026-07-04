@@ -83,10 +83,28 @@ public class GamePanel {
     public java.util.List<String> debugMapList = new java.util.ArrayList<>();
     public int debugMapSelectedIndex = 0;
 
-    public final int maxWorldCol = 100;
-    public final int maxWorldRow = 100;
-    public final int worldWidth = tileSize * maxWorldCol;
-    public final int worldHeight = tileSize * maxWorldRow;
+    // World grid dimensions — DYNAMIC per map. Default to 100x100 (the historical fixed size) so
+    // arrays allocated before the first TMX load are valid; setWorldDimensions() updates these from
+    // each map's TMX width/height and reallocates the dependent per-tile arrays.
+    public int maxWorldCol = 100;
+    public int maxWorldRow = 100;
+    public int worldWidth = tileSize * maxWorldCol;
+    public int worldHeight = tileSize * maxWorldRow;
+
+    /**
+     * Resize the world grid to a new map's dimensions and reallocate everything sized by it. Call
+     * this BEFORE tile layers / lit maps / pathfinder nodes are (re)allocated for the new map. A
+     * minimum of 1x1 is enforced; passing the current size is a cheap no-op for the arrays that key
+     * off it (they're rebuilt per map anyway).
+     */
+    public void setWorldDimensions(int cols, int rows) {
+        maxWorldCol = Math.max(1, cols);
+        maxWorldRow = Math.max(1, rows);
+        worldWidth  = tileSize * maxWorldCol;
+        worldHeight = tileSize * maxWorldRow;
+        // PathFinder allocates a node per tile in its ctor; resize it to the new grid.
+        if (pFinder != null) pFinder.instantiateNodes();
+    }
     
     // (No Sprite back-buffer / GdxRenderer on the GPU — MichiGame renders straight to the
     // default framebuffer via a GdxRenderer each frame.)
@@ -231,6 +249,7 @@ public class GamePanel {
 
     // GAME STATE — integer constants kept for backward compatibility
     public int gameState;
+    private int previousGameState = -1; // tracks titleState entry/exit to drive title music
     public static final int titleState = 0;
     public static final int playState = 1;
     public static final int pauseState = 2;
@@ -515,6 +534,18 @@ public class GamePanel {
 
     public void update() {
         tickCounter++;
+
+        // TITLE MUSIC: start Main_Theme on entering the title screen, stop it on leaving —
+        // one place instead of every titleState entry/exit site (new game, continue, quit to
+        // title from pause/game-over, cutscene end, etc.).
+        if (gameState != previousGameState) {
+            if (gameState == titleState) {
+                playMusic(SFX.MAIN_THEME);
+            } else if (previousGameState == titleState) {
+                stopMusic();
+            }
+            previousGameState = gameState;
+        }
 
         // PENDING DEBUG RELOADS — executed here on the game-loop thread to avoid race conditions
         if (pendingReloadAll)      { pendingReloadAll      = false; doReloadAll(); }
@@ -1085,6 +1116,12 @@ public class GamePanel {
     }
     public void playSE(int i) {
         audio.playSE(i);
+    }
+    public void startDialogueTyping() {
+        audio.startDialogueTyping();
+    }
+    public void stopDialogueTyping() {
+        audio.stopDialogueTyping();
     }
 
     private static final gfx.Color NAMETAG_BOX_BG     = new gfx.Color(10, 8, 20, 170);

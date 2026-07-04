@@ -30,6 +30,50 @@ public class UI {
     public Sprite Compas;
     public Sprite titleBackground;
     private Sprite titleBackgroundRaw;
+
+    // ── Nine-slice UI panel (palette-swappable) ──────────────────────────────
+    // One authored 96x96 texture (/res/ui/UI.png) reused for every window via drawPanel(). The
+    // PNG is painted with fixed MARKER colors (one per material role); each drawPanel() call
+    // remaps those markers to the real per-window colors via a cached palette-swap bake.
+    private Sprite uiPanelRaw; // loaded UI.png, or null → drawPanel falls back to the old vector look
+    private Sprite buttonPanelRaw; // loaded Button.png, or null → drawButton falls back to a vector button
+    // Recolored Button.png textures keyed by theme (same palette-swap scheme as uiPanelCache).
+    private final HashMap<Long, Sprite> buttonPanelCache = new HashMap<>();
+    // Marker colors as painted in UI.png. Must match the PNG pixel-for-pixel (no anti-aliasing).
+    private static final Color UI_MARK_MAIN   = hex("#D4A877"); // main body
+    private static final Color UI_MARK_SHADOW = hex("#C79D70"); // shadow
+    private static final Color UI_MARK_HL      = hex("#DFB17D"); // highlight
+    private static final Color UI_MARK_HL2     = hex("#CCB980"); // 2nd highlight
+    private static final Color[] UI_MARKERS = { UI_MARK_MAIN, UI_MARK_SHADOW, UI_MARK_HL, UI_MARK_HL2 };
+    // Cache of recolored textures keyed by the 4 target colors (bake once per unique theme).
+    private final HashMap<Long, Sprite> uiPanelCache = new HashMap<>();
+
+    // A window's 4-role color theme for the nine-slice panel. Each role is a plain hex string —
+    // to recolor a window, just change its hex codes below. To add a new window, add a THEME_* and
+    // pass it to drawPanel(...) at that window's draw. Accepts "#RRGGBB" or "RRGGBB".
+    public record PanelTheme(Color main, Color shadow, Color highlight, Color highlight2) {
+        static PanelTheme of(String main, String shadow, String highlight, String highlight2) {
+            return new PanelTheme(hex(main), hex(shadow), hex(highlight), hex(highlight2));
+        }
+    }
+
+    /** Parse a "#RRGGBB" (or "RRGGBB") hex color. */
+    private static Color hex(String s) {
+        String h = s.startsWith("#") ? s.substring(1) : s;
+        return new Color(Integer.parseInt(h, 16));
+    }
+
+    // Per-window themes — main / shadow / highlight / 2nd-highlight, as hex codes.
+    private static final PanelTheme THEME_DEFAULT   = PanelTheme.of("#0F0A08", "#644B1E", "#B48C3C", "#DAAF3E");
+    private static final PanelTheme THEME_DIALOGUE  = PanelTheme.of("#0F0A08", "#644B1E", "#B48C3C", "#DAAF3E");
+    private static final PanelTheme THEME_JOURNAL   = PanelTheme.of("#120E18", "#46375A", "#9678BE", "#C8AFEB");
+    private static final PanelTheme THEME_OPTIONS   = PanelTheme.of("#000000", "#46465A", "#9696AF", "#D2D2E6");
+    private static final PanelTheme THEME_CHARACTER = PanelTheme.of("#030202", "#5A3C23", "#AF8246", "#E1B45A");
+    private static final PanelTheme THEME_INVENTORY = PanelTheme.of("#0C0C0E", "#3C463C", "#789678", "#B4D7B4");
+    private static final PanelTheme THEME_LEVELUP   = PanelTheme.of("#140F23", "#5A4628", "#C8AA50", "#FFC83C");
+    private static final PanelTheme THEME_SKILLTREE = PanelTheme.of("#000000", "#503C1E", "#C8A046", "#FFC850");
+    private static final PanelTheme THEME_PAUSE     = PanelTheme.of("#0A0810", "#5A4623", "#B48C3C", "#DCAF46");
+    private static final PanelTheme THEME_HUD       = PanelTheme.of("#06040E", "#282234", "#463C5A", "#6E5F82");
     public boolean messageOn = false;
     ArrayList<String> message = new ArrayList<>();
     ArrayList<Integer> messageCounter = new ArrayList<>();
@@ -39,7 +83,69 @@ public class UI {
     public boolean gameFinished = false;
     public String currentDialogue = "";
     public int commandNum = 0;
+
+    /** Whether a save file exists — decides if the title screen shows a "CONTINUE" entry. */
+    public boolean titleHasSave() {
+        return platform.GameStorage.exists("save.dat");
+    }
+
+    /** Title screen main-menu labels, "CONTINUE" prepended only when a save file exists. */
+    public String[] titleMenuItems() {
+        return titleHasSave()
+            ? new String[]{"CONTINUE", "NEW GAME", "MULTIPLAYER", "QUIT"}
+            : new String[]{"NEW GAME", "MULTIPLAYER", "QUIT"};
+    }
     public int titleScreenState = 0; // 0 : the first screen, 1: the second screen
+
+    // ── Declarative menus (built lazily, cached). Each owns its item list + actions so a button is
+    //    declared in ONE place; navigation flows through the Menu instead of hand-mapped indices. ──
+    private Menu titleMenu;      // title main menu (state 0) — count changes with save presence
+    private boolean titleMenuHadSave; // last titleHasSave() used to build titleMenu; rebuild on change
+    private Menu classMenu;      // class select (state 1)
+    private Menu gameOverMenu;   // game over (Retry / Quit)
+    private Menu optionsMenu;    // options/settings top screen (subState 0)
+
+    /**
+     * Title main-menu items + actions, in ONE list. Rebuilt only when save-presence changes (which
+     * adds/removes the CONTINUE entry). KeyHandler navigates via this Menu instead of index math.
+     */
+    public Menu titleMenu() {
+        boolean hasSave = titleHasSave();
+        if (titleMenu == null || hasSave != titleMenuHadSave) {
+            titleMenu = Menu.of(null, THEME_PAUSE).onNavigate(() -> gp.playSE(audio.SFX.MENU_SELECT));
+            if (hasSave) {
+                titleMenu.button("CONTINUE", () -> { gp.saveLoad.load(); gp.keyH.startGame(); });
+            }
+            titleMenu.button("NEW GAME",    () -> { titleScreenState = 1; commandNum = 0; });
+            titleMenu.button("MULTIPLAYER", () -> {
+                titleScreenState = 3;
+                mpServerSelection = 0;
+                commandNum = 0;
+                gp.playSE(audio.SFX.MENU_SELECT);
+            });
+            titleMenu.button("QUIT", () -> System.exit(0));
+            titleMenuHadSave = hasSave;
+        }
+        return titleMenu;
+    }
+
+    /**
+     * Class-select items + actions (Fighter / Ronin / Magician / Back), in ONE list. Uses the full
+     * windowed {@link Menu#draw} panel look. setPlayerStats MUST run after startNewGame() so class
+     * stats land on top of the defaults (see the original inline comment).
+     */
+    public Menu classMenu() {
+        if (classMenu == null) {
+            classMenu = Menu.of("Choose Your Class", THEME_DEFAULT)
+                .onNavigate(() -> gp.playSE(audio.SFX.MENU_SELECT))
+                .button("Fighter",  () -> { gp.keyH.startNewGame(); gp.player.setPlayerStats(4, 2, 1, 4, 3); })
+                .button("Ronin",    () -> { gp.keyH.startNewGame(); gp.player.setPlayerStats(2, 3, 3, 5, 2); })
+                .button("Magician", () -> { gp.keyH.startNewGame(); gp.player.setPlayerStats(3, 1, 2, 5, 5); })
+                .item(MenuItem.button("← Back", () -> { titleScreenState = 0; commandNum = 0; gp.playSE(audio.SFX.MENU_SELECT); }).separator().centered());
+        }
+        return classMenu;
+    }
+
     public int slotCol = 0;
     public int slotRow = 0;
     public int subState = 0;
@@ -260,6 +366,20 @@ public class UI {
                 System.out.println("Title background loaded successfully!");
             } else {
                 System.out.println("Title background file found but could not be loaded");
+            }
+
+            // Nine-slice UI panel texture (optional; drawPanel falls back to vector panels if absent).
+            uiPanelRaw = ResourceCache.loadImageIfPresent("/res/ui/UI.png");
+            if (uiPanelRaw != null) {
+                System.out.println("UI panel texture loaded (" + uiPanelRaw.nativeWidth()
+                        + "x" + uiPanelRaw.nativeHeight() + ")");
+            }
+
+            // Nine-slice button texture (optional; drawButton falls back to a vector button if absent).
+            buttonPanelRaw = ResourceCache.loadImageIfPresent("/res/ui/Button.png");
+            if (buttonPanelRaw != null) {
+                System.out.println("UI button texture loaded (" + buttonPanelRaw.nativeWidth()
+                        + "x" + buttonPanelRaw.nativeHeight() + ")");
             }
         } catch(Exception e) {
             System.out.println("Title background not found at /res/background.png, using default black background");
@@ -507,16 +627,12 @@ public class UI {
         float pulse = fastPulse(animTick, 1);       // 0..1 slow breathe (~1 Hz at 60 UPS)
         float hpFastPulse = fastPulse(animTick, 3); // faster pulse for HP glow
 
-        int panelW = (int)(270 * sf);
-        int panelH = (int)(82 * sf);
-        g2.setColor(HUD_PANEL_BG);
-        g2.fillRoundRect(margin, margin, panelW, panelH, 12, 12);
+        int panelW = (int)(275 * sf);
+        int panelH = (int)(85 * sf);
+        drawPanel(margin, margin, panelW, panelH, THEME_HUD);
         int accentH = (int)(2 * sf);
         g2.setColor(cachedColor(230, 60, 80, (int)(60 + 30 * pulse)));
         g2.fillRoundRect(margin + 4, margin, panelW - 8, accentH, 4, 4);
-        g2.setColor(cachedColor(70, 60, 90, (int)(60 + 20 * pulse)));
-        g2.setStroke(STROKE_1);
-        g2.drawRoundRect(margin, margin, panelW, panelH, 12, 12);
 
         int badgeSize = (int)(34 * sf);
         int badgeX = margin + (int)(8 * sf);
@@ -935,8 +1051,6 @@ public class UI {
         if(titleScreenState == 0) {
             float pulse = fastPulse(animTick, 1); // 0.0 .. 1.0
 
-            g2.setColor(cachedColor(6, 2, 18, 162)); // TODO(gfx): gradient
-            g2.fillRect(0, 0, gp.screenWidth, 200);
             int vigTop = gp.screenHeight - 380;
             g2.setColor(cachedColor(3, 1, 12, 0)); // TODO(gfx): gradient
             g2.fillRect(0, vigTop, gp.screenWidth, 380);
@@ -985,7 +1099,7 @@ public class UI {
             g2.fillOval(sx - 24, sy + spriteSize - 20, spriteSize + 48, 30);
             g2.drawImage(gp.player.down1, sx, sy, spriteSize, spriteSize);
 
-            String[] menuItems = {"NEW GAME", "LOAD GAME", "MULTIPLAYER", "QUIT"};
+            java.util.List<MenuItem> menuItems = titleMenu().items();
             int menuStartY = (int)(gp.screenHeight * 0.77f);
             g2.setFont(cachedFont(Font.BOLD, 27F));
 
@@ -993,10 +1107,14 @@ public class UI {
             int arrowNudge = (int)(Math.sin(animTick * 0.09) * 2.0);
             int arrowAlpha = (int)(210 + pulse * 45);
 
-            for (int i = 0; i < menuItems.length; i++) {
+            // Record a full-width hitbox per row so mouse hover/click (MouseHandler) matches the rows.
+            titleMenu().beginRects();
+
+            for (int i = 0; i < menuItems.size(); i++) {
                 int iy = menuStartY + i * 40;
+                titleMenu().recordRect(0, iy - 24, gp.screenWidth, 40);
                 boolean sel = (commandNum == i);
-                text = menuItems[i];
+                text = menuItems.get(i).label;
                 tw = cachedFM().stringWidth(text);
                 tx = (gp.screenWidth - tw) / 2;
 
@@ -1109,8 +1227,10 @@ public class UI {
             g2.setColor(cachedColor(120, 100, 60, 80));
             g2.drawLine(px + 30, py + 62, px + panelW - 30, py + 62);
 
-            // Class options
-            String[] classes = {"Fighter", "Ronin", "Magician"};
+            // Class options — labels come from classMenu() (declared once); the icon/desc/color
+            // presentation stays here, keyed by row index. Item 3 is the "Back" row.
+            java.util.List<MenuItem> classItems = classMenu().items();
+            String[] classes = {classItems.get(0).label, classItems.get(1).label, classItems.get(2).label};
             String[] descs = {"High HP, Strong defense", "Fast attacks, High crit", "Powerful magic, High mana"};
             String[] icons = {"\u2694", "\u2620", "\u2733"}; // swords, skull, asterisk
             Color[] classColors = {
@@ -1124,9 +1244,14 @@ public class UI {
             int optH = 60;
             int optX = px + 30;
 
+            // Record button rects so the mouse hover/click hit-test (MouseHandler) matches exactly
+            // what we draw here — the Menu owns hit-testing for this custom-styled screen too.
+            classMenu().beginRects();
+
             for (int i = 0; i < 3; i++) {
                 int oy = optY + i * (optH + 14);
                 boolean sel = (commandNum == i);
+                classMenu().recordRect(optX, oy, optW, optH);
 
                 if (sel) {
                     g2.setColor(cachedColor(classColors[i].getRed(), classColors[i].getGreen(), classColors[i].getBlue(), 25));
@@ -1166,6 +1291,8 @@ public class UI {
             tw = cachedFM().stringWidth(text);
             g2.setColor(backSel ? cachedColor(255, 220, 100) : cachedColor(120, 115, 105));
             g2.drawString(text, px + (panelW - tw) / 2, backY);
+            // Back hitbox spans the panel width, centered on the text baseline (matches its click area).
+            classMenu().recordRect(optX, backY - 20, optW, 30);
 
             g2.setFont(cachedFont(Font.PLAIN, 13F));
             g2.setColor(cachedColor(100, 95, 85));
@@ -1526,11 +1653,13 @@ public class UI {
         g2.setColor(cachedColor(8, 8, 15, (int)(160 * pauseAlpha)));
         g2.fillRect(0, 0, gp.screenWidth, gp.screenHeight);
 
+        // Framed nine-slice panel, faded in with pauseAlpha (setAlpha is multiplied by drawImage).
         int frameInset = gp.tileSize * 3;
-        g2.setColor(cachedColor(180, 140, 60, (int)(40 * pauseAlpha)));
-        g2.setStroke(STROKE_1);
-        g2.drawRoundRect(frameInset, gp.tileSize * 2, gp.screenWidth - frameInset * 2,
-                gp.screenHeight - gp.tileSize * 4, 20, 20);
+        float prevAlpha = g2.getAlpha();
+        g2.setAlpha(prevAlpha * pauseAlpha);
+        drawPanel(frameInset, gp.tileSize * 2, gp.screenWidth - frameInset * 2,
+                gp.screenHeight - gp.tileSize * 4, THEME_PAUSE);
+        g2.setAlpha(prevAlpha);
 
         float breathe = fastPulse(animTick, 1);
         g2.setFont(cachedFont(Font.BOLD, 72F));
@@ -1688,8 +1817,10 @@ public class UI {
         if (fullLine != null) {
             // Typewriter: one char per update tick (60 UPS = ~60 chars/sec, FPS-independent).
             if (charIndex < fullLineLen) {
+                if (charIndex == 0) gp.startDialogueTyping();
                 dialogueBuilder.append(fullLine.charAt(charIndex));
                 charIndex++;
+                if (charIndex >= fullLineLen) gp.stopDialogueTyping();
             }
             // When typing is complete, reuse the original String object so that
             // wrapTextCached()'s reference-equality fast-path fires on every draw frame.
@@ -1702,11 +1833,13 @@ public class UI {
                     currentDialogue = fullLine;
                     dialogueBuilder.setLength(0);
                     gp.keyH.enterPressed = false;
+                    gp.stopDialogueTyping();
                 } else {
                     // Line already complete — advance to next
                     charIndex = 0;
                     combinedText = "";
                     dialogueBuilder.setLength(0);
+                    gp.stopDialogueTyping();
 
                     if (gp.gameState == GamePanel.dialogueState || gp.gameState == GamePanel.cutsceneState) {
                         // Choice confirmation: if choices are showing, apply the selected choice
@@ -1742,6 +1875,7 @@ public class UI {
             npc.dialogueIndex = 0;
             dialogueBuilder.setLength(0);
             currentDialogue = "";
+            gp.stopDialogueTyping();
 
             if (gp.gameState == GamePanel.dialogueState) {
                 gp.gameState = GamePanel.playState;
@@ -1762,7 +1896,7 @@ public class UI {
         int width = gp.screenWidth - (gp.tileSize * 4);
         int height = gp.tileSize * 5;
 
-        drawSubWindow(x, y, width, height);
+        drawSubWindow(x, y, width, height, THEME_DIALOGUE);
 
         if (npc != null && npc.name != null && !npc.name.isEmpty()) {
             int nameTagW = cachedFM(cachedFont(Font.BOLD, 20F))
@@ -1850,7 +1984,7 @@ public class UI {
         int optionH = 36;
         int totalH = npc.dialogueChoices.length * optionH + 20;
 
-        drawSubWindow(boxX, boxY, boxWidth, totalH);
+        drawSubWindow(boxX, boxY, boxWidth, totalH, THEME_DIALOGUE);
 
         g2.setFont(cachedFont(Font.PLAIN, 22F));
         int textX = boxX + gp.tileSize;
@@ -1907,7 +2041,7 @@ public class UI {
         int panelY = 100;
         int panelW = gp.screenWidth / 3;
         int panelH = gp.screenHeight - 140;
-        drawSubWindow(panelX, panelY, panelW, panelH);
+        drawSubWindow(panelX, panelY, panelW, panelH, THEME_JOURNAL);
 
         g2.setFont(cachedFont(Font.PLAIN, 18F));
         int listX = panelX + 20;
@@ -1940,7 +2074,7 @@ public class UI {
         int rightY = panelY;
         int rightW = gp.screenWidth - rightX - gp.tileSize;
         int rightH = panelH;
-        drawSubWindow(rightX, rightY, rightW, rightH);
+        drawSubWindow(rightX, rightY, rightW, rightH, THEME_JOURNAL);
 
         if (journalSelectedIndex >= 0 && journalSelectedIndex < allFragments.size()) {
             data.MemoryJournal.MemoryFragment selected = allFragments.get(journalSelectedIndex);
@@ -1972,6 +2106,32 @@ public class UI {
         g2.setFont(cachedFont(Font.PLAIN, 14F));
         g2.setColor(cachedColor(120, 115, 105));
         g2.drawString("W/S: Navigate    J/ESC: Close", panelX + 20, gp.screenHeight - 20);
+    }
+
+    /**
+     * The Game Over menu (Retry / Quit). Actions live here — the single source of truth — so
+     * KeyHandler just calls {@code gameOverMenu().activate()} instead of an index switch, and the
+     * draw code reads the labels from {@code items()}. Built once, then reused.
+     */
+    public Menu gameOverMenu() {
+        if (gameOverMenu == null) {
+            gameOverMenu = Menu.of(null, THEME_PAUSE)
+                .onNavigate(() -> gp.playSE(audio.SFX.MENU_SELECT))
+                .button("Retry", () -> {
+                    // resetGame(false) repositions the player at retrySpawnCol/Row (see MapManager).
+                    gp.resetGame(false);
+                    gp.gameState = gp.playState;
+                    gp.playMusic(audio.SFX.MAIN_THEME);
+                })
+                .button("Quit", () -> {
+                    gp.ui.titleScreenState = 0;
+                    gp.ui.commandNum = 0;
+                    gp.stopMusic();
+                    gp.resetGame(true);
+                    gp.gameState = GamePanel.titleState;
+                });
+        }
+        return gameOverMenu;
     }
 
     public void drawGameOverScreen() {
@@ -2037,16 +2197,19 @@ public class UI {
         g2.drawLine(lineMargin, line2Y, gp.screenWidth - lineMargin, line2Y);
 
         g2.setFont(cachedFont(Font.BOLD, 36f));
-        String[] opts = {"Retry", "Quit"};
+        java.util.List<MenuItem> opts = gameOverMenu().items();
         int buttonW = gp.tileSize * 5;
         int buttonH = (int)(gp.tileSize * 0.9);
         int buttonX = gp.screenWidth / 2 - buttonW / 2;
         y = line2Y + gp.tileSize;
 
-        for (int i = 0; i < opts.length; i++) {
-            text = opts[i];
+        gameOverMenu().beginRects();
+
+        for (int i = 0; i < opts.size(); i++) {
+            text = opts.get(i).label;
             int btnY = y + i * (buttonH + 20);
             int rectY = btnY - buttonH + 16;
+            gameOverMenu().recordRect(buttonX, rectY, buttonW, buttonH);
             boolean sel = (commandNum == i);
 
             if (sel) {
@@ -2079,7 +2242,7 @@ public class UI {
         int frameHeight = Math.min(660, (int)(gp.screenHeight * 0.92f));
         int frameX = (gp.screenWidth  - frameWidth)  / 2;
         int frameY = (gp.screenHeight - frameHeight) / 2;
-        drawSubWindow(frameX, frameY, frameWidth, frameHeight);
+        drawSubWindow(frameX, frameY, frameWidth, frameHeight, THEME_OPTIONS);
 
         switch (subState) {
             case 0: options_top ( frameX, frameY ); break;
@@ -2099,7 +2262,7 @@ public class UI {
         final int frameHeight = gp.screenHeight - 24;
         final int frameX = (int)(gp.screenWidth * 0.02f);
         final int frameY = 12;
-        drawSubWindow(frameX, frameY, frameWidth, frameHeight);
+        drawSubWindow(frameX, frameY, frameWidth, frameHeight, THEME_CHARACTER);
 
         final int pad = 16;
         final int leftX = frameX + pad;
@@ -2260,7 +2423,7 @@ public class UI {
         int frameHeight = gp.tileSize * 5;
         int frameX = gp.screenWidth - frameWidth - 16;  // right-aligned: works at any tileSize/resolution
         int frameY = gp.tileSize;
-        drawSubWindow(frameX, frameY, frameWidth, frameHeight);
+        drawSubWindow(frameX, frameY, frameWidth, frameHeight, THEME_INVENTORY);
 
         g2.setColor(Color.white);
             counter++;
@@ -2372,7 +2535,7 @@ public class UI {
         if (itemIndex < gp.player.inventory.size()) {
             Entity item = gp.player.inventory.get(itemIndex);
             if (item != null) {
-                drawSubWindow(dFrameX, dFrameY, dFrameWidth, dFrameHeight);
+                drawSubWindow(dFrameX, dFrameY, dFrameWidth, dFrameHeight, THEME_INVENTORY);
                 int iconX = dFrameX + 20;
                 int iconY = dFrameY + 20;
                 g2.drawImage(item.down1, iconX, iconY, gp.tileSize, gp.tileSize);
@@ -2427,142 +2590,80 @@ public class UI {
     private static final Stroke OPT_STROKE_THIN   = STROKE_1;
     private static final Stroke OPT_STROKE_SEL    = STROKE_2;
 
+    private static final String[] GRAPHICS_QUALITY_NAMES = { "Low", "Medium", "High" };
+
+    /**
+     * The Settings menu (subState 0) as one declarative list — toggles, a selector and sliders with
+     * their get/set lambdas. This replaces the old split where labels + Enter-actions lived in
+     * options_top() and the ◀▶ handling lived in KeyHandler.adjustOptionsVolume(). Add a setting by
+     * adding one row here.
+     */
+    public Menu optionsMenu() {
+        if (optionsMenu == null) {
+            optionsMenu = Menu.of("Settings", THEME_OPTIONS)
+                .onNavigate(() -> gp.playSE(audio.SFX.MENU_SELECT))
+                .toggle("Full Screen", () -> gp.fullScreenOn, () -> {
+                    gp.applyFullScreenSetting(!gp.fullScreenOn);
+                    gp.playSE(audio.SFX.MENU_SELECT);
+                    gp.config.saveConfig();
+                })
+                .toggle("V-Sync", () -> gp.vSyncOn, () -> {
+                    gp.setVSync(!gp.vSyncOn);
+                    gp.config.saveConfig();
+                })
+                .toggle("Perf Mode", () -> gp.config.fpsTarget == 30, () -> {
+                    gp.applyFpsTarget(gp.config.fpsTarget == 30 ? 60 : 30);
+                    gp.playSE(audio.SFX.MENU_SELECT);
+                    gp.config.saveConfig();
+                })
+                .selector("Graphics",
+                    () -> GRAPHICS_QUALITY_NAMES[gp.config.graphicsQuality],
+                    () -> cycleGraphicsQuality(-1),
+                    () -> cycleGraphicsQuality(+1))
+                .slider("Music", () -> gp.audio.getMusicVolume(), 5,
+                    () -> { gp.audio.setMusicVolume(gp.audio.getMusicVolume() - 1); gp.playSE(audio.SFX.MENU_SELECT); },
+                    () -> { gp.audio.setMusicVolume(gp.audio.getMusicVolume() + 1); gp.playSE(audio.SFX.MENU_SELECT); })
+                .slider("Sound FX", () -> gp.audio.getSEVolume(), 5,
+                    () -> { gp.audio.setSEVolume(gp.audio.getSEVolume() - 1); gp.playSE(audio.SFX.MENU_SELECT); },
+                    () -> { gp.audio.setSEVolume(gp.audio.getSEVolume() + 1); gp.playSE(audio.SFX.MENU_SELECT); })
+                .button("Controls", () -> { subState = 2; commandNum = 0; })
+                .button("End Game", () -> { subState = 3; commandNum = 0; })
+                .button("Save Game", () -> {
+                    gp.saveLoad.save();
+                    addMessage("Game saved.", Color.WHITE);
+                    gp.playSE(audio.SFX.MENU_SELECT);
+                })
+                .item(MenuItem.button("Back", () -> {
+                    gp.gameState = GamePanel.playState; commandNum = 0; gp.config.saveConfig();
+                }).separator().centered());
+        }
+        return optionsMenu;
+    }
+
+    private void cycleGraphicsQuality(int change) {
+        int q = (gp.config.graphicsQuality + change) % 3;
+        if (q < 0) q += 3;
+        gp.config.graphicsQuality = q;
+        if (gp.eManager.lightning != null) gp.eManager.lightning.clearShadowCaches();
+        gp.playSE(audio.SFX.MENU_SELECT);
+        gp.config.saveConfig();
+    }
+
     public void options_top( int frameX, int frameY ) {
 
         int fw = Math.min(520, (int)(gp.screenWidth * 0.42f));
-        int pad = 20;                   // inner padding
-        int lineH = 46;                 // row height for menu items
-        int rightCol = frameX + fw - pad - 155; // right column for controls/sliders
+        int fh = Math.min(660, (int)(gp.screenHeight * 0.92f));
 
-        g2.setFont(cachedFont(Font.BOLD, 36F));
-        String title = "Settings";
-        int titleW = cachedFM().stringWidth(title);
-        int titleX = frameX + fw / 2 - titleW / 2;
-        int titleY = frameY + 48;
-        g2.setColor(cachedColor(0, 0, 0, 150));
-        g2.drawString(title, titleX + 2, titleY + 2);
-        g2.setColor(OPT_GOLD);
-        g2.drawString(title, titleX, titleY);
-        int lineYDeco = titleY + 10;
-        g2.setColor(OPT_SEPARATOR);
-        g2.fillRect(frameX + pad + 20, lineYDeco, fw - pad * 2 - 40, 2);
+        // Declarative Settings menu \u2014 one list of rows (see optionsMenu()). Draw the rows into the
+        // frame the caller already drew (drawItems, not draw, so we don't double-draw the panel).
+        // Reserve space at the bottom for the server-status line.
+        Menu menu = optionsMenu();
+        menu.setSelected(commandNum);
+        int rowsH = fh - 40; // leave room for the status footer
+        menu.itemHeight(46).gap(6).padding(20).titleSize(36).itemSize(26)
+            .drawItems(this, g2, frameX, frameY, fw, rowsH);
 
-        g2.setFont(cachedFont(Font.PLAIN, 26F));
-        int startY = titleY + 42;       // first item Y baseline
-        int textX = frameX + pad + 15;
-
-        String[] labels = { "Full Screen", "V-Sync", "Perf Mode", "Graphics", "Music", "Sound FX", "Controls", "End Game", "Save Game", "Back" };
-        int totalItems = labels.length;  // 10 items, indices 0-9
-
-        for (int i = 0; i < totalItems; i++) {
-            int itemY = startY + i * lineH;
-            boolean selected = (commandNum == i);
-            boolean isBack = (i == 9);
-
-            // draw separator before "Back"
-            if (isBack) {
-                int sepY = itemY - lineH / 2 + 4;
-                g2.setColor(OPT_SEPARATOR);
-                g2.fillRect(frameX + pad + 10, sepY, fw - pad * 2 - 20, 1);
-            }
-
-            // selection highlight bar
-            if (selected) {
-                int barX = frameX + pad + 4;
-                int barY = itemY - lineH + 16;
-                int barW = fw - pad * 2 - 8;
-                int barH = lineH - 4;
-                g2.setColor(OPT_SEL_BG);
-                g2.fillRoundRect(barX, barY, barW, barH, 10, 10);
-                g2.setColor(OPT_SEL_BORDER);
-                g2.setStroke(OPT_STROKE_SEL);
-                g2.drawRoundRect(barX, barY, barW, barH, 10, 10);
-            }
-
-            // label
-            if (isBack) {
-                // center "Back" and use dimmer gold
-                g2.setColor(selected ? OPT_GOLD : OPT_BACK_TEXT);
-                int bw = cachedFM().stringWidth(labels[i]);
-                g2.drawString(labels[i], frameX + fw / 2 - bw / 2, itemY);
-            } else {
-                g2.setColor(selected ? OPT_GOLD : OPT_TEXT);
-                g2.drawString(labels[i], textX, itemY);
-            }
-
-            int ctrlY = itemY - 17; // vertical center for controls
-
-            if (i == 0) { // FullScreen toggle
-                drawMedievalToggle(rightCol + 100, ctrlY, gp.fullScreenOn);
-                if (selected && gp.keyH.enterPressed) {
-                    gp.applyFullScreenSetting(!gp.fullScreenOn);
-                    gp.playSE(SFX.MENU_SELECT);
-                    gp.keyH.enterPressed = false;
-                    gp.config.saveConfig();
-                }
-            }
-            else if (i == 1) { // V-Sync toggle
-                drawMedievalToggle(rightCol + 100, ctrlY, gp.vSyncOn);
-                if (selected && gp.keyH.enterPressed) {
-                    gp.setVSync(!gp.vSyncOn);
-                    gp.keyH.enterPressed = false;
-                    gp.config.saveConfig();
-                }
-            }
-            else if (i == 2) { // Performance Mode (30 FPS cap)
-                boolean perfOn = (gp.config.fpsTarget == 30);
-                drawMedievalToggle(rightCol + 100, ctrlY, perfOn);
-                if (selected && gp.keyH.enterPressed) {
-                    gp.applyFpsTarget(perfOn ? 60 : 30);
-                    gp.playSE(SFX.MENU_SELECT);
-                    gp.keyH.enterPressed = false;
-                    gp.config.saveConfig();
-                }
-            }
-            else if (i == 3) { // Graphics quality selector
-                String[] qualityNames = { "Low", "Medium", "High" };
-                String qText = qualityNames[gp.config.graphicsQuality];
-                int qw = cachedFM().stringWidth(qText);
-                int qx = rightCol + 75 - qw / 2;
-                g2.setColor(selected ? OPT_GOLD : OPT_TEXT);
-                g2.drawString("\u25C0", rightCol + 10, itemY);
-                g2.drawString(qText, qx, itemY);
-                g2.drawString("\u25B6", rightCol + 135, itemY);
-                if (selected && gp.keyH.enterPressed) {
-                    gp.config.graphicsQuality = (gp.config.graphicsQuality + 1) % 3;
-                    if (gp.eManager.lightning != null) gp.eManager.lightning.clearShadowCaches();
-                    gp.playSE(SFX.MENU_SELECT);
-                    gp.keyH.enterPressed = false;
-                    gp.config.saveConfig();
-                }
-            }
-            else if (i == 4) { // Music volume bar
-                drawMedievalSlider(rightCol, ctrlY, gp.audio.getMusicVolume(), 5);
-            }
-            else if (i == 5) { // SE volume bar
-                drawMedievalSlider(rightCol, ctrlY, gp.audio.getSEVolume(), 5);
-            }
-            else if (i == 6) { // Controls
-                if (selected) drawArrowHint(rightCol + 120, itemY);
-                if (selected && gp.keyH.enterPressed) { subState = 2; commandNum = 0; }
-            }
-            else if (i == 7) { // End Game
-                if (selected && gp.keyH.enterPressed) { subState = 3; commandNum = 0; }
-            }
-            else if (i == 8) { // Save Game
-                if (selected && gp.keyH.enterPressed) {
-                    gp.saveLoad.save();
-                    addMessage("Game saved.", Color.WHITE);
-                    gp.playSE(SFX.MENU_SELECT);
-                    gp.keyH.enterPressed = false;
-                }
-            }
-            else if (i == 9) { // Back
-                if (selected && gp.keyH.enterPressed) { gp.gameState = GamePanel.playState; commandNum = 0; gp.config.saveConfig(); }
-            }
-        }
-
-        int statusY = startY + totalItems * lineH + 10;
+        int statusY = frameY + fh - 14;
         boolean online = gp.saveLoad.isServerOnline();
         g2.setFont(cachedFont(Font.PLAIN, 18F));
         String statusText = "Server: " + (online ? "Online" : "Offline");
@@ -2580,7 +2681,7 @@ public class UI {
     }
 
     /** Draw a medieval-style on/off toggle (small ornate checkbox). */
-    private void drawMedievalToggle(int x, int y, boolean on) {
+    void drawMedievalToggle(int x, int y, boolean on) {
         int size = 22;
         // outer box
         g2.setColor(OPT_CHECK_BG);
@@ -2599,7 +2700,7 @@ public class UI {
     }
 
     /** Draw a medieval-style volume slider bar. */
-    private void drawMedievalSlider(int x, int y, int value, int max) {
+    void drawMedievalSlider(int x, int y, int value, int max) {
         int barW = 150;
         int barH = 18;
         int cy = y + 2;
@@ -2877,15 +2978,8 @@ public class UI {
         g2.setColor(cachedColor(0, 0, 0, 255));
         g2.fillRect(0, 0, gp.screenWidth, gp.screenHeight);
 
-        g2.setColor(cachedColor(20, 15, 35, 240)); // TODO(gfx): gradient
-        g2.fillRoundRect(x, y, w, h, 16, 16);
-
-        g2.setColor(cachedColor(255, 200, 60, 40));
-        g2.setStroke(STROKE_6);
-        g2.drawRoundRect(x - 1, y - 1, w + 2, h + 2, 18, 18);
-        g2.setColor(cachedColor(200, 170, 80));
-        g2.setStroke(STROKE_2);
-        g2.drawRoundRect(x + 2, y + 2, w - 4, h - 4, 14, 14);
+        // Level-up panel.
+        drawPanel(x, y, w, h, THEME_LEVELUP);
 
         g2.setColor(cachedColor(255, 200, 60, 0)); // TODO(gfx): gradient
         g2.setStroke(STROKE_15);
@@ -3087,15 +3181,8 @@ public class UI {
         g2.setColor(cachedColor(3, 4, 8, 215));
         g2.fillRect(0, 0, gp.screenWidth, gp.screenHeight);
 
-        // panel background
-        g2.setColor(cachedColor(14, 11, 22, 252)); // TODO(gfx): gradient
-        g2.fillRoundRect(PX, PY, PW, PH, 22, 22);
-        g2.setColor(cachedColor(200, 160, 70, 160));
-        g2.setStroke(STROKE_2);
-        g2.drawRoundRect(PX + 2, PY + 2, PW - 4, PH - 4, 20, 20);
-        g2.setColor(cachedColor(255, 200, 80, 35));
-        g2.setStroke(STROKE_1);
-        g2.drawRoundRect(PX + 5, PY + 5, PW - 10, PH - 10, 16, 16);
+        // panel background.
+        drawPanel(PX, PY, PW, PH, THEME_SKILLTREE);
 
         g2.setFont(cachedFont(Font.BOLD, 26f));
         String title = "SKILL TREE";
@@ -3399,8 +3486,100 @@ public class UI {
         };
     }
 
-    public void drawSubWindow(int x, int y, int width, int height) {
+    /** Draw a window background with a specific per-window theme. */
+    public void drawSubWindow(int x, int y, int width, int height, PanelTheme theme) {
+        drawPanel(x, y, width, height, theme);
+    }
 
+    /** Draw a window background with the default gold-on-dark theme. */
+    public void drawSubWindow(int x, int y, int width, int height) {
+        drawPanel(x, y, width, height, THEME_DEFAULT);
+    }
+
+    /** Nine-slice panel with the 4 role colors given explicitly. */
+    public void drawPanel(int x, int y, int width, int height,
+                          Color main, Color shadow, Color highlight, Color highlight2) {
+        drawPanel(x, y, width, height, new PanelTheme(main, shadow, highlight, highlight2));
+    }
+
+    /**
+     * Draw a UI window background using the nine-slice UI.png, recolored to {@code theme}: the PNG's
+     * marker colors (main/shadow/highlight/highlight2) are remapped to the theme's colors. The
+     * recolored texture is baked once per unique color-set and cached. If UI.png isn't present,
+     * falls back to the previous vector look so the game still renders.
+     */
+    public void drawPanel(int x, int y, int width, int height, PanelTheme theme) {
+        if (uiPanelRaw == null) { drawSubWindowVector(x, y, width, height); return; }
+        long key = paletteKey(theme.main(), theme.shadow(), theme.highlight(), theme.highlight2());
+        Sprite themed = uiPanelCache.get(key);
+        if (themed == null) {
+            themed = GdxRenderer.bakePaletteSwap(uiPanelRaw, UI_MARKERS,
+                    new Color[]{ theme.main(), theme.shadow(), theme.highlight(), theme.highlight2() });
+            uiPanelCache.put(key, themed);
+        }
+        g2.drawNineSlice(themed, x, y, width, height);
+    }
+
+    /** Pack the 4 theme colors' 24-bit RGBs into a stable cache key. */
+    private static long paletteKey(Color a, Color b, Color c, Color d) {
+        long ka = a.getRGB() & 0xFFFFFFL, kb = b.getRGB() & 0xFFFFFFL;
+        long kc = c.getRGB() & 0xFFFFFFL, kd = d.getRGB() & 0xFFFFFFL;
+        // Mix the four 24-bit values; collisions are harmless (just a rare redundant bake).
+        return (ka * 1000003L + kb) * 1000003L + kc ^ (kd << 1);
+    }
+
+    /**
+     * Draw a menu button background sized to (x,y,w,h), recolored to {@code theme}. Uses the
+     * nine-slice Button.png (palette-swapped + cached per theme) when present; otherwise falls back
+     * to a themed rounded-rect (the same look the old hand-rolled menus used) so buttons still
+     * render before art exists. When {@code selected} an accent overlay/border is drawn on top.
+     * Used by {@link Menu} — the declarative menu layer.
+     */
+    public void drawButton(int x, int y, int w, int h, PanelTheme theme, boolean selected) {
+        if (buttonPanelRaw != null) {
+            long key = paletteKey(theme.main(), theme.shadow(), theme.highlight(), theme.highlight2());
+            Sprite themed = buttonPanelCache.get(key);
+            if (themed == null) {
+                themed = GdxRenderer.bakePaletteSwap(buttonPanelRaw, UI_MARKERS,
+                        new Color[]{ theme.main(), theme.shadow(), theme.highlight(), theme.highlight2() });
+                buttonPanelCache.put(key, themed);
+            }
+            g2.drawNineSlice(themed, x, y, w, h);
+            if (selected) {
+                g2.setColor(OPT_SEL_BG);
+                g2.fillRoundRect(x + 2, y + 2, w - 4, h - 4, 10, 10);
+                g2.setColor(OPT_SEL_BORDER);
+                g2.setStroke(OPT_STROKE_SEL);
+                g2.drawRoundRect(x + 2, y + 2, w - 4, h - 4, 10, 10);
+            }
+        } else {
+            // Vector fallback — mirrors the rounded-rect buttons in options_top / game-over.
+            if (selected) {
+                g2.setColor(OPT_SEL_BG);
+                g2.fillRoundRect(x, y, w, h, 12, 12);
+                g2.setColor(OPT_SEL_BORDER);
+                g2.setStroke(OPT_STROKE_SEL);
+                g2.drawRoundRect(x, y, w, h, 12, 12);
+            } else {
+                g2.setColor(cachedColor(25, 22, 18, 120));
+                g2.fillRoundRect(x, y, w, h, 12, 12);
+                g2.setColor(cachedColor(90, 75, 60, 90));
+                g2.setStroke(STROKE_1);
+                g2.drawRoundRect(x, y, w, h, 12, 12);
+            }
+        }
+    }
+
+    // ── Package-private accessors used by Menu (keeps UI's caches/animation internal) ─────────
+    /** Cached font lookup for the declarative {@link Menu} layer. */
+    Font cachedFontFor(int style, float size) { return cachedFont(style, size); }
+    /** Cached color lookup for the declarative {@link Menu} layer. */
+    Color cachedColorFor(int r, int g, int b, int a) { return cachedColor(r, g, b, a); }
+    /** Shared slow UI pulse (0..1) so Menu animations stay in sync with the rest of the UI. */
+    float uiPulse() { return fastPulse(animTick, 1); }
+
+    /** The original vector panel look; used as a fallback when UI.png is missing. */
+    private void drawSubWindowVector(int x, int y, int width, int height) {
         // Dark background with leather feel
         g2.setColor(OPT_BG_DARK);
         g2.fillRoundRect(x, y, width, height, 20, 20);
