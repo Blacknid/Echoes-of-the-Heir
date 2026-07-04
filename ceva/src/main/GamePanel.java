@@ -83,10 +83,28 @@ public class GamePanel {
     public java.util.List<String> debugMapList = new java.util.ArrayList<>();
     public int debugMapSelectedIndex = 0;
 
-    public final int maxWorldCol = 100;
-    public final int maxWorldRow = 100;
-    public final int worldWidth = tileSize * maxWorldCol;
-    public final int worldHeight = tileSize * maxWorldRow;
+    // World grid dimensions — DYNAMIC per map. Default to 100x100 (the historical fixed size) so
+    // arrays allocated before the first TMX load are valid; setWorldDimensions() updates these from
+    // each map's TMX width/height and reallocates the dependent per-tile arrays.
+    public int maxWorldCol = 100;
+    public int maxWorldRow = 100;
+    public int worldWidth = tileSize * maxWorldCol;
+    public int worldHeight = tileSize * maxWorldRow;
+
+    /**
+     * Resize the world grid to a new map's dimensions and reallocate everything sized by it. Call
+     * this BEFORE tile layers / lit maps / pathfinder nodes are (re)allocated for the new map. A
+     * minimum of 1x1 is enforced; passing the current size is a cheap no-op for the arrays that key
+     * off it (they're rebuilt per map anyway).
+     */
+    public void setWorldDimensions(int cols, int rows) {
+        maxWorldCol = Math.max(1, cols);
+        maxWorldRow = Math.max(1, rows);
+        worldWidth  = tileSize * maxWorldCol;
+        worldHeight = tileSize * maxWorldRow;
+        // PathFinder allocates a node per tile in its ctor; resize it to the new grid.
+        if (pFinder != null) pFinder.instantiateNodes();
+    }
     
     // (No Sprite back-buffer / GdxRenderer on the GPU — MichiGame renders straight to the
     // default framebuffer via a GdxRenderer each frame.)

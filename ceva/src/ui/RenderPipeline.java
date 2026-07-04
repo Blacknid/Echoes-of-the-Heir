@@ -88,6 +88,7 @@ public class RenderPipeline {
 
         gp.tileM.prepareVisibleTiles();
         gp.tileM.drawBackground(g2);
+        drawTileShadows(g2);
 
         collectRenderableEntities();
 
@@ -494,6 +495,20 @@ public class RenderPipeline {
         g2.setColor(Color.WHITE);
         g2.setFont(DBG_FONT);
         g2.drawString(text, tx, ty);
+    }
+
+    /**
+     * Ground-decal shadows (e.g. IT_Tree's) drawn BEFORE the Y-sorted entity pass, so they always
+     * render underneath the player/NPCs/monsters no matter where they'd land in the Y-sort — a
+     * shadow is flat ground art, not a sortable object with its own depth.
+     */
+    private void drawTileShadows(GdxRenderer g2) {
+        for (int i = 0; i < gp.iTile.length; i++) {
+            tile.interactiveTile it = gp.iTile[i];
+            if (it != null && gp.isEntityInViewport(it, gp.tileSize)) {
+                it.drawShadow(g2);
+            }
+        }
     }
 
     private void collectRenderableEntities() {

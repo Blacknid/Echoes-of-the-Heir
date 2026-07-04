@@ -1,0 +1,16 @@
+=== changeMap FAILED for 'canvas_village_rework' (path=/res/maps/Canvas_Village_rework.tmx) ===
+java.lang.ArrayIndexOutOfBoundsException: Index 100 out of bounds for length 100
+	at ui.Minimap.bakeTerrainImage(Minimap.java:121)
+	at map.MapManager.changeMap(MapManager.java:210)
+	at map.MapManager.changeMap(MapManager.java:181)
+	at main.GamePanel.changeMap(GamePanel.java:374)
+	at ui.UI.drawTransition(UI.java:2946)
+	at ui.UI.draw(UI.java:496)
+	at ui.RenderPipeline.drawWorldOverlays(RenderPipeline.java:196)
+	at ui.RenderPipeline.drawCurrentState(RenderPipeline.java:77)
+	at main.GamePanel.draw(GamePanel.java:784)
+	at main.MichiGame.render(MichiGame.java:164)
+	at com.badlogic.gdx.backends.lwjgl3.Lwjgl3Window.update(Lwjgl3Window.java:435)
+	at com.badlogic.gdx.backends.lwjgl3.Lwjgl3Application.loop(Lwjgl3Application.java:181)
+	at com.badlogic.gdx.backends.lwjgl3.Lwjgl3Application.<init>(Lwjgl3Application.java:153)
+	at lwjgl3.DesktopLauncher.main(DesktopLauncher.java:47)
