@@ -591,8 +591,14 @@ public class GamePanel {
         // or slow down on weak ones.
         ui.updateAnimations();
 
+        // Player keeps idling (breathing/blinking sprite animation) instead of freezing on a single
+        // frame while dialogue or the inventory/character screen has their input. Player uses its own
+        // sprite/idle-clip system (spriteNum + idleClip), not the generic Entity.tickAnimations()
+        // idleFrames path, so it needs its own tick method.
+        if (gameState == dialogueState || gameState == characterState) {
+            player.tickIdleWhileMenuOpen();
+        }
         if (gameState == dialogueState) {
-            player.tickAnimations();
             for (int i = 0; i < npc.length; i++) {
                 if (npc[i] != null && isEntityInViewport(npc[i], tileSize * 2)) {
                     npc[i].tickAnimations();
@@ -607,10 +613,11 @@ public class GamePanel {
             ui.updateDialogueState();
         }
 
-        // World keeps simulating during dialogue (NPCs, monsters, particles, wind, lighting, etc.)
-        // so the game doesn't visibly freeze in the background — only the player is held out
-        // (via the playState-only player.update() below) so they can't move/act mid-conversation.
-        if(gameState == playState || gameState == dialogueState) {
+        // World keeps simulating during dialogue AND while the inventory/character screen is open
+        // (NPCs, monsters, particles, wind, lighting, etc.) so the game doesn't visibly freeze in the
+        // background — only the player is held out (via the playState-only player.update() below) so
+        // they can't move/act while a menu has their input.
+        if(gameState == playState || gameState == dialogueState || gameState == characterState) {
             vpCacheValid = false;
             updateViewportCache();
 

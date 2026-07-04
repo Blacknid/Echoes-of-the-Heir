@@ -3,7 +3,6 @@ package ui;
 import java.util.ArrayList;
 import java.util.HashMap;
 
-import audio.SFX;
 import entity.Entity;
 import gfx.Color;
 import gfx.Font;
@@ -476,7 +475,6 @@ public class UI {
 
         //DIALOGUE STATE
         if(gp.gameState == GamePanel.dialogueState){
-            drawPlayerLife();
             drawDialogueScreen();
         }
 
@@ -719,37 +717,40 @@ public class UI {
         int coinTxtX = pillRX + pillW - (int)(9 * sf) - cachedFM().stringWidth(coinStr);
         g2.drawString(coinStr, coinTxtX, pillRY + pillH / 2 + cachedFM().getAscent() / 2 - 1);
 
-        pillRY += pillH + pillGap;
-        g2.setColor(HUD_PANEL_BG);
-        g2.fillRoundRect(pillRX, pillRY, pillW, pillH, pillRound, pillRound);
-        g2.setColor(cachedColor(140, 160, 180, (int)(60 + 20 * pulse)));
-        g2.fillRoundRect(pillRX, pillRY + 4, (int)(3 * sf), pillH - 8, 3, 3);
-        g2.setColor(PILL_BORDER_CLR);
-        g2.setStroke(STROKE_1);
-        g2.drawRoundRect(pillRX, pillRY, pillW, pillH, pillRound, pillRound);
-        g2.setFont(hudFont_plain10);
-        g2.setColor(cachedColor(160, 170, 180));
-        g2.drawString("Inv", pillRX + (int)(10 * sf), pillRY + pillH / 2 + 4);
-        String invStr = gp.player.inventory.size() + "/" + gp.player.maxInventorySize;
-        g2.setColor(cachedColor(210, 220, 230));
-        int invTxtX = pillRX + pillW - (int)(9 * sf) - cachedFM().stringWidth(invStr);
-        g2.drawString(invStr, invTxtX, pillRY + pillH / 2 + 4);
+        // Inv/SP pills are hidden during normal play — only the coin pill above stays visible there.
+        if (gp.gameState != GamePanel.playState) {
+            pillRY += pillH + pillGap;
+            g2.setColor(HUD_PANEL_BG);
+            g2.fillRoundRect(pillRX, pillRY, pillW, pillH, pillRound, pillRound);
+            g2.setColor(cachedColor(140, 160, 180, (int)(60 + 20 * pulse)));
+            g2.fillRoundRect(pillRX, pillRY + 4, (int)(3 * sf), pillH - 8, 3, 3);
+            g2.setColor(PILL_BORDER_CLR);
+            g2.setStroke(STROKE_1);
+            g2.drawRoundRect(pillRX, pillRY, pillW, pillH, pillRound, pillRound);
+            g2.setFont(hudFont_plain10);
+            g2.setColor(cachedColor(160, 170, 180));
+            g2.drawString("Inv", pillRX + (int)(10 * sf), pillRY + pillH / 2 + 4);
+            String invStr = gp.player.inventory.size() + "/" + gp.player.maxInventorySize;
+            g2.setColor(cachedColor(210, 220, 230));
+            int invTxtX = pillRX + pillW - (int)(9 * sf) - cachedFM().stringWidth(invStr);
+            g2.drawString(invStr, invTxtX, pillRY + pillH / 2 + 4);
 
-        // SP pill
-        pillRY += pillH + pillGap;
-        g2.setColor(HUD_PANEL_BG);
-        g2.fillRoundRect(pillRX, pillRY, pillW, pillH, pillRound, pillRound);
-        g2.setColor(cachedColor(255, 200, 60, (int)(80 + 30 * pulse)));
-        g2.fillRoundRect(pillRX, pillRY + 4, (int)(3 * sf), pillH - 8, 3, 3);
-        g2.setColor(PILL_BORDER_CLR);
-        g2.setStroke(STROKE_1);
-        g2.drawRoundRect(pillRX, pillRY, pillW, pillH, pillRound, pillRound);
-        g2.setFont(hudFont_bold10);
-        g2.setColor(cachedColor(255, 225, 120));
-        g2.drawString("SP", pillRX + (int)(10 * sf), pillRY + pillH / 2 + 4);
-        String spStr = String.valueOf(gp.player.skillPoints);
-        int spTxtX = pillRX + pillW - (int)(9 * sf) - cachedFM().stringWidth(spStr);
-        g2.drawString(spStr, spTxtX, pillRY + pillH / 2 + 4);
+            // SP pill
+            pillRY += pillH + pillGap;
+            g2.setColor(HUD_PANEL_BG);
+            g2.fillRoundRect(pillRX, pillRY, pillW, pillH, pillRound, pillRound);
+            g2.setColor(cachedColor(255, 200, 60, (int)(80 + 30 * pulse)));
+            g2.fillRoundRect(pillRX, pillRY + 4, (int)(3 * sf), pillH - 8, 3, 3);
+            g2.setColor(PILL_BORDER_CLR);
+            g2.setStroke(STROKE_1);
+            g2.drawRoundRect(pillRX, pillRY, pillW, pillH, pillRound, pillRound);
+            g2.setFont(hudFont_bold10);
+            g2.setColor(cachedColor(255, 225, 120));
+            g2.drawString("SP", pillRX + (int)(10 * sf), pillRY + pillH / 2 + 4);
+            String spStr = String.valueOf(gp.player.skillPoints);
+            int spTxtX = pillRX + pillW - (int)(9 * sf) - cachedFM().stringWidth(spStr);
+            g2.drawString(spStr, spTxtX, pillRY + pillH / 2 + 4);
+        }
 
         if (gp.teleportation) {
             int tpX = margin;
@@ -1896,10 +1897,14 @@ public class UI {
 
         if (npc == null) return;
 
+        // Anchored to the TOP of the screen, just under the cinematic letterbox bar, and kept
+        // compact so it doesn't cover the player+NPC that the dialogue camera zooms in on and
+        // frames in the middle of the view.
         int x = gp.tileSize * 2;
-        int y = gp.tileSize / 2;
         int width = gp.screenWidth - (gp.tileSize * 4);
-        int height = gp.tileSize * 5;
+        int height = (int)(gp.tileSize * 3.5f);
+        int y = GamePanel.DLG_BAR_MAX_H + 30 /* name-tag height below */;
+        int boxX = x, boxY = y; // keep the original box origin for prompt/choices layout below
 
         drawSubWindow(x, y, width, height, THEME_DIALOGUE);
 
@@ -1973,12 +1978,14 @@ public class UI {
             g2.setFont(cachedFont(Font.PLAIN, 18F));
             String cont = "\u25BC ENTER";
             int contW = cachedFM().stringWidth(cont);
-            int contX = gp.tileSize * 2 + width - gp.tileSize - contW;
-            int contY = gp.tileSize / 2 + height - 16;
+            int contX = boxX + width - gp.tileSize - contW;
+            int contY = boxY + height - 16;
             g2.drawString(cont, contX, contY);
 
             if (npc.dialogueChoices != null && npc.dialogueChoices.length > 0) {
-                drawDialogueChoices(gp.tileSize * 2, gp.tileSize / 2 + height + 8, width);
+                // Drawn BELOW the dialogue box (which sits near the top of the screen), where there's
+                // open room without covering the box or running off the top edge.
+                drawDialogueChoices(boxX, boxY + height + 8, width);
             }
         }
     }

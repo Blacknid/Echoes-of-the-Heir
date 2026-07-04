@@ -172,10 +172,20 @@ public class Entity {
     public boolean onPath = false;
     public boolean knockBack = false;          // true while being pushed by an attack
     public int knockBackPower = 0;             // magnitude of the push (for debug display)
-    // new vector-based knockback
+    // Knockback: callers set knockBackVectorX/Y as the INITIAL burst velocity (pixels/frame) — a
+    // quick pop in the hit direction. Entity.update() then decays it every frame (knockBackDecay),
+    // so the motion is fast-then-slow instead of a constant slide, and stops itself once the
+    // velocity trails off (or on collision) rather than needing a separate travel-distance budget.
     public int knockBackVectorX = 0;
     public int knockBackVectorY = 0;
-    public double knockBackRemaining = 0;      // distance left to travel
+    public double knockBackRemaining = 0;      // distance left to travel (legacy; unused by the decay model, kept for any external readers)
+    private float knockBackVelX = 0f, knockBackVelY = 0f;   // current (decaying) sub-pixel velocity
+    private float knockBackAccumX = 0f, knockBackAccumY = 0f; // sub-pixel remainder carried between frames
+    private static final float KNOCKBACK_DECAY = 0.80f;     // velocity multiplier applied every frame
+    private static final float KNOCKBACK_STOP_SPEED = 0.4f; // stop once speed drops below this (px/frame)
+    // Callers' power values were tuned for the old constant-speed slide; multiply the initial pop so
+    // the new decay-based burst covers a comparable total distance before it tails off.
+    private static final float KNOCKBACK_BURST_MULTIPLIER = 3.2f;
     public boolean fleeing = false;            // AI state: running away from player
     public int fleeCounter = 0;
     public int fleeDuration = 60;
@@ -545,6 +555,10 @@ public class Entity {
     public int getParticleStyle() {
         return Particle.STYLE_DEFAULT;
     }
+    /** Sprite used by image-based particle styles (e.g. STYLE_IMAGE_DEBRIS). Null = no image. */
+    public Sprite getParticleImage() {
+        return null;
+    }
     public void generateParticle ( Entity generator, Entity target ) {
 
         Color color = generator.getParticleColor();
@@ -552,21 +566,26 @@ public class Entity {
         int particleSpeed = generator.getParticleSpeed();
         int particleMaxLife = generator.getParticleMaxLife();
         int style = generator.getParticleStyle();
+        Sprite image = generator.getParticleImage();
 
         Particle p1 = gp.particlePool.get();
         p1.setWithPosition(generator, target, color, size, particleSpeed, particleMaxLife, -1, -1, style);
+        p1.image = image;
         gp.particleList.add(p1);
-        
+
         Particle p2 = gp.particlePool.get();
-        p2.setWithPosition(generator, target, color, size, speed, maxLife, 0, -1, style);
+        p2.setWithPosition(generator, target, color, size, particleSpeed, particleMaxLife, 0, -1, style);
+        p2.image = image;
         gp.particleList.add(p2);
-        
+
         Particle p3 = gp.particlePool.get();
-        p3.setWithPosition(generator, target, color, size, speed, maxLife, 1, -1, style);
+        p3.setWithPosition(generator, target, color, size, particleSpeed, particleMaxLife, 1, -1, style);
+        p3.image = image;
         gp.particleList.add(p3);
-        
+
         Particle p4 = gp.particlePool.get();
-        p4.setWithPosition(generator, target, color, size, speed, maxLife, 0, 1, style);
+        p4.setWithPosition(generator, target, color, size, particleSpeed, particleMaxLife, 0, 1, style);
+        p4.image = image;
         gp.particleList.add(p4);
 
     } 
@@ -585,28 +604,7 @@ public class Entity {
         }
 
         // handling knockback first — check collision before moving to prevent wall phasing
-        if (knockBack) {
-            int nextX = worldX + knockBackVectorX;
-            int nextY = worldY + knockBackVectorY;
-            gp.cChecker.checkTileNext(this, nextX, nextY);
-            if (!collisionOn) {
-                worldX = nextX;
-                worldY = nextY;
-            }
-
-            double travelled = Math.hypot(knockBackVectorX, knockBackVectorY);
-            knockBackRemaining -= travelled;
-            if (knockBackRemaining <= 0 || collisionOn) {
-                knockBack = false;
-                knockBackVectorX = 0;
-                knockBackVectorY = 0;
-                knockBackRemaining = 0;
-                knockBackPower = 0;
-                // stop any active chase so monster isn't immediately drawn back
-                onPath = false;
-            }
-            return;
-        }
+        if (tickKnockback()) return;
 
         if (slowedTimer > 0 && --slowedTimer == 0) slowed = false;
         if (rootedTimer > 0 && --rootedTimer == 0) rooted = false;
@@ -856,8 +854,9 @@ public class Entity {
                 currentSprite = getWalkFrameImage(direction, 1);
             }
 
-            // Monster HP Bar
-            if (type == TYPE_MONSTER && hpBarOn) {
+            // Monster HP Bar — never draw once the monster is dying/dead, even if hpBarOn was still
+            // set from the killing hit (a lingering bar with residual HP looks like a bug).
+            if (type == TYPE_MONSTER && hpBarOn && !dying && alive) {
                 double oneScale = (double)gp.tileSize / maxLife;
                 double hpBarValue = oneScale * life;
 
@@ -1045,6 +1044,100 @@ public class Entity {
         }
     }
 
+    /**
+     * Advances an in-progress knockback by one frame: fast burst that decays every frame instead of
+     * a constant-speed slide, stopping once the velocity trails off or a collision is hit. Callers
+     * trigger a knockback by setting {@code knockBackVectorX/Y} (initial pixels/frame in the hit
+     * direction) and {@code knockBack = true}; everything else is handled here.
+     *
+     * @return true if a knockback was active and handled this frame (caller should skip its normal
+     *         movement/update logic for the frame, same as the old inline block did).
+     */
+    protected boolean tickKnockback() {
+        if (!knockBack) return false;
+
+        // A caller just triggered this knockback this frame: seed the burst velocity from the
+        // vector they set, then clear it so it isn't re-seeded every frame while decaying.
+        // Scaled up (BURST_MULTIPLIER) since callers tuned their power values for the old
+        // constant-speed slide — the decay model needs a punchier initial pop to cover a similar
+        // total distance before it tails off.
+        if (knockBackVectorX != 0 || knockBackVectorY != 0) {
+            knockBackVelX = knockBackVectorX * KNOCKBACK_BURST_MULTIPLIER;
+            knockBackVelY = knockBackVectorY * KNOCKBACK_BURST_MULTIPLIER;
+            knockBackAccumX = 0f;
+            knockBackAccumY = 0f;
+            knockBackVectorX = 0;
+            knockBackVectorY = 0;
+            spawnKnockbackBurst();
+        }
+
+        // Sub-pixel accumulation: at high decay the per-frame step can be well under 1px, so we
+        // carry the fractional remainder forward instead of losing it to int truncation — the
+        // burst still reads as smooth motion as it tails off, not a jump then a dead stop.
+        knockBackAccumX += knockBackVelX;
+        knockBackAccumY += knockBackVelY;
+        int stepX = (int) knockBackAccumX;
+        int stepY = (int) knockBackAccumY;
+        knockBackAccumX -= stepX;
+        knockBackAccumY -= stepY;
+
+        int nextX = worldX + stepX;
+        int nextY = worldY + stepY;
+        gp.cChecker.checkTileNext(this, nextX, nextY);
+        if (!collisionOn) {
+            worldX = nextX;
+            worldY = nextY;
+        }
+
+        // Fast burst that quickly tails off, rather than a constant-speed slide.
+        knockBackVelX *= KNOCKBACK_DECAY;
+        knockBackVelY *= KNOCKBACK_DECAY;
+
+        double speed = Math.hypot(knockBackVelX, knockBackVelY);
+        if (speed < KNOCKBACK_STOP_SPEED || collisionOn) {
+            knockBack = false;
+            knockBackVelX = 0f;
+            knockBackVelY = 0f;
+            knockBackAccumX = 0f;
+            knockBackAccumY = 0f;
+            knockBackRemaining = 0;
+            knockBackPower = 0;
+            // stop any active chase so monster isn't immediately drawn back
+            onPath = false;
+        }
+        return true;
+    }
+
+    /**
+     * Small puff of bob1-3 particles at the moment a knockback starts, selling the "impact burst"
+     * — a quick scatter roughly opposite the push direction, like debris kicked up by the hit.
+     */
+    private void spawnKnockbackBurst() {
+        if (gp.particlePool == null) return;
+        int count = 3;
+        for (int i = 0; i < count; i++) {
+            Particle p = gp.particlePool.get();
+            p.image = Particle.getRandomBob(gp);
+            float scatterX = (float) ((Math.random() - 0.5) * gp.tileSize * 0.5);
+            float scatterY = (float) ((Math.random() - 0.5) * gp.tileSize * 0.3);
+            p.fx = getCenterX() - gp.tileSize / 2f + scatterX;
+            p.fy = getCenterY() - gp.tileSize / 2f + scatterY;
+            p.worldX = (int) p.fx;
+            p.worldY = (int) p.fy;
+            // Drift opposite the knockback direction, like kicked-up debris trailing behind the hit.
+            p.velocityX = -knockBackVelX * 0.05f + (float) ((Math.random() - 0.5) * 0.1);
+            p.velocityY = -knockBackVelY * 0.05f - 0.15f;
+            p.size = (int) (gp.tileSize * 0.4);
+            p.style = Particle.STYLE_BOB;
+            p.life = 16 + (int) (Math.random() * 6);
+            p.initialLife = p.life;
+            p.alive = true;
+            p.generator = this;
+            p.depthSortYOffset = -gp.tileSize * 2;
+            gp.particleList.add(p);
+        }
+    }
+
     public void beginDeath(int rewardExp, int rewardQuestKills, int rewardCoins) {
         if (dying || !alive) return;
 
@@ -1055,6 +1148,8 @@ public class Entity {
         speed = 0;
         crowdControlTimer = 0;
         dyingCounter = 0;
+        life = 0;
+        hpBarOn = false;
         deathRewardExp = Math.max(0, rewardExp);
         deathRewardQuestKills = Math.max(0, rewardQuestKills);
         deathRewardCoins = Math.max(0, rewardCoins);

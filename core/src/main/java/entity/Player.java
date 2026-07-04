@@ -506,6 +506,19 @@ public class Player extends Entity {
         movingThisFrame = false;
     }
 
+    /**
+     * Keeps the player's idle animation playing while dialogue or the inventory/character screen
+     * has locked out input — {@link #update()} (and thus {@link #freezeForDialogueOrCutscene()}
+     * and {@link #updateIdleSprite()}) doesn't run in those states, so without this the sprite
+     * would hold whatever frame it was on the instant the menu opened. Safe to call every frame;
+     * does not touch movement/attack state.
+     */
+    public void tickIdleWhileMenuOpen() {
+        attacking = false;
+        movingThisFrame = false;
+        updateIdleSprite();
+    }
+
     /** Dash trigger, dash physics (with shadow-step strike), and the post-dash evade recovery. */
     private void updateDashAndEvade() {
         if (dashUnlocked && keyH.dashPressed && dashCooldown == 0 && !dashing && !attacking && evadeRecovery == 0) {
@@ -1798,7 +1811,11 @@ public class Player extends Entity {
         if (i != 999 && gp.iTile[i].destructible && gp.iTile[i].isCorrectItem(this) && !gp.iTile[i].invincible) {
             Entity tile = gp.iTile[i];
             gp.iTile[i] = null;
-            generateParticle(tile, tile);
+            if (tile instanceof tile.IT_GrassPatch grassPatch) {
+                grassPatch.spawnDestroyBurst();
+            } else {
+                generateParticle(tile, tile);
+            }
             gp.screenShake.shakeLight();
 
             // Random drop from destructible pots

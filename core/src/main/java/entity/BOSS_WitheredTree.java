@@ -516,21 +516,8 @@ public class BOSS_WitheredTree extends Entity {
             tickInvincibleAndFlash();
             return;
         }
-        // Knockback
-        if (knockBack) {
-            worldX += knockBackVectorX;
-            worldY += knockBackVectorY;
-            knockBackRemaining -= Math.hypot(knockBackVectorX, knockBackVectorY);
-            if (knockBackRemaining <= 0) {
-                knockBack = false;
-                knockBackVectorX = 0;
-                knockBackVectorY = 0;
-                knockBackRemaining = 0;
-                knockBackPower = 0;
-                onPath = false;
-            }
-            return;
-        }
+        // Knockback: shared burst-then-decay physics (see Entity.tickKnockback()).
+        if (tickKnockback()) return;
 
         if (attackCooldown > 0) attackCooldown--;
         if (leafBoltCooldown > 0) leafBoltCooldown--;

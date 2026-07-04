@@ -28,8 +28,13 @@ public class Particle extends Entity implements Poolable {
     public static final int STYLE_SPARK = 4;
     public static final int STYLE_TRAIL = 5;
     public static final int STYLE_BOB = 6;
+    // Image-based debris burst (e.g. destroyed grass): tumbles outward, shrinks, and fades. Unlike
+    // STYLE_BOB it uses whatever Sprite the generator supplies via getParticleImage() — no fixed
+    // asset set — so any destructible tile can reuse this just by returning its own sprite.
+    public static final int STYLE_IMAGE_DEBRIS = 7;
 
     public Sprite image;
+    public float rotationDeg; // STYLE_IMAGE_DEBRIS: current tumble rotation
 
     private static Sprite[] BOB_IMAGES = null;
     static Sprite getRandomBob(GamePanel gp) {
@@ -105,6 +110,11 @@ public class Particle extends Entity implements Poolable {
                 velocityX *= 0.88f;
                 velocityY = velocityY * 0.90f - 0.06f; // gentle rise
                 break;
+            case STYLE_IMAGE_DEBRIS:
+                velocityX *= 0.90f;
+                velocityY = velocityY * 0.92f + 0.10f; // falls back down like a flicked-off chunk
+                rotationDeg += xd * 14f; // tumble; direction/speed come from the burst's xd sign
+                break;
             default:
                 velocityY += 0.09f;
                 break;
@@ -178,6 +188,14 @@ public class Particle extends Entity implements Poolable {
                     g2.drawImage(image, cx, cy, drawSize, drawSize);
                 }
                 break;
+            case STYLE_IMAGE_DEBRIS:
+                if (image != null) {
+                    float progress = (float) life / initialLife; // 1 -> 0 as it ages
+                    changeAlpha(g2, Math.max(0f, progress));
+                    g2.drawImageRotated(image, screenX, screenY, size, size,
+                            size / 2f, size / 2f, rotationDeg);
+                }
+                break;
             default:
                 g2.setColor(color);
                 g2.fillRect(screenX, screenY, size, size);
@@ -222,6 +240,32 @@ public class Particle extends Entity implements Poolable {
         this.velocityY = yd * speed + randomY;
     }
 
+    /**
+     * Configures this (pooled) particle as an image-debris chunk flying outward at {@code angleRad}
+     * from {@code centerX/centerY}, tumbling as it goes. Used for destructible-tile "burst" effects
+     * (e.g. cut grass) that want a scattered radial pop rather than the fixed 4-direction burst from
+     * {@link Entity#generateParticle}.
+     */
+    public void setAsImageDebris(Entity generator, Sprite sprite, int centerX, int centerY, int size,
+                                  float angleRad, float burstSpeed, int lifeTicks) {
+        this.generator = generator;
+        this.image = sprite;
+        this.color = null;
+        this.size = size;
+        this.style = STYLE_IMAGE_DEBRIS;
+        this.rotationDeg = (float) (Math.random() * 360);
+        this.xd = (Math.random() < 0.5) ? -1 : 1; // tumble direction
+        this.life = lifeTicks;
+        this.initialLife = lifeTicks;
+        this.alive = true;
+        this.fx = centerX - size / 2f;
+        this.fy = centerY - size / 2f;
+        this.worldX = (int) this.fx;
+        this.worldY = (int) this.fy;
+        this.velocityX = (float) Math.cos(angleRad) * burstSpeed;
+        this.velocityY = (float) Math.sin(angleRad) * burstSpeed - 0.6f; // slight upward pop
+    }
+
     @Override
     public void reset() {
         alive = false;
@@ -240,6 +284,7 @@ public class Particle extends Entity implements Poolable {
         worldX = 0;
         worldY = 0;
         image = null;
+        rotationDeg = 0;
     }
 
 }

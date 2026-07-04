@@ -5,8 +5,8 @@
             "type": "java",
             "name": "Run Michi's Adventure (Desktop)",
             "request": "launch",
-            "mainClass": "lwjgl3.DesktopLauncher",
-            "projectName": "lwjgl3",
+            "mainClass": "desktop.DesktopLauncher",
+            "projectName": "desktop",
             "cwd": "${workspaceFolder}"
         }
     ]

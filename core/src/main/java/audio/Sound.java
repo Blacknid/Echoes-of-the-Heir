@@ -21,6 +21,27 @@ public class Sound {
     // dialogue typing loop, which also needs clean loop()/stop() semantics.)
     private static final java.util.Set<Integer> MUSIC_SLOTS = java.util.Set.of(0, 1, 2, 15, 16);
 
+    // Slots that get a small random pitch wobble each time they play, so a rapidly-repeated SFX
+    // (e.g. attack swings) doesn't sound like the exact same sample looping. Add more slot numbers
+    // here to give any other SFX the same treatment — no other code needs to change.
+    private static final java.util.Set<Integer> PITCH_VARIED_SLOTS = java.util.Set.of(SFX.WEAPON_SWING);
+    private static final float PITCH_MIN = 0.90f;
+    private static final float PITCH_MAX = 1.10f;
+    // Remembers the last pitch used per slot so back-to-back plays never repeat the same value —
+    // "random but not repetitive", not just random.
+    private final java.util.Map<Integer, Float> lastPitch = new java.util.HashMap<>();
+
+    private float nextPitch(int slot) {
+        if (!PITCH_VARIED_SLOTS.contains(slot)) return 1f;
+        float prev = lastPitch.getOrDefault(slot, Float.NaN);
+        float pitch;
+        do {
+            pitch = PITCH_MIN + (float) Math.random() * (PITCH_MAX - PITCH_MIN);
+        } while (Math.abs(pitch - prev) < 0.03f); // re-roll if it landed suspiciously close to last time
+        lastPitch.put(slot, pitch);
+        return pitch;
+    }
+
     private final String[] soundPath = new String[30];
     private final com.badlogic.gdx.audio.Sound[] sfxCache = new com.badlogic.gdx.audio.Sound[30];
 
@@ -94,7 +115,9 @@ public class Sound {
             currentMusic.setVolume(linearVolume());
             currentMusic.play();
         } else if (currentSfxSlot >= 0 && sfxCache[currentSfxSlot] != null) {
-            sfxCache[currentSfxSlot].play(linearVolume());
+            long id = sfxCache[currentSfxSlot].play(linearVolume());
+            float pitch = nextPitch(currentSfxSlot);
+            if (pitch != 1f) sfxCache[currentSfxSlot].setPitch(id, pitch);
         }
     }
 
