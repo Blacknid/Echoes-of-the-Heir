@@ -235,7 +235,7 @@ public class GamePanel {
     public static final int playState = 1;
     public static final int pauseState = 2;
     public static final int dialogueState = 3;
-    public static final int characterState = 4;
+    public static final int characterState = 4; //inventory state
     public static final int optionsState = 5;
     public static final int gameOverState = 6;
     public static final int cutsceneState = 7;
