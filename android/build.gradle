@@ -27,20 +27,15 @@ android {
         targetCompatibility JavaVersion.VERSION_17
     }
 
-    // The SDK was installed directly under this module's own directory (android/platforms,
-    // android/build-tools, etc. — see local.properties' sdk.dir) rather than a standalone SDK
-    // root; AGP only cares that sdk.dir resolves to a valid SDK layout, which this is.
+    // SDK is installed under this module's own directory (see local.properties' sdk.dir).
     sourceSets {
         main {
             manifest.srcFile 'AndroidManifest.xml'
             java.srcDirs = ['src/main/java/androidlauncher']
             res.srcDirs = ['res']
             jniLibs.srcDirs = ['libs']
-            // Reuse core's existing resource roots instead of physically duplicating assets:
-            // core/assets (new libGDX assets) + a staged copy of ceva/src/res (legacy
-            // classpath-style assets — see stageGdxAssets below for why it's staged rather than
-            // pointed at directly).
-            assets.srcDirs = ['assets', '../core/assets', 'build/gdxAssets']
+            // core/assets/res already has the right on-disk shape for Gdx.files.internal("res/...").
+            assets.srcDirs = ['assets', '../core/assets']
         }
     }
 
@@ -73,11 +68,8 @@ dependencies {
 
 task copyAndroidNatives {
     doFirst {
-        // libGDX's natives-arm64-v8a jars (gdx-platform, gdx-freetype-platform) ship their
-        // .so files at the JAR ROOT (e.g. "libgdx.so"), not under an "arm64-v8a/" folder inside
-        // the jar — the ABI is only encoded in the jar's own artifact classifier. Android's
-        // jniLibs loader, however, requires the destination layout libs/<ABI>/<name>.so, so this
-        // task supplies the ABI folder itself rather than expecting it to already be in the jar.
+        // natives-arm64-v8a jars ship .so files at the jar root, not under an ABI folder —
+        // stage them into libs/arm64-v8a/ ourselves since jniLibs needs that layout.
         def outputDir = file("libs/arm64-v8a/")
         outputDir.mkdirs()
         configurations.natives.files.each { jar ->
@@ -92,18 +84,4 @@ task copyAndroidNatives {
 }
 tasks.matching { it.name.contains("merge") && it.name.contains("JniLibFolders") }.configureEach {
     dependsOn copyAndroidNatives
-}
-
-// Game code calls Gdx.files.internal("res/...") — the "res/" segment must survive in the
-// assets tree (matching core/build.gradle's desktop resource sourceSet, which is rooted at
-// '../ceva/src' rather than '../ceva/src/res' for the same reason). AGP's assets.srcDirs has
-// no include/exclude filtering like Gradle's plain `resources {}` block does, and pointing it
-// directly at 'ceva/src' would also bundle all ~80 .java source files as APK assets. So this
-// task stages just the res/ folder (preserving its name) into a build/ output dir instead.
-task stageGdxAssets(type: Copy) {
-    from('../ceva/src/res')
-    into('build/gdxAssets/res')
-}
-tasks.matching { it.name.contains("merge") && it.name.contains("Assets") }.configureEach {
-    dependsOn stageGdxAssets
 }

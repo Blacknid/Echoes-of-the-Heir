@@ -23,15 +23,10 @@ import entity.Player;
 import main.GamePanel;
 
 /**
- * On-screen touch controls for Android: an analog movement joystick (bottom-left) plus a
- * bottom-right action button cluster. Every widget drives the exact same public fields that
- * desktop keyboard/mouse input already drives ({@link main.KeyHandler}'s boolean flags,
- * {@link main.MouseHandler#gameX}/{@code gameY}/{@code leftClicked}) — gameplay code
- * (entity.Player, GamePanel) needs zero changes to accept touch input.
- *
- * <p>Lives in its own {@link Stage} with a screen-space {@link ScreenViewport}, independent of
- * the world {@code OrthographicCamera} — it draws on top of the game, never scrolls with it.
- * Only constructed/updated on the Android backend (see {@link main.MichiGame#create()}).
+ * On-screen touch controls for Android: movement joystick (bottom-left) + action buttons
+ * (bottom-right). Drives the same fields as desktop keyboard/mouse ({@link main.KeyHandler},
+ * {@link main.MouseHandler}), so gameplay code needs no touch-specific changes.
+ * Own {@link Stage}/{@link ScreenViewport}, drawn on top of the world camera.
  */
 public class TouchControlsOverlay {
 
@@ -46,6 +41,11 @@ public class TouchControlsOverlay {
 
     private final List<TextButton> actionButtons = new ArrayList<>();
     private final List<AbilitySlot> abilitySlots = new ArrayList<>();
+
+    private final TextButton dashButton;
+    private final TextButton attackButton;
+    private final TextButton shotButton;
+    private final TextButton pauseButton;
 
     private interface Unlocked { boolean get(); }
     private interface Fire { void go(); }
@@ -65,9 +65,13 @@ public class TouchControlsOverlay {
         touchpad.setSize(PAD_SIZE, PAD_SIZE);
         stage.addActor(touchpad);
 
-        addActionButton(skin, "DASH", () -> gp.keyH.dashPressed = true);
-        addActionButton(skin, "ATK", this::fireAttack);
-        addActionButton(skin, "SHOT", () -> shotArmedThisFrame = true);
+        //TODO: reskin the buttons and add icons. for ability buttons, make a "hold and drag" gesture
+        //TODO: when reskinning the buttons, remember to change the button label refferences. it was done for understanding's sake
+
+        dashButton = addActionButton(skin, "DASH", () -> gp.keyH.dashPressed = true);
+        attackButton = addActionButton(skin, "ATK", this::fireAttack);
+        shotButton = addActionButton(skin, "SHOT", () -> shotArmedThisFrame = true);
+        pauseButton = addActionButton(skin, "PAUSE", this::pause); //pause, should be on top middle
 
         addAbilityButton(skin, "SHOCK", () -> gp.player.shockwaveUnlocked, () -> gp.keyH.shockwavePressed = true);
         addAbilityButton(skin, "SNARE", () -> gp.player.voidSnareUnlocked, () -> gp.keyH.voidSnarePressed = true);
@@ -77,21 +81,19 @@ public class TouchControlsOverlay {
         layout();
     }
 
-    /** Repositions widgets for the current screen size; call again on resize. */
+    /** Repositions widgets for the current screen size; call again on resize. **/
     public void layout() {
         int w = Gdx.graphics.getWidth();
+        int h = Gdx.graphics.getHeight();
+
+        //touchpad's position (bottom left, libgdx counts from bottom left)
         touchpad.setPosition(40f, 40f);
 
-        float x = w - 40f - BUTTON_SIZE;
-        float y = 40f;
-        for (int i = 0; i < actionButtons.size(); i++) {
-            actionButtons.get(i).setBounds(x - i * (BUTTON_SIZE + 16f), y, BUTTON_SIZE, BUTTON_SIZE);
-        }
-        float abilityY = y + BUTTON_SIZE + 24f;
-        for (int i = 0; i < abilitySlots.size(); i++) {
-            abilitySlots.get(i).button().setBounds(
-                w - 40f - (i + 1) * (ABILITY_SIZE + 12f), abilityY, ABILITY_SIZE, ABILITY_SIZE);
-        }
+        //setting up action buttons layout
+        attackButton.setBounds(w - BUTTON_SIZE - 40f, 40f, BUTTON_SIZE, BUTTON_SIZE);
+        dashButton.setBounds(w - BUTTON_SIZE * 2 - 60f, 40f, BUTTON_SIZE, BUTTON_SIZE);
+        shotButton.setBounds(w - BUTTON_SIZE * 3 - 80f, 40f, BUTTON_SIZE, BUTTON_SIZE);
+        pauseButton.setBounds(w / 2f - BUTTON_SIZE / 2f, h - 40f - BUTTON_SIZE, BUTTON_SIZE, BUTTON_SIZE);
     }
 
     public Stage getStage() {
@@ -131,6 +133,16 @@ public class TouchControlsOverlay {
         gp.keyH.downPressed  = ky < -DEADZONE;
     }
 
+    // Mirrors desktop's P-key: only pauses from active play, only unpauses from pause itself,
+    // so a stray tap can't yank the player out of dialogue/menus/cutscenes into pauseState.
+    private void pause() {
+        if (gp.gameState == GamePanel.playState) {
+            gp.gameState = GamePanel.pauseState;
+        } else if (gp.gameState == GamePanel.pauseState) {
+            gp.gameState = GamePanel.playState;
+        }
+    }
+
     private void fireAttack() {
         Player p = gp.player;
         int pcx = p.screenX + gp.tileSize / 2;
@@ -143,13 +155,16 @@ public class TouchControlsOverlay {
         gp.mouseH.leftClicked = true;
     }
 
-    private void addActionButton(Skin skin, String label, Fire onTap) {
+
+    //adding buttons to the actionButton array and attatching a listener
+    private TextButton addActionButton(Skin skin, String label, Fire onTap) {
         TextButton b = new TextButton(label, skin);
         b.addListener(new ClickListener() {
             @Override public void clicked(InputEvent event, float x, float y) { onTap.go(); }
         });
         stage.addActor(b);
         actionButtons.add(b);
+        return b;
     }
 
     private void addAbilityButton(Skin skin, String label, Unlocked unlocked, Fire onTap) {
@@ -171,7 +186,7 @@ public class TouchControlsOverlay {
             slot.button().setVisible(slot.unlocked().get());
         }
     }
-
+    
     /** Builds a tiny solid-color Skin so this overlay has no external .atlas/.json dependency. */
     private static Skin buildMinimalSkin() {
         Skin skin = new Skin();
@@ -198,5 +213,15 @@ public class TouchControlsOverlay {
     private static Drawable tint(Skin skin, Color c) {
         TextureRegion region = new TextureRegion(skin.get("white", Texture.class));
         return new TextureRegionDrawable(region).tint(c);
+    }
+
+    //for refering to the button by its label, makes the code a little more readable
+    private TextButton getButtonByLabel(String label) {
+        for (TextButton b : actionButtons) {
+            if (b.getText().toString().equals(label)) {
+                return b;
+            }
+        }
+        return null; // Return null if no button matches that label
     }
 }

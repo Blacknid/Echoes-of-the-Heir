@@ -1,14 +1,12 @@
-// Packaging pipeline for the desktop build — the Gradle replacement for build_tools/compile.cmd.
-// Reproduces: license keypair sync → fat runnable JAR → jpackage app-image (.exe) → Inno Setup
-// installer (with install-time RSA license generation). Applied from lwjgl3/build.gradle.
+// Packaging pipeline for the desktop build. Applied from desktop/build.gradle.
 //
 // Tasks:
-//   gradlew :lwjgl3:jar          → deploy/Michi-s-adventure.jar (fat, runnable via DesktopLauncher)
-//   gradlew :lwjgl3:jpackageImage→ jpackage_tmp/MichisAdventure/MichisAdventure.exe (+ copy to deploy)
-//   gradlew :lwjgl3:installer    → deploy/MichiGame_Setup.exe (umbrella: syncKeys→jar→jpackage→Inno)
+//   gradlew :desktop:jar           → deploy/Michi-s-adventure.jar (fat, runnable via DesktopLauncher)
+//   gradlew :desktop:jpackageImage → jpackage_tmp/MichisAdventure/MichisAdventure.exe (+ copy to deploy)
+//   gradlew :desktop:installer     → deploy/MichiGame_Setup.exe (umbrella: syncKeys→jar→jpackage→Inno)
 //
-// Requires on PATH/installed: JDK jpackage (bundled with the JDK), Python (license scripts),
-// and Inno Setup 6 (ISCC). Each is checked; missing optional tools warn instead of failing.
+// Requires on PATH/installed: JDK jpackage, Python (license scripts), Inno Setup 6 (ISCC).
+// Each is checked; missing optional tools warn instead of failing.
 
 import org.gradle.internal.os.OperatingSystem
 
@@ -18,7 +16,7 @@ def deployDir     = new File(rootDir, 'deploy')
 def jpackageTmp   = new File(rootDir, 'jpackage_tmp')
 def appName       = 'MichisAdventure'
 def jarName       = 'Michi-s-adventure.jar'
-def mainClass     = 'lwjgl3.DesktopLauncher'
+def mainClass     = 'desktop.DesktopLauncher'
 def appVersion    = project.gameVersion.version
 
 // Put the fat JAR in deploy/ with the legacy name so jpackage/Inno paths are unchanged.

@@ -1,24 +1,20 @@
-// Sprite atlas packing for release/packaged builds — the Gradle-side equivalent of running
-// libGDX's TexturePacker by hand. Dev runs (gradlew :lwjgl3:run) never invoke this and keep
-// loading loose PNGs from ceva/src/res/ via ResourceCache's dev-source-dir path, so day-to-day
-// asset editing / live reload is unaffected.
+// Sprite atlas packing for release/packaged builds. Dev runs (gradlew :desktop:run) skip this
+// and load loose PNGs from core/assets/res/ via ResourceCache's dev-source-dir path.
 //
-// Task: gradlew :lwjgl3:packSprites → core/build/resources/main/res/atlas/sprites.atlas(+.png)
-// Wired as a dependency of `jar`, so packaged builds (jar/jpackageImage/installer) always ship
-// a fresh atlas built from the current res/ tree.
+// Task: gradlew :desktop:packSprites → core/build/resources/main/res/atlas/sprites.atlas(+.png)
+// Wired as a dependency of `jar`, so packaged builds always ship a fresh atlas.
 //
-// gdx-tools is NOT Android-safe and is not a runtime dependency of core/android — it only runs
-// here, in an isolated tool classpath, at build time on desktop.
+// gdx-tools is not a runtime dependency of core/android — it only runs here, at build time
+// on desktop.
 
 def packerToolConfig = configurations.maybeCreate('texturePackerTool')
 dependencies {
     texturePackerTool "com.badlogicgames.gdx:gdx-tools:$gdxVersion"
 }
 
-def resDir      = new File(rootProject.projectDir, 'ceva/src/res')
-// Packed into core's own build dir (not processResources' output) so :core:jar's task graph
-// doesn't see an undeclared write into its input directory. lwjgl3's fat-jar task copies this
-// output into the packaged jar explicitly alongside the runtime classpath.
+def resDir      = new File(rootProject.projectDir, 'core/assets/res')
+// Packed into core's own build dir so :core:jar's task graph doesn't see an undeclared write
+// into its input directory. desktop's fat-jar task copies this output in explicitly.
 def atlasOutDir = new File(project.buildDir, 'spriteAtlas/res/atlas')
 
 // Sprite folders only — tileset PNGs under res/tiles/ are consumed directly by the custom
@@ -30,12 +26,12 @@ def spriteFolders = [
 ]
 
 // Root of the staged output tree (contains res/atlas/sprites.atlas + pages), so consumers
-// (lwjgl3's fat jar) can pull in the whole "res/atlas/..." layout with a single `from`.
+// (desktop's fat jar) can pull in the whole "res/atlas/..." layout with a single `from`.
 ext.spriteAtlasRoot = new File(project.buildDir, 'spriteAtlas')
 
 tasks.register('packSprites', JavaExec) {
     group = 'assets'
-    description = 'Pack sprite PNGs (ceva/src/res/{player,NPC,monster,...}) into a single atlas for packaged builds.'
+    description = 'Pack sprite PNGs (core/assets/res/{player,NPC,monster,...}) into a single atlas for packaged builds.'
     classpath = packerToolConfig
     mainClass = 'com.badlogic.gdx.tools.texturepacker.TexturePacker'
 
