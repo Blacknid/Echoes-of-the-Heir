@@ -100,9 +100,9 @@ public class IT_Grass extends interactiveTile {
 
         // Cull off-screen
         if (worldX + gp.tileSize <= gp.player.worldX - gp.player.screenX ||
-            worldX - gp.tileSize >= gp.player.worldX + gp.player.screenX ||
+            worldX - gp.tileSize >= gp.player.worldX + (gp.screenWidth - gp.player.screenX) ||
             worldY + gp.tileSize <= gp.player.worldY - gp.player.screenY ||
-            worldY - gp.tileSize >= gp.player.worldY + gp.player.screenY) return;
+            worldY - gp.tileSize >= gp.player.worldY + (gp.screenHeight - gp.player.screenY)) return;
 
         // Anchor = bottom-center of the tile (rotation pivot, relative to the sprite's top-left)
         float originX = gp.tileSize * 0.5f;

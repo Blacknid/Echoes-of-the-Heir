@@ -460,6 +460,31 @@ public class Entity {
         gp.gameState = GamePanel.dialogueState;
         gp.ui.npc = entity;
         dialogueSet = setNum;
+
+        // Cutscene-style framing: turn the NPC toward the player and set the dialogue camera to zoom
+        // in and recenter on the midpoint of player+NPC. ONLY for real world NPCs — event-driven
+        // dialogues (DialogueTrigger, healing pool, campfire, etc.) speak through a placeholder
+        // eventMaster Entity with no world position, so framing on it would fling the camera to
+        // (0,0). Those keep the camera centered on the player (neutral dialogue camera).
+        // Also skips scripted cutscene dialogue, which sets cutsceneState and owns its own camera.
+        if (gp.gameState == GamePanel.dialogueState && entity instanceof NPC_Generic) {
+            entity.faceTowardPlayer();
+            float pSx = gp.player.screenX + gp.tileSize / 2f;
+            float pSy = gp.player.screenY + gp.tileSize / 2f;
+            float nSx = entity.worldX - gp.player.worldX + gp.player.screenX + gp.tileSize / 2f;
+            float nSy = entity.worldY - gp.player.worldY + gp.player.screenY + gp.tileSize / 2f;
+            float midX = (pSx + nSx) / 2f, midY = (pSy + nSy) / 2f;
+            gp.dlgZoomTarget = GamePanel.DLG_ZOOM;
+            gp.dlgPanTargetX = (gp.screenWidth  / 2f) - midX;
+            gp.dlgPanTargetY = (gp.screenHeight / 2f) - midY;
+            gp.dlgBarsTarget = 1f;
+        } else {
+            // Non-NPC dialogue: keep the view centered on the player, no zoom/pan/bars.
+            gp.dlgZoomTarget = 1f;
+            gp.dlgPanTargetX = 0f;
+            gp.dlgPanTargetY = 0f;
+            gp.dlgBarsTarget = 0f;
+        }
         // Auto-progress a quest when the player starts talking to this NPC
         if (entity.onSpeakQuestId != null && gp.questManager != null) {
             gp.questManager.progress(entity.onSpeakQuestId, entity.onSpeakQuestAmount);
@@ -794,10 +819,10 @@ public class Entity {
         int screenX = worldX - gp.player.worldX + gp.player.screenX;
         int screenY = worldY - gp.player.worldY + gp.player.screenY;
 
-        if (worldX + gp.tileSize > gp.player.worldX - gp.player.screenX && 
-            worldX - gp.tileSize < gp.player.worldX + gp.player.screenX &&
-            worldY + gp.tileSize > gp.player.worldY - gp.player.screenY && 
-            worldY - gp.tileSize < gp.player.worldY + gp.player.screenY) {      
+        if (worldX + gp.tileSize > gp.player.worldX - gp.player.screenX &&
+            worldX - gp.tileSize < gp.player.worldX + (gp.screenWidth - gp.player.screenX) &&
+            worldY + gp.tileSize > gp.player.worldY - gp.player.screenY &&
+            worldY - gp.tileSize < gp.player.worldY + (gp.screenHeight - gp.player.screenY)) {
 
             int drawW = (int)(gp.tileSize * spriteScale);
             int drawH = (int)(gp.tileSize * spriteScale);

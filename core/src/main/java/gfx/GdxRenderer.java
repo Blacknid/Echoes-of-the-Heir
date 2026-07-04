@@ -42,6 +42,10 @@ public class GdxRenderer {
     private Stroke stroke = new Stroke(1f);
     private float alpha = 1f;               // from setComposite(AlphaComposite SRC_OVER, a)
     private float tx = 0f, ty = 0f;          // translate offset
+    // World zoom applied on top of the translate: scale-about-pivot (pivot in logical px, y-down).
+    // Used by the dialogue camera to push in on the player+NPC. 1f = no zoom.
+    private float zoom = 1f;
+    private float pivotX = 0f, pivotY = 0f;
     private final GlyphLayout layout = new GlyphLayout();
 
     // 1x1 white texture for solid fills drawn through the batch (gradients, alpha-rects on images).
@@ -62,6 +66,7 @@ public class GdxRenderer {
     public void begin(int screenW, int screenH) {
         this.screenW = screenW; this.screenH = screenH;
         tx = 0; ty = 0; alpha = 1f; color = Color.WHITE;
+        zoom = 1f; pivotX = 0f; pivotY = 0f;
         applyProjection();
     }
 
@@ -79,10 +84,22 @@ public class GdxRenderer {
 
     private void applyTransform() {
         // Translate is applied as a transform matrix on top of the camera projection.
+        // When zoomed, a scale-about-pivot is composed inside the translate so the world
+        // magnifies around the pivot point (screen center for the dialogue camera).
         Matrix4 t = new Matrix4().translate(tx, ty, 0);
+        if (zoom != 1f) {
+            t.translate(pivotX, pivotY, 0).scale(zoom, zoom, 1f).translate(-pivotX, -pivotY, 0);
+        }
         batch.setTransformMatrix(t);
         shapes.setTransformMatrix(t);
     }
+
+    /** Magnify the world by {@code z} about the given pivot (logical px, y-down). z=1 disables. */
+    public void setWorldZoom(float z, float px, float py) {
+        this.zoom = z; this.pivotX = px; this.pivotY = py; applyTransform();
+    }
+    /** Reset world zoom to 1x (no magnification). */
+    public void clearWorldZoom() { setWorldZoom(1f, 0f, 0f); }
 
     // ── Mode management ───────────────────────────────────────────────────────
     private void useBatch() {

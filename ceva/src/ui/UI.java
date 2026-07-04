@@ -1879,6 +1879,11 @@ public class UI {
 
             if (gp.gameState == GamePanel.dialogueState) {
                 gp.gameState = GamePanel.playState;
+                // Ease the dialogue camera back to neutral (zoom out, un-pan, retract bars).
+                gp.dlgZoomTarget = 1f;
+                gp.dlgPanTargetX = 0f;
+                gp.dlgPanTargetY = 0f;
+                gp.dlgBarsTarget = 0f;
             }
             if (gp.gameState == GamePanel.cutsceneState) {
                 gp.csManager.scenePhase++;

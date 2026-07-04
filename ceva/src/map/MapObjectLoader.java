@@ -856,6 +856,20 @@ public class MapObjectLoader {
 
         int wanderRadius = getIntProperty(obj, "wanderRadius", -1);
         if (wanderRadius > 0) npc.wanderRadius = wanderRadius;
+
+        // lightRadius / lightColor: make this NPC emit light (e.g. a glowing figure beckoning in a
+        // dark cave). Mirrors the torch/light-marker props; consumed in GamePanel.addColoredGlows.
+        int npcLightRadius = getIntProperty(obj, "lightRadius", -1);
+        if (npcLightRadius > 0) {
+            npc.lightSource = true;
+            npc.lightRadius = npcLightRadius;
+            String npcLightColor = getStringProperty(obj, "lightColor", null);
+            if (npcLightColor != null && !npcLightColor.isBlank()) {
+                try { npc.lightColor = Color.decode(npcLightColor.trim()); }
+                catch (NumberFormatException ignored) {}
+            }
+        }
+
         npc.syncQuestDrivenNpcState();
         return npc;
     }

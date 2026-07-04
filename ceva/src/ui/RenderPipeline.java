@@ -86,6 +86,14 @@ public class RenderPipeline {
             g2.translate(shakeX, shakeY);
         }
 
+        // Dialogue camera: pan (recenter on player+NPC midpoint) then zoom about screen center.
+        // Wraps only the WORLD pass; cleared before the HUD/dialogue-box pass so the UI stays crisp.
+        boolean dlgCam = gp.dlgZoom != 1f || gp.dlgPanX != 0f || gp.dlgPanY != 0f;
+        if (dlgCam) {
+            g2.translate(gp.dlgPanX, gp.dlgPanY);
+            g2.setWorldZoom(gp.dlgZoom, gp.screenWidth / 2f, gp.screenHeight / 2f);
+        }
+
         gp.tileM.prepareVisibleTiles();
         gp.tileM.drawBackground(g2);
         drawTileShadows(g2);
@@ -175,6 +183,11 @@ public class RenderPipeline {
             gp.windPainter.draw(g2);
         }
 
+        if (dlgCam) {
+            g2.clearWorldZoom();
+            g2.translate(-gp.dlgPanX, -gp.dlgPanY);
+        }
+
         if (shakeX != 0 || shakeY != 0) {
             g2.translate(-shakeX, -shakeY);
         }
@@ -194,6 +207,15 @@ public class RenderPipeline {
     }
 
     private void drawWorldOverlays(GdxRenderer g2) {
+        // Cinematic letterbox bars for dialogue — drawn over the (now-unzoomed) world but under the
+        // HUD/dialogue box below. Height eases in/out with the dialogue camera via gp.dlgBars.
+        if (gp.dlgBars > 0.01f) {
+            int h = Math.round(GamePanel.DLG_BAR_MAX_H * gp.dlgBars);
+            g2.setColor(new Color(0, 0, 0, 255));
+            g2.fillRect(0, 0, gp.screenWidth, h);
+            g2.fillRect(0, gp.screenHeight - h, gp.screenWidth, h);
+        }
+
         gp.ui.draw(g2);
 
         if (gp.questManager != null && gp.gameState == GamePanel.playState) {
@@ -505,7 +527,8 @@ public class RenderPipeline {
     private void drawTileShadows(GdxRenderer g2) {
         for (int i = 0; i < gp.iTile.length; i++) {
             tile.interactiveTile it = gp.iTile[i];
-            if (it != null && gp.isEntityInViewport(it, gp.tileSize)) {
+            // Same wider margin as addToRenderList — covers a 4-tile-tall IT_Tree.
+            if (it != null && gp.isEntityInViewport(it, gp.tileSize * 4)) {
                 it.drawShadow(g2);
             }
         }
@@ -541,12 +564,19 @@ public class RenderPipeline {
         }
 
         for (int i = 0; i < gp.iTile.length; i++) {
-            if (gp.iTile[i] != null) addToRenderList(gp.iTile[i]);
+            // Wider margin: covers the tallest interactive tile sprite (IT_Tree, 4 tiles), so a
+            // tree isn't culled based on just its 1-tile base position while its canopy is
+            // still visible on screen.
+            if (gp.iTile[i] != null) addToRenderList(gp.iTile[i], gp.tileSize * 4);
         }
     }
 
     private void addToRenderList(Entity entity) {
-        if (!gp.isEntityInViewport(entity, gp.tileSize)) return;
+        addToRenderList(entity, gp.tileSize);
+    }
+
+    private void addToRenderList(Entity entity, int margin) {
+        if (!gp.isEntityInViewport(entity, margin)) return;
         if (entityListIndex < entityList.size()) {
             entityList.set(entityListIndex, entity);
         } else {

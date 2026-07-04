@@ -15,14 +15,17 @@ import util.UtilityTool;
 
 public class IT_Tree extends interactiveTile {
 
-    // Toti parametrii unui copac :
-    private record Variant(String trunkPath, String[] canopyPaths, int bandCount, float swayPixels,
-                            float hitboxWidth, float hitboxHeight,
+    // Toti parametrii unui copac. bandCounts has one entry per canopyPaths entry — each branch
+    // layer can be sliced into its own number of sway bands. sizeInTiles is how many tiles
+    // tall/wide this variant's trunk+canopy is drawn at (bigger tree = bigger sizeInTiles).
+    private record Variant(String trunkPath, String[] canopyPaths, int[] bandCounts, int sizeInTiles,
+                            float swayPixels, float hitboxWidth, float hitboxHeight,
                             float shadowWidth, float shadowHeight, float shadowOffsetX, float shadowOffsetY) {
+        // Single-canopy convenience: one bandCount for the one layer, default size of 4 tiles.
         Variant(String trunkPath, String canopyPath, int bandCount, float swayPixels,
                 float hitboxWidth, float hitboxHeight,
                 float shadowWidth, float shadowHeight, float shadowOffsetX, float shadowOffsetY) {
-            this(trunkPath, new String[] { canopyPath }, bandCount, swayPixels,
+            this(trunkPath, new String[] { canopyPath }, new int[] { bandCount }, 4, swayPixels,
                     hitboxWidth, hitboxHeight, shadowWidth, shadowHeight, shadowOffsetX, shadowOffsetY);
         }
     }
@@ -41,15 +44,17 @@ public class IT_Tree extends interactiveTile {
                 "/res/Interactive/Trees/Bigger_canopy.png",
                 3, 1f, 1.5f, 1f, 
                 3f, 1f, 0f, 0.25f));
-        /*VARIANTS.put("Yellow", new Variant(
+        VARIANTS.put("Yellow", new Variant(
                  "/res/Interactive/Trees/Yellow_trunk.png",
                  new String[] {
                          "/res/Interactive/Trees/Yellow_top_canopy.png",
                          "/res/Interactive/Trees/Yellow_middle_canopy.png",
                          "/res/Interactive/Trees/Yellow_bottom_canopy.png",
                  },
-                3, 1f, 1.5f, 1f, 
-                3f, 1f, 0f, 0.25f));*/
+                 new int[] { 1, 1, 1 }, // band count per branch: top, middle, bottom
+                 5, // sizeInTiles
+                1f, 1.5f, 1f,
+                3f, 1f, 0f, 0.25f));
         
        
 
@@ -104,19 +109,14 @@ public class IT_Tree extends interactiveTile {
     private static final class VariantAssets {
         final Sprite trunkImg;
         final CanopyLayer[] canopyLayers;
-        final int bandCount;
-        final float swayPixels;
 
         VariantAssets(Variant v, int drawSize) {
-            this.bandCount = v.bandCount();
-            this.swayPixels = v.swayPixels();
-
             Sprite trunkRaw = ResourceCache.loadImageIfPresent(v.trunkPath());
             trunkImg = (trunkRaw != null) ? UtilityTool.scaleImage(trunkRaw, drawSize, drawSize) : null;
 
             canopyLayers = new CanopyLayer[v.canopyPaths().length];
             for (int i = 0; i < canopyLayers.length; i++) {
-                canopyLayers[i] = new CanopyLayer(v.canopyPaths()[i], bandCount, drawSize);
+                canopyLayers[i] = new CanopyLayer(v.canopyPaths()[i], v.bandCounts()[i], drawSize);
             }
         }
     }
@@ -125,13 +125,16 @@ public class IT_Tree extends interactiveTile {
 
     private static final Color SHADOW_COLOR = new Color(0, 0, 0, 60);
 
-    private static final int SIZE_IN_TILES = 4; // Desenarea copacului in TileSizes
-
     private final VariantAssets assets;
     private final Variant variant;
 
     private float phase;
     private final float swaySpeed;
+    private final float swayPixels;
+    // +1 or -1: which way the "odd" bands (parity 1) sway relative to the "even" bands (parity 0).
+    // Randomized per-tree (but fixed for that tree's lifetime) so neighboring trees don't all
+    // sway in visual lockstep, matching the more organic Moonshire/Chucklefish canopy look.
+    private final float swayParityFlip;
 
     public IT_Tree(GamePanel gp, int col, int row) {
         this(gp, col, row, DEFAULT_VARIANT);
@@ -141,10 +144,10 @@ public class IT_Tree extends interactiveTile {
         super(gp, col, row);
         collision = true; // Coliziune
 
-        int drawSize = gp.tileSize * SIZE_IN_TILES;
         String id = (variantId == null || variantId.isBlank() || !VARIANTS.containsKey(variantId))
                 ? DEFAULT_VARIANT : variantId;
         variant = VARIANTS.get(id);
+        int drawSize = gp.tileSize * variant.sizeInTiles();
         assets = ASSET_CACHE.computeIfAbsent(id, key -> new VariantAssets(variant, drawSize));
 
         int hitboxW = Math.round(gp.tileSize * variant.hitboxWidth());
@@ -156,9 +159,16 @@ public class IT_Tree extends interactiveTile {
         solidAreaDefaultX = solidArea.x;
         solidAreaDefaultY = solidArea.y;
 
-        int seed = (col * 7 + row * 13) & 0xFF;
-        phase = seed * 0.0245f;
-        swaySpeed = 0.1f; // Cat de repede se misca animatia copacului.
+        // One cheap deterministic per-tile hash drives all the "make each tree feel distinct"
+        // randomness below — same tile position always gives the same tree, but neighboring
+        // trees land on different phase/speed/pixels/direction so they don't animate in lockstep.
+        int hash = (col * 928371 + row * 68273 + 12345);
+        hash ^= (hash >>> 15);
+
+        phase = (hash & 0xFF) * 0.0245f;
+        swaySpeed = 0.1f + ((hash >>> 8) % 21 - 10) * 0.0015f; // 0.1 +/- 0.015
+        swayPixels = variant.swayPixels() + ((hash >>> 16) % 21 - 10) * 0.02f; // +/- 0.2px
+        swayParityFlip = (hash & 1) == 0 ? 1f : -1f;
     }
 
     @Override
@@ -175,14 +185,14 @@ public class IT_Tree extends interactiveTile {
     private boolean offscreen(int drawSize) {
         int ax = anchorX(drawSize), ay = anchorY(drawSize);
         return ax + drawSize <= gp.player.worldX - gp.player.screenX ||
-               ax - drawSize >= gp.player.worldX + gp.player.screenX ||
+               ax >= gp.player.worldX + (gp.screenWidth - gp.player.screenX) ||
                ay + drawSize <= gp.player.worldY - gp.player.screenY ||
-               ay - drawSize >= gp.player.worldY + gp.player.screenY;
+               ay >= gp.player.worldY + (gp.screenHeight - gp.player.screenY);
     }
 
     @Override
     public void drawShadow(GdxRenderer g2) {
-        int drawSize = gp.tileSize * SIZE_IN_TILES;
+        int drawSize = gp.tileSize * variant.sizeInTiles();
         if (offscreen(drawSize)) return;
 
         // Umbra in stil Pixelat , forma ovala pe orizontal
@@ -195,7 +205,7 @@ public class IT_Tree extends interactiveTile {
 
     @Override
     public void draw(GdxRenderer g2) {
-        int drawSize = gp.tileSize * SIZE_IN_TILES;
+        int drawSize = gp.tileSize * variant.sizeInTiles();
         if (offscreen(drawSize)) return;
 
         int screenX = screenX(drawSize);
@@ -206,15 +216,22 @@ public class IT_Tree extends interactiveTile {
         }
 
         // Draw each canopy layer in order (later entries in VARIANTS' canopyPaths draw on top,
-        // e.g. an extra branch layer over the base canopy). Every layer sways the same way.
-        for (CanopyLayer layer : assets.canopyLayers) {
-            drawCanopyLayer(g2, layer, screenX, screenY, drawSize);
+        // e.g. an extra branch layer over the base canopy). Each layer sways with its own
+        // phase/speed/direction (computed in drawCanopyLayer) so branches don't move in lockstep.
+        for (int i = 0; i < assets.canopyLayers.length; i++) {
+            drawCanopyLayer(g2, assets.canopyLayers[i], i, screenX, screenY, drawSize);
         }
     }
 
-    private void drawCanopyLayer(GdxRenderer g2, CanopyLayer layer, int screenX, int screenY, int drawSize) {
+    private void drawCanopyLayer(GdxRenderer g2, CanopyLayer layer, int layerIndex, int screenX, int screenY, int drawSize) {
         if (layer.bands == null) return;
-        int bandCount = assets.bandCount;
+        int bandCount = layer.bands.length; // this layer's own band count
+        // Layer 0 (base canopy) uses the tree's own phase unchanged. Every extra branch layer
+        // gets a cheap deterministic offset to its phase/speed/direction, derived from its index,
+        // so branch 1, branch 2, etc. all sway independently instead of in lockstep.
+        float branchPhase = phase + layerIndex * 1.7f;
+        float branchSpeedMul = 1f + (layerIndex % 3) * 0.15f; // 1.0, 1.15, 1.3, 1.0, ...
+        float branchDirFlip = (layerIndex % 2 == 0) ? 1f : -1f;
         // Draw bottom-to-top so each band overlaps 1px on top of the band below it — matches
         // natural stacking order and means the overlap pixel always belongs to whichever band
         // is "in front".
@@ -222,9 +239,10 @@ public class IT_Tree extends interactiveTile {
             if (layer.bands[b] == null) continue;
             // Even bands (0, 2, 4, ...) sway one way, odd bands (1, 3, ...) sway the opposite
             // way — a simple parity flip that works for any bandCount, giving the "1st/3rd
-            // together, 2nd opposite" look.
-            float swayDir = (b % 2 == 0) ? 1f : -1f;
-            float offset = (float) Math.sin(phase) * assets.swayPixels * swayDir;
+            // together, 2nd opposite" look. swayParityFlip randomizes (per-tree, but fixed) which
+            // physical direction counts as "even", so trees don't all sway in lockstep.
+            float swayDir = ((b % 2 == 0) ? 1f : -1f) * swayParityFlip * branchDirFlip;
+            float offset = (float) Math.sin(branchPhase * branchSpeedMul) * swayPixels * swayDir;
             int bandY = layer.bandY[b];
             int bandH = layer.bands[b].getHeight();
             // Adjacent bands sway in different directions, so their rounded X offsets can differ

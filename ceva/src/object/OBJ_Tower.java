@@ -62,9 +62,9 @@ public class OBJ_Tower extends Entity {
         int screenY = worldY - gpRef.player.worldY + gpRef.player.screenY;
 
         if (worldX + gpRef.tileSize > gpRef.player.worldX - gpRef.player.screenX &&
-            worldX - gpRef.tileSize < gpRef.player.worldX + gpRef.player.screenX &&
+            worldX - gpRef.tileSize < gpRef.player.worldX + (gpRef.screenWidth - gpRef.player.screenX) &&
             worldY + gpRef.tileSize > gpRef.player.worldY - gpRef.player.screenY &&
-            worldY - gpRef.tileSize < gpRef.player.worldY + gpRef.player.screenY) {
+            worldY - gpRef.tileSize < gpRef.player.worldY + (gpRef.screenHeight - gpRef.player.screenY)) {
 
             // Draw bottom part (Tower_jos)
             if (down2 != null) {

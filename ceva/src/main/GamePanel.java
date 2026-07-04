@@ -206,6 +206,26 @@ public class GamePanel {
     public int     cameraWorldX  = 0;   // world X to center on when locked
     public int     cameraWorldY  = 0;   // world Y to center on when locked
 
+    // Dialogue camera: a subtle zoom-in + recenter that frames the player+NPC when talking, and
+    // eases back when the dialogue ends. All values lerp toward their *Target each frame. Applied at
+    // render time (RenderPipeline) via g2.translate + g2.setWorldZoom — there is no real camera
+    // object to move (see getCamWorldX/Y, which nothing reads).
+    public float dlgZoom = 1f, dlgZoomTarget = 1f;
+    public float dlgPanX = 0f, dlgPanTargetX = 0f;
+    public float dlgPanY = 0f, dlgPanTargetY = 0f;
+    public float dlgBars = 0f, dlgBarsTarget = 0f;              // 0..1 letterbox bar progress
+    public static final float DLG_ZOOM     = 1.3f;             // subtle push-in (tunable)
+    public static final float DLG_LERP     = 0.12f;            // ease speed toward targets
+    public static final int   DLG_BAR_MAX_H = 28;              // max letterbox bar height (logical px)
+
+    /** Ease the dialogue-camera zoom/pan/bars toward their targets. No-op when already settled. */
+    public void updateDialogueCamera() {
+        dlgZoom += (dlgZoomTarget - dlgZoom) * DLG_LERP;
+        dlgPanX += (dlgPanTargetX - dlgPanX) * DLG_LERP;
+        dlgPanY += (dlgPanTargetY - dlgPanY) * DLG_LERP;
+        dlgBars += (dlgBarsTarget - dlgBars) * DLG_LERP;
+    }
+
     public int getCamWorldX() { return cameraLocked ? cameraWorldX : player.worldX; }
     public int getCamWorldY() { return cameraLocked ? cameraWorldY : player.worldY; }
     public int getCamScreenX() { return player.screenX; }
@@ -587,9 +607,16 @@ public class GamePanel {
             ui.updateDialogueState();
         }
 
-        if(gameState == playState) {
+        // World keeps simulating during dialogue (NPCs, monsters, particles, wind, lighting, etc.)
+        // so the game doesn't visibly freeze in the background — only the player is held out
+        // (via the playState-only player.update() below) so they can't move/act mid-conversation.
+        if(gameState == playState || gameState == dialogueState) {
             vpCacheValid = false;
             updateViewportCache();
+
+            // Ease the dialogue zoom/pan/letterbox. Ticks during dialogue AND during the first
+            // playState frames after it ends (targets reset to neutral) so the zoom-out animates.
+            updateDialogueCamera();
 
             if (globalHitstopTimer > 0) {
                 globalHitstopTimer--;
@@ -611,7 +638,11 @@ public class GamePanel {
                 return; // skip all entity/world logic
             }
 
-            player.update();
+            // Player input/movement is frozen during dialogue (tickAnimations() above keeps
+            // its sprite animating in place); everything below still simulates.
+            if (gameState == playState) {
+                player.update();
+            }
             for (int i = 0; i < obj.length; i++) {
                 if (obj[i] instanceof object.OBJ_Door door && door.doorOpening) {
                     door.update();
@@ -669,7 +700,9 @@ public class GamePanel {
             }
             for ( int i = 0 ; i < iTile.length ; i++ ) {
                 if ( iTile[i] != null ) {
-                    if (iTile[i].invincible || isEntityInViewport(iTile[i], tileSize)) {
+                    // Margin covers the tallest interactive tile sprite (IT_Tree, 4 tiles) so it
+                    // isn't updated/culled based on just its 1-tile base position.
+                    if (iTile[i].invincible || isEntityInViewport(iTile[i], tileSize * 4)) {
                         iTile[i].update();
                     }
                 }
