@@ -192,6 +192,9 @@ public class Player extends Entity {
     private static final float PLAYER_MASS  = 60f;    // kg
     private static final float DRAG_K       = 1.44f;  // 0.5 * rho * C_D * A, tuned to pixel space
     private static final float DRIVE_ACCEL  = 0.4f;   // px/frame^2 drive force per unit mass while key held
+    // Pure quadratic drag (k*v^2) vanishes as v->0, so the glide never actually finishes decelerating
+    // and the player coasts for seconds. A flat minimum brake keeps the stop crisp at low speed.
+    private static final float MIN_STOP_DRAG = 0.18f;  // px/frame^2 floor applied only while coasting
     private float currentSpeed = 0f;
     private float inertiaVelX = 0f;
     private float inertiaVelY = 0f;
@@ -802,7 +805,7 @@ public class Player extends Entity {
     private void applyInertiaGlide() {
         // Air-drag deceleration: F_D = k*v^2, a = -F_D/m
         if (currentSpeed <= 0f) return;
-        float drag = DRAG_K * currentSpeed * currentSpeed / PLAYER_MASS;
+        float drag = Math.max(MIN_STOP_DRAG, DRAG_K * currentSpeed * currentSpeed / PLAYER_MASS);
         currentSpeed = Math.max(0f, currentSpeed - drag);
         if (currentSpeed > 0f && (Math.abs(inertiaVelX) > 0f || Math.abs(inertiaVelY) > 0f)) {
             float mag = (float) Math.sqrt(inertiaVelX * inertiaVelX + inertiaVelY * inertiaVelY);
