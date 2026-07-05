@@ -17,6 +17,7 @@ import com.badlogic.gdx.scenes.scene2d.ui.Touchpad;
 import com.badlogic.gdx.scenes.scene2d.utils.ClickListener;
 import com.badlogic.gdx.scenes.scene2d.utils.Drawable;
 import com.badlogic.gdx.scenes.scene2d.utils.TextureRegionDrawable;
+import com.badlogic.gdx.utils.TimeUtils;
 import com.badlogic.gdx.utils.viewport.ScreenViewport;
 
 import entity.Player;
@@ -38,6 +39,8 @@ public class TouchControlsOverlay {
     private static final float PAD_SIZE = 220f;
     private static final float BUTTON_SIZE = 110f;
     private static final float ABILITY_SIZE = 84f;
+    private static final long ATTACK_HOLD_THRESHOLD_MS = 180L;
+    private static final long INVENTORY_HOLD_THRESHOLD_MS = 180L;
 
     private final List<TextButton> actionButtons = new ArrayList<>();
     private final List<AbilitySlot> abilitySlots = new ArrayList<>();
@@ -46,6 +49,7 @@ public class TouchControlsOverlay {
     private final TextButton attackButton;
     private final TextButton shotButton;
     private final TextButton pauseButton;
+    private final TextButton inventoryButton;
 
     private interface Unlocked { boolean get(); }
     private interface Fire { void go(); }
@@ -55,6 +59,9 @@ public class TouchControlsOverlay {
     // as "was the shoot key freshly pressed" (only cleared by KeyHandler.keyUp on desktop), so a
     // held-true value from a tap would otherwise fire every frame the cooldown allows.
     private boolean shotArmedThisFrame = false;
+    private boolean attackButtonHeld = false;
+    private long attackButtonPressStartedAt = 0L;
+    private long inventoryButtonPressStartedAt = 0L;
 
     public TouchControlsOverlay(GamePanel gp) {
         this.gp = gp;
@@ -69,9 +76,10 @@ public class TouchControlsOverlay {
         //TODO: when reskinning the buttons, remember to change the button label refferences. it was done for understanding's sake
 
         dashButton = addActionButton(skin, "DASH", () -> gp.keyH.dashPressed = true);
-        attackButton = addActionButton(skin, "ATK", this::fireAttack);
+        attackButton = addAttackButton(skin);
         shotButton = addActionButton(skin, "SHOT", () -> shotArmedThisFrame = true);
         pauseButton = addActionButton(skin, "PAUSE", this::pause); //pause, should be on top middle
+        inventoryButton = addInventoryButton(skin);
 
         addAbilityButton(skin, "SHOCK", () -> gp.player.shockwaveUnlocked, () -> gp.keyH.shockwavePressed = true);
         addAbilityButton(skin, "SNARE", () -> gp.player.voidSnareUnlocked, () -> gp.keyH.voidSnarePressed = true);
@@ -94,6 +102,7 @@ public class TouchControlsOverlay {
         dashButton.setBounds(w - BUTTON_SIZE * 2 - 60f, 40f, BUTTON_SIZE, BUTTON_SIZE);
         shotButton.setBounds(w - BUTTON_SIZE * 3 - 80f, 40f, BUTTON_SIZE, BUTTON_SIZE);
         pauseButton.setBounds(w / 2f - BUTTON_SIZE / 2f, h - 40f - BUTTON_SIZE, BUTTON_SIZE, BUTTON_SIZE);
+        inventoryButton.setBounds(w - BUTTON_SIZE - 40f, 40f + BUTTON_SIZE + 20f, BUTTON_SIZE, BUTTON_SIZE);
     }
 
     public Stage getStage() {
@@ -105,6 +114,13 @@ public class TouchControlsOverlay {
         applyMovement();
         refreshAbilityVisibility();
         stage.act(delta);
+
+        if (attackButtonHeld) {
+            gp.keyH.enterPressed = true;
+            gp.mouseH.leftClicked = false;
+        } else {
+            gp.keyH.enterPressed = false;
+        }
 
         if (shotArmedThisFrame) {
             gp.keyH.shotKeyPressed = true;
@@ -143,6 +159,18 @@ public class TouchControlsOverlay {
         }
     }
 
+    private void toggleInventory() {
+        if (gp.gameState == GamePanel.characterState) {
+            gp.gameState = GamePanel.playState;
+        } else if (gp.gameState == GamePanel.playState) {
+            gp.gameState = GamePanel.characterState;
+        }
+    }
+
+    private void openSkillTree() {
+        gp.gameState = GamePanel.skillTreeState;
+    }
+
     private void fireAttack() {
         Player p = gp.player;
         int pcx = p.screenX + gp.tileSize / 2;
@@ -161,6 +189,54 @@ public class TouchControlsOverlay {
         TextButton b = new TextButton(label, skin);
         b.addListener(new ClickListener() {
             @Override public void clicked(InputEvent event, float x, float y) { onTap.go(); }
+        });
+        stage.addActor(b);
+        actionButtons.add(b);
+        return b;
+    }
+
+    private TextButton addAttackButton(Skin skin) {
+        TextButton b = new TextButton("ATK", skin);
+        b.addListener(new ClickListener() {
+            @Override
+            public boolean touchDown(InputEvent event, float x, float y, int pointer, int button) {
+                attackButtonHeld = true;
+                attackButtonPressStartedAt = TimeUtils.millis();
+                return true;
+            }
+
+            @Override
+            public void touchUp(InputEvent event, float x, float y, int pointer, int button) {
+                long heldForMs = TimeUtils.millis() - attackButtonPressStartedAt;
+                if (heldForMs < ATTACK_HOLD_THRESHOLD_MS) {
+                    fireAttack();
+                }
+                attackButtonHeld = false;
+            }
+        });
+        stage.addActor(b);
+        actionButtons.add(b);
+        return b;
+    }
+
+    private TextButton addInventoryButton(Skin skin) {
+        TextButton b = new TextButton("INV", skin);
+        b.addListener(new ClickListener() {
+            @Override
+            public boolean touchDown(InputEvent event, float x, float y, int pointer, int button) {
+                inventoryButtonPressStartedAt = TimeUtils.millis();
+                return true;
+            }
+
+            @Override
+            public void touchUp(InputEvent event, float x, float y, int pointer, int button) {
+                long heldForMs = TimeUtils.millis() - inventoryButtonPressStartedAt;
+                if (heldForMs < INVENTORY_HOLD_THRESHOLD_MS) {
+                    toggleInventory();
+                } else {
+                    openSkillTree();
+                }
+            }
         });
         stage.addActor(b);
         actionButtons.add(b);
