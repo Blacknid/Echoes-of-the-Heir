@@ -124,7 +124,7 @@ final class ShaderSources {
         "        f = f * f * (3.0 - 2.0 * f);\n" +
         "        f = mix(f, f * f, 0.35);\n" +
         "        float core = 1.0 - smoothstep(0.0, 0.28, d);\n" +
-        "        f += core * core * 0.6;\n" +
+        "        f += core * core * 0.25;\n" +
         "#ifndef CHEAP\n" +
         "        vec2 worldFrag = u_lightWorld[i] + toL;\n" + // noise in world space: texture stays on the ground
         "        float ang = atan(toL.y, toL.x);\n" +
@@ -137,7 +137,7 @@ final class ShaderSources {
         "        float breathe = 1.0 + 0.04 * sin(u_time * 1.3 + ph);\n" +
         "        float flick   = 1.0 + 0.020 * sin(u_time * 9.0 + ph * 3.1);\n" +
         "        f *= breathe * flick;\n" +
-        "        f = clamp(f, 0.0, 1.5);\n" +
+        "        f = clamp(f, 0.0, 1.1);\n" +
         "        float vis = 1.0;\n" +
         "        if (u_shadows == 1) vis = visibility(u_lightPos[i], frag, d);\n" +
         "        float contrib = f * u_lightIntensity[i] * vis;\n" +
@@ -158,7 +158,7 @@ final class ShaderSources {
         // PREMULTIPLIED output (composite with GL_ONE, ONE_MINUS_SRC_ALPHA): darkness multiplies the
         // scene down, warmGlow ADDS the light's warm hue where it falls — tapered out of the overbright
         // core so the center doesn't blow out to white under bloom.
-        "    vec3 warmGlow = normalize(lightTint + 0.0001) * litClamped * (0.34 * u_darkness);\n" +
+        "    vec3 warmGlow = normalize(lightTint + 0.0001) * litClamped * (0.14 * u_darkness);\n" +
         "    gl_FragColor = vec4(tint * darkAlpha + warmGlow, darkAlpha);\n" +
         "}\n";
 

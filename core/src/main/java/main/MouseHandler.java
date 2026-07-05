@@ -445,13 +445,29 @@ public class MouseHandler implements InputProcessor {
                 if (controlsBackUnderMouse()) { gp.ui.commandNum = 0; gp.keyH.enterPressed = true; }
             }
             default -> {
-                // Try slider click first; if not on a slider, treat as item select
+                // Try slider click first; if not on a slider, treat as item select. subState 0 is the
+                // declarative Menu (UI.optionsMenu()) — same as KeyHandler.handleOptionsState, clicking a
+                // row must call menu.activate() directly; the enterPressed latch is only ever consumed by
+                // the non-declarative sub-screens (subStates 1-3), so setting it here was a silent no-op
+                // for every button/toggle/selector row (Full Screen, V-Sync, Controls, Back, etc).
                 int prevMusic = gp.audio.getMusicVolume();
                 int prevSE    = gp.audio.getSEVolume();
                 tryApplyVolumeSlider();
                 if (gp.audio.getMusicVolume() != prevMusic || gp.audio.getSEVolume() != prevSE) return;
                 int i = optionsItemUnderMouse();
-                if (i >= 0) { gp.ui.commandNum = i; gp.keyH.enterPressed = true; }
+                if (i >= 0) {
+                    gp.ui.commandNum = i;
+                    ui.Menu menu = gp.ui.optionsMenu();
+                    menu.setSelected(i);
+                    // SELECTOR rows (e.g. Graphics quality) don't respond to activate() — they need
+                    // pressLeft()/pressRight() depending on which arrow was clicked, same as A/D on
+                    // keyboard (KeyHandler.handleOptionsState). Everything else (buttons/toggles) is a
+                    // plain activate().
+                    int arrow = menu.selectorArrowAt(i, gameX, gameY);
+                    if (arrow < 0) menu.pressLeft();
+                    else if (arrow > 0) menu.pressRight();
+                    else menu.activate();
+                }
             }
         }
     }

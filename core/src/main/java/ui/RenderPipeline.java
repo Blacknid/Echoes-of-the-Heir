@@ -81,8 +81,8 @@ public class RenderPipeline {
 
     // Bloom is HIGH-only and only worth the capture cost when the shader path is live. Threshold keeps
     // only genuinely bright pixels (lights, fire, sparkles) glowing; intensity is the glow strength.
-    private static final float BLOOM_THRESHOLD = 0.55f;
-    private static final float BLOOM_INTENSITY = 1.05f;
+    private static final float BLOOM_THRESHOLD = 0.9f;
+    private static final float BLOOM_INTENSITY = 0.18f;
 
     private void drawWorldLayers(GdxRenderer g2) {
         // Capture the world+lighting into an offscreen target so bloom can read the finished scene, then

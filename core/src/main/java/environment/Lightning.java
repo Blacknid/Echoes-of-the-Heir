@@ -61,7 +61,7 @@ public class Lightning {
     /** Kept for API compatibility with callers that may set the downscale at runtime. */
     public void setLightDownscale(int ds) { lightDownscale = Math.max(1, ds); }
 
-    public int playerLightRadius = 3;
+    public int playerLightRadius = 2;
 
     private static final int MAX_LIGHTS = 20;
     public int[]   lightWX        = new int[MAX_LIGHTS];
@@ -591,8 +591,15 @@ public class Lightning {
     private final long[]  reusableTorchR2  = new long[MAX_LIGHTS];
     private final float[] reusableTorchInvR = new float[MAX_LIGHTS];
 
-    // Strength with which each light brightens (lifts) the darkness back, additively.
-    private static final float LIGHT_PUNCH_STRENGTH = 0.95f;
+    // Strength with which each light brightens (lifts) the darkness back, additively. Split per tier since
+    // LOW and HIGH/MEDIUM use completely different rendering paths below:
+    //   - LOW_PUNCH_STRENGTH  → legacy baked DST_OUT falloff texture path (drawLight/drawEntityArrayLights).
+    //     Stronger, since LOW has no shader glow/bloom to help the player/NPCs read in the dark.
+    //   - SHADER_PUNCH_STRENGTH → feeds u_lightIntensity in the GLSL shader (HIGH/MEDIUM). Kept modest so a
+    //     single light stays gently lit and two overlapping lights (player approaching an NPC) don't sum
+    //     past full brightness over a wide merged area — merging still happens, it just stays readable.
+    private static final float LOW_PUNCH_STRENGTH    = 0.95f;
+    private static final float SHADER_PUNCH_STRENGTH = 0.28f;
 
     // ===================== GLSL LIGHT PATH (HIGH/MEDIUM) =====================
     // Reusable arrays holding the current frame's lights in SCREEN pixels, uploaded to the light
@@ -649,7 +656,7 @@ public class Lightning {
         int pwx = playerWorldX  + gp.tileSize / 2;
         int pwy = playerWorldY  + gp.tileSize / 2;
         int pRad = playerLightRadius * gp.tileSize;
-        n = addShaderLight(n, psx, psy, pwx, pwy, pRad, PLAYER_LIGHT_COLOR, LIGHT_PUNCH_STRENGTH,
+        n = addShaderLight(n, psx, psy, pwx, pwy, pRad, PLAYER_LIGHT_COLOR, SHADER_PUNCH_STRENGTH,
                            screenWidth, screenHeight);
 
         n = addEntityArrayShaderLights(n, gp.obj, playerWorldX, playerWorldY,
@@ -756,7 +763,7 @@ public class Lightning {
             int wx = e.worldX + gp.tileSize / 2;
             int wy = e.worldY + gp.tileSize / 2;
             // Entity torch color: warm, matches the reflective glow warmth.
-            count = addShaderLight(count, sx, sy, wx, wy, rWorld, TORCH_LIGHT_COLOR, LIGHT_PUNCH_STRENGTH,
+            count = addShaderLight(count, sx, sy, wx, wy, rWorld, TORCH_LIGHT_COLOR, SHADER_PUNCH_STRENGTH,
                                    screenWidth, screenHeight);
         }
         return count;
@@ -872,10 +879,10 @@ public class Lightning {
         g2.setAlpha(1f);
 
         // Carve light holes: DST_OUT subtracts each falloff's alpha from the darkness, revealing the
-        // scene. LIGHT_PUNCH_STRENGTH < 1 keeps a faint darkness even at a light's core so lit areas
+        // scene. LOW_PUNCH_STRENGTH < 1 keeps a faint darkness even at a light's core so lit areas
         // read as "dimly lit", not fully bright — tweak per taste.
         g2.setBlendMode(GdxRenderer.BLEND_DSTOUT);
-        float punch = LIGHT_PUNCH_STRENGTH;
+        float punch = LOW_PUNCH_STRENGTH;
 
         // ========= PLAYER LIGHT =========
         int playerSX = playerScreenX + gp.tileSize / 2;

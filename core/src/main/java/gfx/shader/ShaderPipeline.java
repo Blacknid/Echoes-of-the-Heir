@@ -280,11 +280,14 @@ public final class ShaderPipeline {
      * ADDS the glow. No-op if bloom is unavailable.
      *
      * @param sceneTex   the finished scene as a texture (full-res)
-     * @param screenW,screenH  screen size (for the additive combine viewport)
+     * @param screenW,screenH  LOGICAL screen size (drives the half-res bloom blur buffer size)
+     * @param vpX,vpY,vpW,vpH  the real device-pixel viewport to composite the glow into (may differ
+     *                         from (0,0,screenW,screenH) in fullscreen at pixelScale &gt; 1)
      * @param threshold  luminance above which pixels bloom (0..1; ~0.6 keeps only bright lights)
      * @param intensity  glow strength added back (0..~2)
      */
-    public void renderBloom(Texture sceneTex, int screenW, int screenH, float threshold, float intensity) {
+    public void renderBloom(Texture sceneTex, int screenW, int screenH,
+                            int vpX, int vpY, int vpW, int vpH, float threshold, float intensity) {
         if (!bloomOk || sceneTex == null) return;
         int bw = Math.max(1, screenW / 2), bh = Math.max(1, screenH / 2); // half-res glow
         if (bloomA == null || bloomW != bw || bloomH != bh) {
@@ -329,8 +332,12 @@ public final class ShaderPipeline {
         fullscreenQuad.render(bloomBlur, GL20.GL_TRIANGLES);
         bloomA.end();
 
-        // 4) Additively combine the blurred glow onto the screen.
-        Gdx.gl.glViewport(0, 0, screenW, screenH);
+        // 4) Additively combine the blurred glow onto the screen. Must use the REAL device-pixel
+        // viewport, not (0,0,screenW,screenH) — screenW/H are LOGICAL px, so at pixelScale > 1
+        // (fullscreen) that hardcoded viewport used to pin this draw to a small corner of the window,
+        // baking a tiny mispositioned glow quad into the frame (visible as a small duplicated scene
+        // sliver in a corner) even though later draws restored the correct viewport.
+        Gdx.gl.glViewport(vpX, vpY, vpW, vpH);
         Gdx.gl.glEnable(GL20.GL_BLEND);
         Gdx.gl.glBlendFunc(GL20.GL_ONE, GL20.GL_ONE); // additive
         bloomA.getColorBufferTexture().bind(0);
