@@ -244,6 +244,29 @@ public class Menu {
         return Math.max(0, Math.min(max, val));
     }
 
+    // Selector arrow glyph half-width for hit-testing (drawRow draws "◀"/"▶" at valCx ∓ 40).
+    private static final int SELECTOR_ARROW_HALF_W = 16;
+
+    /**
+     * If (px,py) is over item {@code i}'s selector arrow (as last drawn), return -1 for the left
+     * arrow, +1 for the right arrow, or 0 if not over either. Mirrors the valCx/±40 geometry
+     * drawRow uses for SELECTOR so clicks land on the arrow the player sees. Returns 0 if item i is
+     * not a selector or hasn't been drawn yet.
+     */
+    public int selectorArrowAt(int i, int px, int py) {
+        if (i < 0 || i >= rectCount || i >= items.size()) return 0;
+        MenuItem it = items.get(i);
+        if (it.kind != MenuItem.Kind.SELECTOR) return 0;
+        int ctrlRight = rectX[i] + rectW[i] - CTRL_RIGHT_INSET;
+        int valCx = ctrlRight - 90;
+        int rowY = rectY[i], rowH = rectH[i];
+        if (py < rowY || py >= rowY + rowH) return 0;
+        int leftCx = valCx - 40, rightCx = valCx + 40;
+        if (px >= leftCx - SELECTOR_ARROW_HALF_W && px < leftCx + SELECTOR_ARROW_HALF_W) return -1;
+        if (px >= rightCx - SELECTOR_ARROW_HALF_W && px < rightCx + SELECTOR_ARROW_HALF_W) return 1;
+        return 0;
+    }
+
     private void drawRow(UI ui, GdxRenderer g2, MenuItem it, boolean selected, int bx, int by, int bw, int bh) {
         // Button background (nine-slice Button.png, or vector fallback).
         ui.drawButton(bx, by, bw, bh, theme, selected && it.enabled);

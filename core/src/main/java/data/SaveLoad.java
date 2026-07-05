@@ -442,6 +442,14 @@ public class SaveLoad {
 
             int objSize = Integer.parseInt(map.getOrDefault("obj.size", "0"));
             for (int i = 0; i < Math.min(objSize, gp.obj.length); i++) {
+                // Event-layer lights (Tiled "Lighting" objects) are transient — reloadSavedMap() already
+                // recreated them fresh from the TMX just above, and they're never serialized into the
+                // save (serializeEntityId would just save their shared "Light" name, which getObject()
+                // can't reconstruct anyway). Skip these slots entirely so the save-state restore doesn't
+                // null them back out — this was why Tiled lights disappeared on Continue until a debug
+                // map reload (R) recreated them again with no save-restore afterward to wipe them.
+                if (gp.obj[i] != null && gp.obj[i].eventLayerLight) continue;
+
                 String name = map.get("obj." + i + ".name");
                 if (name == null || name.equals("NA")) {
                     gp.obj[i] = null;
@@ -626,6 +634,14 @@ public class SaveLoad {
         gp.player.getPlayerAttackImages();
 
         for (int i = 0; i < gp.obj.length; i++) {
+            // Event-layer lights (Tiled "Lighting" objects) are transient — reloadSavedMap() already
+            // recreated them fresh from the TMX just above, and they're never meaningfully serialized
+            // (serializeEntityId only saves their shared "Light" name, which getObject() can't
+            // reconstruct). Skip these slots so the save-state restore doesn't null them back out —
+            // this was why Tiled lights disappeared on Continue until a debug map reload (R) recreated
+            // them again with no save-restore afterward to wipe them.
+            if (gp.obj[i] != null && gp.obj[i].eventLayerLight) continue;
+
             String name = getAt(state.mapObjectNames, i, "NA");
             if (name == null || name.equals("NA")) {
                 gp.obj[i] = null;

@@ -724,7 +724,7 @@ public class GdxRenderer {
     private float sceneGradeWarmth = 0.5f;
     public void setGradeWarmth(float w) { sceneGradeWarmth = w < 0 ? 0 : (w > 1 ? 1 : w); }
     // Per-sprite rim-light strength (0 = off). Added between grade and bloom.
-    private float rimStrength = 1.4f;
+    private float rimStrength = 0.22f;
     public void setRimStrength(float s) { rimStrength = s < 0 ? 0 : s; }
 
     /** Begin capturing the world into the scene FBO. Pair with {@link #endSceneCaptureAndBloom}. */
@@ -775,7 +775,13 @@ public class GdxRenderer {
                 pipe.renderRim(sceneFbo.getColorBufferTexture(), occluderTexture(), rimStrength);
             }
             if (intensity > 0f && !gfx.shader.LightDebug.noBloom) {
-                pipe.renderBloom(sceneFbo.getColorBufferTexture(), screenW, screenH, threshold, intensity);
+                // Pass the REAL device-pixel viewport (not just logical screenW/H) so the final additive
+                // glow combine lands in the right place. In fullscreen at pixelScale > 1 the device
+                // viewport is offset/larger than (0,0,screenW,screenH); using the logical size there used
+                // to bake the glow quad into a small corner of the window (a tiny duplicated-scene sliver)
+                // — the "mini game playing in the corner" artifact on HIGH graphics + fullscreen.
+                pipe.renderBloom(sceneFbo.getColorBufferTexture(), screenW, screenH,
+                                 worldVpX, worldVpY, worldVpW, worldVpH, threshold, intensity);
             }
             applyProjection(); // shaders left their own GL state; rebind our camera for later draws
         } else {

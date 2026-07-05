@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <map version="1.10" tiledversion="1.12.1" orientation="orthogonal" renderorder="right-down" width="40" height="30" tilewidth="32" tileheight="32" infinite="0" nextlayerid="24" nextobjectid="130">
  <properties>
-  <property name="ambientLight" type="float" value="0.92"/>
+  <property name="ambientLight" type="float" value="1"/>
   <property name="music" type="int" value="1"/>
   <property name="weather" value="CLEAR"/>
   <property name="weatherCycle" type="bool" value="false"/>

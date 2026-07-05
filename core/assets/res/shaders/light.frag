@@ -126,9 +126,11 @@ void main() {
         f = f * f * (3.0 - 2.0 * f);      // smoothstep body
         f = mix(f, f * f, 0.35);          // bias toward a brighter, tighter core
         // INCANDESCENT HEART: add a tight extra hotspot near the very center so the light has a glowing
-        // core that blooms — the difference between "a lit area" and "a beautiful glowing lamp".
+        // core that blooms — the difference between "a lit area" and "a beautiful glowing lamp". Kept
+        // modest so a single light (player or NPC) reads as gently lit rather than blown out, and so two
+        // overlapping lights (player walking up to an NPC) don't sum past full brightness over a wide area.
         float core = 1.0 - smoothstep(0.0, 0.28, d);
-        f += core * core * 0.6;
+        f += core * core * 0.25;
 #ifndef CHEAP
         // ORGANIC DETAIL: break the perfect circle with value noise + a faint angular ripple (weighted
         // by d so the bright core stays clean). The noise is sampled in WORLD space (light's world center
@@ -147,7 +149,9 @@ void main() {
         float breathe = 1.0 + 0.04 * sin(u_time * 1.3 + ph);
         float flick   = 1.0 + 0.020 * sin(u_time * 9.0 + ph * 3.1);
         f *= breathe * flick;
-        f = clamp(f, 0.0, 1.5);
+        // Capped tighter than before (was 1.5): less HDR headroom per light means overlapping lights
+        // (player standing next to an NPC) sum to a lower peak instead of both blowing past full bright.
+        f = clamp(f, 0.0, 1.1);
         // shadow attenuation (soft, distance-aware).
         float vis = 1.0;
         if (u_shadows == 1) vis = visibility(u_lightPos[i], frag, d);
@@ -178,6 +182,6 @@ void main() {
     // at the core and, stacked with bloom, blew the player out to a white ball). Monotonic in litClamped
     // (a mid-radius taper reads as an ugly glow donut). Scaled by u_darkness so the wash only exists
     // when it's actually dark (no daytime tinting).
-    vec3 warmGlow = normalize(lightTint + 0.0001) * litClamped * (0.34 * u_darkness);
+    vec3 warmGlow = normalize(lightTint + 0.0001) * litClamped * (0.14 * u_darkness);
     gl_FragColor = vec4(tint * darkAlpha + warmGlow, darkAlpha);
 }

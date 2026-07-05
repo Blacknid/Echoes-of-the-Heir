@@ -97,7 +97,7 @@ public final class RimDemoTest {
                 batch.draw(lm, 0, 0, W, H);
                 batch.end();
                 pipe.renderRim(sceneFbo.getColorBufferTexture(), occFbo.getColorBufferTexture(), 1.4f);
-                pipe.renderBloom(sceneFbo.getColorBufferTexture(), W, H, 0.6f, 0.7f);
+                pipe.renderBloom(sceneFbo.getColorBufferTexture(), W, H, 0, 0, W, H, 0.6f, 0.7f);
 
                 if (frame == 8) {
                     Pixmap raw = com.badlogic.gdx.utils.ScreenUtils.getFrameBufferPixmap(0,0,W,H);
