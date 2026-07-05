@@ -61,15 +61,31 @@ public class IT_GrassPatch extends interactiveTile {
             drawHeight = 0;
         }
 
-        // Hitbox matches the sprite's own (scaled) footprint instead of the default 3/4-tile
-        // square, since grass sprites are often smaller/taller than a tile.
+        // Hitbox is a small footprint anchored at the sprite's visual BASE, not the whole image
+        // bounds — matching IT_Tree's pattern (a tall canopy has a small trunk-sized hitbox, not a
+        // hitbox spanning the whole tree). Keeps weapon-hit detection sane regardless of how wide
+        // the grass art is drawn.
         if (image != null) {
-            solidArea.width = drawWidth;
-            solidArea.height = drawHeight;
-            solidArea.x = 0;
-            solidArea.y = 0;
-            solidAreaDefaultX = 0;
-            solidAreaDefaultY = 0;
+            int footW = Math.max(1, Math.round(drawWidth * 0.6f));
+            int footH = Math.max(1, Math.round(drawHeight * 0.25f));
+            solidArea.width = footW;
+            solidArea.height = footH;
+            solidArea.x = (drawWidth - footW) / 2;
+            solidArea.y = drawHeight - footH;
+            solidAreaDefaultX = solidArea.x;
+            solidAreaDefaultY = solidArea.y;
+        }
+
+        // Y-sort "feet" key is pinned to LEG height instead of the sprite's own bottom edge, so the
+        // player draws behind grass (covering just the legs) while standing in the lower half of the
+        // tile, and in front (uncovering the upper body) once past the tile's vertical middle — the
+        // player's own feet key (see Player.solidArea) sits at a similarly low point in its tile, so
+        // this lines the two up at roughly leg height instead of the grass sprite's literal bottom.
+        // renderSorter's key for this entity is worldY + solidArea.y + solidArea.height +
+        // depthSortYOffset, i.e. worldY + drawHeight + depthSortYOffset (solidArea's y+height above
+        // always sums to drawHeight); solving for a final key of worldY + tileSize/2:
+        if (image != null) {
+            depthSortYOffset = gp.tileSize / 2 - 32;
         }
     }
 

@@ -264,15 +264,14 @@ final class ShaderSources {
         "uniform vec2 u_dir;\n" +
         "void main() {\n" +
         "    vec3 sum = vec3(0.0);\n" +
-        "    sum += texture2D(u_tex, v_uv + u_dir * -4.0).rgb * 0.0162;\n" +
-        "    sum += texture2D(u_tex, v_uv + u_dir * -3.0).rgb * 0.0540;\n" +
-        "    sum += texture2D(u_tex, v_uv + u_dir * -2.0).rgb * 0.1216;\n" +
-        "    sum += texture2D(u_tex, v_uv + u_dir * -1.0).rgb * 0.1946;\n" +
-        "    sum += texture2D(u_tex, v_uv).rgb                * 0.2270;\n" +
-        "    sum += texture2D(u_tex, v_uv + u_dir *  1.0).rgb * 0.1946;\n" +
-        "    sum += texture2D(u_tex, v_uv + u_dir *  2.0).rgb * 0.1216;\n" +
-        "    sum += texture2D(u_tex, v_uv + u_dir *  3.0).rgb * 0.0540;\n" +
-        "    sum += texture2D(u_tex, v_uv + u_dir *  4.0).rgb * 0.0162;\n" +
+        // Tighter kernel (was +/-4 taps): narrower glow radius overall, per user request to reduce blur.
+        "    sum += texture2D(u_tex, v_uv + u_dir * -2.5).rgb * 0.0540;\n" +
+        "    sum += texture2D(u_tex, v_uv + u_dir * -1.5).rgb * 0.1216;\n" +
+        "    sum += texture2D(u_tex, v_uv + u_dir * -0.5).rgb * 0.1946;\n" +
+        "    sum += texture2D(u_tex, v_uv + u_dir *  0.5).rgb * 0.1946;\n" +
+        "    sum += texture2D(u_tex, v_uv + u_dir *  1.5).rgb * 0.1216;\n" +
+        "    sum += texture2D(u_tex, v_uv + u_dir *  2.5).rgb * 0.0540;\n" +
+        "    sum /= 0.6404;\n" +
         "    gl_FragColor = vec4(sum, 1.0);\n" +
         "}\n";
 

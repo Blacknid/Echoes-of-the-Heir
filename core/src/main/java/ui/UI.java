@@ -1873,6 +1873,7 @@ public class UI {
                     gp.metNPCs.add(gNpc.objectId);
                 }
             }
+            npc.endDialogueActivity();
             npc.dialogueIndex = 0;
             dialogueBuilder.setLength(0);
             currentDialogue = "";

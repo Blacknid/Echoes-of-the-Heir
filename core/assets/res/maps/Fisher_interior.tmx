@@ -1092,7 +1092,7 @@
   <object id="2" name="Going to exterior" type="MapTransition" x="288" y="384" width="64" height="32">
    <properties>
     <property name="spawnId" value="Fisher_exterior"/>
-    <property name="targetMap" value="canvas_village"/>
+    <property name="targetMap" value="canvas_village_rework"/>
    </properties>
   </object>
   <object id="3" name="Fisher_spawn" type="SpawnPoint" x="288" y="352">

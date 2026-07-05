@@ -37,12 +37,12 @@ public class IT_Tree extends interactiveTile {
                 "/res/Interactive/Trees/Simple_trunk.png",
                 "/res/Interactive/Trees/Simple_canopy.png",
                 3, 2f, 1.5f, 1f, 
-                3f, 1f, 0f, 0.5f));
+                3f, 1f, -0.1f, -0.5f));
         VARIANTS.put("Fruit", new Variant(
                 "/res/Interactive/Trees/Bigger_trunk.png",
                 "/res/Interactive/Trees/Bigger_canopy.png",
                 3, 1f, 1.5f, 1f, 
-                3f, 1f, 0f, 0.25f));
+                3f, 1f, 0f, -0.25f));
         VARIANTS.put("Yellow", new Variant(
                  "/res/Interactive/Trees/Yellow_trunk.png",
                  new String[] {
@@ -53,7 +53,7 @@ public class IT_Tree extends interactiveTile {
                  new int[] { 1, 1, 1 }, // band count per branch: top, middle, bottom
                  5, // sizeInTiles
                 1f, 1.5f, 1f,
-                3f, 1f, 0f, 0.25f));
+                3f, 1f, 0.1f, -0.25f));
         
        
 
@@ -229,6 +229,20 @@ public class IT_Tree extends interactiveTile {
             g2.drawImageTinted(layer.bands[b], screenX + Math.round(offset), screenY + bandY - growTop,
                     drawSize, bandH + growTop, gfx.Color.BLACK, 1f);
         }
+    }
+
+    /**
+     * Ground shadow is drawn in its own pre-entity pass (see Entity.drawGroundShadowPass /
+     * RenderPipeline.drawGroundShadows) instead of inline here, so it never gets depth-sorted
+     * alongside the tree's own trunk/canopy — otherwise a player or NPC standing "in front of" the
+     * tree in depth order would have the tree's shadow painted on top of their sprite.
+     */
+    @Override
+    public void drawGroundShadowPass(GdxRenderer g2) {
+        int drawSize = gp.tileSize * variant.sizeInTiles();
+        if (offscreen(drawSize)) return;
+        drawGroundShadow(g2, screenX(drawSize), screenY(drawSize), drawSize,
+                variant.shadowWidth(), variant.shadowHeight(), variant.shadowOffsetX(), variant.shadowOffsetY());
     }
 
     @Override

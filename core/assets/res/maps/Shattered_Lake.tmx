@@ -6592,7 +6592,7 @@
    <properties>
     <property name="requiredFragments" type="int" value="1"/>
     <property name="spawnId" value="Coming_from_shattered"/>
-    <property name="targetMap" value="canvas_village"/>
+    <property name="targetMap" value="canvas_village_rework"/>
    </properties>
   </object>
   <object id="127" name="SpawnPoint" type="SpawnPoint" x="2243.33" y="1782">

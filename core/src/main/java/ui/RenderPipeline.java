@@ -32,9 +32,12 @@ public class RenderPipeline {
     ArrayList<Entity> entityList = new ArrayList<>(150);
     int entityListIndex = 0;
 
+    // depthSortYOffset included here too (previously only the depth-tile interleave loop in
+    // drawWorldLayers used it) so a manual nudge like IT_GrassPatch's "always draw behind everyone"
+    // trick actually affects entity-vs-entity order, not just entity-vs-tile order.
     Comparator<Entity> renderSorter = (e1, e2) -> {
-        int feet1 = e1.worldY + e1.solidArea.y + e1.solidArea.height;
-        int feet2 = e2.worldY + e2.solidArea.y + e2.solidArea.height;
+        int feet1 = e1.worldY + e1.solidArea.y + e1.solidArea.height + e1.depthSortYOffset;
+        int feet2 = e2.worldY + e2.solidArea.y + e2.solidArea.height + e2.depthSortYOffset;
         return Integer.compare(feet1, feet2);
     };
 
@@ -81,7 +84,10 @@ public class RenderPipeline {
 
     // Bloom is HIGH-only and only worth the capture cost when the shader path is live. Threshold keeps
     // only genuinely bright pixels (lights, fire, sparkles) glowing; intensity is the glow strength.
-    private static final float BLOOM_THRESHOLD = 0.9f;
+    // Threshold raised so ordinary bright pixels (skin, white/cream clothing on a player or NPC under
+    // ambient light) stay below it and never bloom — only genuine light-source hotspots (which the
+    // light shader boosts past 1.0 at their core) still glow. Keeps characters crisp, not "blurry".
+    private static final float BLOOM_THRESHOLD = 0.97f;
     private static final float BLOOM_INTENSITY = 0.18f;
 
     private void drawWorldLayers(GdxRenderer g2) {
@@ -110,6 +116,7 @@ public class RenderPipeline {
 
         gp.tileM.prepareVisibleTiles();
         gp.tileM.drawBackground(g2);
+        drawGroundShadows(g2);
 
         collectRenderableEntities();
 
@@ -222,6 +229,22 @@ public class RenderPipeline {
         // run before the HUD (drawWorldOverlays) so UI text/panels stay crisp and un-bloomed.
         if (bloom) {
             g2.endSceneCaptureAndBloom(BLOOM_THRESHOLD, BLOOM_INTENSITY);
+        }
+    }
+
+    /**
+     * Flat ground shadows (see Entity.drawGroundShadow) as their own pass, drawn once on the ground
+     * right after the background tiles and before ANY entity — never depth-sorted with the entities
+     * themselves. They used to be drawn inline inside each caster's own draw() call, which put them at
+     * that caster's depth-sort slot: whenever the player or an NPC stood "in front of" (later in the
+     * depth order than) a tree, the tree's draw() ran after them and painted its shadow on top of their
+     * sprite. Ground shadows conceptually belong to the ground, not the caster's silhouette, so they
+     * must always render first, under everyone, regardless of depth order.
+     */
+    private void drawGroundShadows(GdxRenderer g2) {
+        if (gp.iTile == null) return;
+        for (entity.Entity it : gp.iTile) {
+            if (it != null) it.drawGroundShadowPass(g2);
         }
     }
 

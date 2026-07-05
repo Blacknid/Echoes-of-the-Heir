@@ -32,6 +32,9 @@ public class Particle extends Entity implements Poolable {
     // STYLE_BOB it uses whatever Sprite the generator supplies via getParticleImage() — no fixed
     // asset set — so any destructible tile can reuse this just by returning its own sprite.
     public static final int STYLE_IMAGE_DEBRIS = 7;
+    // Static one-shot stamp at a fixed world point (e.g. slashImpact.png where a swing hit a wall/
+    // object) — no movement, no tumble, just fades out in place.
+    public static final int STYLE_IMPACT = 8;
 
     public Sprite image;
     public float rotationDeg; // STYLE_IMAGE_DEBRIS: current tumble rotation
@@ -115,6 +118,8 @@ public class Particle extends Entity implements Poolable {
                 velocityY = velocityY * 0.92f + 0.10f; // falls back down like a flicked-off chunk
                 rotationDeg += xd * 14f; // tumble; direction/speed come from the burst's xd sign
                 break;
+            case STYLE_IMPACT:
+                break; // static — no velocity, just ages out (fade handled in draw())
             default:
                 velocityY += 0.09f;
                 break;
@@ -196,6 +201,13 @@ public class Particle extends Entity implements Poolable {
                             size / 2f, size / 2f, rotationDeg);
                 }
                 break;
+            case STYLE_IMPACT:
+                if (image != null) {
+                    float progress = (float) life / initialLife; // 1 -> 0 as it ages
+                    changeAlpha(g2, Math.max(0f, progress));
+                    g2.drawImage(image, screenX, screenY, size, size);
+                }
+                break;
             default:
                 g2.setColor(color);
                 g2.fillRect(screenX, screenY, size, size);
@@ -264,6 +276,24 @@ public class Particle extends Entity implements Poolable {
         this.worldY = (int) this.fy;
         this.velocityX = (float) Math.cos(angleRad) * burstSpeed;
         this.velocityY = (float) Math.sin(angleRad) * burstSpeed - 0.6f; // slight upward pop
+    }
+
+    /** Static one-shot image stamp at a fixed world point (centered), fading out over lifeTicks. */
+    public void setAsImpact(Sprite sprite, int centerX, int centerY, int size, int lifeTicks) {
+        this.generator = null;
+        this.image = sprite;
+        this.color = null;
+        this.size = size;
+        this.style = STYLE_IMPACT;
+        this.life = lifeTicks;
+        this.initialLife = lifeTicks;
+        this.alive = true;
+        this.fx = centerX - size / 2f;
+        this.fy = centerY - size / 2f;
+        this.worldX = (int) this.fx;
+        this.worldY = (int) this.fy;
+        this.velocityX = 0f;
+        this.velocityY = 0f;
     }
 
     @Override

@@ -3,10 +3,9 @@ package tile;
 import com.badlogic.gdx.graphics.Pixmap;
 import com.badlogic.gdx.graphics.Texture;
 
+import entity.Entity;
 import gfx.Color;
 import gfx.Sprite;
-
-import entity.Entity;
 import main.GamePanel;
 
 /**
@@ -30,7 +29,7 @@ public class IT_Pot extends interactiveTile {
         return entity.currentWeapon != null;
     }
 
-    public Color getParticleColor() {
+    public Color getParticleColor() { 
         return new Color(160, 120, 80);
     }
 

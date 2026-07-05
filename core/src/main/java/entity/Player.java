@@ -454,6 +454,7 @@ public class Player extends Entity {
         if (updateDeathAnimation()) return;   // death consumes the frame
         updateHitAnimation();
         freezeForDialogueOrCutscene();
+        tickEnvironmentRecoil();
         updateDashAndEvade();
         tickCooldownsAndTimers();
         handleAbilityInputs();
@@ -1157,16 +1158,29 @@ public class Player extends Entity {
         float ky = (float) (Math.sin(attackAngle) * targetPx);
         int dxPx = Math.round(kx - kickOffsetX);
         int dyPx = Math.round(ky - kickOffsetY);
+        // Also block the lunge against solid entities (objects/interactive tiles/NPCs/monsters), not
+        // just static map tiles — checkTileNext alone let the lunge push the player straight through
+        // e.g. a chest or an unbroken destructible it was attacking, since only tile geometry was
+        // guarded against.
         if (dxPx != 0) {
             gp.cChecker.checkTileNext(this, worldX + dxPx, worldY);
-            if (!collisionOn) { worldX += dxPx; kickOffsetX += dxPx; }
+            if (!collisionOn && !gp.cChecker.isSolidAt(this, worldX + dxPx, worldY)) {
+                worldX += dxPx; kickOffsetX += dxPx;
+            }
         }
         if (dyPx != 0) {
             gp.cChecker.checkTileNext(this, worldX, worldY + dyPx);
-            if (!collisionOn) { worldY += dyPx; kickOffsetY += dyPx; }
+            if (!collisionOn && !gp.cChecker.isSolidAt(this, worldX, worldY + dyPx)) {
+                worldY += dyPx; kickOffsetY += dyPx;
+            }
         }
         collisionOn = false;
     }
+
+    // Lazily loaded so nothing breaks before the asset exists — ResourceCache.loadImageIfPresent
+    // already tolerates a missing file (returns null), same pattern as sliceAnim.png above.
+    private static Sprite slashImpactSprite;
+    private static boolean slashImpactLoadAttempted = false;
 
     private void performAttackHitbox() {
         double radius = gp.tileSize * ATTACK_CONE_RADIUS_SCALE;
@@ -1176,6 +1190,101 @@ public class Player extends Entity {
         damageInteractiveTile(iTileIndex);
         int monsterIndex = gp.cChecker.checkEntityCone(attackCone, gp.monster);
         damageMonster(monsterIndex, attack);
+
+        // Swinging into a solid, non-monster collision (a wall, Tiled collision shape, object, NPC)
+        // bounces the player back and stamps a slash-impact mark at the contact point. Monsters are
+        // excluded — hitting one already knocks THEM back via damageMonster above; this is purely
+        // for "you swung into something solid that didn't take the hit".
+        gfx.geom.Rect contact = new gfx.geom.Rect();
+        if (gp.cChecker.checkAttackEnvironmentHit(attackCone, contact)) {
+            double hitDist = Math.hypot(contact.x - getCenterX(), contact.y - getCenterY());
+            double proximityT = 1.0 - Math.max(0.0, Math.min(1.0,
+                    hitDist / (gp.tileSize * ATTACK_CONE_RADIUS_SCALE)));
+            // Bigger impact mark the closer the hit landed — same proximity factor driving the
+            // push/shake below, so a point-blank hit reads as a bigger, punchier stamp.
+            float impactSizeScale = 0.75f + 0.65f * (float) proximityT;
+            spawnSlashImpact(contact.x, contact.y, impactSizeScale);
+            startEnvironmentRecoil(hitDist);
+            // Shake scales with the same proximity as the push itself — a point-blank hit rattles
+            // the screen more than a graze at the edge of the swing.
+            gp.screenShake.shake(2f + 2f * (float) proximityT, 8);
+            gp.triggerHitstop(2);
+        }
+    }
+
+    // Environment-recoil state: a short, eased multi-frame push away from whatever the swing hit,
+    // instead of one instant worldX/Y snap (which read as a teleport, not a "bounced off it" push).
+    private double recoilTotalPx = 0;
+    private double recoilAngle = 0;
+    private int recoilTicksTotal = 0;
+    private int recoilTicksLeft = 0;
+    private double recoilPxDoneSoFar = 0;
+
+    // Same shape as knockBack()'s monster-facing proximity falloff: full push at contact range,
+    // tapering to a fraction at the attack's max reach, so a hit right at the swing's tip still
+    // recoils a little instead of nothing.
+    private static final double RECOIL_MIN_SCALE = 0.35;
+
+    /**
+     * Kick off a short recoil away from the attack direction, scaled by how close the hit landed —
+     * a point-blank hit shoves harder than one caught at the very edge of the swing's reach. Applied
+     * incrementally over several frames (see tickEnvironmentRecoil, called every Player.update())
+     * rather than through knockBackVectorX/Y — those fields are only decayed by
+     * Entity.tickKnockback(), which Player.update() never calls (Player has its own movement
+     * pipeline), so setting them on the player is a no-op elsewhere in the codebase too.
+     */
+    private void startEnvironmentRecoil(double hitDist) {
+        double maxReach = gp.tileSize * ATTACK_CONE_RADIUS_SCALE;
+        double t = Math.max(0.0, Math.min(1.0, hitDist / maxReach));
+        double proximityScale = 1.0 - t * (1.0 - RECOIL_MIN_SCALE);
+
+        recoilTotalPx = gp.tileSize * 0.34 * proximityScale; // noticeably more than the old 0.18 snap
+        recoilAngle = attackAngle + Math.PI; // straight back, away from the swing direction
+        // A harder hit (closer) also lands slightly faster (punchier), a softer graze settles over
+        // a touch longer — small range so it never feels floaty either way.
+        recoilTicksTotal = (int) Math.round(9 + 3 * t);
+        recoilTicksLeft = recoilTicksTotal;
+        recoilPxDoneSoFar = 0;
+    }
+
+    /** Advances the environment-recoil push by one frame — smootherstep (fast start, soft settle). */
+    private void tickEnvironmentRecoil() {
+        if (recoilTicksLeft <= 0) return;
+        int elapsed = recoilTicksTotal - recoilTicksLeft;
+        float tPrev = elapsed / (float) recoilTicksTotal;
+        float tNow = (elapsed + 1) / (float) recoilTicksTotal;
+        // Smootherstep (6t^5-15t^4+10t^3), same curve the attack lunge itself uses (applyAttackKick)
+        // so this recoil reads consistently with the rest of the combat feel — flatter start AND
+        // flatter arrival than a plain cubic ease-out, settling without any abrupt stop.
+        double easedPrev = tPrev * tPrev * tPrev * (tPrev * (tPrev * 6f - 15f) + 10f);
+        double easedNow = tNow * tNow * tNow * (tNow * (tNow * 6f - 15f) + 10f);
+        int stepPx = (int) Math.round(recoilTotalPx * (easedNow - easedPrev) + recoilPxDoneSoFar);
+        recoilPxDoneSoFar = recoilTotalPx * (easedNow - easedPrev) + recoilPxDoneSoFar - stepPx;
+
+        int dxPx = (int) Math.round(Math.cos(recoilAngle) * stepPx);
+        int dyPx = (int) Math.round(Math.sin(recoilAngle) * stepPx);
+        if (dxPx != 0) {
+            gp.cChecker.checkTileNext(this, worldX + dxPx, worldY);
+            if (!collisionOn && !gp.cChecker.isSolidAt(this, worldX + dxPx, worldY)) worldX += dxPx;
+        }
+        if (dyPx != 0) {
+            gp.cChecker.checkTileNext(this, worldX, worldY + dyPx);
+            if (!collisionOn && !gp.cChecker.isSolidAt(this, worldX, worldY + dyPx)) worldY += dyPx;
+        }
+        collisionOn = false;
+        recoilTicksLeft--;
+    }
+
+    private void spawnSlashImpact(int worldPx, int worldPy, float sizeScale) {
+        if (!slashImpactLoadAttempted) {
+            slashImpactLoadAttempted = true;
+            slashImpactSprite = util.ResourceCache.loadImageIfPresent("/res/effects/slashImpact.png");
+        }
+        if (slashImpactSprite == null || gp.particlePool == null) return;
+        Particle p = gp.particlePool.get();
+        int size = Math.max(1, Math.round(gp.tileSize * sizeScale));
+        p.setAsImpact(slashImpactSprite, worldPx, worldPy, size, 14);
+        gp.particleList.add(p);
     }
 
     // Combat methods
@@ -1465,20 +1574,33 @@ public class Player extends Entity {
      * @param srcX   ignored (kept for compatibility)
      * @param srcY   ignored (kept for compatibility)
      */
+    // Knockback proximity falloff: full power at contact range, tapering to a minimum fraction at
+    // the attack's max reach (so a hit at the very tip of the swing still knocks back a little).
+    private static final double KNOCKBACK_MIN_SCALE = 0.4;
+
     public void knockBack(Entity entity, int power, int srcX, int srcY) {
+        // Closer hits knock back harder — scale power by how close srcX/srcY (the attacker) is to
+        // the target, relative to the attack's max reach. Previously srcX/srcY were accepted but
+        // never used, so every hit knocked back the same amount regardless of distance.
+        double maxReach = gp.tileSize * ATTACK_CONE_RADIUS_SCALE;
+        double dist = Math.hypot(entity.worldX - srcX, entity.worldY - srcY);
+        double t = Math.max(0.0, Math.min(1.0, dist / maxReach));
+        double proximityScale = 1.0 - t * (1.0 - KNOCKBACK_MIN_SCALE);
+        int scaledPower = Math.max(1, (int) Math.round(power * proximityScale));
+
         // determine vector from player's facing
         int vx = 0, vy = 0;
         switch(direction) {
-            case DIR_UP:    vy = -power; break;
-            case DIR_DOWN:  vy = power;  break;
-            case DIR_LEFT:  vx = -power; break;
-            case DIR_RIGHT: vx = power;  break;
+            case DIR_UP:    vy = -scaledPower; break;
+            case DIR_DOWN:  vy = scaledPower;  break;
+            case DIR_LEFT:  vx = -scaledPower; break;
+            case DIR_RIGHT: vx = scaledPower;  break;
         }
         // assign vector and travel distance (quarter tile per power unit)
         entity.knockBackVectorX = vx;
         entity.knockBackVectorY = vy;
-        entity.knockBackRemaining = power * (gp.tileSize / 4);
-        entity.knockBackPower = power; // debug value
+        entity.knockBackRemaining = scaledPower * (gp.tileSize / 4);
+        entity.knockBackPower = scaledPower; // debug value
         entity.knockBack = true;
     }
 

@@ -155,6 +155,12 @@ public class NPCFactory {
         npc.interactRange = interactRangeVal;
         int depthSortYOffsetVal = intVal(def.props, "depthSortYOffset", 0);
         npc.depthSortYOffset = depthSortYOffsetVal;
+        // Activity key to switch to while this NPC is being talked to (e.g. blacksmith stops
+        // forging and just idles mid-conversation), restored automatically when dialogue ends.
+        String dialogueActivityVal = def.props.get("dialogueActivity");
+        if (dialogueActivityVal != null && !dialogueActivityVal.isBlank()) {
+            npc.dialogueActivity = dialogueActivityVal;
+        }
         String portrait = def.props.get("portrait");
         if (portrait != null && !portrait.isBlank()) npc.portraitPath = portrait;
 
@@ -180,47 +186,49 @@ public class NPCFactory {
             if (act.sprite == null) continue;
             try {
                 Sprite[][] mapped = new Sprite[4][];
-                if (act.aspect > 1) {
-                    // Non-square frames: use loadSpriteMatrix with explicit cell dimensions.
-                    // Cell height = sheet.height / rows; cell width = cellHeight * aspect.
+                int cellW, cellH;
+                if (act.frameWidth > 0 && act.frameHeight > 0) {
+                    // Explicit pixel size (e.g. "frameWidth": 48, "frameHeight": 48) — simplest,
+                    // least error-prone option: no aspect-ratio math, just the exact cell size.
+                    cellW = act.frameWidth;
+                    cellH = act.frameHeight;
+                } else {
+                    // Aspect-derived cell size — same approach idleSprite/walk already use, so
+                    // non-square frames (e.g. a forging pose taller than wide) aren't squashed into
+                    // a square cell before being scaled to tileSize x tileSize. -1 (unset) falls
+                    // back to the NPC's own spriteAspect.
+                    float aspect = act.aspect > 0 ? act.aspect : spriteAspectVal;
                     Sprite rawSheet = util.ResourceCache.loadImage(act.sprite + ".png");
                     int rows = act.framesPerRow.length;
-                    int cellH = rawSheet.getHeight() / Math.max(1, rows);
-                    int cellW = cellH * act.aspect;
-                    Sprite[][] matrix = npc.loadSpriteMatrix(act.sprite, cellW, cellH);
-                    // Scale each frame to a tileSize-wide, tileSize-tall square
-                    int ts = gp.tileSize;
-                    Sprite[][] scaled = new Sprite[matrix.length][];
-                    for (int r = 0; r < matrix.length; r++) {
-                        scaled[r] = new Sprite[matrix[r].length];
-                        for (int c = 0; c < matrix[r].length; c++) {
-                            scaled[r][c] = util.UtilityTool.scaleImage(matrix[r][c], ts, ts);
-                        }
+                    cellH = rawSheet.getHeight() / Math.max(1, rows);
+                    cellW = Math.max(1, Math.round(cellH * aspect));
+                }
+                Sprite[][] matrix = npc.loadSpriteMatrix(act.sprite, cellW, cellH);
+                // Scale each frame to tileSize*spriteScale (matches the eventual on-screen draw
+                // size — see drawW/drawH in Entity.draw/drawOccluder) instead of always a flat
+                // tileSize, so a bigger spriteScale gets a sharper source crop instead of the same
+                // small frame stretched further at draw time.
+                int ts = Math.round(gp.tileSize * spriteScaleVal);
+                // Trim/pad each row to the requested frame count (frames:[...] or frameCount).
+                Sprite[][] scaled = new Sprite[matrix.length][];
+                for (int r = 0; r < matrix.length; r++) {
+                    int wanted = r < act.framesPerRow.length ? act.framesPerRow[r] : matrix[r].length;
+                    scaled[r] = new Sprite[wanted];
+                    for (int c = 0; c < wanted; c++) {
+                        Sprite src = c < matrix[r].length ? matrix[r][c] : matrix[r][matrix[r].length - 1];
+                        scaled[r][c] = util.UtilityTool.scaleImage(src, ts, ts);
                     }
-                    // Map rows: 0=down, 1=left, 2=right, 3=up (standard walk sheet order)
-                    int[] dirMap = {Entity.DIR_DOWN, Entity.DIR_LEFT, Entity.DIR_RIGHT, Entity.DIR_UP};
-                    for (int r = 0; r < Math.min(scaled.length, dirMap.length); r++) {
-                        mapped[dirMap[r]] = scaled[r];
-                    }
-                    // Fill missing directions from row 0
-                    if (mapped[Entity.DIR_DOWN] != null) {
-                        if (mapped[Entity.DIR_UP]    == null) mapped[Entity.DIR_UP]    = mapped[Entity.DIR_DOWN];
-                        if (mapped[Entity.DIR_LEFT]  == null) mapped[Entity.DIR_LEFT]  = mapped[Entity.DIR_DOWN];
-                        if (mapped[Entity.DIR_RIGHT] == null) mapped[Entity.DIR_RIGHT] = mapped[Entity.DIR_DOWN];
-                    }
-                } else {
-                    Sprite[][] frames = npc.loadSheetVariable(act.sprite, act.framesPerRow);
-                    if (frames == null) continue;
-                    mapped[Entity.DIR_DOWN]  = frames.length > 0 ? frames[0] : null;
-                    mapped[Entity.DIR_UP]    = frames.length > 1 ? frames[1] : null;
-                    mapped[Entity.DIR_LEFT]  = frames.length > 2 ? frames[2] : null;
-                    mapped[Entity.DIR_RIGHT] = frames.length > 3 ? frames[3] : null;
-                    // Fill missing directions from row 0 (single-row sprite sheets)
-                    if (mapped[Entity.DIR_DOWN] != null) {
-                        if (mapped[Entity.DIR_UP]    == null) mapped[Entity.DIR_UP]    = mapped[Entity.DIR_DOWN];
-                        if (mapped[Entity.DIR_LEFT]  == null) mapped[Entity.DIR_LEFT]  = mapped[Entity.DIR_DOWN];
-                        if (mapped[Entity.DIR_RIGHT] == null) mapped[Entity.DIR_RIGHT] = mapped[Entity.DIR_DOWN];
-                    }
+                }
+                // Map rows: 0=down, 1=left, 2=right, 3=up (standard walk sheet order)
+                int[] dirMap = {Entity.DIR_DOWN, Entity.DIR_LEFT, Entity.DIR_RIGHT, Entity.DIR_UP};
+                for (int r = 0; r < Math.min(scaled.length, dirMap.length); r++) {
+                    mapped[dirMap[r]] = scaled[r];
+                }
+                // Fill missing directions from row 0 (single-row sprite sheets)
+                if (mapped[Entity.DIR_DOWN] != null) {
+                    if (mapped[Entity.DIR_UP]    == null) mapped[Entity.DIR_UP]    = mapped[Entity.DIR_DOWN];
+                    if (mapped[Entity.DIR_LEFT]  == null) mapped[Entity.DIR_LEFT]  = mapped[Entity.DIR_DOWN];
+                    if (mapped[Entity.DIR_RIGHT] == null) mapped[Entity.DIR_RIGHT] = mapped[Entity.DIR_DOWN];
                 }
                 if (npc.activityAnimations == null) npc.activityAnimations = new HashMap<>();
                 npc.activityAnimations.put(actName, mapped);
@@ -310,7 +318,14 @@ public class NPCFactory {
         String sprite;
         int[] framesPerRow = {6, 6, 6, 6};
         int speed = 0; // 0 = use default idle interval
-        int aspect = 1; // cell width multiplier: 1 = square cells, 2 = each frame is twice as wide as tall
+        // -1 = unset: falls back to the NPC's top-level "spriteAspect" (see spriteAspectVal in
+        // createAt). Set an "aspect" key on the activity itself to override just that activity.
+        float aspect = -1f;
+        // Simplest, least error-prone way to slice a sheet: say the frame size directly in pixels
+        // (e.g. "frameWidth": 48, "frameHeight": 48) instead of deriving it from aspect ratio.
+        // 0 = unset, falls back to the aspect-derived size.
+        int frameWidth = 0;
+        int frameHeight = 0;
     }
 
     private static class StateDef {
@@ -458,7 +473,23 @@ public class NPCFactory {
                 catch (NumberFormatException e) { /* keep default */ }
             }
             if (actProps.containsKey("aspect")) {
-                try { act.aspect = Math.max(1, Integer.parseInt(actProps.get("aspect"))); }
+                try { act.aspect = Math.max(0.1f, Float.parseFloat(actProps.get("aspect"))); }
+                catch (NumberFormatException e) { /* keep default */ }
+            }
+            // Simpler alternative to "frames": [n,n,n,n] — one number, same frame count on every
+            // direction row. Wins over "frames" if both are present (rare; last one wins by intent).
+            if (actProps.containsKey("frameCount")) {
+                try {
+                    int n = Integer.parseInt(actProps.get("frameCount"));
+                    act.framesPerRow = new int[] { n, n, n, n };
+                } catch (NumberFormatException e) { /* keep default */ }
+            }
+            if (actProps.containsKey("frameWidth")) {
+                try { act.frameWidth = Integer.parseInt(actProps.get("frameWidth")); }
+                catch (NumberFormatException e) { /* keep default */ }
+            }
+            if (actProps.containsKey("frameHeight")) {
+                try { act.frameHeight = Integer.parseInt(actProps.get("frameHeight")); }
                 catch (NumberFormatException e) { /* keep default */ }
             }
 

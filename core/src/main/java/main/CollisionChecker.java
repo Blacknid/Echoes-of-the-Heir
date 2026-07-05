@@ -308,6 +308,44 @@ public class CollisionChecker {
         }
     }
 
+    /**
+     * Would {@code entity}'s solidArea, placed at the explicit position (nextX, nextY), overlap any
+     * solid (collision == true) obj/iTile/npc/monster? Unlike checkObject/checkEntity (which predict
+     * one step of the entity's own speed in its current facing direction), this takes an arbitrary
+     * target position — needed for the attack lunge (applyAttackKick), which pushes the player by a
+     * variable, eased distance each frame rather than a fixed per-tick speed. Without this, the lunge
+     * only checked static tile collision (checkTileNext) and could push the player straight through a
+     * solid interactive tile/object (a chest, a pot, an unbroken destructible) it was attacking.
+     */
+    public boolean isSolidAt(Entity entity, int nextX, int nextY) {
+        int entityX = nextX + entity.solidArea.x;
+        int entityY = nextY + entity.solidArea.y;
+        int entityR = entityX + entity.solidArea.width;
+        int entityB = entityY + entity.solidArea.height;
+        if (overlapsSolid(entity, gp.obj, entityX, entityY, entityR, entityB)) return true;
+        if (overlapsSolid(entity, gp.iTile, entityX, entityY, entityR, entityB)) return true;
+        if (overlapsSolid(entity, gp.npc, entityX, entityY, entityR, entityB)) return true;
+        if (overlapsSolid(entity, gp.monster, entityX, entityY, entityR, entityB)) return true;
+        return false;
+    }
+
+    private boolean overlapsSolid(Entity self, Entity[] arr, int entityX, int entityY, int entityR, int entityB) {
+        if (arr == null) return false;
+        for (Entity e : arr) {
+            if (e == null || e == self || !e.collision) continue;
+            int dx = self.worldX - e.worldX;
+            int dy = self.worldY - e.worldY;
+            if (dx * dx + dy * dy > COLLISION_RANGE_SQ) continue;
+            int ex = e.worldX + e.solidArea.x;
+            int ey = e.worldY + e.solidArea.y;
+            if (entityX < ex + e.solidArea.width && entityR > ex &&
+                entityY < ey + e.solidArea.height && entityB > ey) {
+                return true;
+            }
+        }
+        return false;
+    }
+
     // OPTIMIZATION: Reduce redundant coordinate modifications
     private static final int COLLISION_RANGE_SQ = 320 * 320; // ~5 tiles range squared
 
@@ -469,6 +507,66 @@ public class CollisionChecker {
         }
 
         return index;
+    }
+
+    /**
+     * Where (if anywhere) does the attack cone touch a solid, non-monster collision — a Tiled
+     * collision shape/blocking tile, or a solid obj/iTile/npc? Monsters are deliberately excluded:
+     * they already get their own knockback from a hit (see Player.damageMonster), this is only for
+     * the "swing into a wall/object and bounce off it" case. Returns the cone's apex (attacker
+     * position) if nothing hit, so callers should check the boolean return, not just the point.
+     * Deliberately approximate (bounding-box tests, not exact polygon overlap) — this only drives a
+     * cosmetic push-back + impact VFX, not real physics, so precision isn't worth the complexity.
+     */
+    public boolean checkAttackEnvironmentHit(gfx.geom.Cone cone, gfx.geom.Rect outContactPoint) {
+        Rect cb = cone.getBounds();
+
+        // Blocking map tiles under the cone's bounding box.
+        int ts = gp.tileSize;
+        int leftCol = cb.x / ts, rightCol = (cb.x + cb.width) / ts;
+        int topRow = cb.y / ts, bottomRow = (cb.y + cb.height) / ts;
+        if (!gp.tileM.collisionTileLayers.isEmpty()) {
+            for (int row = topRow; row <= bottomRow; row++) {
+                for (int col = leftCol; col <= rightCol; col++) {
+                    if (gp.tileM.isTileBlocking(col, row)) {
+                        outContactPoint.x = (int) cone.apexX + (int) (Math.cos(cone.centerAngle) * cone.radius * 0.6);
+                        outContactPoint.y = (int) cone.apexY + (int) (Math.sin(cone.centerAngle) * cone.radius * 0.6);
+                        return true;
+                    }
+                }
+            }
+        }
+
+        // Tiled collision shapes (rects/polygons/ellipses from objectgroup layers).
+        ArrayList<Shape> shapes = gp.tileM.collisionShapes;
+        for (int i = 0; i < shapes.size(); i++) {
+            if (shapes.get(i).intersects(cb)) {
+                outContactPoint.x = (int) cone.apexX + (int) (Math.cos(cone.centerAngle) * cone.radius * 0.6);
+                outContactPoint.y = (int) cone.apexY + (int) (Math.sin(cone.centerAngle) * cone.radius * 0.6);
+                return true;
+            }
+        }
+
+        // Solid obj/iTile/npc (monsters excluded on purpose — see method doc).
+        if (coneHitsSolidArray(cone, gp.obj, outContactPoint)) return true;
+        if (coneHitsSolidArray(cone, gp.iTile, outContactPoint)) return true;
+        if (coneHitsSolidArray(cone, gp.npc, outContactPoint)) return true;
+        return false;
+    }
+
+    private boolean coneHitsSolidArray(gfx.geom.Cone cone, Entity[] arr, gfx.geom.Rect outContactPoint) {
+        if (arr == null) return false;
+        for (Entity e : arr) {
+            if (e == null || !e.collision) continue;
+            Rect r = e.solidArea;
+            int ex = e.worldX + r.x, ey = e.worldY + r.y;
+            if (cone.intersects(ex, ey, r.width, r.height)) {
+                outContactPoint.x = ex + r.width / 2;
+                outContactPoint.y = ey + r.height / 2;
+                return true;
+            }
+        }
+        return false;
     }
 
     // OPTIMIZATION: Reduce redundant coordinate modifications

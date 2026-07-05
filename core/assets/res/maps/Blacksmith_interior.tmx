@@ -1511,7 +1511,7 @@
   <object id="5" name="Going to exterior" type="MapTransition" x="96" y="416" width="64" height="32">
    <properties>
     <property name="spawnId" value="Blacksmith_exterior"/>
-    <property name="targetMap" value="canvas_village"/>
+    <property name="targetMap" value="canvas_village_rework"/>
    </properties>
   </object>
  </objectgroup>

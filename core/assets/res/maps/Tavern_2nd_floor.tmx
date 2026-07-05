@@ -908,7 +908,7 @@
   <object id="9" name="Going to balcony" type="MapTransition" x="384" y="480" width="64" height="32">
    <properties>
     <property name="spawnId" value="Tavern_exterior_balcony"/>
-    <property name="targetMap" value="canvas_village"/>
+    <property name="targetMap" value="canvas_village_rework"/>
    </properties>
   </object>
  </objectgroup>

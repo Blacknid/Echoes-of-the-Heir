@@ -99,13 +99,11 @@
   
   "blacksmith": {
     "name": "Blacksmith",
-    "idleSprite": "/res/NPC/Main/Blacksmith_forging",
-    "idleRows": 1,
-    "spriteAspect": 1,
-    "spriteScale": 2.0,
     "staticNPC": true,
     "interactRange": 96,
+    "spriteScale": 2,
     "idleAnimSpeed": 12,
+    "dialogueActivity": "idle",
 
     "dialogues": {
       "intro": [
@@ -133,12 +131,16 @@
     "activities": {
         "idle": {
         "sprite": "/res/NPC/Main/Blacksmith_idle",
-        "frames": [6],
+        "frameCount": 6,
+        "frameWidth": 48,
+        "frameHeight": 48,
         "speed": 12
         },
         "forge": {
           "sprite": "/res/NPC/Main/Blacksmith_forging",
-          "frames": [6],
+          "frameCount": 6,
+          "frameWidth": 48,
+          "frameHeight": 48,
           "speed": 12
         }
     },
@@ -147,7 +149,7 @@
       {
         "id": "idle_shop",
         "direction": 0,
-        "animation": "idle",
+        "animation": "forge",
         "dialogueSet": "greeting",
         "stationary": true
       },
@@ -156,14 +158,14 @@
         "animation": "forge",
         "direction": 3,
         "offset": [2, 0],
-        "dialogueSet": "forging",
+        "dialogueSet": "forging",w
         "stationary": true,
         "requiredQuestComplete": "gather_iron"
       },
       {
         "id": "sword_ready",
-        "animation": "idle",
-        "direction": 3,
+        "animation": "forge",
+        "direction": 3,w
         "offset": [2, 0],
         "dialogueSet": "sword_ready",
         "stationary": true,
@@ -171,7 +173,7 @@
       },
       {
         "id": "post_quest",
-        "animation": "idle",
+        "animation": "forge",
         "direction": 3,
         "offset": [2, 0],
         "dialogueSet": "post_quest",

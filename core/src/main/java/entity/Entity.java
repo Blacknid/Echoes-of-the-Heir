@@ -55,6 +55,13 @@ public class Entity {
     public int     activitySpriteCounter = 0;    // tick counter for frame advance
     private int    activityFrameDirection = 1;   // +1 or -1 (bounce direction)
 
+    // Data-driven "npcs.json" activity key to switch to for as long as this NPC is being talked to
+    // (e.g. the blacksmith stops forging and just idles while you're mid-conversation). Null = no
+    // override, currentActivity is left entirely to the normal state machine.
+    public String dialogueActivity = null;
+    private String preDialogueActivity = null;
+    private boolean dialogueActivityActive = false;
+
     public int direction = DIR_DOWN;
 
     public int idleDirection = -1;          // -1 = use current direction; >= 0 = forced idle dir
@@ -361,6 +368,10 @@ public class Entity {
     }
     public void setAction() {}
     public void speak() {}
+    /** Re-evaluate which data-driven activity/dialogueSet state is active. Called every update()
+     *  regardless of staticNPC (unlike setAction(), which static NPCs skip entirely). No-op by
+     *  default; overridden by NPC_Generic. */
+    public void tickActivityState() {}
 
     /**
      * Checks if the player has the required item; if so, starts the alternate dialogue.
@@ -474,6 +485,16 @@ public class Entity {
         gp.ui.npc = entity;
         dialogueSet = setNum;
 
+        // Swap to the dialogue-only activity (e.g. blacksmith stops forging and just idles while
+        // being talked to). Restored in endDialogueActivity(), called when dialogue closes.
+        if (dialogueActivity != null && !dialogueActivityActive) {
+            preDialogueActivity = currentActivity;
+            currentActivity = dialogueActivity;
+            activitySpriteNum = 1;
+            activitySpriteCounter = 0;
+            dialogueActivityActive = true;
+        }
+
         // Cutscene-style framing: turn the NPC toward the player and set the dialogue camera to zoom
         // in and recenter on the midpoint of player+NPC. ONLY for real world NPCs — event-driven
         // dialogues (DialogueTrigger, healing pool, campfire, etc.) speak through a placeholder
@@ -503,6 +524,17 @@ public class Entity {
             gp.questManager.progress(entity.onSpeakQuestId, entity.onSpeakQuestAmount);
         }
     }
+
+    /** Restore whatever activity was playing before {@link #startDialogue} swapped it out. Called
+     *  when dialogue with this NPC ends. No-op if no dialogueActivity override was active. */
+    public void endDialogueActivity() {
+        if (!dialogueActivityActive) return;
+        currentActivity = preDialogueActivity;
+        activitySpriteNum = 1;
+        activitySpriteCounter = 0;
+        dialogueActivityActive = false;
+    }
+
     /** Start dialogue by named key. Resolves via dialogueNameMap, falls back to parseInt, then 0. */
     public void startNamedDialogue(Entity entity, String dialogueName) {
         if (dialogueName == null) { startDialogue(entity, 0); return; }
@@ -629,6 +661,12 @@ public class Entity {
         int previousWorldX = worldX;
         int previousWorldY = worldY;
 
+        // Activity-state evaluation (which animation/dialogueSet is active) must run every frame
+        // regardless of staticNPC — setAction() itself is skipped for static NPCs (they never
+        // wander), but a stationary NPC (e.g. the blacksmith) still needs its activity re-evaluated
+        // continuously so state changes (quest progress) pick a new animation without requiring an
+        // interaction first.
+        tickActivityState();
         if (!staticNPC && (!guardMode || onPath)) setAction();
         if (guardMode && !onPath) faceTowardPlayer();
         checkCollision();
@@ -945,6 +983,13 @@ public class Entity {
     }
 
     /**
+     * Flat ground shadow pass, called once per frame by RenderPipeline BEFORE any entity draws, so
+     * shadows always sit under everyone regardless of depth-sort order. No-op by default; overridden
+     * by types that draw a flat ground shadow (currently IT_Tree).
+     */
+    public void drawGroundShadowPass(GdxRenderer g2) {}
+
+    /**
      * Draw this entity's silhouette into the shadow-occluder mask (Stage 2 lighting). The occluder pass
      * clears to transparent and draws every caster's current sprite in solid black; the light shader then
      * ray-marches this mask so lit pixels behind a silhouette fall into shadow. We draw the SAME frame at
@@ -963,6 +1008,37 @@ public class Entity {
         int drawY = screenY - (drawH - gp.tileSize);
         // Solid black tint at full alpha: the sprite's own alpha carves the silhouette into the mask.
         g2.drawImageTinted(s, drawX, drawY, drawW, drawH, Color.BLACK, 1f);
+    }
+
+    /**
+     * Flat, always-on ground shadow (a soft dark ellipse at the caster's feet), independent of the
+     * darkness/light shader. The occluder-mask shadow in {@link #drawOccluder} only exists while
+     * Lightning's darkness pass is active (it early-returns at ambientLight 0, e.g. daytime maps), so
+     * without this a caster like a tree has no shadow at all in full daylight. Cheap: one alpha-blended
+     * ellipse, no shader/FBO involved. w/h are in tiles, offsetX/offsetY in tiles from the caster's feet.
+     */
+    protected void drawGroundShadow(GdxRenderer g2, int screenX, int screenY, int drawSize,
+                                     float w, float h, float offsetX, float offsetY) {
+        // anchorWorldX/Y mirrors screenX/Y's own derivation (worldX/Y offset for a drawSize bigger
+        // than one tile — see IT_Tree.anchorX/anchorY) via screenX - player.screenX + player.worldX,
+        // so it stays the exact same fixed point screenX is built from, whatever caster this is.
+        int anchorWorldX = screenX - gp.player.screenX + gp.player.worldX;
+        int anchorWorldY = screenY - gp.player.screenY + gp.player.worldY;
+        int offX = Math.round(offsetX * gp.tileSize);
+        int offY = Math.round(offsetY * gp.tileSize);
+        int cx = screenX + drawSize / 2 + offX;
+        int cy = screenY + drawSize + offY;
+        int sw = Math.round(gp.tileSize * w);
+        int sh = Math.round(gp.tileSize * h);
+        // Step sized so the oval reads as a 32x32-px sprite scaled up to fit its bounding box (like a
+        // real pixel-art shadow texture would be), instead of a fixed real-world block size — the step
+        // shrinks/grows with the shadow's own footprint so bigger trees don't get chunkier pixels.
+        final int SHADOW_SRC_PX = 32;
+        int step = Math.max(1, Math.max(sw, sh) / SHADOW_SRC_PX);
+        g2.setColor(new gfx.Color(0, 0, 0, 90));
+        g2.fillPixelOval(cx - sw / 2, cy - sh / 2, sw, sh, step, step,
+                anchorWorldX + drawSize / 2 + offX, anchorWorldY + drawSize + offY);
+        g2.setColor(Color.WHITE);
     }
 
     protected Sprite getWalkFrameImage(int dir, int frame) {

@@ -4828,7 +4828,7 @@ Good luck!</property>
    <properties>
     <property name="requiredFragments" type="int" value="0"/>
     <property name="spawnId" value="awakening_cave"/>
-    <property name="targetMap" value="canvas_village"/>
+    <property name="targetMap" value="canvas_village_rework"/>
    </properties>
   </object>
   <object id="114" type="FragmentTrigger" x="0" y="416" width="96" height="96">

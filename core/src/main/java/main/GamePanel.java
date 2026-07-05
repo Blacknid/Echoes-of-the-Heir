@@ -258,7 +258,7 @@ public class GamePanel {
     public Entity obj[] = new Entity[100];
     public Entity npc[] = new Entity[10];
     public Entity monster[] = new Entity[20];
-    public interactiveTile iTile[] = new interactiveTile[30];
+    public interactiveTile iTile[] = new interactiveTile[100];
     public ArrayList<Entity> projectilesList = new ArrayList<>();
     public ArrayList<Entity> particleList = new ArrayList<>();
     public ObjectPool<Projectile> projectilePool;

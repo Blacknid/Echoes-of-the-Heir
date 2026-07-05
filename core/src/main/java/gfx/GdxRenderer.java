@@ -886,6 +886,49 @@ public class GdxRenderer {
         shapes.setColor(gdxColor());
         shapes.ellipse(x, y, w, h);
     }
+    /**
+     * Blocky, pixel-art oval: stamped from coarse rect "pixels" (stepW x stepH logical px) instead of
+     * a smooth ShapeRenderer ellipse, so it reads as hand-drawn pixel art like the rest of the game's
+     * sprites instead of a smooth vector shape. x,y,w,h is the ellipse's bounding box.
+     *
+     * <p>anchorWorldX/Y is the caster's FIXED world position (e.g. a tree's worldX/worldY) — the pixel
+     * grid is snapped against this world anchor, not the on-screen bounding box. The screen box (x,y)
+     * moves by a whole-pixel amount every frame as the camera scrolls (worldX - cameraWorldX), so its
+     * value mod stepW changes continuously; rounding against IT made the grid re-snap to a different
+     * alignment almost every frame — a visible shake/jitter as you walked, even though the shadow's
+     * true position was correct. Snapping against the never-changing world anchor instead keeps the
+     * chosen alignment fixed for the caster's whole lifetime; the screen box only supplies the (also
+     * whole-pixel) camera translation, applied AFTER snapping so it never perturbs the rounding.
+     */
+    public void fillPixelOval(int x, int y, int w, int h, int stepW, int stepH, int anchorWorldX, int anchorWorldY) {
+        if (w <= 0 || h <= 0) return;
+        stepW = Math.max(1, stepW);
+        stepH = Math.max(1, stepH);
+        useShape(ShapeRenderer.ShapeType.Filled);
+        shapes.setColor(gdxColor());
+        float rx = w / 2f, ry = h / 2f;
+        // World-anchored center, snapped once against world coords (never changes for a static caster).
+        float worldCx = anchorWorldX, worldCy = anchorWorldY;
+        float snappedWorldCx = Math.round(worldCx / stepW) * stepW;
+        float snappedWorldCy = Math.round(worldCy / stepH) * stepH;
+        // Whole-pixel camera translation: screen center minus world center, both un-rounded inputs
+        // collapse to an exact integer since screenBox = worldBox - cameraWorld (all ints upstream).
+        float camDx = (x + rx) - worldCx;
+        float camDy = (y + ry) - worldCy;
+        float snappedCx = snappedWorldCx + camDx;
+        float snappedCy = snappedWorldCy + camDy;
+        int halfRows = Math.round(ry / stepH);
+        for (int row = -halfRows; row <= halfRows; row++) {
+            float sy = (row * stepH) / ry;
+            if (sy < -1f || sy > 1f) continue;
+            float halfW = rx * (float) Math.sqrt(Math.max(0f, 1f - sy * sy));
+            int halfCols = Math.round(halfW / stepW);
+            if (halfCols <= 0) continue;
+            float rowX = snappedCx - halfCols * stepW;
+            float rowY = snappedCy + row * stepH;
+            shapes.rect(rowX, rowY, halfCols * 2 * stepW, stepH);
+        }
+    }
     public void drawOval(int x, int y, int w, int h) {
         useShape(ShapeRenderer.ShapeType.Line);
         shapes.setColor(gdxColor());

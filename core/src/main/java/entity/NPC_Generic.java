@@ -267,10 +267,12 @@ public class NPC_Generic extends Entity {
     }
 
     @Override
-    public void setAction() {
-        // Evaluate activity state before normal AI
+    public void tickActivityState() {
         evaluateActivityState();
+    }
 
+    @Override
+    public void setAction() {
         if (onPath) {
             int goalCol = (walkToCol >= 0) ? walkToCol : 0;
             int goalRow = (walkToRow >= 0) ? walkToRow : 0;
@@ -417,10 +419,6 @@ public class NPC_Generic extends Entity {
 
         // Re-evalueaza in caz ca starea quest-ului s-a schimbat de la ultimul tick
         evaluateActivityState();
-
-        // Pauza temporara a animatiei de activitate in timp ce vorbeste (intoarce fata catre jucator natural)
-        String savedActivity = currentActivity;
-        currentActivity = null;
 
         if (gp.questManager != null && objectId != null) {
             if (gp.questManager.executeStepForNpc(objectId, this)) {

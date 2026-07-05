@@ -1613,7 +1613,7 @@
   <object id="3" name="Going to exterior" type="MapTransition" x="384" y="480" width="64" height="32">
    <properties>
     <property name="spawnId" value="Tavern_exterior"/>
-    <property name="targetMap" value="canvas_village"/>
+    <property name="targetMap" value="canvas_village_rework"/>
    </properties>
   </object>
   <object id="4" name="Tavern_spawn" type="SpawnPoint" x="416" y="448">
