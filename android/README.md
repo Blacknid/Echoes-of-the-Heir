@@ -19,7 +19,9 @@ Produces a debug APK under `android/build/outputs/apk/debug/`.
 
 - Assets come from `core/assets` (shared with desktop) plus `android/assets` — no separate
   asset copy is maintained.
-- License priming (`platform.AndroidLicense`) reads a bundled `android/assets/license.properties`
-  and must run once `Gdx` is live (from `MichiGame#create()`, not `onCreate()`).
+- Licensing (`platform.LicenseActivation.ensureActivated()`) is online, shared with desktop — it
+  activates once against the save server and persists only an opaque `activation_id` + encrypted
+  blob (no plaintext license, no per-machine signing key). Must run once `Gdx` is live (from
+  `MichiGame#create()`, not `onCreate()`).
 - No `java.awt`, `javax.swing`, `javax.sound`, `ProcessBuilder`, or registry calls exist in
   `core` outside the `platform` package — that's what keeps this module buildable.

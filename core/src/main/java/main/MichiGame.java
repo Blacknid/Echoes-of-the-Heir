@@ -42,10 +42,12 @@ public class MichiGame extends ApplicationAdapter {
 
     @Override
     public void create() {
-        // No-ops on every backend except Android. Must run here (not from AndroidLauncher's
-        // onCreate() before initialize()) since Gdx.app/Gdx.files aren't live until this point
-        // on the Android backend.
-        platform.AndroidLicense.primeIfAndroid();
+        // Online license activation/login — same call on every backend (desktop, Android).
+        // First run on this install: ACTIVATE issues a fresh license and persists only an
+        // opaque activation_id + encrypted blob (see platform.LicenseActivation). Every later
+        // run: LOGIN re-confirms it. Returns null (and leaves LICENSE_KEY unset) if no save
+        // server is reachable yet — the game still runs, just without cloud saves/MP this run.
+        main.Main.LICENSE_KEY = platform.LicenseActivation.ensureActivated();
 
         camera = new OrthographicCamera();
         syncCamera(Gdx.graphics.getWidth(), Gdx.graphics.getHeight());

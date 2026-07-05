@@ -125,8 +125,10 @@ gradient *text* fills fall back to a solid color. These are visual niceties, not
   `InputMultiplexer`). `KeyEvent.VK_*` → `Input.Keys.*`, mouse buttons → `Input.Buttons`, wheel →
   `scrolled()`. The `WindPainter` authoring tool + `.windmap` files are unchanged (only its
   overlay draw + keycodes were ported); the wind system logic is untouched.
-- **`main.Main`** is now a static holder (no `JFrame`) with `bootstrap()` (mandatory update check +
-  license load/watchdog) called by `DesktopLauncher` before the GL window opens.
+- **`main.Main`** is now a static holder (no `JFrame`) with `bootstrap()` (mandatory update check)
+  called by `DesktopLauncher` before the GL window opens. Licensing itself later moved to online
+  activation (`platform.LicenseActivation`, called from `MichiGame.create()` on every backend) —
+  see `core/guides/android_adaptations.md` §3.
 - **Audio:** `Sound` rewritten on `Gdx.audio` (`Music` for looped tracks, `Sound` for SFX),
   replacing `javax.sound.sampled`. `.wav`/`.mp3`/`.ogg` all work natively; the missing legacy
   `ceva/lib` MP3 SPI jars are no longer needed. `AudioManager`/`SFX` API unchanged.
@@ -142,13 +144,13 @@ gradient *text* fills fall back to a solid color. These are visual niceties, not
   all libGDX/LWJGL/gdx/freetype natives + full `res/` asset tree).
 - `./gradlew :lwjgl3:jpackageImage` — jpackage app-image → `deploy/MichisAdventure-<ver>.exe`
   (bundled JRE, `-XX:+UseG1GC …`).
-- `./gradlew :lwjgl3:installer` — full pipeline: `sync_keys.py` (license public-key inject) →
-  fat JAR → jpackage → **Inno Setup** (`setup_init.iss`, unchanged install-time RSA license
-  generation) → `deploy/MichiGame_Setup.exe`.
+- `./gradlew :lwjgl3:installer` — full pipeline: fat JAR → jpackage → **Inno Setup**
+  (`setup_init.iss`) → `deploy/MichiGame_Setup.exe`.
 
-Licensing is unchanged end-to-end (same RSA keypair, `sync_keys.py`, install-time PowerShell key
-gen). Missing optional tools (Inno Setup, Python) warn and skip rather than fail. Version/build
-number come from `ceva/src/res/build.properties`.
+Licensing is no longer part of the install/build pipeline at all — no keypair to inject, nothing
+generated at install time. It happens online at first run instead (see §8 below / 
+`core/guides/android_adaptations.md` §3). Missing optional tools (Inno Setup) warn and skip
+rather than fail. Version/build number come from `ceva/src/res/build.properties`.
 
 ---
 
@@ -164,8 +166,9 @@ wholesale — flagged here for the future port:
 - **`update/UpdateClient.java`, `update/Updater.java`** — self-update via `ProcessBuilder` relaunch
   and a Swing `JOptionPane` prompt. Runs pre-launch on desktop only; on Android, updates go through
   the Play Store (the whole update mechanism is dropped).
-- **`data/LicenseManager.java`** — machine fingerprint via Windows registry (`reg query`
-  MachineGuid through `Runtime.exec`). Android uses a device identifier instead.
+- ~~**`data/LicenseManager.java`** — machine fingerprint via Windows registry~~ — superseded:
+  licensing moved to online activation (`platform.LicenseActivation`), identical on every
+  backend, no per-platform fingerprint needed at all. See `android_adaptations.md` §3.
 - **`System.exit(...)`** in the quit buttons (`KeyHandler`/`MouseHandler`) — becomes a platform
   no-op / `Gdx.app.exit()` on Android.
 - **Save/config file paths** (`FileReader("config.txt")`, local save files) — move to

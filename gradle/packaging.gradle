@@ -3,9 +3,9 @@
 // Tasks:
 //   gradlew :desktop:jar           → deploy/Michi-s-adventure.jar (fat, runnable via DesktopLauncher)
 //   gradlew :desktop:jpackageImage → jpackage_tmp/MichisAdventure/MichisAdventure.exe (+ copy to deploy)
-//   gradlew :desktop:installer     → deploy/MichiGame_Setup.exe (umbrella: syncKeys→jar→jpackage→Inno)
+//   gradlew :desktop:installer     → deploy/MichiGame_Setup.exe (umbrella: jar→jpackage→Inno)
 //
-// Requires on PATH/installed: JDK jpackage, Python (license scripts), Inno Setup 6 (ISCC).
+// Requires on PATH/installed: JDK jpackage, Inno Setup 6 (ISCC).
 // Each is checked; missing optional tools warn instead of failing.
 
 import org.gradle.internal.os.OperatingSystem
@@ -22,22 +22,6 @@ def appVersion    = project.gameVersion.version
 // Put the fat JAR in deploy/ with the legacy name so jpackage/Inno paths are unchanged.
 jar {
     destinationDirectory = deployDir
-}
-
-// ── License key sync (idempotent): inject the RSA public key into LicenseManager + servers. ──
-tasks.register('syncLicenseKeys', Exec) {
-    group = 'packaging'
-    description = 'Run build_tools/sync_keys.py to inject the license public key.'
-    workingDir = rootDir
-    // Skip gracefully if Python or the keys are absent (dev machines without the keypair).
-    onlyIf {
-        boolean ok = new File(buildToolsDir, 'sync_keys.py').exists() &&
-                     new File(buildToolsDir, 'license_public.b64').exists()
-        if (!ok) logger.warn('[packaging] sync_keys.py or license_public.b64 missing — skipping key sync.')
-        ok
-    }
-    commandLine 'python', new File(buildToolsDir, 'sync_keys.py').absolutePath
-    ignoreExitValue = true
 }
 
 // ── jpackage app-image (.exe with bundled JRE). ──
@@ -81,23 +65,14 @@ tasks.register('jpackageImage') {
     }
 }
 
-// ── Inno Setup installer (wraps the app-image; generates the per-machine license at install). ──
+// ── Inno Setup installer (wraps the app-image). ──
 tasks.register('innoInstaller') {
     group = 'packaging'
     description = 'Build deploy/MichiGame_Setup.exe via Inno Setup (ISCC).'
     dependsOn tasks.named('jpackageImage')
     doLast {
         def iss = new File(buildToolsDir, 'setup_init.iss')
-        def privKey = new File(buildToolsDir, 'license_private.xml')
         if (!iss.exists()) { logger.warn('[packaging] setup_init.iss missing — skipping installer.'); return }
-
-        // Write the private key into the temp include the .iss expects (#include "_privkey_tmp.iss").
-        def inc = new File(buildToolsDir, '_privkey_tmp.iss')
-        if (privKey.exists()) {
-            inc.setText('#define MICHI_PRIVKEY "' + privKey.text.trim() + '"', 'UTF-8')
-        } else {
-            logger.warn('[packaging] license_private.xml missing — installer will build without a signing key.')
-        }
 
         // Locate ISCC.
         def iscc = ['C:/Program Files (x86)/Inno Setup 6/ISCC.exe',
@@ -105,11 +80,9 @@ tasks.register('innoInstaller') {
                    .collect { new File(it) }.find { it.exists() }?.absolutePath
         if (iscc == null) {
             logger.warn('[packaging] Inno Setup (ISCC.exe) not found — skipping installer. Get it: https://jrsoftware.org/isdl.php')
-            inc.delete()
             return
         }
         def pb = new ProcessBuilder(iscc, iss.absolutePath); pb.inheritIO(); pb.start().waitFor()
-        inc.delete() // never leave the private key on disk
         def out = new File(deployDir, 'MichiGame_Setup.exe')
         if (out.exists()) logger.lifecycle('[packaging] Installer: deploy/MichiGame_Setup.exe')
     }
@@ -118,7 +91,6 @@ tasks.register('innoInstaller') {
 // Umbrella task: full source → installer pipeline.
 tasks.register('installer') {
     group = 'packaging'
-    description = 'Full desktop packaging: license sync → fat JAR → jpackage .exe → Inno Setup installer.'
-    dependsOn tasks.named('syncLicenseKeys'), tasks.named('innoInstaller')
+    description = 'Full desktop packaging: fat JAR → jpackage .exe → Inno Setup installer.'
+    dependsOn tasks.named('innoInstaller')
 }
-tasks.named('jar') { mustRunAfter tasks.named('syncLicenseKeys') }

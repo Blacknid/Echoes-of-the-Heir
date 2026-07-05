@@ -376,23 +376,22 @@ public class CloudSaveService {
             byte[] serverNonce = Base64.getDecoder().decode(okLine.substring(3));
             if (serverNonce.length != 16) { socket.close(); return null; }
 
-            // Step 3: AUTH (RSA-OAEP) — keep the encrypted payload small (< 190 bytes for RSA-2048).
-            // machine_fp and license_sig are sent as plaintext tokens after the ciphertext on the
-            // same line: "AUTH <enc_b64> <machine_fp> <sig_b64>"
-            // This is safe: license_sig is already stored in license.properties on disk.
-            String fp  = platform.License.getCachedMachineFp();
-            String sig = platform.License.getCachedSignature();
+            // Step 3: LOGIN (RSA-OAEP) — the server already knows our license via activation_id
+            // (issued once by platform.LicenseActivation's online ACTIVATE), so the handshake
+            // JSON carries no license/fp/signature at all, just the shared nonces:
+            // "LOGIN <enc_b64> <activation_id> <enc_blob_b64>"
+            String activationId = platform.License.getActivationId();
+            String encBlob = platform.License.getEncBlob();
             String handshakeJson = "{"
-                    + "\"license\":\""      + jsonEscape(licenseKey)         + "\","
                     + "\"ts\":"             + (System.currentTimeMillis() / 1000L) + ","
                     + "\"client_nonce\":\"" + toHex(clientNonce)              + "\","
                     + "\"server_nonce\":\"" + toHex(serverNonce)              + "\""
                     + "}";
 
             byte[] enc = rsaOaepEncrypt(handshakeJson.getBytes(StandardCharsets.UTF_8));
-            w.write("AUTH " + Base64.getEncoder().encodeToString(enc)
-                    + " " + (fp  != null ? fp  : "")
-                    + " " + (sig != null ? sig : ""));
+            w.write("LOGIN " + Base64.getEncoder().encodeToString(enc)
+                    + " " + (activationId != null ? activationId : "")
+                    + " " + (encBlob != null ? encBlob : ""));
             w.newLine();
             w.flush();
 

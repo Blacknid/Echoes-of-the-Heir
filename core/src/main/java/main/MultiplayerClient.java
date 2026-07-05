@@ -281,14 +281,13 @@ public class MultiplayerClient {
             byte[] serverNonce = Base64.getDecoder().decode(okLine.substring(3));
             if (serverNonce.length != 16) return false;
 
-            // Step 3: AUTH (RSA-OAEP) — keep the encrypted payload small (< 190 bytes for RSA-2048).
-            // machine_fp and license_sig are sent as plaintext tokens after the ciphertext on the
-            // same line: "AUTH <enc_b64> <machine_fp> <sig_b64>"
-            // This is safe: license_sig is already stored in license.properties on disk.
-            String fp  = platform.License.getCachedMachineFp();
-            String sig = platform.License.getCachedSignature();
+            // Step 3: LOGIN (RSA-OAEP) — the server resolves our license via activation_id/enc_blob
+            // (issued once by platform.LicenseActivation's online ACTIVATE against save_server),
+            // so the handshake JSON carries no license field at all:
+            // "LOGIN <enc_b64> <activation_id> <enc_blob_b64>"
+            String activationId = platform.License.getActivationId();
+            String encBlob = platform.License.getEncBlob();
             String handshakeJson = "{"
-                    + "\"license\":\""      + jsonEscape(license)            + "\","
                     + "\"ts\":"             + (System.currentTimeMillis() / 1000L) + ","
                     + "\"client_nonce\":\"" + toHex(clientNonce)              + "\","
                     + "\"server_nonce\":\"" + toHex(serverNonce)              + "\","
@@ -296,9 +295,9 @@ public class MultiplayerClient {
                     + "\"class\":\""        + jsonEscape(cls)                 + "\""
                     + "}";
             byte[] enc = rsaOaepEncrypt(handshakeJson.getBytes(StandardCharsets.UTF_8));
-            sendLine("AUTH " + Base64.getEncoder().encodeToString(enc)
-                    + " " + (fp  != null ? fp  : "")
-                    + " " + (sig != null ? sig : ""));
+            sendLine("LOGIN " + Base64.getEncoder().encodeToString(enc)
+                    + " " + (activationId != null ? activationId : "")
+                    + " " + (encBlob != null ? encBlob : ""));
 
             // Step 4: AUTH_OK + encrypted session key
             String authLine = readLine();

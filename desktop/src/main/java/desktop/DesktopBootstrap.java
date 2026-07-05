@@ -1,9 +1,8 @@
 package desktop;
 
-import desktop.data.LicenseManager;
 import desktop.update.UpdateClient;
 
-/** Pre-launch bootstrap: update check + license load/watchdog. Runs before the GL window opens. */
+/** Pre-launch bootstrap: update check. Runs before the GL window opens. */
 public final class DesktopBootstrap {
 
     private DesktopBootstrap() {}
@@ -15,11 +14,8 @@ public final class DesktopBootstrap {
             return false;
         }
 
-        // Load + verify the signed, machine-bound license (null on any failure — game still runs).
-        main.Main.LICENSE_KEY = LicenseManager.load();
-        if (main.Main.LICENSE_KEY != null) {
-            LicenseManager.startWatchdog(60);
-        }
+        // License activation now happens in MichiGame.create() (platform.LicenseActivation),
+        // same call on every backend — Gdx isn't live yet at this point in desktop startup.
 
         // Dev mode: let ResourceCache read .tmx/.tsx files directly from disk so in-game R
         // reload picks up Tiled edits without a resource sync step.

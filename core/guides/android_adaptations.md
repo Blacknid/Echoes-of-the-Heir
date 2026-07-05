@@ -57,43 +57,30 @@ mid-game.
 self-update-JAR check + Windows-registry-bound license load — neither has an Android
 equivalent). See the licensing section below for what it does instead.
 
-## 3. Licensing: skipped for the player, but the server still works
+## 3. Licensing: online activation, shared with desktop
 
-Desktop's `LicenseManager` binds a signed `license.properties` to a Windows registry machine
-fingerprint, gates cloud-save/multiplayer on it, and runs a background watchdog that
-invalidates the session if the file is tampered with. None of that applies to Android (no
-registry, and the decision here was explicitly **no user-facing license gate on mobile**) —
-but `MultiplayerClient`/`CloudSaveService` both require a primed `LicenseManager` (not just a
-non-null key: they call `getCachedMachineFp()`/`getCachedSignature()`/`verifyCurrent()`
-directly), and the multiplayer/cloud-save servers only check that the RSA signature verifies
-against the shared public key — there is no server-side allow-list, so **any validly-signed
-key+fingerprint pair works**.
+Licensing used to be split per-backend: desktop bound a signed `license.properties` to a
+Windows registry machine fingerprint, and an earlier Android build baked a separately-signed
+`license.properties` into the APK. Both were offline, RSA-signature schemes that trusted
+whatever key+fingerprint pair verified — no server-side allow-list.
 
-The resolution: bake one signed `license.properties` into the APK at build time, and load it
-silently with no UI.
+That's been replaced with **`platform.LicenseActivation`** (online activation), which is
+backend-agnostic and used identically by desktop and Android — there is no more per-platform
+license class. `MichiGame#create()` calls
+`Main.LICENSE_KEY = platform.LicenseActivation.ensureActivated()` once `Gdx` is live, on every
+backend. First run: it calls the save server's `ACTIVATE` handshake, which issues a brand-new
+license key and hands back an opaque `activation_id` plus an AES-GCM-encrypted blob of the
+license key (encrypted with a random key the server keeps to itself). Only `activation_id` and
+the encrypted blob are persisted locally (via `platform.GameStorage`, so it works identically in
+an APK's private storage) — the plaintext license key is never written to disk. Every later run
+calls `LOGIN` with the same pair; the server decrypts the blob and confirms it. If no save server
+is reachable, `ensureActivated()` returns `null` and the game still runs, just without cloud
+saves/multiplayer for that run — same behavior on every backend, no separate "no license gate on
+mobile" carve-out needed anymore.
 
-- **`build_tools/generate_dev_license.py`** gained a `--machine-fp <hex>` flag so it can embed
-  an arbitrary fixed fingerprint instead of deriving one from the local machine's registry
-  (there is no registry to derive one from on Android). Generated once:
-  ```
-  python build_tools/generate_dev_license.py --key MICHI-AND1 --machine-fp a11d201d00000000 --out android/assets/license.properties
-  ```
-  The output is committed (it's a shipped signed artifact, not a secret — only the RSA private
-  key stays secret). Regenerate only if the keypair itself ever rotates.
-- **`ceva/src/data/LicenseManager.java`** gained `primeForAndroid(key, fp, sig)`, which sets
-  the same cached fields `load()` would have, plus an `androidBypass` flag. This flag matters
-  because `verifyCurrent()` (called before every cloud-save/multiplayer attempt) normally
-  re-stats the license file's mtime via `Files.getLastModifiedTime` on a `Path` resolved from
-  `getProtectionDomain().getCodeSource().getLocation()` — meaningless in an APK's classloader.
-  `safeMtime()` swallows that failure and returns `0L`, which `verifyCurrent()` interprets as
-  "the file vanished" and permanently trips `tampered = true` on the very first call. With
-  `androidBypass` set, `verifyCurrent()` returns `true` immediately (after the existing sticky
-  `tampered`/`cachedKey == null` checks) without touching the filesystem at all.
-- **`AndroidBootstrap`** reads `android/assets/license.properties` via
-  `Gdx.files.internal(...)` (not `LicenseManager.load()`'s file-based path, which doesn't
-  resolve correctly in an APK), parses the three fields, and calls
-  `LicenseManager.primeForAndroid(...)` + sets `Main.LICENSE_KEY`. No dialog, no watchdog, no
-  registry — the player never sees a license concept.
+`MultiplayerClient`/`CloudSaveService` no longer read a machine fingerprint or signature at all —
+they send `platform.License.getActivationId()`/`getEncBlob()` over the wire, and the servers
+resolve the license key server-side.
 
 ## 4. Storage: `platform.GameStorage`
 
