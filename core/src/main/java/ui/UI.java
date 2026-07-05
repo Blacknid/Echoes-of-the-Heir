@@ -91,8 +91,8 @@ public class UI {
     /** Title screen main-menu labels, "CONTINUE" prepended only when a save file exists. */
     public String[] titleMenuItems() {
         return titleHasSave()
-            ? new String[]{"CONTINUE", "NEW GAME", "MULTIPLAYER", "QUIT"}
-            : new String[]{"NEW GAME", "MULTIPLAYER", "QUIT"};
+            ? new String[]{"CONTINUE", "NEW GAME", "MULTIPLAYER", "FRIENDS", "QUIT"}
+            : new String[]{"NEW GAME", "MULTIPLAYER", "FRIENDS", "QUIT"};
     }
     public int titleScreenState = 0; // 0 : the first screen, 1: the second screen
 
@@ -120,6 +120,10 @@ public class UI {
                 titleScreenState = 3;
                 mpServerSelection = 0;
                 commandNum = 0;
+                gp.playSE(audio.SFX.MENU_SELECT);
+            });
+            titleMenu.button("FRIENDS", () -> {
+                openFriendsScreen(GamePanel.titleState);
                 gp.playSE(audio.SFX.MENU_SELECT);
             });
             titleMenu.button("QUIT", () -> System.exit(0));
@@ -178,6 +182,331 @@ public class UI {
 
     public String playerUsername = "";    // username set on title screen, shown above player head
     public boolean usernameFieldFocused = false; // true when the username field is being typed into
+
+    // ── Friends screen state (GamePanel.friendsState) ────────────────────────
+    public int friendsSelection = 0;        // selected row: [0..requests) requests, then [0..friends) friends, then action menu
+    public boolean friendsInputMode = false; // true while typing a username to send a request (desktop only)
+    public boolean friendsInputFieldFocused = true; // whether the username box (vs. clicking elsewhere) has focus
+    public String friendsInputText = "";
+    // Rect of the username text box in drawFriendsInput(), recorded so MouseHandler can hit-test clicks.
+    private final int[] friendsInputFieldRect = new int[4]; // {x, y, w, h}
+
+    /** True if (px,py) is inside the ADD FRIEND username box as last drawn. */
+    public boolean isFriendsInputFieldAt(int px, int py) {
+        int x = friendsInputFieldRect[0], y = friendsInputFieldRect[1], w = friendsInputFieldRect[2], h = friendsInputFieldRect[3];
+        return px >= x && px < x + w && py >= y && py < y + h;
+    }
+    public String friendsStatusMessage = "";
+    public java.util.List<String> friendsPendingRequests = new ArrayList<>();
+    public java.util.List<String> friendsList = new ArrayList<>();
+    private boolean friendsDataLoaded = false;
+
+    /** True on Android: adding a friend is NFC-tap-only there, never username text entry. */
+    public boolean isMobilePlatform() {
+        return com.badlogic.gdx.Gdx.app.getType() == com.badlogic.gdx.Application.ApplicationType.Android;
+    }
+
+    // Last-drawn row/button rects for the Friends screen, recorded during drawFriendsScreen() so
+    // MouseHandler's hit-testing always matches what's on screen — same idiom as Menu.recordRect/
+    // itemAt, duplicated here in miniature since this screen draws its own bespoke layout rather
+    // than going through a Menu.
+    private final ArrayList<int[]> friendsRowRects = new ArrayList<>(); // {x, y, w, h} per row
+
+    /** Index of the friends-screen row/button under (px,py) as last drawn, or -1. */
+    public int friendsItemAt(int px, int py) {
+        for (int i = 0; i < friendsRowRects.size(); i++) {
+            int[] r = friendsRowRects.get(i);
+            if (px >= r[0] && px < r[0] + r[2] && py >= r[1] && py < r[1] + r[3]) {
+                return i;
+            }
+        }
+        return -1;
+    }
+
+    // Same idiom as friendsRowRects/friendsItemAt, for the boss-coop PICKER screen's friend rows.
+    private final ArrayList<int[]> bossCoopRowRects = new ArrayList<>();
+
+    public int bossCoopItemAt(int px, int py) {
+        for (int i = 0; i < bossCoopRowRects.size(); i++) {
+            int[] r = bossCoopRowRects.get(i);
+            if (px >= r[0] && px < r[0] + r[2] && py >= r[1] && py < r[1] + r[3]) {
+                return i;
+            }
+        }
+        return -1;
+    }
+
+    // ── Mobile-only: NFC add-friend session (see platform.NfcPairing) ────────
+    public boolean nfcSessionActive = false; // true while "waiting for tap" is shown
+
+    public void startNfcAddFriend() {
+        friendsStatusMessage = "";
+        if (!platform.Nfc.isAvailable()) {
+            friendsStatusMessage = "NFC is not available on this device.";
+            return;
+        }
+        nfcSessionActive = true;
+        String ownToken = mobile.BluetoothPairingTokens.currentToken();
+        platform.Nfc.startSession(playerUsername, ownToken, new platform.NfcPairing.Listener() {
+            @Override public void onPeerRead(String peerUsername, String peerBluetoothToken) {
+                mobile.BluetoothPairingTokens.rememberPeer(peerUsername, peerBluetoothToken);
+                data.PendingNfcFriendRequests.add(peerUsername);
+                java.util.List<data.CloudSaveService.FriendResult> results =
+                        data.PendingNfcFriendRequests.flush(gp.saveLoad);
+                friendsStatusMessage = results.isEmpty()
+                        ? "Friend request to " + peerUsername + " queued (offline)."
+                        : results.get(results.size() - 1).message();
+                nfcSessionActive = false;
+                platform.Nfc.stopSession();
+                refreshFriendsData();
+            }
+            @Override public void onError(String message) {
+                friendsStatusMessage = message;
+                nfcSessionActive = false;
+                platform.Nfc.stopSession();
+            }
+        });
+    }
+
+    public void cancelNfcAddFriend() {
+        nfcSessionActive = false;
+        platform.Nfc.stopSession();
+    }
+
+    /** (Re)fetch requests + friend list from the save server. Blocking — call from a menu action, not per-frame. */
+    public void refreshFriendsData() {
+        friendsPendingRequests = gp.saveLoad.listFriendRequests();
+        friendsList = gp.saveLoad.listFriends();
+        friendsDataLoaded = true;
+        int menuItemCount = isMobilePlatform() ? 4 : 3;
+        if (friendsSelection >= friendsPendingRequests.size() + friendsList.size() + menuItemCount) {
+            friendsSelection = 0;
+        }
+        // Retry any requests captured offline via NFC now that we've proven the server is reachable.
+        if (data.PendingNfcFriendRequests.hasPending()) {
+            data.PendingNfcFriendRequests.flush(gp.saveLoad);
+        }
+    }
+
+    /** Call when entering the Friends screen (from title or pause). */
+    public void openFriendsScreen(int returnState) {
+        gp.friendsReturnState = returnState;
+        gp.gameState = GamePanel.friendsState;
+        friendsSelection = 0;
+        friendsInputMode = false;
+        friendsInputText = "";
+        friendsStatusMessage = "";
+        friendsDataLoaded = false;
+        nfcSessionActive = false;
+        refreshFriendsData();
+    }
+
+    // ── Co-op boss-fight screen (GamePanel.bossCoopState) ─────────────────────
+    // Desktop: LAN via mDNS, host picks specific friends from a picker (PICKER mode used).
+    // Mobile: Bluetooth via NFC tap, whoever taps and is a friend joins (PICKER mode skipped
+    // entirely — see openBossCoopMobileHost/tapToJoinBossCoop below).
+    public enum BossCoopScreenMode { PICKER, WAITING, INVITE_POPUP }
+    public BossCoopScreenMode bossCoopScreenMode = BossCoopScreenMode.PICKER;
+    public int bossCoopSelection = 0;
+    public java.util.List<String> bossCoopLanFriends = new ArrayList<>();
+    public String bossCoopStatusMessage = "";
+    /** Set on the joiner side the instant an invite is spotted; consumed when they accept/decline. */
+    public platform.LanDiscovery.SessionInvite bossCoopPendingInvite;
+    private String bossCoopInvitingHost;
+    private int bossCoopPendingBossId;
+
+    /** Host opens the invite-friends screen while standing near a co-op-capable boss. Mobile skips
+     *  straight to hosting (no friend picker — anyone who taps and is a friend can join). */
+    public void openBossCoopPicker(entity.BOSS_WitheredTree boss) {
+        bossCoopPendingBossId = 1; // BOSS_WitheredTree is bossId 1 (see BossMonster/onDeath convention)
+        if (isMobilePlatform()) {
+            openBossCoopMobileHost(boss);
+            return;
+        }
+        gp.gameState = GamePanel.bossCoopState;
+        bossCoopScreenMode = BossCoopScreenMode.PICKER;
+        bossCoopSelection = 0;
+        bossCoopStatusMessage = "";
+        bossCoopLanFriends = platform.Lan.visibleFriends(gp.saveLoad.listFriends());
+    }
+
+    /** Host picked a friend from the LAN-visible list — start hosting and advertise the invite. */
+    public void hostInviteFriend(String friendUsername, entity.BOSS_WitheredTree boss) {
+        gp.bossCoopHost = new coop.BossCoopHostServer(gp, bossCoopPendingBossId);
+        if (!gp.bossCoopHost.start()) {
+            bossCoopStatusMessage = gp.bossCoopHost.session().statusMessage();
+            gp.bossCoopHost = null;
+            return;
+        }
+        boss.coopHostServer = gp.bossCoopHost;
+        platform.Lan.advertiseSession(playerUsername, friendUsername, bossCoopPendingBossId,
+                gp.bossCoopHost.port(), gp.bossCoopHost.sessionToken());
+        bossCoopScreenMode = BossCoopScreenMode.WAITING;
+        bossCoopStatusMessage = "Waiting for " + friendUsername + " to join...";
+        gp.gameState = GamePanel.bossCoopState;
+    }
+
+    /** Mobile host flow: start BLE advertising + a boss-invite NFC broadcast (fresh session token,
+     *  distinct from the friend-add NFC tap) in one step — no friend-picker screen on this platform. */
+    private void openBossCoopMobileHost(entity.BOSS_WitheredTree boss) {
+        bossCoopStatusMessage = "";
+        if (!platform.Bt.isAvailable()) {
+            bossCoopStatusMessage = "Bluetooth is not available on this device.";
+            return;
+        }
+        if (!platform.Nfc.isAvailable()) {
+            bossCoopStatusMessage = "NFC is not available on this device.";
+            return;
+        }
+        String sessionToken = mobile.BluetoothPairingTokens.rotateToken();
+        gp.bossCoopBtSession = platform.Bt.startHosting(gp, bossCoopPendingBossId, sessionToken);
+        if (gp.bossCoopBtSession == null) {
+            bossCoopStatusMessage = "Could not start Bluetooth hosting.";
+            return;
+        }
+        gp.bossCoopBtIsHost = true;
+        boss.coopBtIsHost = true;
+        boss.coopBtBossId = bossCoopPendingBossId;
+        gp.gameState = GamePanel.bossCoopState;
+        bossCoopScreenMode = BossCoopScreenMode.WAITING;
+        bossCoopStatusMessage = "Let friends tap their phone against yours to join.";
+
+        nfcSessionActive = true;
+        platform.Nfc.startSession(playerUsername, sessionToken, new platform.NfcPairing.Listener() {
+            @Override public void onPeerRead(String peerUsername, String peerToken) {
+                // The tap itself doesn't gate anything further here — the TAPPER's own game is the
+                // one that reads OUR token from this same tap and uses it to open the BLE join (see
+                // tapToJoinBossCoop). We just keep broadcasting so more friends can tap in turn.
+            }
+            @Override public void onError(String message) {
+                bossCoopStatusMessage = message;
+            }
+        });
+    }
+
+    /** Host clicks Proceed once everyone they want has joined the waiting room. */
+    public void proceedBossCoop(entity.BOSS_WitheredTree boss) {
+        if (isMobilePlatform()) {
+            if (gp.bossCoopBtSession == null || !gp.bossCoopBtIsHost) return;
+            boss.setCoopPlayerCount(gp.bossCoopBtSession.playerCount());
+            platform.Bt.proceed(gp, gp.bossCoopBtSession.playerCount());
+            platform.Nfc.stopSession();
+            nfcSessionActive = false;
+            gp.gameState = GamePanel.playState;
+            return;
+        }
+        if (gp.bossCoopHost == null) return;
+        boss.setCoopPlayerCount(gp.bossCoopHost.session().playerCount());
+        gp.bossCoopHost.proceed();
+        platform.Lan.stopAdvertisingSession();
+        gp.gameState = GamePanel.playState;
+    }
+
+    public void cancelBossCoopHost() {
+        if (isMobilePlatform()) {
+            platform.Bt.stopHosting();
+            platform.Nfc.stopSession();
+            nfcSessionActive = false;
+            gp.bossCoopBtSession = null;
+            gp.bossCoopBtIsHost = false;
+            gp.gameState = GamePanel.playState;
+            return;
+        }
+        if (gp.bossCoopHost != null) {
+            gp.bossCoopHost.endSession("Host cancelled.");
+            gp.bossCoopHost = null;
+        }
+        platform.Lan.stopAdvertisingSession();
+        gp.gameState = GamePanel.playState;
+    }
+
+    /** Joiner: an invite from a friend was spotted via mDNS — surface the popup. Desktop only. */
+    public void showBossCoopInvite(String hostUsername, platform.LanDiscovery.SessionInvite invite) {
+        if (gp.bossCoopClient != null) return; // already in a session
+        bossCoopInvitingHost = hostUsername;
+        bossCoopPendingInvite = invite;
+        bossCoopScreenMode = BossCoopScreenMode.INVITE_POPUP;
+        gp.gameState = GamePanel.bossCoopState;
+    }
+
+    public void acceptBossCoopInvite() {
+        if (bossCoopPendingInvite == null) return;
+        gp.bossCoopClient = new coop.BossCoopClient(gp, bossCoopInvitingHost, bossCoopPendingInvite.bossId());
+        gp.bossCoopClient.connect(bossCoopPendingInvite.hostIp(), bossCoopPendingInvite.port(),
+                bossCoopPendingInvite.sessionToken());
+        bossCoopScreenMode = BossCoopScreenMode.WAITING;
+        bossCoopStatusMessage = "Waiting for the host to start the fight...";
+        bossCoopPendingInvite = null;
+    }
+
+    public void declineBossCoopInvite() {
+        bossCoopPendingInvite = null;
+        bossCoopInvitingHost = null;
+        gp.gameState = GamePanel.playState;
+    }
+
+    /**
+     * Mobile joiner flow: from the Friends screen (or a dedicated prompt), tap NFC against a
+     * friend's phone that is currently hosting a boss-co-op session. Requires friendship — checked
+     * here, right before the tap is even allowed to start, per the design's "must already be
+     * friends" rule (same rule enforced again server-side implicitly, since the host only ever
+     * broadcasts to whoever taps them, and a non-friend's request would separately be rejected by
+     * BleBossCoop.handleHostMessage if it ever got that far — this local check is what actually
+     * gates whether the tap flow starts at all on the joiner's screen).
+     */
+    public void tapToJoinBossCoop() {
+        bossCoopStatusMessage = "";
+        if (!platform.Nfc.isAvailable()) {
+            bossCoopStatusMessage = "NFC is not available on this device.";
+            return;
+        }
+        if (!platform.Bt.isAvailable()) {
+            bossCoopStatusMessage = "Bluetooth is not available on this device.";
+            return;
+        }
+        nfcSessionActive = true;
+        platform.Nfc.startSession(playerUsername, "", new platform.NfcPairing.Listener() {
+            @Override public void onPeerRead(String hostUsername, String sessionToken) {
+                platform.Nfc.stopSession();
+                nfcSessionActive = false;
+                java.util.List<String> friends = gp.saveLoad.listFriends();
+                if (!friends.contains(hostUsername)) {
+                    bossCoopStatusMessage = "You must be friends with " + hostUsername + " first.";
+                    return;
+                }
+                gp.bossCoopBtSession = platform.Bt.joinSession(gp, sessionToken);
+                gp.bossCoopBtIsHost = false;
+                if (gp.bossCoopBtSession == null) {
+                    bossCoopStatusMessage = "Could not join over Bluetooth.";
+                    return;
+                }
+                bossCoopScreenMode = BossCoopScreenMode.WAITING;
+                bossCoopStatusMessage = "Waiting for the host to start the fight...";
+                gp.gameState = GamePanel.bossCoopState;
+            }
+            @Override public void onError(String message) {
+                bossCoopStatusMessage = message;
+                nfcSessionActive = false;
+            }
+        });
+    }
+
+    public void leaveBossCoopSession() {
+        if (isMobilePlatform()) {
+            if (gp.bossCoopBtSession != null) {
+                platform.Bt.leaveSession();
+                gp.bossCoopBtSession = null;
+                gp.bossCoopBtIsHost = false;
+            }
+            gp.gameState = GamePanel.playState;
+            return;
+        }
+        if (gp.bossCoopClient != null) {
+            gp.bossCoopClient.leave();
+            gp.bossCoopClient = null;
+        }
+        gp.gameState = GamePanel.playState;
+    }
 
     private int animTick = 0;          // global UI animation ticker
     private float smoothLife = -1f;    // for smooth health bar interpolation
@@ -465,6 +794,7 @@ public class UI {
             drawMessage();
             drawLevelUpBanner();
             drawInteractionPrompt();
+            drawBossCoopPrompt();
             if (gp.thoughts != null) gp.thoughts.draw(g2);
         }
 
@@ -511,6 +841,16 @@ public class UI {
 
         if ( gp.gameState == GamePanel.journalState ) {
             drawJournalScreen();
+        }
+
+        if ( gp.gameState == GamePanel.friendsState ) {
+            if (gp.friendsReturnState == GamePanel.pauseState) drawPlayerLife();
+            drawFriendsScreen();
+        }
+
+        if ( gp.gameState == GamePanel.bossCoopState ) {
+            drawPlayerLife();
+            drawBossCoopScreen();
         }
 
         if (actTitleTimer > 0) {
@@ -1646,6 +1986,491 @@ public class UI {
         g2.drawString(hint, px + (panelW - hw) / 2, py + panelH - 16);
     }
 
+    // FRIENDS SCREEN (GamePanel.friendsState) — modeled on drawMultiplayerBrowser/-Input above.
+    // Row order: pending incoming requests, then accepted friends, then the action menu
+    // (ADD FRIEND / REFRESH / BACK). friendsSelection indexes into that combined sequence.
+    public void drawFriendsScreen() {
+        if (nfcSessionActive) { drawNfcWaitingScreen(); return; }
+        if (friendsInputMode) { drawFriendsInput(); return; }
+        friendsRowRects.clear();
+
+        int panelW = 560, panelH = 480;
+        int px = (gp.screenWidth - panelW) / 2;
+        int py = (gp.screenHeight - panelH) / 2;
+
+        g2.setColor(cachedColor(12, 14, 24, 235));
+        g2.fillRoundRect(px, py, panelW, panelH, 16, 16);
+        g2.setColor(cachedColor(200, 140, 90, 90));
+        g2.setStroke(STROKE_2);
+        g2.drawRoundRect(px + 2, py + 2, panelW - 4, panelH - 4, 14, 14);
+
+        g2.setFont(cachedFont(Font.BOLD, 32F));
+        g2.setColor(cachedColor(230, 170, 110));
+        String text = "☰  FRIENDS";
+        int tw = cachedFM().stringWidth(text);
+        g2.drawString(text, px + (panelW - tw) / 2, py + 44);
+
+        g2.setColor(cachedColor(180, 120, 80, 80));
+        g2.drawLine(px + 30, py + 58, px + panelW - 30, py + 58);
+
+        int requestCount = friendsPendingRequests.size();
+        int friendCount = friendsList.size();
+        int entryH = 44;
+        int entryW = panelW - 60;
+        int entryX = px + 30;
+        int rowY = py + 78;
+        int row = 0;
+
+        if (requestCount > 0) {
+            g2.setFont(cachedFont(Font.BOLD, 12F));
+            g2.setColor(cachedColor(100, 95, 85));
+            g2.drawString("PENDING REQUESTS", entryX, rowY - 6);
+
+            for (int i = 0; i < requestCount; i++, row++) {
+                boolean sel = (friendsSelection == row);
+                drawFriendsRow(entryX, rowY, entryW, entryH, friendsPendingRequests.get(i),
+                        "Accept: Enter   Decline: Delete", sel, cachedColor(230, 190, 90));
+                friendsRowRects.add(new int[]{entryX, rowY, entryW, entryH});
+                rowY += entryH + 6;
+            }
+            rowY += 14;
+        }
+
+        g2.setFont(cachedFont(Font.BOLD, 12F));
+        g2.setColor(cachedColor(100, 95, 85));
+        g2.drawString("FRIENDS" + (friendCount > 0 ? " (" + friendCount + ")" : ""), entryX, rowY - 6);
+
+        if (friendCount == 0) {
+            g2.setFont(cachedFont(Font.ITALIC, 15F));
+            g2.setColor(cachedColor(120, 115, 105));
+            g2.drawString("No friends yet. Add one below!", entryX, rowY + 20);
+            rowY += 40;
+        } else {
+            for (int i = 0; i < friendCount; i++, row++) {
+                boolean sel = (friendsSelection == row);
+                drawFriendsRow(entryX, rowY, entryW, entryH, friendsList.get(i),
+                        "Remove: Delete", sel, cachedColor(120, 200, 150));
+                friendsRowRects.add(new int[]{entryX, rowY, entryW, entryH});
+                rowY += entryH + 6;
+            }
+        }
+
+        int menuStartY = rowY + 16;
+        String[] options = isMobilePlatform()
+            ? new String[]{"TAP TO ADD FRIEND", "TAP TO JOIN BOSS FIGHT", "REFRESH", "BACK"}
+            : new String[]{"ADD FRIEND", "REFRESH", "BACK"};
+        Color[] optColors = isMobilePlatform()
+            ? new Color[]{
+                cachedColor(80, 200, 120),
+                cachedColor(230, 170, 110),
+                cachedColor(100, 180, 255),
+                cachedColor(180, 160, 120)
+              }
+            : new Color[]{
+                cachedColor(80, 200, 120),
+                cachedColor(100, 180, 255),
+                cachedColor(180, 160, 120)
+              };
+        int optH = 38;
+        int optW = panelW - 100;
+        int optX = px + 50;
+
+        for (int i = 0; i < options.length; i++) {
+            int idx = row + i;
+            int oy = menuStartY + i * (optH + 8);
+            boolean sel = (friendsSelection == idx);
+
+            if (sel) {
+                g2.setColor(cachedColor(optColors[i].getRed(), optColors[i].getGreen(), optColors[i].getBlue(), 20));
+                g2.fillRoundRect(optX - 4, oy - 3, optW + 8, optH + 6, 12, 12);
+                g2.setColor(cachedColor(optColors[i].getRed(), optColors[i].getGreen(), optColors[i].getBlue(), 50));
+                g2.fillRoundRect(optX, oy, optW, optH, 10, 10);
+                g2.setColor(optColors[i]);
+                g2.setStroke(STROKE_2);
+                g2.drawRoundRect(optX, oy, optW, optH, 10, 10);
+            } else {
+                g2.setColor(cachedColor(20, 22, 35, 140));
+                g2.fillRoundRect(optX, oy, optW, optH, 10, 10);
+                g2.setColor(cachedColor(50, 50, 65, 60));
+                g2.setStroke(STROKE_1);
+                g2.drawRoundRect(optX, oy, optW, optH, 10, 10);
+            }
+
+            g2.setFont(cachedFont(Font.BOLD, 18F));
+            String optText = options[i];
+            int otw = cachedFM().stringWidth(optText);
+            g2.setColor(sel ? optColors[i] : cachedColor(140, 135, 120));
+            g2.drawString(optText, optX + (optW - otw) / 2, oy + optH / 2 + 6);
+            friendsRowRects.add(new int[]{optX, oy, optW, optH});
+        }
+
+        if (!friendsStatusMessage.isEmpty()) {
+            g2.setFont(cachedFont(Font.ITALIC, 14F));
+            boolean isError = friendsStatusMessage.contains("fail") || friendsStatusMessage.contains("No ")
+                    || friendsStatusMessage.contains("already") || friendsStatusMessage.contains("Invalid")
+                    || friendsStatusMessage.contains("can't") || friendsStatusMessage.contains("no longer");
+            g2.setColor(isError ? cachedColor(255, 120, 100, 220) : cachedColor(120, 210, 140, 220));
+            String status = friendsStatusMessage;
+            int sw = cachedFM().stringWidth(status);
+            if (sw > panelW - 60) { status = status.substring(0, Math.min(status.length(), 70)) + "…"; sw = cachedFM().stringWidth(status); }
+            g2.drawString(status, px + (panelW - sw) / 2, py + panelH - 42);
+        }
+
+        g2.setFont(cachedFont(Font.PLAIN, 12F));
+        g2.setColor(cachedColor(90, 85, 75));
+        String hint = "[W/S] Navigate   [Enter] Select   [Esc] Back";
+        int hw = cachedFM().stringWidth(hint);
+        g2.drawString(hint, px + (panelW - hw) / 2, py + panelH - 16);
+    }
+
+    private void drawFriendsRow(int entryX, int ey, int entryW, int entryH, String username, String subtext,
+                                 boolean sel, Color accent) {
+        if (sel) {
+            g2.setColor(cachedColor(60, 100, 160, 50));
+            g2.fillRoundRect(entryX - 4, ey - 4, entryW + 8, entryH + 8, 12, 12);
+            g2.setColor(cachedColor(accent.getRed(), accent.getGreen(), accent.getBlue(), 70));
+            g2.fillRoundRect(entryX, ey, entryW, entryH, 10, 10);
+            g2.setColor(accent);
+            g2.setStroke(STROKE_2);
+            g2.drawRoundRect(entryX, ey, entryW, entryH, 10, 10);
+        } else {
+            g2.setColor(cachedColor(25, 28, 40, 160));
+            g2.fillRoundRect(entryX, ey, entryW, entryH, 10, 10);
+            g2.setColor(cachedColor(50, 55, 70, 60));
+            g2.setStroke(STROKE_1);
+            g2.drawRoundRect(entryX, ey, entryW, entryH, 10, 10);
+        }
+
+        g2.setFont(cachedFont(sel ? Font.BOLD : Font.PLAIN, 18F));
+        g2.setColor(sel ? Color.WHITE : cachedColor(180, 175, 160));
+        g2.drawString(username, entryX + 16, ey + 18);
+
+        g2.setFont(cachedFont(Font.PLAIN, 12F));
+        g2.setColor(sel ? cachedColor(210, 190, 150) : cachedColor(110, 105, 95));
+        g2.drawString(subtext, entryX + 16, ey + 35);
+    }
+
+    // FRIENDS ADD SCREEN — single username text field, reached from the ADD FRIEND action.
+    private void drawFriendsInput() {
+        int panelW = 480, panelH = 220;
+        int px = (gp.screenWidth - panelW) / 2;
+        int py = (gp.screenHeight - panelH) / 2;
+
+        g2.setColor(cachedColor(12, 14, 24, 240));
+        g2.fillRoundRect(px, py, panelW, panelH, 16, 16);
+        g2.setColor(cachedColor(200, 140, 90, 80));
+        g2.setStroke(STROKE_2);
+        g2.drawRoundRect(px + 2, py + 2, panelW - 4, panelH - 4, 14, 14);
+
+        g2.setFont(cachedFont(Font.BOLD, 26F));
+        g2.setColor(cachedColor(230, 170, 110));
+        String title = "ADD FRIEND";
+        int ttw = cachedFM().stringWidth(title);
+        g2.drawString(title, px + (panelW - ttw) / 2, py + 38);
+
+        g2.setColor(cachedColor(180, 140, 90, 60));
+        g2.drawLine(px + 30, py + 50, px + panelW - 30, py + 50);
+
+        int fieldX = px + 40;
+        int fieldW = panelW - 80;
+        int fieldH = 36;
+        int fieldY = py + 74;
+
+        g2.setFont(cachedFont(Font.BOLD, 14F));
+        g2.setColor(cachedColor(220, 180, 130));
+        g2.drawString("Username:", fieldX, fieldY - 6);
+
+        friendsInputFieldRect[0] = fieldX;
+        friendsInputFieldRect[1] = fieldY;
+        friendsInputFieldRect[2] = fieldW;
+        friendsInputFieldRect[3] = fieldH;
+
+        g2.setColor(cachedColor(30, 50, 60, 200));
+        g2.fillRoundRect(fieldX, fieldY, fieldW, fieldH, 8, 8);
+        g2.setColor(friendsInputFieldFocused ? cachedColor(232, 52, 118) : cachedColor(200, 160, 100));
+        g2.setStroke(STROKE_2);
+        g2.drawRoundRect(fieldX, fieldY, fieldW, fieldH, 8, 8);
+
+        g2.setFont(cachedFont(Font.PLAIN, 18F));
+        g2.setColor(Color.WHITE);
+        boolean cursorVisible = friendsInputFieldFocused && (animTick / 20) % 2 == 0;
+        g2.drawString(friendsInputText + (cursorVisible ? "|" : ""), fieldX + 10, fieldY + fieldH / 2 + 6);
+
+        if (!friendsStatusMessage.isEmpty()) {
+            g2.setFont(cachedFont(Font.ITALIC, 13F));
+            boolean isError = friendsStatusMessage.contains("fail") || friendsStatusMessage.contains("No ")
+                    || friendsStatusMessage.contains("already") || friendsStatusMessage.contains("Invalid")
+                    || friendsStatusMessage.contains("can't");
+            g2.setColor(isError ? cachedColor(255, 120, 100, 220) : cachedColor(120, 210, 140, 220));
+            String status = friendsStatusMessage;
+            int sw = cachedFM().stringWidth(status);
+            if (sw > panelW - 60) { status = status.substring(0, Math.min(status.length(), 60)) + "…"; sw = cachedFM().stringWidth(status); }
+            g2.drawString(status, px + (panelW - sw) / 2, fieldY + fieldH + 30);
+        }
+
+        g2.setFont(cachedFont(Font.PLAIN, 12F));
+        g2.setColor(cachedColor(90, 85, 75));
+        String hint = "[Enter] Send Request   [Esc] Cancel";
+        int hw = cachedFM().stringWidth(hint);
+        g2.drawString(hint, px + (panelW - hw) / 2, py + panelH - 16);
+    }
+
+    // MOBILE-ONLY: "waiting for NFC tap" screen. Adding a friend on Android is NFC-tap-only —
+    // there is no username text entry on this platform (see UI.isMobilePlatform()).
+    private void drawNfcWaitingScreen() {
+        int panelW = 480, panelH = 260;
+        int px = (gp.screenWidth - panelW) / 2;
+        int py = (gp.screenHeight - panelH) / 2;
+
+        g2.setColor(cachedColor(12, 14, 24, 240));
+        g2.fillRoundRect(px, py, panelW, panelH, 16, 16);
+        g2.setColor(cachedColor(200, 140, 90, 80));
+        g2.setStroke(STROKE_2);
+        g2.drawRoundRect(px + 2, py + 2, panelW - 4, panelH - 4, 14, 14);
+
+        g2.setFont(cachedFont(Font.BOLD, 26F));
+        g2.setColor(cachedColor(230, 170, 110));
+        String title = "TAP PHONES TOGETHER";
+        int ttw = cachedFM().stringWidth(title);
+        g2.drawString(title, px + (panelW - ttw) / 2, py + 44);
+
+        g2.setColor(cachedColor(180, 140, 90, 60));
+        g2.drawLine(px + 30, py + 58, px + panelW - 30, py + 58);
+
+        float pulse = uiPulse();
+        g2.setFont(cachedFont(Font.PLAIN, 48F));
+        String icon = "📡";
+        int iw = cachedFM().stringWidth(icon);
+        g2.setColor(cachedColor(230, 170, 110, (int) (160 + 90 * pulse)));
+        g2.drawString(icon, px + (panelW - iw) / 2, py + panelH / 2 + 10);
+
+        g2.setFont(cachedFont(Font.ITALIC, 15F));
+        g2.setColor(cachedColor(180, 175, 160));
+        String subtitle = "Hold the backs of both phones together";
+        int sw = cachedFM().stringWidth(subtitle);
+        g2.drawString(subtitle, px + (panelW - sw) / 2, py + panelH - 60);
+
+        if (!friendsStatusMessage.isEmpty()) {
+            g2.setFont(cachedFont(Font.ITALIC, 13F));
+            g2.setColor(cachedColor(255, 120, 100, 220));
+            String status = friendsStatusMessage;
+            int statW = cachedFM().stringWidth(status);
+            g2.drawString(status, px + (panelW - statW) / 2, py + panelH - 40);
+        }
+
+        g2.setFont(cachedFont(Font.PLAIN, 12F));
+        g2.setColor(cachedColor(90, 85, 75));
+        String hint = "[Esc] Cancel";
+        int hw = cachedFM().stringWidth(hint);
+        g2.drawString(hint, px + (panelW - hw) / 2, py + panelH - 16);
+    }
+
+    /** Last-drawn tap target for the mobile boss-coop prompt banner (see drawBossCoopPrompt), or
+     *  null while not shown — queried by MouseHandler since mobile has no "B" key to press instead. */
+    private int[] bossCoopPromptRect;
+
+    // Small on-screen banner shown during playState while a co-op-capable boss is nearby and no
+    // session is already active — the entry point into the whole boss-coop flow (LAN on desktop,
+    // Bluetooth+NFC on mobile).
+    private void drawBossCoopPrompt() {
+        bossCoopPromptRect = null;
+        if (gp.bossCoopHost != null || gp.bossCoopClient != null || gp.bossCoopBtSession != null) return;
+        if (gp.nearbyCoopBoss() == null) return;
+
+        String text = isMobilePlatform()
+                ? "Tap here to invite friends to fight together"
+                : "[B] Invite Friends to fight together";
+        g2.setFont(cachedFont(Font.BOLD, 16F));
+        int tw = cachedFM().stringWidth(text);
+        int px = (gp.screenWidth - tw) / 2 - 16;
+        int py = gp.screenHeight - gp.tileSize * 2 - 40;
+        int pillW = tw + 32, pillH = 32;
+
+        g2.setColor(cachedColor(10, 8, 6, 190));
+        g2.fillRoundRect(px, py, pillW, pillH, 10, 10);
+        g2.setColor(cachedColor(200, 140, 90, 160));
+        g2.drawRoundRect(px, py, pillW, pillH, 10, 10);
+        g2.setColor(cachedColor(230, 170, 110));
+        g2.drawString(text, px + 16, py + 21);
+
+        bossCoopPromptRect = new int[]{px, py, pillW, pillH};
+    }
+
+    /** True if (px,py) is over the currently-shown boss-coop prompt banner. Mobile-only affordance
+     *  (desktop uses the B key instead — see KeyHandler.handlePlayState). */
+    public boolean isBossCoopPromptAt(int px, int py) {
+        int[] r = bossCoopPromptRect;
+        return r != null && px >= r[0] && px < r[0] + r[2] && py >= r[1] && py < r[1] + r[3];
+    }
+
+    // LAN CO-OP BOSS SCREEN (GamePanel.bossCoopState) — three sub-modes (see BossCoopScreenMode).
+    private void drawBossCoopScreen() {
+        switch (bossCoopScreenMode) {
+            case PICKER -> drawBossCoopPicker();
+            case WAITING -> drawBossCoopWaiting();
+            case INVITE_POPUP -> drawBossCoopInvitePopup();
+        }
+    }
+
+    private void drawBossCoopPicker() {
+        bossCoopRowRects.clear();
+        int panelW = 480, panelH = 420;
+        int px = (gp.screenWidth - panelW) / 2;
+        int py = (gp.screenHeight - panelH) / 2;
+
+        g2.setColor(cachedColor(12, 14, 24, 240));
+        g2.fillRoundRect(px, py, panelW, panelH, 16, 16);
+        g2.setColor(cachedColor(200, 140, 90, 90));
+        g2.setStroke(STROKE_2);
+        g2.drawRoundRect(px + 2, py + 2, panelW - 4, panelH - 4, 14, 14);
+
+        g2.setFont(cachedFont(Font.BOLD, 28F));
+        g2.setColor(cachedColor(230, 170, 110));
+        String title = "INVITE FRIENDS";
+        int ttw = cachedFM().stringWidth(title);
+        g2.drawString(title, px + (panelW - ttw) / 2, py + 40);
+
+        g2.setColor(cachedColor(180, 120, 80, 80));
+        g2.drawLine(px + 30, py + 54, px + panelW - 30, py + 54);
+
+        int listY = py + 74;
+        int rowH = 44;
+        int rowW = panelW - 60;
+        int rowX = px + 30;
+
+        if (bossCoopLanFriends.isEmpty()) {
+            g2.setFont(cachedFont(Font.ITALIC, 15F));
+            g2.setColor(cachedColor(150, 145, 130));
+            String empty = "No friends currently visible on this network.";
+            int ew = cachedFM().stringWidth(empty);
+            g2.drawString(empty, px + (panelW - ew) / 2, listY + 20);
+        } else {
+            for (int i = 0; i < bossCoopLanFriends.size(); i++) {
+                boolean sel = (bossCoopSelection == i);
+                int ry = listY + i * (rowH + 6);
+                if (sel) {
+                    g2.setColor(cachedColor(60, 100, 160, 50));
+                    g2.fillRoundRect(rowX - 4, ry - 4, rowW + 8, rowH + 8, 12, 12);
+                    g2.setColor(cachedColor(80, 150, 220, 80));
+                    g2.fillRoundRect(rowX, ry, rowW, rowH, 10, 10);
+                    g2.setColor(cachedColor(100, 180, 255));
+                    g2.setStroke(STROKE_2);
+                    g2.drawRoundRect(rowX, ry, rowW, rowH, 10, 10);
+                } else {
+                    g2.setColor(cachedColor(25, 28, 40, 160));
+                    g2.fillRoundRect(rowX, ry, rowW, rowH, 10, 10);
+                    g2.setColor(cachedColor(50, 55, 70, 60));
+                    g2.setStroke(STROKE_1);
+                    g2.drawRoundRect(rowX, ry, rowW, rowH, 10, 10);
+                }
+                g2.setFont(cachedFont(sel ? Font.BOLD : Font.PLAIN, 18F));
+                g2.setColor(sel ? Color.WHITE : cachedColor(180, 175, 160));
+                g2.drawString(bossCoopLanFriends.get(i), rowX + 16, ry + rowH / 2 + 6);
+                g2.setColor(cachedColor(80, 200, 100, sel ? 200 : 100));
+                g2.fillOval(rowX + rowW - 20, ry + rowH / 2 - 4, 8, 8);
+                bossCoopRowRects.add(new int[]{rowX, ry, rowW, rowH});
+            }
+        }
+
+        if (!bossCoopStatusMessage.isEmpty()) {
+            g2.setFont(cachedFont(Font.ITALIC, 13F));
+            g2.setColor(cachedColor(255, 150, 100, 220));
+            String status = bossCoopStatusMessage;
+            int sw = cachedFM().stringWidth(status);
+            g2.drawString(status, px + (panelW - sw) / 2, py + panelH - 40);
+        }
+
+        g2.setFont(cachedFont(Font.PLAIN, 12F));
+        g2.setColor(cachedColor(90, 85, 75));
+        String hint = "[W/S] Navigate   [Enter] Invite   [Esc] Cancel";
+        int hw = cachedFM().stringWidth(hint);
+        g2.drawString(hint, px + (panelW - hw) / 2, py + panelH - 16);
+    }
+
+    private void drawBossCoopWaiting() {
+        int panelW = 480, panelH = 360;
+        int px = (gp.screenWidth - panelW) / 2;
+        int py = (gp.screenHeight - panelH) / 2;
+
+        g2.setColor(cachedColor(12, 14, 24, 240));
+        g2.fillRoundRect(px, py, panelW, panelH, 16, 16);
+        g2.setColor(cachedColor(200, 140, 90, 90));
+        g2.setStroke(STROKE_2);
+        g2.drawRoundRect(px + 2, py + 2, panelW - 4, panelH - 4, 14, 14);
+
+        g2.setFont(cachedFont(Font.BOLD, 26F));
+        g2.setColor(cachedColor(230, 170, 110));
+        String title = "WAITING FOR PLAYERS";
+        int ttw = cachedFM().stringWidth(title);
+        g2.drawString(title, px + (panelW - ttw) / 2, py + 40);
+
+        g2.setColor(cachedColor(180, 120, 80, 80));
+        g2.drawLine(px + 30, py + 54, px + panelW - 30, py + 54);
+
+        boolean mobile = isMobilePlatform();
+        boolean isHost = mobile ? gp.bossCoopBtIsHost : (gp.bossCoopHost != null);
+        java.util.List<String> players = mobile
+                ? (gp.bossCoopBtSession != null ? gp.bossCoopBtSession.players() : java.util.List.of())
+                : (gp.bossCoopHost != null
+                    ? gp.bossCoopHost.session().players()
+                    : (gp.bossCoopClient != null ? gp.bossCoopClient.session().players() : java.util.List.of()));
+
+        int rowY = py + 74;
+        g2.setFont(cachedFont(Font.PLAIN, 18F));
+        for (String name : players) {
+            g2.setColor(cachedColor(120, 200, 150));
+            g2.drawString("• " + name, px + 40, rowY);
+            rowY += 30;
+        }
+
+        if (!bossCoopStatusMessage.isEmpty()) {
+            g2.setFont(cachedFont(Font.ITALIC, 14F));
+            g2.setColor(cachedColor(180, 175, 160));
+            String status = bossCoopStatusMessage;
+            int sw = cachedFM().stringWidth(status);
+            g2.drawString(status, px + (panelW - sw) / 2, py + panelH - 70);
+        }
+
+        String hint = isHost
+                ? (mobile ? "[Tap] Proceed / Cancel" : "[Enter] Proceed   [Esc] Cancel")
+                : (mobile ? "[Tap] Leave" : "[Esc] Leave");
+        g2.setFont(cachedFont(Font.PLAIN, 12F));
+        g2.setColor(cachedColor(90, 85, 75));
+        int hw = cachedFM().stringWidth(hint);
+        g2.drawString(hint, px + (panelW - hw) / 2, py + panelH - 16);
+    }
+
+    private void drawBossCoopInvitePopup() {
+        int panelW = 460, panelH = 200;
+        int px = (gp.screenWidth - panelW) / 2;
+        int py = (gp.screenHeight - panelH) / 2;
+
+        g2.setColor(cachedColor(12, 14, 24, 245));
+        g2.fillRoundRect(px, py, panelW, panelH, 16, 16);
+        g2.setColor(cachedColor(230, 170, 110, 120));
+        g2.setStroke(STROKE_2);
+        g2.drawRoundRect(px + 2, py + 2, panelW - 4, panelH - 4, 14, 14);
+
+        g2.setFont(cachedFont(Font.BOLD, 24F));
+        g2.setColor(cachedColor(230, 170, 110));
+        String title = "BOSS FIGHT INVITE";
+        int ttw = cachedFM().stringWidth(title);
+        g2.drawString(title, px + (panelW - ttw) / 2, py + 40);
+
+        g2.setFont(cachedFont(Font.PLAIN, 16F));
+        g2.setColor(Color.WHITE);
+        String body = (bossCoopInvitingHost != null ? bossCoopInvitingHost : "A friend")
+                + " invites you to fight a boss together!";
+        int bw = cachedFM().stringWidth(body);
+        g2.drawString(body, px + (panelW - bw) / 2, py + 90);
+
+        g2.setFont(cachedFont(Font.PLAIN, 12F));
+        g2.setColor(cachedColor(90, 85, 75));
+        String hint = "[Enter] Accept   [Esc] Decline";
+        int hw = cachedFM().stringWidth(hint);
+        g2.drawString(hint, px + (panelW - hw) / 2, py + panelH - 16);
+    }
+
     public void drawPauseScreen() {
 
         if (pauseAlpha < 1f) pauseAlpha += 0.06f;
@@ -1706,7 +2531,7 @@ public class UI {
 
         g2.setFont(cachedFont(Font.PLAIN, 16F));
         g2.setColor(cachedColor(150, 145, 130, (int)(120 * pauseAlpha)));
-        String hint = "Press P to resume";
+        String hint = "Press P to resume   •   Press F for Friends";
         int hx = getXforCenteredText(hint);
         g2.drawString(hint, hx, gp.screenHeight - gp.tileSize * 2);
     }

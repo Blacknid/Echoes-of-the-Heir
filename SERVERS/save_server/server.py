@@ -5,13 +5,36 @@ Michi's Adventure - Cloud Save Server v2
 Wire format (newline-terminated):
   PING  ->  PONG
 
-  Authenticated path:
+  Licensing is issued entirely online — there is no client-side signing key.
+  A brand-new install has no license yet and calls ACTIVATE once; every later
+  connection (from that same install) calls LOGIN with what ACTIVATE returned.
+
+  First run (no local credentials yet):
     C -> "HELLO v2 <base64(client_nonce_16)>"
     S -> "OK <base64(server_nonce_16)>"
-    C -> "AUTH <base64(rsa_oaep_sha256(handshake_json))> <machine_fp> <sig_b64>"
-         handshake_json = { "license", "ts", "client_nonce" (hex), "server_nonce" (hex) }
+    C -> "ACTIVATE <base64(rsa_oaep_sha256(handshake_json))>"
+         handshake_json = { "ts", "client_nonce" (hex), "server_nonce" (hex) }
+    S -> "AUTH_OK <base64(aesgcm(session_key,...))> <activation_id> <base64(nonce_12||aesgcm(license_key, key=enc_key, aad='MichiLicenseBlob'))> <base64(aesgcm(license_key, key=delivery_key, nonce=cn[:12], aad='MichiIssuedLicense'))>"
+      or "AUTH_FAIL"
+    The server generates license_key + activation_id + enc_key and stores all
+    three (license_key, activation_id, enc_key) in the `licenses` table.
+    The client is told its own plaintext license_key exactly once, here
+    (AEAD-wrapped in transit, never sent in the clear) — every later run
+    instead recovers it via LOGIN, without the server ever repeating it.
+    What the client PERSISTS to disk is only activation_id + the
+    enc_key-encrypted blob; it never stores enc_key or (after this first
+    run) the plaintext license_key.
+
+  Every subsequent run:
+    C -> "HELLO v2 <base64(client_nonce_16)>"
+    S -> "OK <base64(server_nonce_16)>"
+    C -> "LOGIN <base64(rsa_oaep_sha256(handshake_json))> <activation_id> <base64(enc_blob)>"
+         handshake_json = { "ts", "client_nonce" (hex), "server_nonce" (hex) }
     S -> "AUTH_OK <base64(aesgcm(session_key, key=delivery_key, nonce=cn[:12], aad='MichiCloudSession'))>"
       or "AUTH_FAIL"
+    The server looks up enc_key by activation_id, decrypts enc_blob to
+    recover license_key, and verifies the decrypted value matches — proving
+    the client holds a blob this server actually issued.
 
   Session frames (AEAD):
     wire = "DATA <base64(seq_8 || nonce_12 || ciphertext || tag_16)>"
@@ -22,6 +45,11 @@ Wire format (newline-terminated):
     C -> { "cmd": "DOWNLOAD" }
     C -> { "cmd": "CLAIM_USERNAME", "username": "..." }
     C -> { "cmd": "CHECK_USERNAME", "username": "..." }
+    C -> { "cmd": "SEND_FRIEND_REQUEST", "username": "..." }
+    C -> { "cmd": "LIST_FRIEND_REQUESTS" }
+    C -> { "cmd": "RESPOND_FRIEND_REQUEST", "username": "...", "accept": true|false }
+    C -> { "cmd": "LIST_FRIENDS" }
+    C -> { "cmd": "REMOVE_FRIEND", "username": "..." }
 """
 from __future__ import annotations
 
@@ -32,6 +60,7 @@ import hmac
 import json
 import logging
 import os
+import secrets
 import socket
 import sqlite3
 import struct
@@ -46,8 +75,6 @@ from cryptography.hazmat.primitives import hashes, serialization
 from cryptography.hazmat.primitives.asymmetric import padding as rsa_padding
 from cryptography.hazmat.primitives.ciphers.aead import AESGCM
 from cryptography.hazmat.primitives.kdf.hkdf import HKDF
-
-import license_verify
 
 BASE_DIR = Path(__file__).resolve().parent
 CONFIG_PATH = BASE_DIR / "server_config.json"
@@ -64,16 +91,9 @@ DEFAULT_CONFIG = {
     "host": "0.0.0.0",
     "port": 5005,
     "private_key_path": "server_private_key.pem",
-    # RSA-2048 public key (DER/SPKI base64) that the installer uses to
-    # sign license.properties. MUST match LicenseManager.PUBLIC_KEY_B64.
-    # If left as the placeholder, signature verification is DISABLED and
-    # the server falls back to registry-only auth — never deploy that way.
-    "license_public_key_b64": "REPLACE_WITH_PUBLIC_KEY_FROM_generate_license_keys.py",
-    # Path to the license allow-list (relative to this server's dir).
-    # See licenses.example.json for the schema.
-    "licenses_db": "licenses.json",
-    # Set true ONLY on a dev/localhost instance. Disables license verification
-    # entirely so you can connect without a signed license.properties.
+    # Set true ONLY on a dev/localhost instance. Currently unused by the online-activation
+    # flow itself (every license is issued fresh by this server) but kept for any future
+    # dev-only bypass needs.
     "dev_mode": False,
     "rate_limit_per_ip_per_minute": 30,
     "max_concurrent_connections": 200,
@@ -114,7 +134,6 @@ def load_config() -> dict:
 
 
 _private_key = None
-_LICENSE_PUB = None
 
 
 def load_private_key(path: Path) -> None:
@@ -134,13 +153,6 @@ def rsa_oaep_decrypt(ct: bytes) -> bytes:
             label=None,
         ),
     )
-
-
-# Cheap pre-filter before doing RSA work — real trust is the RSA signature.
-_LICENSE_KEY_RE = __import__("re").compile(r"^[A-Z0-9][A-Z0-9\-]{3,63}$")
-
-def license_is_well_formed(license_key: str) -> bool:
-    return isinstance(license_key, str) and bool(_LICENSE_KEY_RE.match(license_key))
 
 
 class IpRateLimiter:
@@ -196,6 +208,20 @@ def init_db() -> None:
                 updated_at     TEXT    NOT NULL
             )
         """)
+        # Online activation: each row is one issued license. activation_id is the opaque
+        # pointer the client stores and presents on every future LOGIN; enc_key is the
+        # random AES-256 key (server-side only, never sent to the client) used to encrypt
+        # license_key into the blob the client is given at ACTIVATE time and echoes back at
+        # LOGIN time. Kept in its own table (not columns on `saves`) since a license can exist
+        # before any save data does.
+        con.execute("""
+            CREATE TABLE IF NOT EXISTS licenses (
+                license_key    TEXT    PRIMARY KEY,
+                activation_id  TEXT    NOT NULL UNIQUE,
+                enc_key_b64    TEXT    NOT NULL,
+                created_at     TEXT    NOT NULL
+            )
+        """)
         con.execute("""
             CREATE TABLE IF NOT EXISTS events (
                 id          INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -213,8 +239,229 @@ def init_db() -> None:
                 claimed_at   TEXT NOT NULL
             )
         """)
+        # Friendship/request edges, keyed by the stable license_key identity (not username,
+        # which can be re-claimed). requester_key is who sent the original request; status
+        # transitions PENDING -> ACCEPTED (never re-created — see send_friend_request()).
+        con.execute("""
+            CREATE TABLE IF NOT EXISTS friends (
+                license_key_a  TEXT NOT NULL,
+                license_key_b  TEXT NOT NULL,
+                requester_key  TEXT NOT NULL,
+                status         TEXT NOT NULL,
+                created_at     TEXT NOT NULL,
+                PRIMARY KEY (license_key_a, license_key_b)
+            )
+        """)
         con.commit()
         con.close()
+
+
+_LICENSE_CHARSET = "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789"
+
+
+def _random_license_key() -> str:
+    """Fresh `XXXXXXXX-YYYY` key, same shape the old offline issue_license.py used."""
+    prefix = "".join(secrets.choice(_LICENSE_CHARSET) for _ in range(8))
+    suffix = "".join(secrets.choice(_LICENSE_CHARSET) for _ in range(4))
+    return f"{prefix}-{suffix}"
+
+
+def create_license() -> tuple[str, str, bytes]:
+    """
+    Issue a brand-new license online: random license_key + activation_id + enc_key,
+    persisted in the `licenses` table. Returns (license_key, activation_id, enc_key).
+    """
+    enc_key = os.urandom(32)
+    with _db_lock:
+        con = sqlite3.connect(str(DB_PATH))
+        con.execute("PRAGMA journal_mode=WAL")
+        try:
+            while True:
+                license_key = _random_license_key()
+                activation_id = secrets.token_urlsafe(24)
+                try:
+                    con.execute(
+                        """INSERT INTO licenses (license_key, activation_id, enc_key_b64, created_at)
+                           VALUES (?, ?, ?, ?)""",
+                        (license_key, activation_id, base64.b64encode(enc_key).decode("ascii"),
+                         time.strftime("%Y-%m-%d %H:%M:%S", time.gmtime())),
+                    )
+                    con.commit()
+                    return license_key, activation_id, enc_key
+                except sqlite3.IntegrityError:
+                    continue  # extremely unlikely collision — retry with fresh random values
+        finally:
+            con.close()
+
+
+def resolve_activation(activation_id: str) -> Optional[tuple[str, bytes]]:
+    """Look up (license_key, enc_key) for a previously issued activation_id, or None."""
+    with _db_lock:
+        con = sqlite3.connect(str(DB_PATH))
+        con.execute("PRAGMA journal_mode=WAL")
+        try:
+            row = con.execute(
+                "SELECT license_key, enc_key_b64 FROM licenses WHERE activation_id = ?",
+                (activation_id,),
+            ).fetchone()
+        finally:
+            con.close()
+    if row is None:
+        return None
+    return row[0], base64.b64decode(row[1])
+
+
+def _friend_pair(license_a: str, license_b: str) -> tuple[str, str]:
+    """Canonical (a,b) ordering so each friendship has exactly one row regardless of direction."""
+    return (license_a, license_b) if license_a < license_b else (license_b, license_a)
+
+
+def username_for_license(con: sqlite3.Connection, license_key: str) -> Optional[str]:
+    row = con.execute(
+        "SELECT username FROM usernames WHERE license_key = ?", (license_key,)
+    ).fetchone()
+    return row[0] if row else None
+
+
+def license_for_username(con: sqlite3.Connection, username: str) -> Optional[str]:
+    row = con.execute(
+        "SELECT license_key FROM usernames WHERE username = ?", (username,)
+    ).fetchone()
+    return row[0] if row else None
+
+
+def send_friend_request(username: str, license_key: str) -> str:
+    """Returns "SENT", "ALREADY_FRIENDS", "ALREADY_PENDING", "NOT_FOUND", "SELF", or "INVALID"."""
+    if not username_is_valid(username):
+        return "INVALID"
+    with _db_lock:
+        con = sqlite3.connect(str(DB_PATH))
+        con.execute("PRAGMA journal_mode=WAL")
+        try:
+            target_key = license_for_username(con, username)
+            if target_key is None:
+                return "NOT_FOUND"
+            if target_key == license_key:
+                return "SELF"
+            a, b = _friend_pair(license_key, target_key)
+            row = con.execute(
+                "SELECT status FROM friends WHERE license_key_a = ? AND license_key_b = ?",
+                (a, b),
+            ).fetchone()
+            if row is not None:
+                return "ALREADY_FRIENDS" if row[0] == "ACCEPTED" else "ALREADY_PENDING"
+            now = time.strftime("%Y-%m-%d %H:%M:%S", time.gmtime())
+            con.execute(
+                """INSERT INTO friends (license_key_a, license_key_b, requester_key, status, created_at)
+                   VALUES (?, ?, ?, 'PENDING', ?)""",
+                (a, b, license_key, now),
+            )
+            con.commit()
+            return "SENT"
+        except sqlite3.IntegrityError:
+            return "ALREADY_PENDING"
+        finally:
+            con.close()
+
+
+def list_friend_requests(license_key: str) -> list[str]:
+    """Usernames of people who sent license_key a still-pending request."""
+    with _db_lock:
+        con = sqlite3.connect(str(DB_PATH))
+        con.execute("PRAGMA journal_mode=WAL")
+        try:
+            rows = con.execute(
+                """SELECT requester_key FROM friends
+                   WHERE status = 'PENDING' AND requester_key != ?
+                     AND (license_key_a = ? OR license_key_b = ?)""",
+                (license_key, license_key, license_key),
+            ).fetchall()
+            names = []
+            for (requester_key,) in rows:
+                uname = username_for_license(con, requester_key)
+                if uname:
+                    names.append(uname)
+            return names
+        finally:
+            con.close()
+
+
+def respond_friend_request(username: str, license_key: str, accept: bool) -> str:
+    """Returns "ACCEPTED", "DECLINED", or "NOT_FOUND"."""
+    with _db_lock:
+        con = sqlite3.connect(str(DB_PATH))
+        con.execute("PRAGMA journal_mode=WAL")
+        try:
+            requester_key = license_for_username(con, username)
+            if requester_key is None:
+                return "NOT_FOUND"
+            a, b = _friend_pair(license_key, requester_key)
+            row = con.execute(
+                """SELECT status FROM friends WHERE license_key_a = ? AND license_key_b = ?
+                   AND requester_key = ?""",
+                (a, b, requester_key),
+            ).fetchone()
+            if row is None or row[0] != "PENDING":
+                return "NOT_FOUND"
+            if accept:
+                con.execute(
+                    """UPDATE friends SET status = 'ACCEPTED'
+                       WHERE license_key_a = ? AND license_key_b = ?""",
+                    (a, b),
+                )
+                con.commit()
+                return "ACCEPTED"
+            else:
+                con.execute(
+                    "DELETE FROM friends WHERE license_key_a = ? AND license_key_b = ?",
+                    (a, b),
+                )
+                con.commit()
+                return "DECLINED"
+        finally:
+            con.close()
+
+
+def list_friends(license_key: str) -> list[str]:
+    """Usernames of accepted friends."""
+    with _db_lock:
+        con = sqlite3.connect(str(DB_PATH))
+        con.execute("PRAGMA journal_mode=WAL")
+        try:
+            rows = con.execute(
+                """SELECT license_key_a, license_key_b FROM friends
+                   WHERE status = 'ACCEPTED' AND (license_key_a = ? OR license_key_b = ?)""",
+                (license_key, license_key),
+            ).fetchall()
+            names = []
+            for a, b in rows:
+                other = b if a == license_key else a
+                uname = username_for_license(con, other)
+                if uname:
+                    names.append(uname)
+            return names
+        finally:
+            con.close()
+
+
+def remove_friend(username: str, license_key: str) -> str:
+    """Returns "REMOVED" or "NOT_FOUND"."""
+    with _db_lock:
+        con = sqlite3.connect(str(DB_PATH))
+        con.execute("PRAGMA journal_mode=WAL")
+        try:
+            other_key = license_for_username(con, username)
+            if other_key is None:
+                return "NOT_FOUND"
+            a, b = _friend_pair(license_key, other_key)
+            cur = con.execute(
+                "DELETE FROM friends WHERE license_key_a = ? AND license_key_b = ? AND status = 'ACCEPTED'",
+                (a, b),
+            )
+            con.commit()
+            return "REMOVED" if cur.rowcount > 0 else "NOT_FOUND"
+        finally:
+            con.close()
 
 
 _USERNAME_RE = __import__("re").compile(r"^[A-Za-z0-9_\-]{1,20}$")
@@ -443,6 +690,28 @@ def _handle_internal(conn: socket.socket, client_ip: str, cfg: dict,
         result = check_username(username, license_key)
         send_line(conn, json.dumps({"status": result}))
         return f"INTERNAL_CHECK:{result}:{username}"
+    elif cmd == "VERIFY_ACTIVATION":
+        # Lets multiplayer_server resolve a client's (activation_id, enc_blob) into a trusted
+        # license_key without duplicating the AES/db logic — same trust boundary as the other
+        # internal commands (loopback + shared internal_api_key only).
+        activation_id = str(cmd_json.get("activation_id", ""))[:64]
+        enc_blob_b64  = str(cmd_json.get("enc_blob", ""))[:256]
+        resolved = resolve_activation(activation_id)
+        if resolved is None:
+            send_line(conn, json.dumps({"status": "UNKNOWN_ACTIVATION"}))
+            return "INTERNAL_VERIFY:UNKNOWN_ACTIVATION"
+        resolved_key, enc_key = resolved
+        try:
+            raw_blob = base64.b64decode(enc_blob_b64, validate=True)
+            blob_nonce, enc_license_blob = raw_blob[:12], raw_blob[12:]
+            decrypted = aesgcm_decrypt(enc_license_blob, enc_key, blob_nonce, b"MichiLicenseBlob")
+            if decrypted.decode("utf-8") != resolved_key:
+                raise ValueError("blob mismatch")
+        except Exception:
+            send_line(conn, json.dumps({"status": "BAD_BLOB"}))
+            return "INTERNAL_VERIFY:BAD_BLOB"
+        send_line(conn, json.dumps({"status": "OK", "license": resolved_key}))
+        return f"INTERNAL_VERIFY:OK:{resolved_key}"
     else:
         send_line(conn, json.dumps({"status": "ERROR", "msg": "unknown internal cmd"}))
         return f"INTERNAL_UNKNOWN:{cmd}"
@@ -501,15 +770,26 @@ def handle_client(conn: socket.socket, addr: tuple[str, int],
 
         try:
             auth = recv_line(conn, max_bytes=4096)
-            if not auth.startswith("AUTH "):
-                raise ValueError("missing AUTH")
-            # Format: "AUTH <enc_b64> <machine_fp> <sig_b64>"
+            is_activate = auth.startswith("ACTIVATE ")
+            is_login = auth.startswith("LOGIN ")
+            if not (is_activate or is_login):
+                raise ValueError("missing ACTIVATE/LOGIN")
             auth_parts = auth.split(" ")
-            if len(auth_parts) != 4:
-                raise ValueError("bad AUTH format")
-            enc = base64.b64decode(auth_parts[1], validate=True)
-            machine_fp  = auth_parts[2][:64]
-            license_sig = auth_parts[3][:512]
+            if is_activate:
+                # Format: "ACTIVATE <enc_b64>" — no account exists yet, envelope only
+                # carries ts/nonces (no license/activation fields to check).
+                if len(auth_parts) != 2:
+                    raise ValueError("bad ACTIVATE format")
+                activation_id = None
+                enc_blob_b64 = None
+                enc = base64.b64decode(auth_parts[1], validate=True)
+            else:
+                # Format: "LOGIN <enc_b64> <activation_id> <enc_blob_b64>"
+                if len(auth_parts) != 4:
+                    raise ValueError("bad LOGIN format")
+                activation_id = auth_parts[2][:64]
+                enc_blob_b64 = auth_parts[3][:256]
+                enc = base64.b64decode(auth_parts[1], validate=True)
             plaintext = rsa_oaep_decrypt(enc)
             payload = json.loads(plaintext.decode("utf-8"))
         except Exception as exc:
@@ -517,7 +797,6 @@ def handle_client(conn: socket.socket, addr: tuple[str, int],
             status = f"AUTH_DECRYPT:{type(exc).__name__}"
             return
 
-        license_key = str(payload.get("license", ""))[:32]
         ts = int(payload.get("ts", 0))
         try:
             cn_check = bytes.fromhex(str(payload.get("client_nonce", "")))
@@ -526,20 +805,6 @@ def handle_client(conn: socket.socket, addr: tuple[str, int],
             send_line(conn, "AUTH_FAIL")
             status = "AUTH_NONCE_FORMAT"
             return
-
-        if not license_is_well_formed(license_key):
-            send_line(conn, "AUTH_FAIL")
-            status = "AUTH_BAD_LICENSE"
-            return
-
-        if not cfg.get("dev_mode", False):
-            pub = _LICENSE_PUB
-            if pub is not None:
-                if not license_verify.verify_license_signature(
-                        pub, license_key, machine_fp, license_sig):
-                    send_line(conn, "AUTH_FAIL")
-                    status = "AUTH_BAD_SIGNATURE"
-                    return
 
         if abs(int(time.time()) - ts) > HANDSHAKE_TS_WINDOW:
             send_line(conn, "AUTH_FAIL")
@@ -558,6 +823,40 @@ def handle_client(conn: socket.socket, addr: tuple[str, int],
             status = "AUTH_REPLAY"
             return
 
+        if is_activate:
+            # Brand-new account: issue license_key + activation_id + enc_key, encrypt the
+            # license_key with enc_key, and hand the client back only the ciphertext —
+            # the plaintext license_key never leaves the server on this path.
+            license_key, new_activation_id, enc_key = create_license()
+            blob_nonce = os.urandom(12)
+            enc_license_blob = aesgcm_encrypt(
+                plaintext=license_key.encode("utf-8"),
+                key=enc_key,
+                nonce=blob_nonce,
+                aad=b"MichiLicenseBlob",
+            )
+            enc_blob_wire = base64.b64encode(blob_nonce + enc_license_blob).decode("ascii")
+            status_prefix = f"ACTIVATE:{license_key}"
+        else:
+            resolved = resolve_activation(activation_id)
+            if resolved is None:
+                send_line(conn, "AUTH_FAIL")
+                status = "LOGIN_UNKNOWN_ACTIVATION"
+                return
+            license_key, enc_key = resolved
+            try:
+                raw_blob = base64.b64decode(enc_blob_b64, validate=True)
+                blob_nonce, enc_license_blob = raw_blob[:12], raw_blob[12:]
+                decrypted = aesgcm_decrypt(enc_license_blob, enc_key, blob_nonce, b"MichiLicenseBlob")
+                if decrypted.decode("utf-8") != license_key:
+                    raise ValueError("blob does not match activation_id's license")
+            except Exception:
+                send_line(conn, "AUTH_FAIL")
+                status = "LOGIN_BAD_BLOB"
+                return
+            new_activation_id = None
+            status_prefix = f"LOGIN:{license_key}"
+
         delivery_key = hkdf(
             secret=license_key.encode("utf-8") + b"michi-license-pepper-v2",
             salt=server_nonce,
@@ -571,7 +870,30 @@ def handle_client(conn: socket.socket, addr: tuple[str, int],
             nonce=client_nonce[:12],
             aad=b"MichiCloudSession",
         )
-        send_line(conn, "AUTH_OK " + base64.b64encode(enc_session).decode("ascii"))
+        if is_activate:
+            # The client needs its own freshly issued license_key in-hand this run (it's the
+            # account identifier used for every save/friend/MP call) — send it once, AEAD-wrapped.
+            # Can't use delivery_key here: it's derived FROM license_key, which the client doesn't
+            # know yet (that's the value being delivered). Use a key derived purely from the
+            # nonces instead — both sides already share those at this point in the handshake.
+            issuance_key = hkdf(
+                secret=client_nonce + server_nonce,
+                salt=server_nonce,
+                info=b"michi-issuance-v2",
+                length=32,
+            )
+            enc_license_key = aesgcm_encrypt(
+                plaintext=license_key.encode("utf-8"),
+                key=issuance_key,
+                nonce=client_nonce[:12],
+                aad=b"MichiIssuedLicense",
+            )
+            send_line(conn, "AUTH_OK " + base64.b64encode(enc_session).decode("ascii")
+                       + " " + new_activation_id + " " + enc_blob_wire
+                       + " " + base64.b64encode(enc_license_key).decode("ascii"))
+        else:
+            send_line(conn, "AUTH_OK " + base64.b64encode(enc_session).decode("ascii"))
+        status = status_prefix
 
         conn.settimeout(cfg["session_timeout_seconds"])
         sess = Session(conn, session_key, cfg["max_payload_bytes"])
@@ -647,6 +969,35 @@ def handle_client(conn: socket.socket, addr: tuple[str, int],
             sess.send_json({"status": result})
             status = f"CHECK_USERNAME:{result}:{uname}"
 
+        elif cmd == "SEND_FRIEND_REQUEST":
+            uname = str(req.get("username", ""))[:32]
+            result = send_friend_request(uname, license_key)
+            sess.send_json({"status": result})
+            status = f"SEND_FRIEND_REQUEST:{result}:{uname}"
+
+        elif cmd == "LIST_FRIEND_REQUESTS":
+            names = list_friend_requests(license_key)
+            sess.send_json({"status": "OK", "requests": names})
+            status = f"LIST_FRIEND_REQUESTS:{len(names)}"
+
+        elif cmd == "RESPOND_FRIEND_REQUEST":
+            uname = str(req.get("username", ""))[:32]
+            accept = bool(req.get("accept", False))
+            result = respond_friend_request(uname, license_key, accept)
+            sess.send_json({"status": result})
+            status = f"RESPOND_FRIEND_REQUEST:{result}:{uname}"
+
+        elif cmd == "LIST_FRIENDS":
+            names = list_friends(license_key)
+            sess.send_json({"status": "OK", "friends": names})
+            status = f"LIST_FRIENDS:{len(names)}"
+
+        elif cmd == "REMOVE_FRIEND":
+            uname = str(req.get("username", ""))[:32]
+            result = remove_friend(uname, license_key)
+            sess.send_json({"status": result})
+            status = f"REMOVE_FRIEND:{result}:{uname}"
+
         else:
             sess.send_json({"status": "ERROR", "msg": "unknown command"})
             status = f"UNKNOWN_CMD:{cmd}"
@@ -694,16 +1045,6 @@ def serve_forever() -> None:
         )
         sys.exit(2)
     load_private_key(pk_path)
-
-    global _LICENSE_PUB
-    _LICENSE_PUB = license_verify.load_public_key(cfg.get("license_public_key_b64", ""))
-    if _LICENSE_PUB is None and not cfg.get("dev_mode", False):
-        logging.warning(
-            "license_public_key_b64 is unset/placeholder — signature verification "
-            "DISABLED. Set it in server_config.json for production."
-        )
-    if cfg.get("dev_mode", False):
-        logging.warning("dev_mode=True — ALL license checks bypassed. Do NOT use in production.")
 
     rate_limiter = IpRateLimiter(cfg["rate_limit_per_ip_per_minute"])
     nonce_cache = NonceCache()

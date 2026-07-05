@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Host-card-emulation descriptor for the NFC friend-pairing tap (see
+  androidlauncher.nfc.MichiHostApduService). One custom AID under the "F" (proprietary/national)
+  range reserved for non-payment use — this is not a payment card, so android:requireDeviceUnlock
+  is left at its default (false) and no android:category of "payment" is used.
+-->
+<host-apdu-service xmlns:android="http://schemas.android.com/apk/res/android"
+    android:description="@string/app_name"
+    android:requireDeviceUnlock="false">
+    <aid-group
+        android:description="@string/app_name"
+        android:category="other">
+        <aid-filter android:name="F0393141414100" />
+    </aid-group>
+</host-apdu-service>

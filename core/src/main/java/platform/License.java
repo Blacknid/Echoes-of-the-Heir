@@ -9,8 +9,8 @@ public final class License {
     public static void set(LicenseCheck check) { active = check; }
 
     public static boolean verifyCurrent() { return active != null && active.verifyCurrent(); }
-    public static String getCachedMachineFp() { return active == null ? null : active.getCachedMachineFp(); }
-    public static String getCachedSignature() { return active == null ? null : active.getCachedSignature(); }
+    public static String getActivationId() { return active == null ? null : active.getActivationId(); }
+    public static String getEncBlob() { return active == null ? null : active.getEncBlob(); }
     public static String getCachedKey() { return active == null ? null : active.getCachedKey(); }
     public static boolean isTampered() { return active != null && active.isTampered(); }
 }

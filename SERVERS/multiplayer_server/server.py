@@ -5,9 +5,8 @@ Michi's Adventure - Multiplayer Server v2
 Handshake (first message C->S):
     C -> "HELLO v2 <base64(client_nonce_16)>"
     S -> "OK <base64(server_nonce_16)>"
-    C -> "AUTH <base64(rsa_oaep_sha256(handshake_json))> <machine_fp> <sig_b64>"
+    C -> "LOGIN <base64(rsa_oaep_sha256(handshake_json))> <activation_id> <base64(enc_blob)>"
         handshake_json = {
-          "license":      "XXXXXXXX-YYYY",
           "ts":           <unix epoch s>,
           "client_nonce": <hex>,
           "server_nonce": <hex>,
@@ -17,6 +16,13 @@ Handshake (first message C->S):
     S -> "AUTH_OK <base64(aesgcm(session_key, key=delivery_key,
                                  nonce=client_nonce[:12],
                                  aad='MichiMpSession'))>"
+
+    There is no client-side license signing key. activation_id/enc_blob are
+    exactly what save_server's ACTIVATE handshake handed the client on its
+    first-ever run (see save_server/server.py). This server never talks to
+    a database of licenses directly — it asks save_server to resolve the
+    pair into a trusted license_key via the loopback-only internal
+    VERIFY_ACTIVATION command (see _save_server_verify_activation).
 
 Session frames (after handshake), each direction has its own counter:
     wire = "DATA <base64(seq_8 || nonce_12 || ciphertext || tag_16)>"
@@ -49,8 +55,6 @@ from cryptography.hazmat.primitives.ciphers.aead import AESGCM
 from cryptography.hazmat.primitives.kdf.hkdf import HKDF
 
 from world import MapCollection, TmxMap
-
-import license_verify
 
 
 BASE_DIR = Path(__file__).resolve().parent
@@ -89,7 +93,6 @@ INITIAL_CONFIG = {
     "host": None,
     "port": None,
     "private_key_path": DEFAULT_PRIVATE_KEY,
-    "license_public_key_b64": "REPLACE_WITH_PUBLIC_KEY_FROM_generate_license_keys.py",
     "dev_mode": False,
     "max_players": MAX_PLAYERS,
     "rate_limit_per_ip_per_minute": RATE_LIMIT_PER_IP_PER_MIN,
@@ -144,16 +147,41 @@ def _save_server_internal(cfg: dict, cmd: str, license_key: str, username: str,
     Returns "SKIP" if save_server_host/port/internal_api_key aren't set.
     Runs in a thread-pool executor so it doesn't block the event loop.
     """
+    return _save_server_internal_raw(
+        cfg, {"cmd": cmd, "license": license_key, "username": username}, timeout=timeout
+    )
+
+
+def _save_server_verify_activation(cfg: dict, activation_id: str, enc_blob_b64: str,
+                                    timeout: float = 5.0) -> Optional[str]:
+    """Resolve a client's (activation_id, enc_blob) into a trusted license_key via save_server's
+    online-issued licenses table. Returns the license_key on success, or None (auth must fail —
+    unlike the username helpers, there's no online license to trust without this call)."""
+    resp = _save_server_internal_raw(
+        cfg, {"cmd": "VERIFY_ACTIVATION", "activation_id": activation_id, "enc_blob": enc_blob_b64},
+        timeout=timeout, want_full_response=True,
+    )
+    if not isinstance(resp, dict) or resp.get("status") != "OK":
+        return None
+    return resp.get("license") or None
+
+
+def _save_server_internal_raw(cfg: dict, payload: dict, timeout: float = 5.0,
+                               want_full_response: bool = False):
+    """Send a single internal JSON command to the save server over its loopback-only INTERNAL
+    protocol. Both servers must share the same "internal_api_key" in their configs.
+    Returns "SKIP" (or None if want_full_response) if save_server_host/port/internal_api_key
+    aren't set. Runs in a thread-pool executor so it doesn't block the event loop.
+    """
     host = cfg.get("save_server_host")
     port = cfg.get("save_server_port")
     api_key = cfg.get("internal_api_key", "")
     if not host or not port or not api_key:
-        return "SKIP"
+        return None if want_full_response else "SKIP"
 
     try:
         port = int(port)
-        payload = json.dumps({"cmd": cmd, "license": license_key, "username": username})
-        line = f"INTERNAL {api_key} {payload}\n"
+        line = f"INTERNAL {api_key} {json.dumps(payload)}\n"
 
         with _socket.create_connection((host, port), timeout=timeout) as sock:
             sock.settimeout(timeout)
@@ -167,10 +195,10 @@ def _save_server_internal(cfg: dict, cmd: str, license_key: str, username: str,
                 if len(buf) > 4096:
                     break
             resp = json.loads(buf.decode("utf-8"))
-            return resp.get("status", "ERROR")
+            return resp if want_full_response else resp.get("status", "ERROR")
     except Exception as exc:
-        log.warning("save_server internal %s failed: %s", cmd, exc)
-        return "SKIP"
+        log.warning("save_server internal %s failed: %s", payload.get("cmd"), exc)
+        return None if want_full_response else "SKIP"
 
 
 def load_config() -> dict:
@@ -196,12 +224,6 @@ logging.basicConfig(
     datefmt="%H:%M:%S",
 )
 log = logging.getLogger("michi-mp")
-
-
-_LICENSE_KEY_RE = __import__("re").compile(r"^[A-Z0-9][A-Z0-9\-]{3,63}$")
-
-def license_is_well_formed(license_key: str) -> bool:
-    return isinstance(license_key, str) and bool(_LICENSE_KEY_RE.match(license_key))
 
 
 def hkdf(secret: bytes, salt: bytes, info: bytes, length: int = 32) -> bytes:
@@ -637,23 +659,26 @@ class GameServer:
         writer.write(b"OK " + base64.b64encode(server_nonce) + b"\n")
         await writer.drain()
 
-        # Stage 2: AUTH
+        # Stage 2: LOGIN — the client proves it holds a license this deployment's save_server
+        # issued online, by presenting the (activation_id, enc_blob) pair it was given at
+        # ACTIVATE time. There is no client-side signing key anymore; save_server is asked to
+        # decrypt enc_blob (it alone holds enc_key) and hand back the recovered license_key.
         line = await asyncio.wait_for(reader.readline(), timeout=10.0)
         if not line:
             return None
         text = line.decode("utf-8", errors="replace").rstrip("\r\n")
-        if not text.startswith("AUTH "):
+        if not text.startswith("LOGIN "):
             writer.write(b"AUTH_FAIL\n")
             await writer.drain()
             return None
-        # Format: "AUTH <enc_b64> <machine_fp> <sig_b64>"
+        # Format: "LOGIN <enc_b64> <activation_id> <enc_blob_b64>"
         auth_parts = text.split(" ")
         if len(auth_parts) != 4:
             writer.write(b"AUTH_FAIL\n")
             await writer.drain()
             return None
-        machine_fp  = auth_parts[2][:64]
-        license_sig = auth_parts[3][:512]
+        activation_id = auth_parts[2][:64]
+        enc_blob_b64  = auth_parts[3][:256]
         try:
             enc = base64.b64decode(auth_parts[1], validate=True)
             plaintext = self.private_key.decrypt(
@@ -666,31 +691,32 @@ class GameServer:
             )
             payload = json.loads(plaintext.decode("utf-8"))
         except Exception as exc:
-            log.info("AUTH decrypt failed from %s: %s", peer, type(exc).__name__)
+            log.info("LOGIN decrypt failed from %s: %s", peer, type(exc).__name__)
             writer.write(b"AUTH_FAIL\n")
             await writer.drain()
             return None
 
-        license_key = str(payload.get("license", ""))[:32]
         ts = int(payload.get("ts", 0))
         cn_check = bytes.fromhex(str(payload.get("client_nonce", "")) or "")
         sn_check = bytes.fromhex(str(payload.get("server_nonce", "")) or "")
 
         dev_mode = bool(self.cfg.get("dev_mode", False))
 
+        license_key = ""
         if not dev_mode:
-            if not license_is_well_formed(license_key):
+            license_key = await asyncio.get_event_loop().run_in_executor(
+                None,
+                lambda: _save_server_verify_activation(self.cfg, activation_id, enc_blob_b64)
+            )
+            if not license_key:
                 writer.write(b"AUTH_FAIL\n")
                 await writer.drain()
-                log.info("AUTH bad license format from %s", peer)
+                log.info("LOGIN activation not verified from %s", peer)
                 return None
-            if self.license_pub is not None:
-                if not license_verify.verify_license_signature(
-                        self.license_pub, license_key, machine_fp, license_sig):
-                    writer.write(b"AUTH_FAIL\n")
-                    await writer.drain()
-                    log.info("AUTH bad signature from %s (license=%s)", peer, license_key)
-                    return None
+        else:
+            # dev_mode: no save_server round trip — use the activation_id itself so sessions
+            # are still distinguishable from one another during local testing.
+            license_key = f"DEV-{activation_id[:16]}"
 
         if abs(int(time.time()) - ts) > HANDSHAKE_TS_WINDOW:
             writer.write(b"AUTH_FAIL\n")
@@ -1216,14 +1242,14 @@ async def amain(host: str, port: int, max_players: int, private_key, cfg: dict) 
         log.warning("active_map not set in mp_config.json — defaulting to '%s'",
                     active_map_id)
 
-    license_pub = license_verify.load_public_key(cfg.get("license_public_key_b64", ""))
-    if license_pub is None and not cfg.get("dev_mode", False):
-        log.warning(
-            "license_public_key_b64 is unset/placeholder — signature verification "
-            "DISABLED. Set it in mp_config.json for production."
-        )
     if cfg.get("dev_mode", False):
         log.warning("dev_mode=True — ALL license checks bypassed. Do NOT use in production.")
+    elif not (cfg.get("save_server_host") and cfg.get("save_server_port") and cfg.get("internal_api_key")):
+        log.warning(
+            "save_server_host/save_server_port/internal_api_key not fully set — this server "
+            "cannot verify any client's online-issued license and every LOGIN will fail. "
+            "Set them in mp_config.json to match save_server's config."
+        )
 
     server = GameServer(
         host=host, port=port, max_players=max_players,
@@ -1231,7 +1257,6 @@ async def amain(host: str, port: int, max_players: int, private_key, cfg: dict) 
         rate_limiter=rate_limiter, cfg=cfg,
         maps=map_collection, active_map_id=active_map_id,
     )
-    server.license_pub = license_pub
 
     def shutdown_handler():
         log.info("Shutdown signal received...")

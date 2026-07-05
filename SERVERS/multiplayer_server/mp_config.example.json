@@ -3,8 +3,10 @@
   "port": 7777,
   "private_key_path": "server_private_key.pem",
 
-  "license_public_key_b64": "REPLACE_WITH_PUBLIC_KEY_FROM_generate_license_keys.py",
-  "licenses_db": "licenses.json",
+  "_comment_save_server": "Must match save_server's own host/port/internal_api_key — used to verify clients' online-issued licenses via the internal VERIFY_ACTIVATION command.",
+  "save_server_host": "127.0.0.1",
+  "save_server_port": 5005,
+  "internal_api_key": "CHANGE_THIS_TO_A_RANDOM_SECRET",
   "dev_mode": false,
   "max_players": 8,
   "rate_limit_per_ip_per_minute": 30,

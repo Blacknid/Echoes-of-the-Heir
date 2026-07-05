@@ -44,6 +44,26 @@ public class SaveLoad {
         return cloudSaveService.isServerOnline();
     }
 
+    public CloudSaveService.FriendResult sendFriendRequest(String username) {
+        return cloudSaveService.sendFriendRequest(Main.LICENSE_KEY, username);
+    }
+
+    public java.util.List<String> listFriendRequests() {
+        return cloudSaveService.listFriendRequests(Main.LICENSE_KEY);
+    }
+
+    public CloudSaveService.FriendResult respondFriendRequest(String requesterUsername, boolean accept) {
+        return cloudSaveService.respondFriendRequest(Main.LICENSE_KEY, requesterUsername, accept);
+    }
+
+    public java.util.List<String> listFriends() {
+        return cloudSaveService.listFriends(Main.LICENSE_KEY);
+    }
+
+    public CloudSaveService.FriendResult removeFriend(String username) {
+        return cloudSaveService.removeFriend(Main.LICENSE_KEY, username);
+    }
+
     private byte[] encrypt(String plaintext) throws GeneralSecurityException {
         byte[] iv = new byte[16];
         new SecureRandom().nextBytes(iv);
