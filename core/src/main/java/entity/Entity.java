@@ -111,7 +111,6 @@ public class Entity {
     private static final Color SPARK_COLOR_1 = new Color(255, 235, 120);
     private static final Color SPARK_COLOR_2 = new Color(255, 200, 80);
     private static final Color COIN_MSG_COLOR = new Color(255, 210, 90);
-    private static final Color SHADOW_COLOR = new Color(0, 0, 0, 60);
     // (Hit-flash/telegraph now tint on the GPU via the batch — no intermediate buffer needed.)
 
 
@@ -234,6 +233,10 @@ public class Entity {
     public Projectile projectile;
     public boolean lightSource = false;
     public int lightRadius = 0;
+    // Shadow casting (Stage 2 lighting): objects (trees, crates, statues) opt in so their sprite
+    // silhouette casts a dynamic shadow away from nearby lights. Characters cast by default (see
+    // castsShadow()); this flag lets solid decorative objects join in without being characters.
+    public boolean castsShadow = false;
     public gfx.Color lightColor = null; // custom light tint (null = default orange)
     public boolean eventLayerLight = false; // transient static light loaded from the TMX Events layer
     public boolean removeOnPickup = true;   // for touch-pickups in the Objects layer; remove from world after a successful pickup
@@ -825,34 +828,7 @@ public class Entity {
             int drawW = (int)(gp.tileSize * spriteScale);
             int drawH = (int)(gp.tileSize * spriteScale);
 
-            if (currentSprite == null && entityIdle && currentActivity != null && activityAnimations != null) {
-                Sprite[][] actFrames = activityAnimations.get(currentActivity);
-                if (actFrames != null) {
-                    int actDir = (idleDirection >= 0) ? idleDirection : direction;
-                    if (actDir >= 0 && actDir < actFrames.length && actFrames[actDir] != null) {
-                        int idx = activitySpriteNum - 1;
-                        if (idx >= 0 && idx < actFrames[actDir].length) {
-                            currentSprite = actFrames[actDir][idx];
-                        }
-                    }
-                }
-            }
-
-            if (currentSprite == null && entityIdle && idleFrames != null) {
-                int idleDir = (idleDirection >= 0) ? idleDirection : direction;
-                if (idleDir >= 0 && idleDir < idleFrames.length && idleFrames[idleDir] != null) {
-                    int idx = idleSpriteNum - 1;
-                    if (idx >= 0 && idx < idleFrames[idleDir].length) {
-                        currentSprite = idleFrames[idleDir][idx];
-                    }
-                }
-            }
-            if (currentSprite == null) {
-                currentSprite = getWalkFrameImage(direction, spriteNum);
-            }
-            if (currentSprite == null) {
-                currentSprite = getWalkFrameImage(direction, 1);
-            }
+            currentSprite = resolveCurrentSprite();
 
             // Monster HP Bar — never draw once the monster is dying/dead, even if hpBarOn was still
             // set from the killing hit (a lingering bar with residual HP looks like a bug).
@@ -897,15 +873,9 @@ public class Entity {
                 dyingAnimation(g2);
             }
                 
-            // DROP SHADOW: oval under entity feet for player/npc/monster
-            if (type == TYPE_PLAYER || type == TYPE_NPC || type == TYPE_MONSTER) {
-                int shadowCX = screenX + solidArea.x + solidArea.width / 2;
-                int shadowCY = screenY + solidArea.y + solidArea.height;
-                int shadowW = (int)(solidArea.width * 0.85);
-                int shadowH = 10;
-                g2.setColor(SHADOW_COLOR);
-                g2.fillOval(shadowCX - shadowW / 2, shadowCY - shadowH / 2, shadowW, shadowH);
-            }
+            // Shadows are a consequence of light: the sprite's own pixels are drawn into the occluder
+            // mask (drawOccluder) and the light shader ray-marches them. No hardcoded blob shadow — the
+            // old oval drop-shadow was a fake "shadow object" independent of any light and is removed.
 
             // Safe guard against null images
             if (currentSprite != null) {
@@ -936,6 +906,64 @@ public class Entity {
     }
 
     private static final Color TELEGRAPH_TINT = new Color(255, 60, 60);
+
+    /**
+     * Resolve the sprite frame this entity would draw THIS frame — activity → idle → walk fallback,
+     * mirroring the selection order in {@link #draw}. Extracted so the shadow-occluder pass casts the
+     * exact silhouette the entity renders (same pose, same facing), keeping shadow and sprite in sync.
+     */
+    protected Sprite resolveCurrentSprite() {
+        Sprite s = null;
+        if (entityIdle && currentActivity != null && activityAnimations != null) {
+            Sprite[][] actFrames = activityAnimations.get(currentActivity);
+            if (actFrames != null) {
+                int actDir = (idleDirection >= 0) ? idleDirection : direction;
+                if (actDir >= 0 && actDir < actFrames.length && actFrames[actDir] != null) {
+                    int idx = activitySpriteNum - 1;
+                    if (idx >= 0 && idx < actFrames[actDir].length) s = actFrames[actDir][idx];
+                }
+            }
+        }
+        if (s == null && entityIdle && idleFrames != null) {
+            int idleDir = (idleDirection >= 0) ? idleDirection : direction;
+            if (idleDir >= 0 && idleDir < idleFrames.length && idleFrames[idleDir] != null) {
+                int idx = idleSpriteNum - 1;
+                if (idx >= 0 && idx < idleFrames[idleDir].length) s = idleFrames[idleDir][idx];
+            }
+        }
+        if (s == null) s = getWalkFrameImage(direction, spriteNum);
+        if (s == null) s = getWalkFrameImage(direction, 1);
+        return s;
+    }
+
+    /**
+     * Whether this entity casts a shadow. Overridden per-type; default: NPCs, monsters, and the player
+     * cast (solid characters), pickups/projectiles/particles don't. Objects opt in via lightOccluder.
+     */
+    public boolean castsShadow() {
+        return type == TYPE_PLAYER || type == TYPE_NPC || type == TYPE_MONSTER || castsShadow;
+    }
+
+    /**
+     * Draw this entity's silhouette into the shadow-occluder mask (Stage 2 lighting). The occluder pass
+     * clears to transparent and draws every caster's current sprite in solid black; the light shader then
+     * ray-marches this mask so lit pixels behind a silhouette fall into shadow. We draw the SAME frame at
+     * the SAME screen rect as {@link #draw}, so the cast shadow matches the visible pose. Color/tint are
+     * ignored — only the sprite's alpha (its true silhouette, including canopy gaps) matters.
+     */
+    public void drawOccluder(GdxRenderer g2) {
+        if (!castsShadow()) return;
+        Sprite s = resolveCurrentSprite();
+        if (s == null) return;
+        int screenX = worldX - gp.player.worldX + gp.player.screenX;
+        int screenY = worldY - gp.player.worldY + gp.player.screenY;
+        int drawW = (int)(gp.tileSize * spriteScale);
+        int drawH = (int)(gp.tileSize * spriteScale);
+        int drawX = screenX - (drawW - gp.tileSize) / 2;
+        int drawY = screenY - (drawH - gp.tileSize);
+        // Solid black tint at full alpha: the sprite's own alpha carves the silhouette into the mask.
+        g2.drawImageTinted(s, drawX, drawY, drawW, drawH, Color.BLACK, 1f);
+    }
 
     protected Sprite getWalkFrameImage(int dir, int frame) {
         // Try new array-based storage first (Player, Monster, NPC)

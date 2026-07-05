@@ -67,8 +67,16 @@ public class GdxRenderer {
         this.screenW = screenW; this.screenH = screenH;
         tx = 0; ty = 0; alpha = 1f; color = Color.WHITE;
         zoom = 1f; pivotX = 0f; pivotY = 0f;
+        // Feed the shader pipeline a monotonically-increasing time so the light flicker/breathing/noise
+        // and rim animation advance smoothly. Only if the pipeline already exists (don't force-create it).
+        if (shaderPipeline != null) {
+            shaderTime += Gdx.graphics.getDeltaTime();
+            shaderPipeline.setTime(shaderTime);
+        }
         applyProjection();
     }
+    private float shaderTime = 0f;
+    public static int DEBUG_DUMP_STAGE = 0; // 1 = capture the next lighting frame stage-by-stage
 
     /** End a frame: flush whatever mode is active. */
     public void end() {
@@ -416,6 +424,10 @@ public class GdxRenderer {
     // recreated on resize. See Lightning.draw.
     private com.badlogic.gdx.graphics.glutils.FrameBuffer lightFbo;
     private int lightFboW, lightFboH;
+    /** True when the mask in lightFbo was written by the GLSL light shader, whose output is
+     *  PREMULTIPLIED (rgb = night*alpha + additive warm glow) and must composite with
+     *  (GL_ONE, ONE_MINUS_SRC_ALPHA). The legacy baked mask is straight-alpha (normal blend). */
+    private boolean lightMaskPremultiplied = false;
     private boolean lightMaskActive = false;
 
     /** Bind the light-mask FBO and clear it fully transparent. Draw the darkness fill + light holes,
@@ -433,10 +445,11 @@ public class GdxRenderer {
         Gdx.gl.glViewport(0, 0, lightFboW, lightFboH);
         Gdx.gl.glClearColor(0f, 0f, 0f, 0f);
         Gdx.gl.glClear(com.badlogic.gdx.graphics.GL20.GL_COLOR_BUFFER_BIT);
-        // The FBO is upside-down relative to the screen; use a matching y-down ortho so the darkness
-        // fill and light coordinates (logical, top-left origin) land where the scene expects them, and
-        // the composite blit below flips it back.
-        Matrix4 m = new Matrix4().setToOrtho2D(0, 0, screenW, screenH);
+        // Same y-down ortho as the scene camera (top=0), so game coords land in the FBO in the SAME
+        // orientation as every other render target and drawLightMask can blit it with NO flip.
+        // (setToOrtho2D is y-UP — it stored the mask vertically inverted and needed a compensating
+        // V-flip at composite time, which is exactly the mirror family of bugs behind "dancing lights".)
+        Matrix4 m = new Matrix4().setToOrtho(0, screenW, screenH, 0, 0, 1);
         batch.setProjectionMatrix(m);
         shapes.setProjectionMatrix(m);
         Matrix4 id = new Matrix4();
@@ -450,9 +463,199 @@ public class GdxRenderer {
         if (!lightMaskActive) return;
         flush();
         lightFbo.end();
-        Gdx.gl.glViewport(worldVpX, worldVpY, worldVpW, worldVpH);
+        rebindActiveTarget();
         applyProjection();
         lightMaskActive = false;
+        lightMaskPremultiplied = false; // baked path writes a straight-alpha mask
+    }
+
+    /**
+     * After a nested offscreen FBO (light mask, occluder mask, shader light mask) calls end(), libGDX
+     * unbinds to the DEFAULT framebuffer — NOT to any scene-capture FBO that was active before the nest.
+     * If we're mid scene-capture (for bloom), everything drawn afterward (including the light-mask
+     * composite) must go back into sceneFbo, or it lands on the screen and the bloom blit then overwrites
+     * it — which silently ate the darkness overlay. This re-binds sceneFbo when capture is active, else
+     * restores the world viewport.
+     */
+    private void rebindActiveTarget() {
+        if (sceneCaptureActive && sceneFbo != null) {
+            sceneFbo.begin();
+            Gdx.gl.glViewport(0, 0, sceneFboW, sceneFboH);
+        } else {
+            Gdx.gl.glViewport(worldVpX, worldVpY, worldVpW, worldVpH);
+        }
+    }
+
+    // ── Occluder mask FBO (silhouette shadow casting) ─────────────────────────
+    // Stage 2: entity/object silhouettes are drawn (solid black on transparent) into this offscreen
+    // RGBA target. The light shader samples its ALPHA as "is this pixel solid?" and ray-marches from
+    // each light to each fragment, dropping fragments behind a silhouette into shadow. Kept separate
+    // from lightFbo so both can be bound as textures in the same shader pass.
+    private com.badlogic.gdx.graphics.glutils.FrameBuffer occluderFbo;
+    private int occluderFboW, occluderFboH;
+    private boolean occluderMaskActive = false;
+
+    /** Bind the occluder FBO and clear it transparent; draw caster silhouettes, then endOccluderMask(). */
+    public void beginOccluderMask() {
+        if (occluderMaskActive) return;
+        flush();
+        if (occluderFbo == null || occluderFboW != screenW || occluderFboH != screenH) {
+            if (occluderFbo != null) occluderFbo.dispose();
+            occluderFbo = new com.badlogic.gdx.graphics.glutils.FrameBuffer(
+                com.badlogic.gdx.graphics.Pixmap.Format.RGBA8888, Math.max(1, screenW), Math.max(1, screenH), false);
+            // Linear filtering: the shadow ray-march and rim pass sample this mask between texel
+            // centers, so smooth edges make shadows round and soft instead of blocky tile squares.
+            occluderFbo.getColorBufferTexture().setFilter(
+                Texture.TextureFilter.Linear, Texture.TextureFilter.Linear);
+            occluderFboW = screenW; occluderFboH = screenH;
+        }
+        occluderFbo.begin();
+        Gdx.gl.glViewport(0, 0, occluderFboW, occluderFboH);
+        Gdx.gl.glClearColor(0f, 0f, 0f, 0f);
+        Gdx.gl.glClear(com.badlogic.gdx.graphics.GL20.GL_COLOR_BUFFER_BIT);
+        // Same y-down ortho as the scene camera. THIS orientation is what light.frag's visibility()
+        // and rim.frag assume when sampling u_occluders (uv.y = 1 - screenY/res): game-top must sit at
+        // texture v=1, exactly like sceneFbo and the shader-written lightFbo. The old setToOrtho2D
+        // (y-UP) stored the silhouettes vertically MIRRORED, so every ray-marched shadow was computed
+        // from an upside-down world — shadows detached from their casters and slid vertically while
+        // walking (the same mirror signature the light pools had before their blit-flip fix).
+        Matrix4 m = new Matrix4().setToOrtho(0, screenW, screenH, 0, 0, 1);
+        batch.setProjectionMatrix(m);
+        shapes.setProjectionMatrix(m);
+        batch.setTransformMatrix(new Matrix4());
+        shapes.setTransformMatrix(new Matrix4());
+        // Silhouettes must be drawn fully opaque so the shader reads a crisp occluder alpha. Reset any
+        // stale alpha left by a prior draw (drawImageTinted multiplies its arg by this field), else
+        // faint silhouettes would cast faint/no shadows.
+        alpha = 1f;
+        occluderMaskActive = true;
+    }
+
+    /** Unbind the occluder FBO and restore the scene projection/viewport. */
+    public void endOccluderMask() {
+        if (!occluderMaskActive) return;
+        flush();
+        occluderFbo.end();
+        rebindActiveTarget();
+        applyProjection();
+        occluderMaskActive = false;
+    }
+
+    /** DEBUG: dump the occluder FBO to a PNG so we can see where silhouettes actually land. */
+    public void debugDumpOccluder(String path) {
+        if (occluderFbo == null) return;
+        occluderFbo.begin();
+        com.badlogic.gdx.graphics.Pixmap pm = com.badlogic.gdx.utils.ScreenUtils.getFrameBufferPixmap(
+            0, 0, occluderFboW, occluderFboH);
+        occluderFbo.end();
+        rebindActiveTarget();
+        // Make alpha visible as white-on-black so the silhouette is obvious in the PNG.
+        com.badlogic.gdx.graphics.Pixmap out = new com.badlogic.gdx.graphics.Pixmap(
+            occluderFboW, occluderFboH, com.badlogic.gdx.graphics.Pixmap.Format.RGBA8888);
+        for (int y = 0; y < occluderFboH; y++)
+            for (int x = 0; x < occluderFboW; x++) {
+                int a = pm.getPixel(x, occluderFboH - 1 - y) & 0xFF;
+                out.drawPixel(x, y, (a << 24) | (a << 16) | (a << 8) | 0xFF);
+            }
+        com.badlogic.gdx.graphics.PixmapIO.writePNG(com.badlogic.gdx.Gdx.files.local(path), out);
+        pm.dispose(); out.dispose();
+    }
+
+    /** DEBUG: dump the scene-capture FBO (color) to a PNG to inspect scene+mask alignment. */
+    public void debugDumpScene(String path) {
+        if (sceneFbo == null) return;
+        sceneFbo.begin();
+        com.badlogic.gdx.graphics.Pixmap pm = com.badlogic.gdx.utils.ScreenUtils.getFrameBufferPixmap(
+            0, 0, sceneFboW, sceneFboH);
+        sceneFbo.end();
+        rebindActiveTarget();
+        com.badlogic.gdx.graphics.Pixmap out = new com.badlogic.gdx.graphics.Pixmap(
+            sceneFboW, sceneFboH, com.badlogic.gdx.graphics.Pixmap.Format.RGBA8888);
+        for (int y = 0; y < sceneFboH; y++)
+            for (int x = 0; x < sceneFboW; x++)
+                out.drawPixel(x, y, pm.getPixel(x, sceneFboH - 1 - y));
+        com.badlogic.gdx.graphics.PixmapIO.writePNG(com.badlogic.gdx.Gdx.files.local(path), out);
+        pm.dispose(); out.dispose();
+    }
+
+    /** The occluder mask texture (alpha = solid), for binding into the light shader. Null until first built. */
+    public com.badlogic.gdx.graphics.Texture occluderTexture() {
+        return occluderFbo == null ? null : occluderFbo.getColorBufferTexture();
+    }
+
+    /** DEBUG: dump the light mask FBO (darkness alpha shown as brightness) to a PNG. */
+    public void debugDumpLightMask(String path) {
+        if (lightFbo == null) return;
+        lightFbo.begin();
+        com.badlogic.gdx.graphics.Pixmap pm = com.badlogic.gdx.utils.ScreenUtils.getFrameBufferPixmap(
+            0, 0, lightFboW, lightFboH);
+        lightFbo.end();
+        rebindActiveTarget();
+        com.badlogic.gdx.graphics.Pixmap out = new com.badlogic.gdx.graphics.Pixmap(
+            lightFboW, lightFboH, com.badlogic.gdx.graphics.Pixmap.Format.RGBA8888);
+        for (int y = 0; y < lightFboH; y++)
+            for (int x = 0; x < lightFboW; x++) {
+                int px = pm.getPixel(x, lightFboH - 1 - y);
+                int a = px & 0xFF;                  // darkness alpha
+                int inv = 255 - a;                  // lit = bright
+                out.drawPixel(x, y, (inv << 24) | (inv << 16) | (inv << 8) | 0xFF);
+            }
+        com.badlogic.gdx.graphics.PixmapIO.writePNG(com.badlogic.gdx.Gdx.files.local(path), out);
+        pm.dispose(); out.dispose();
+    }
+
+    // ── GLSL light pipeline (smooth per-pixel lighting + shadows + bloom) ─────
+    // Lazily created on first use so the GL context exists. If the shaders don't compile on this GPU,
+    // pipeline.isAvailable() is false and callers fall back to the baked-texture light path. The
+    // pipeline is queried by Lightning via shaderPipeline().
+    private gfx.shader.ShaderPipeline shaderPipeline;
+    private boolean shaderPipelineTried = false;
+
+    /** The GLSL pipeline (compiled once, lazily). May report isAvailable()==false on old GPUs. */
+    public gfx.shader.ShaderPipeline shaderPipeline() {
+        if (!shaderPipelineTried) {
+            shaderPipelineTried = true;
+            try { shaderPipeline = new gfx.shader.ShaderPipeline(); }
+            catch (Throwable t) { shaderPipeline = null; }
+        }
+        return shaderPipeline;
+    }
+
+    /**
+     * Render the smooth GLSL light mask straight into the light FBO (bound here), replacing the
+     * fillRect-darkness + baked-falloff-hole sequence with a single per-pixel shader pass. After this
+     * returns the FBO holds the finished darkness mask; call {@link #drawLightMask()} to composite it.
+     * Coordinates are SCREEN pixels (top-left origin), matching the game's light screen positions.
+     * No-op (returns false) if the pipeline is unavailable — caller should then use the baked path.
+     */
+    public boolean renderShaderLightMask(Color night, float darkness, int lightCount,
+                                         float[] lx, float[] ly, float[] lwx, float[] lwy, float[] lrad,
+                                         float[] lr, float[] lg, float[] lb, float[] lint,
+                                         boolean shadows, boolean cheap) {
+        gfx.shader.ShaderPipeline pipe = shaderPipeline();
+        if (pipe == null || !pipe.isAvailable()) return false;
+        flush();
+        if (lightFbo == null || lightFboW != screenW || lightFboH != screenH) {
+            if (lightFbo != null) lightFbo.dispose();
+            lightFbo = new com.badlogic.gdx.graphics.glutils.FrameBuffer(
+                com.badlogic.gdx.graphics.Pixmap.Format.RGBA8888, Math.max(1, screenW), Math.max(1, screenH), false);
+            lightFboW = screenW; lightFboH = screenH;
+        }
+        lightFbo.begin();
+        Gdx.gl.glViewport(0, 0, lightFboW, lightFboH);
+        Gdx.gl.glClearColor(0f, 0f, 0f, 0f);
+        Gdx.gl.glClear(com.badlogic.gdx.graphics.GL20.GL_COLOR_BUFFER_BIT);
+        pipe.renderLightMask(screenW, screenH,
+            night.getRed() / 255f, night.getGreen() / 255f, night.getBlue() / 255f, darkness,
+            lightCount, lx, ly, lwx, lwy, lrad, lr, lg, lb, lint,
+            shadows ? occluderTexture() : null, shadows, cheap);
+        lightFbo.end();
+        rebindActiveTarget();
+        applyProjection();
+        // The GLSL mask is PREMULTIPLIED (rgb carries night*alpha + additive warm glow);
+        // drawLightMask must composite it with (ONE, ONE_MINUS_SRC_ALPHA).
+        lightMaskPremultiplied = true;
+        return true;
     }
 
     /** Composite the finished light mask over the scene with normal alpha blending. The darkness (where
@@ -463,12 +666,134 @@ public class GdxRenderer {
         setBlendMode(BLEND_NORMAL);
         useBatch();
         batch.setColor(1f, 1f, 1f, 1f);
-        // FBO color texture; drawn full-screen. Flip V (batch.draw with negative height) because FBO
-        // textures have their origin at the bottom-left while our camera is y-down (top-left).
+        // The light mask is computed in SCREEN pixels (light positions are already screen-space). It must
+        // therefore be blitted full-screen with NO world transform. But when this runs mid scene-capture
+        // (HIGH), the batch still carries the world translate — specifically the camera-shake offset
+        // (RenderPipeline applies g2.translate(shakeX,shakeY)) and any dialogue pan/zoom. Left in place,
+        // the full-screen mask quad gets shifted/scaled by that transform while the world already baked
+        // the shake in, so the light pool slides off the scene by the shake amount EVERY frame the camera
+        // shakes — i.e. it "dances only when the camera is moving". Neutralize the transform for the blit,
+        // then restore it so subsequent world draws are unaffected.
+        Matrix4 savedTransform = new Matrix4(batch.getTransformMatrix());
+        batch.setTransformMatrix(new Matrix4());
+        // Diagnostics for the "lights dance" hunt: record what the world transform WAS at blit time
+        // (should be neutralized here — non-zero means shake/dialogue-pan was live this frame) and
+        // which composite branch runs.
+        gfx.shader.LightDebug.maskBlitTx = savedTransform.val[Matrix4.M03];
+        gfx.shader.LightDebug.maskBlitTy = savedTransform.val[Matrix4.M13];
+        gfx.shader.LightDebug.maskBlitDuringCapture = sceneCaptureActive;
+        gfx.shader.LightDebug.maskPremultiplied = lightMaskPremultiplied;
+        // FBO color texture; drawn full-screen, NEVER V-flipped. PROOF (OffCenterLightTest, a probe
+        // light 250px ABOVE the player): with the old "flip when not capturing" logic the probe's pool
+        // rendered 250px BELOW the player on the non-capture path — the whole mask was vertically
+        // MIRRORED about the screen center. The mirror was invisible in every previous verification
+        // because those all watched the PLAYER'S OWN pool, which sits at the screen center — and the
+        // mirror maps the center to itself. In play it made every off-center light's pool sit in the
+        // wrong place and GLIDE vertically in sync with the walking player (camera scroll mirrored =
+        // "the lights follow me / dance"), while standing still it just looked like misplaced shadows.
+        // The y-down batch projection already writes/reads lightFbo and the current target in the same
+        // orientation on BOTH paths (capture and direct), so no flip is ever needed here.
         com.badlogic.gdx.graphics.g2d.TextureRegion region =
             new com.badlogic.gdx.graphics.g2d.TextureRegion(lightFbo.getColorBufferTexture());
-        region.flip(false, true);
+        // The GLSL mask is premultiplied (rgb already carries alpha + an ADDITIVE warm glow term), so it
+        // must blend (ONE, ONE_MINUS_SRC_ALPHA): the alpha darkens the scene, the glow adds warm light.
+        // The legacy baked mask is straight-alpha and keeps the batch's normal blend.
+        if (lightMaskPremultiplied) {
+            batch.setBlendFunction(com.badlogic.gdx.graphics.GL20.GL_ONE,
+                                   com.badlogic.gdx.graphics.GL20.GL_ONE_MINUS_SRC_ALPHA);
+        }
         batch.draw(region, 0, 0, screenW, screenH);
+        // Flush so the mask quad is drawn with the identity transform, THEN restore the world transform
+        // for subsequent draws (the batch applies its transform matrix at flush time, not per-draw).
+        batch.flush();
+        if (lightMaskPremultiplied) {
+            batch.setBlendFunction(com.badlogic.gdx.graphics.GL20.GL_SRC_ALPHA,
+                                   com.badlogic.gdx.graphics.GL20.GL_ONE_MINUS_SRC_ALPHA);
+        }
+        batch.setTransformMatrix(savedTransform);
+    }
+
+    // ── Scene capture FBO (for bloom post-processing) ─────────────────────────
+    // The world+lighting are rendered into this offscreen target so bloom can read the finished scene
+    // as a texture, blit it back to screen, then add the glow on top. HUD is drawn AFTER (on screen)
+    // so it never blooms. Recreated on resize.
+    private com.badlogic.gdx.graphics.glutils.FrameBuffer sceneFbo;
+    private int sceneFboW, sceneFboH;
+    private boolean sceneCaptureActive = false;
+    // Strength of the final color grade applied to the captured scene (0 = passthrough). Tunable.
+    private float sceneGradeWarmth = 0.5f;
+    public void setGradeWarmth(float w) { sceneGradeWarmth = w < 0 ? 0 : (w > 1 ? 1 : w); }
+    // Per-sprite rim-light strength (0 = off). Added between grade and bloom.
+    private float rimStrength = 1.4f;
+    public void setRimStrength(float s) { rimStrength = s < 0 ? 0 : s; }
+
+    /** Begin capturing the world into the scene FBO. Pair with {@link #endSceneCaptureAndBloom}. */
+    public void beginSceneCapture() {
+        if (sceneCaptureActive) return;
+        flush();
+        if (sceneFbo == null || sceneFboW != screenW || sceneFboH != screenH) {
+            if (sceneFbo != null) sceneFbo.dispose();
+            sceneFbo = new com.badlogic.gdx.graphics.glutils.FrameBuffer(
+                com.badlogic.gdx.graphics.Pixmap.Format.RGBA8888, Math.max(1, screenW), Math.max(1, screenH), false);
+            sceneFbo.getColorBufferTexture().setFilter(Texture.TextureFilter.Linear, Texture.TextureFilter.Linear);
+            sceneFboW = screenW; sceneFboH = screenH;
+        }
+        sceneFbo.begin();
+        Gdx.gl.glViewport(0, 0, sceneFboW, sceneFboH);
+        Gdx.gl.glClearColor(0f, 0f, 0f, 1f);
+        Gdx.gl.glClear(com.badlogic.gdx.graphics.GL20.GL_COLOR_BUFFER_BIT);
+        applyProjection();
+        sceneCaptureActive = true;
+    }
+
+    /**
+     * End scene capture, blit the captured scene back to the real screen, then additively add bloom.
+     * If bloom is unavailable this still blits the scene (so capture is transparent to the look).
+     *
+     * @param threshold bloom luminance threshold (0..1)
+     * @param intensity bloom strength (0..~2); 0 skips the glow add
+     */
+    public void endSceneCaptureAndBloom(float threshold, float intensity) {
+        if (!sceneCaptureActive) return;
+        flush();
+        sceneFbo.end();
+        Gdx.gl.glViewport(worldVpX, worldVpY, worldVpW, worldVpH);
+        applyProjection();
+        sceneCaptureActive = false;
+
+        setBlendMode(BLEND_NORMAL);
+        gfx.shader.ShaderPipeline pipe = shaderPipeline();
+        boolean post = pipe != null && pipe.isBloomAvailable();
+
+        if (post) {
+            // Blit the captured scene through the color-grade shader (warm split-tone + contrast) so the
+            // whole frame reads as one graded image, then add per-sprite rim light, then bloom on top (so
+            // rims and lights bloom together).
+            Gdx.gl.glViewport(worldVpX, worldVpY, worldVpW, worldVpH);
+            pipe.renderGradedBlit(sceneFbo.getColorBufferTexture(), sceneGradeWarmth);
+            if (rimStrength > 0f && occluderTexture() != null && !gfx.shader.LightDebug.noRim) {
+                pipe.renderRim(sceneFbo.getColorBufferTexture(), occluderTexture(), rimStrength);
+            }
+            if (intensity > 0f && !gfx.shader.LightDebug.noBloom) {
+                pipe.renderBloom(sceneFbo.getColorBufferTexture(), screenW, screenH, threshold, intensity);
+            }
+            applyProjection(); // shaders left their own GL state; rebind our camera for later draws
+        } else {
+            // No post shaders: plain scene blit through the batch (grade/bloom unavailable on this GPU).
+            useBatch();
+            batch.setColor(1f, 1f, 1f, 1f);
+            com.badlogic.gdx.graphics.g2d.TextureRegion region =
+                new com.badlogic.gdx.graphics.g2d.TextureRegion(sceneFbo.getColorBufferTexture());
+            region.flip(false, true); // FBO is bottom-up vs our y-down camera
+            batch.draw(region, 0, 0, screenW, screenH);
+            flush();
+        }
+    }
+
+    /** True if the GLSL bloom shaders are ready on this GPU. */
+    public boolean bloomAvailable() {
+        gfx.shader.ShaderPipeline pipe = shaderPipeline();
+        return pipe != null && pipe.isBloomAvailable();
     }
 
     // ── Device-space overlay (unmagnified HUD/debug) ──────────────────────────
@@ -706,6 +1031,9 @@ public class GdxRenderer {
         batch.dispose();
         shapes.dispose();
         if (lightFbo != null) lightFbo.dispose();
+        if (occluderFbo != null) occluderFbo.dispose();
+        if (sceneFbo != null) sceneFbo.dispose();
+        if (shaderPipeline != null) shaderPipeline.dispose();
     }
 
     public SpriteBatch batch() { return batch; }

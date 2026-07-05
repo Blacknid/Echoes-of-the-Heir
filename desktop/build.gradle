@@ -23,6 +23,18 @@ run {
     if (org.gradle.internal.os.OperatingSystem.current() == org.gradle.internal.os.OperatingSystem.MAC_OS) {
         jvmArgs += ['-XstartOnFirstThread']
     }
+    // Forward diagnostic system properties into the forked app JVM. A raw -Dfoo=bar on the gradle CLI
+    // sets a property on the GRADLE JVM, not the forked :run process, so we explicitly re-propagate the
+    // light.* diagnostics. Both spellings work: -Dlight.track=1 (read from the gradle JVM) and the legacy
+    // -PlightDebug=1 project property.
+    ['light.debug', 'light.track', 'light.freezetime'].each { key ->
+        if (System.getProperty(key) != null) {
+            systemProperty key, System.getProperty(key)
+        }
+    }
+    if (project.hasProperty('lightDebug')) {
+        systemProperty 'light.debug', project.lightDebug
+    }
 }
 
 dependencies {

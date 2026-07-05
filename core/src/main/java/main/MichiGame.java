@@ -33,9 +33,11 @@ public class MichiGame extends ApplicationAdapter {
     public static final int BASE_H = 720;
 
     private OrthographicCamera camera;
-    private GdxRenderer renderer;
+    // protected (not private) so dev/screenshot harnesses in the desktop module can subclass and force
+    // game state / dump debug FBOs for automated visual verification. Not used in production.
+    protected GdxRenderer renderer;
     private FontSystem fonts;
-    private GamePanel gp;
+    protected GamePanel gp;
     private TouchControlsOverlay touchOverlay;
 
     @Override
@@ -150,6 +152,15 @@ public class MichiGame extends ApplicationAdapter {
         Gdx.gl.glClear(GL20.GL_COLOR_BUFFER_BIT);
 
         if (gp == null) return;
+
+        // Dancing-lights hunt: F-key kill-switches (polled here so they work regardless of game
+        // state / the KeyHandler). See gfx.shader.LightDebug + ui.LightDebugHud.
+        if (Gdx.input.isKeyJustPressed(com.badlogic.gdx.Input.Keys.F5))  gfx.shader.LightDebug.hud        = !gfx.shader.LightDebug.hud;
+        if (Gdx.input.isKeyJustPressed(com.badlogic.gdx.Input.Keys.F6))  gfx.shader.LightDebug.freezeTime = !gfx.shader.LightDebug.freezeTime;
+        if (Gdx.input.isKeyJustPressed(com.badlogic.gdx.Input.Keys.F7))  gfx.shader.LightDebug.noDetail   = !gfx.shader.LightDebug.noDetail;
+        if (Gdx.input.isKeyJustPressed(com.badlogic.gdx.Input.Keys.F8))  gfx.shader.LightDebug.noBloom    = !gfx.shader.LightDebug.noBloom;
+        if (Gdx.input.isKeyJustPressed(com.badlogic.gdx.Input.Keys.F9))  gfx.shader.LightDebug.noShadows  = !gfx.shader.LightDebug.noShadows;
+        if (Gdx.input.isKeyJustPressed(com.badlogic.gdx.Input.Keys.F10)) gfx.shader.LightDebug.noRim      = !gfx.shader.LightDebug.noRim;
 
         // Touch overlay reads/writes KeyHandler/MouseHandler fields before stepUpdates() consumes
         // them this frame, exactly like a physical key/mouse event would have already arrived.

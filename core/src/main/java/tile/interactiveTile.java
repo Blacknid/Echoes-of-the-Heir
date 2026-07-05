@@ -41,14 +41,6 @@ public class interactiveTile extends Entity {
         }
     }
 
-    /**
-     * Ground-decal shadow, drawn by RenderPipeline BEFORE the Y-sorted entity pass so it always
-     * sits underneath the player/NPCs/monsters. No-op by default; override in subclasses that
-     * draw their own shadow (e.g. IT_Tree) instead of drawing it inside draw().
-     */
-    public void drawShadow(GdxRenderer g2) {
-    }
-
     public void draw(GdxRenderer g2) {
         int screenX = worldX - gp.player.worldX + gp.player.screenX;
         int screenY = worldY - gp.player.worldY + gp.player.screenY;

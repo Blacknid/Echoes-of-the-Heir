@@ -3,6 +3,13 @@
     "configurations": [
         {
             "type": "java",
+            "name": "DesktopLauncher",
+            "request": "launch",
+            "mainClass": "desktop.DesktopLauncher",
+            "projectName": "desktop"
+        },
+        {
+            "type": "java",
             "name": "Run Michi's Adventure (Desktop)",
             "request": "launch",
             "mainClass": "desktop.DesktopLauncher",

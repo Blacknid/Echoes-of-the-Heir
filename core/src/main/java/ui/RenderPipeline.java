@@ -79,7 +79,21 @@ public class RenderPipeline {
         }
     }
 
+    // Bloom is HIGH-only and only worth the capture cost when the shader path is live. Threshold keeps
+    // only genuinely bright pixels (lights, fire, sparkles) glowing; intensity is the glow strength.
+    private static final float BLOOM_THRESHOLD = 0.55f;
+    private static final float BLOOM_INTENSITY = 1.05f;
+
     private void drawWorldLayers(GdxRenderer g2) {
+        // Capture the world+lighting into an offscreen target so bloom can read the finished scene, then
+        // blit it back and add glow — all BEFORE the HUD (drawn later on the real screen, so it never
+        // blooms). Only on HIGH with working bloom shaders; otherwise render straight to screen.
+        // F8 (LightDebug.noBloom) disables the WHOLE post chain (scene capture + grade + rim + bloom):
+        // if the dancing stops with it off, the bug lives in the capture/blit path, not the lighting.
+        boolean bloom = gp.config.graphicsQuality == main.Config.GRAPHICS_HIGH && g2.bloomAvailable()
+                && !gfx.shader.LightDebug.noBloom;
+        if (bloom) g2.beginSceneCapture();
+
         int shakeX = gp.screenShake.getOffsetX();
         int shakeY = gp.screenShake.getOffsetY();
         if (shakeX != 0 || shakeY != 0) {
@@ -96,7 +110,6 @@ public class RenderPipeline {
 
         gp.tileM.prepareVisibleTiles();
         gp.tileM.drawBackground(g2);
-        drawTileShadows(g2);
 
         collectRenderableEntities();
 
@@ -204,6 +217,12 @@ public class RenderPipeline {
                 gp.mapShader.drawVignette(g2);
             }
         }
+
+        // Finish scene capture: blit the world back to screen and add the bloom glow (HIGH only). Must
+        // run before the HUD (drawWorldOverlays) so UI text/panels stay crisp and un-bloomed.
+        if (bloom) {
+            g2.endSceneCaptureAndBloom(BLOOM_THRESHOLD, BLOOM_INTENSITY);
+        }
     }
 
     private void drawWorldOverlays(GdxRenderer g2) {
@@ -229,6 +248,9 @@ public class RenderPipeline {
         if (gp.minimap != null && gp.gameState == GamePanel.playState) {
             gp.minimap.drawWorldMap(g2);
         }
+
+        // Dancing-lights diagnostic overlay (F5 toggles; drawn last so it sits over everything).
+        LightDebugHud.draw(g2, gp);
     }
 
     /**
@@ -517,21 +539,6 @@ public class RenderPipeline {
         g2.setColor(Color.WHITE);
         g2.setFont(DBG_FONT);
         g2.drawString(text, tx, ty);
-    }
-
-    /**
-     * Ground-decal shadows (e.g. IT_Tree's) drawn BEFORE the Y-sorted entity pass, so they always
-     * render underneath the player/NPCs/monsters no matter where they'd land in the Y-sort — a
-     * shadow is flat ground art, not a sortable object with its own depth.
-     */
-    private void drawTileShadows(GdxRenderer g2) {
-        for (int i = 0; i < gp.iTile.length; i++) {
-            tile.interactiveTile it = gp.iTile[i];
-            // Same wider margin as addToRenderList — covers a 4-tile-tall IT_Tree.
-            if (it != null && gp.isEntityInViewport(it, gp.tileSize * 4)) {
-                it.drawShadow(g2);
-            }
-        }
     }
 
     private void collectRenderableEntities() {

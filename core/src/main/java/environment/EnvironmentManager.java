@@ -49,6 +49,8 @@ public class EnvironmentManager {
     private static final int WEATHER_CYCLE_MAX = 7200;  // 2 minute
     private int nextWeatherChange;
 
+    private int envDebugCounter = 0;
+
     public EnvironmentManager(GamePanel gp) {
         this.gp = gp;
         nextWeatherChange = WEATHER_CYCLE_MIN + (int)(Math.random() * (WEATHER_CYCLE_MAX - WEATHER_CYCLE_MIN));
@@ -196,6 +198,12 @@ public class EnvironmentManager {
             weatherDarkness = 0.50f * weatherIntensity;
         }
         float effectiveAlpha = Math.min(0.95f, filterAlpha + weatherDarkness);
+
+        if (Lightning.DEBUG_LIGHT_PATH && (envDebugCounter++ % 60) == 0) {
+            System.out.println("ENV_LIGHT effectiveAlpha=" + effectiveAlpha + " filterAlpha=" + filterAlpha
+                + " pinnedFilterAlpha=" + pinnedFilterAlpha + " dayState=" + dayState
+                + " weatherDarkness=" + weatherDarkness);
+        }
 
         if (effectiveAlpha > 0.02f) {
             // Downscale adaptiv: reduce rezolutia overlay-ului sub sarcina mare

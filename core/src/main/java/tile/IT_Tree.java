@@ -4,7 +4,6 @@ import java.util.HashMap;
 import java.util.Map;
 
 import entity.Entity;
-import gfx.Color;
 import gfx.GdxRenderer;
 import gfx.Sprite;
 import main.GamePanel;
@@ -123,8 +122,6 @@ public class IT_Tree extends interactiveTile {
 
     private static final Map<String, VariantAssets> ASSET_CACHE = new HashMap<>();
 
-    private static final Color SHADOW_COLOR = new Color(0, 0, 0, 60);
-
     private final VariantAssets assets;
     private final Variant variant;
 
@@ -190,17 +187,48 @@ public class IT_Tree extends interactiveTile {
                ay >= gp.player.worldY + (gp.screenHeight - gp.player.screenY);
     }
 
+    /** Trees always cast a dynamic canopy silhouette shadow (Stage 2 lighting). */
     @Override
-    public void drawShadow(GdxRenderer g2) {
+    public boolean castsShadow() { return true; }
+
+    /**
+     * Draw the tree's silhouette (trunk + canopy bands) in solid black into the shadow-occluder mask,
+     * reusing the exact same layout/sway as {@link #draw} so the cast shadow matches the swaying canopy.
+     * IT_Tree overrides draw() with a custom band renderer and stores no walkFrames, so the generic
+     * Entity.drawOccluder can't handle it — this override does.
+     */
+    @Override
+    public void drawOccluder(GdxRenderer g2) {
         int drawSize = gp.tileSize * variant.sizeInTiles();
         if (offscreen(drawSize)) return;
+        int screenX = screenX(drawSize);
+        int screenY = screenY(drawSize);
+        if (assets.trunkImg != null) {
+            g2.drawImageTinted(assets.trunkImg, screenX, screenY, drawSize, drawSize, gfx.Color.BLACK, 1f);
+        }
+        for (int i = 0; i < assets.canopyLayers.length; i++) {
+            drawCanopyLayerOccluder(g2, assets.canopyLayers[i], i, screenX, screenY, drawSize);
+        }
+    }
 
-        // Umbra in stil Pixelat , forma ovala pe orizontal
-        int shadowCX = screenX(drawSize) + drawSize / 2 + Math.round(gp.tileSize * variant.shadowOffsetX());
-        int shadowCY = screenY(drawSize) + drawSize - Math.round(gp.tileSize * variant.shadowOffsetY());
-        int shadowW = Math.round(gp.tileSize * variant.shadowWidth());
-        int shadowH = Math.round(gp.tileSize * variant.shadowHeight());
-        drawPixelOvalShadow(g2, shadowCX, shadowCY, shadowW, shadowH);
+    /** Occluder-mask version of drawCanopyLayer: same sway math, drawn as solid black silhouette. */
+    private void drawCanopyLayerOccluder(GdxRenderer g2, CanopyLayer layer, int layerIndex,
+                                         int screenX, int screenY, int drawSize) {
+        if (layer.bands == null) return;
+        int bandCount = layer.bands.length;
+        float branchPhase = phase + layerIndex * 1.7f;
+        float branchSpeedMul = 1f + (layerIndex % 3) * 0.15f;
+        float branchDirFlip = (layerIndex % 2 == 0) ? 1f : -1f;
+        for (int b = bandCount - 1; b >= 0; b--) {
+            if (layer.bands[b] == null) continue;
+            float swayDir = ((b % 2 == 0) ? 1f : -1f) * swayParityFlip * branchDirFlip;
+            float offset = (float) Math.sin(branchPhase * branchSpeedMul) * swayPixels * swayDir;
+            int bandY = layer.bandY[b];
+            int bandH = layer.bands[b].getHeight();
+            int growTop = (b == 0) ? 0 : 1;
+            g2.drawImageTinted(layer.bands[b], screenX + Math.round(offset), screenY + bandY - growTop,
+                    drawSize, bandH + growTop, gfx.Color.BLACK, 1f);
+        }
     }
 
     @Override
@@ -252,26 +280,6 @@ public class IT_Tree extends interactiveTile {
             int growTop = (b == 0) ? 0 : 1;
             g2.drawImage(layer.bands[b], screenX + Math.round(offset), screenY + bandY - growTop,
                     drawSize, bandH + growTop);
-        }
-    }
-
-    // Size of one shadow "pixel" block, in screen pixels — bigger than the real tile pixel scale
-    // so the oval reads as blocky/pixelated rather than smooth, matching the tile art style.
-    private static final int SHADOW_BLOCK = 4;
-
-    /** Draws a flat horizontal oval built from coarse square blocks (not a smooth fillOval),
-     * so the shadow matches the game's pixel-art look. centerX/centerY is the oval's center. */
-    private void drawPixelOvalShadow(GdxRenderer g2, int centerX, int centerY, int w, int h) {
-        g2.setColor(SHADOW_COLOR);
-        int radiusX = w / 2;
-        int radiusY = Math.max(SHADOW_BLOCK / 2, h / 2);
-        for (int y = -radiusY; y < radiusY; y += SHADOW_BLOCK) {
-            float t = (y + SHADOW_BLOCK / 2f) / radiusY;
-            int rowHalfWidth = Math.round(radiusX * (float) Math.sqrt(Math.max(0, 1 - t * t)));
-            if (rowHalfWidth <= 0) continue;
-            for (int x = -rowHalfWidth; x < rowHalfWidth; x += SHADOW_BLOCK) {
-                g2.fillRect(centerX + x, centerY + y, SHADOW_BLOCK, SHADOW_BLOCK);
-            }
         }
     }
 

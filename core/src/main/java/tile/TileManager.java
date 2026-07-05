@@ -1548,6 +1548,37 @@ public class TileManager {
         drawTile(g2, depthVisibleTiles.get(index));
     }
 
+    /**
+     * Render every visible depth-sorted tile (the walls / trees / rocks / props that interleave with
+     * entities — i.e. the solid "things around") as a solid-black silhouette into the currently-bound
+     * shadow-occluder mask. The light shader ray-marches this mask, so lit pixels behind any of these
+     * sprites fall into shadow — shadows cast by the actual TEXTURES on screen, not by hitboxes.
+     *
+     * Only depth-sorted tiles standing on a SOLID (collision) cell cast — i.e. walls, pillars, tree
+     * trunks, statues, the upright scenery you genuinely can't see through. Walkable ground clutter
+     * (cave rubble, grass, floor detail) is deliberately excluded: it sits on the same plane as the
+     * light, so casting from it would bury the player in their own surroundings' shadow. Gating on
+     * collision is both physically sensible ("a wall blocks light, a pebble doesn't") and gives clean,
+     * readable shadows. Uses the sprite's own alpha as the silhouette (a tinted black draw), so cut-out
+     * shapes (leafy canopies, arches) cast their true outline.
+     */
+    public void drawDepthOccluders(GdxRenderer g2) {
+        boolean[][] solid = tileSolid;
+        for (int i = 0, n = depthVisibleTiles.size(); i < n; i++) {
+            VisibleTileDraw vt = depthVisibleTiles.get(i);
+            if (vt.image == null) continue;
+            // Only cast from solid scenery. If no collision grid exists, cast from all depth tiles
+            // (fail open — better a heavy shadow than none on a map with no collision data).
+            if (solid != null) {
+                int c = vt.worldCol, r = vt.worldRow;
+                if (c < 0 || c >= solid.length || r < 0 || r >= solid[c].length || !solid[c][r]) continue;
+            }
+            int w = vt.image.getWidth();
+            int h = vt.image.getHeight();
+            g2.drawImageTinted(vt.image, vt.screenX, vt.screenY, w, h, Color.BLACK, 1f);
+        }
+    }
+
     /** Draw a single image layer at its world position relative to the camera. */
     private void drawSingleImageLayer(GdxRenderer g2, ImageLayerData ild,
                                        int cameraWorldX, int cameraWorldY) {

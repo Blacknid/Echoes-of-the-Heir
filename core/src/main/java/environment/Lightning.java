@@ -72,7 +72,10 @@ public class Lightning {
     public int lightCount = 0;
 
     // Night color the darkness is tinted with (was a black ARGB fill in the overlay).
-    private static final Color NIGHT_COLOR = new Color(6, 8, 18);
+    // Night ambient: a deep moonlit indigo-teal — cool and atmospheric, but with enough blue life that
+    // shadowed areas read as "moonlit night" rather than a dead flat black/purple. The warm light pools
+    // pop against this cool base (classic warm-key / cool-fill contrast that makes lighting feel alive).
+    private static final Color NIGHT_COLOR = new Color(12, 16, 32);
 
     // Baked unit "falloff" texture: white center → transparent edge. Scaled per light when drawn.
     private static final int FALLOFF_TEX_SIZE = 256;
@@ -591,6 +594,191 @@ public class Lightning {
     // Strength with which each light brightens (lifts) the darkness back, additively.
     private static final float LIGHT_PUNCH_STRENGTH = 0.95f;
 
+    // ===================== GLSL LIGHT PATH (HIGH/MEDIUM) =====================
+    // Reusable arrays holding the current frame's lights in SCREEN pixels, uploaded to the light
+    // shader in one pass. Sized to MAX_LIGHTS + 1 (the player light). Rebuilt each frame; never
+    // allocated per-frame.
+    private final float[] slx  = new float[MAX_LIGHTS + 1];
+    private final float[] sly  = new float[MAX_LIGHTS + 1];
+    private final float[] srad = new float[MAX_LIGHTS + 1];
+    private final float[] sr   = new float[MAX_LIGHTS + 1];
+    private final float[] sg   = new float[MAX_LIGHTS + 1];
+    private final float[] sb   = new float[MAX_LIGHTS + 1];
+    private final float[] sint = new float[MAX_LIGHTS + 1];
+    // Per-light WORLD position (screen px offset = worldX - cameraWorldX). The organic-noise texture is
+    // sampled in world space so the light's textured falloff is painted onto the GROUND and stays locked
+    // to the world as the camera scrolls — instead of the noise sliding across the ground with the light
+    // (the "texture drifts / tracks camera at 2x" artifact). Pure world-space; identical for every light
+    // including remote players on a multiplayer server (no dependence on the local player's screen pos).
+    private final float[] swx  = new float[MAX_LIGHTS + 1];
+    private final float[] swy  = new float[MAX_LIGHTS + 1];
+
+    /** Add one light (screen coords + world coords, color, intensity) to the shader arrays; ignores
+     *  off-screen and overflow. worldX/worldY drive the world-space noise texture only; lighting math
+     *  still uses the screen position. */
+    private int addShaderLight(int count, int sx, int sy, int worldX, int worldY, int rad, Color c,
+                               float intensity, int screenW, int screenH) {
+        if (count >= slx.length) return count;
+        if (rad <= 0) return count;
+        if (sx + rad < 0 || sx - rad > screenW || sy + rad < 0 || sy - rad > screenH) return count;
+        slx[count]  = sx;   sly[count] = sy;   srad[count] = rad;
+        swx[count]  = worldX; swy[count] = worldY;
+        sr[count]   = c.getRed()   / 255f;
+        sg[count]   = c.getGreen() / 255f;
+        sb[count]   = c.getBlue()  / 255f;
+        sint[count] = intensity < 0f ? 0f : (intensity > 1f ? 1f : intensity);
+        return count + 1;
+    }
+
+    /**
+     * Gather every active light into the shader arrays and render the smooth GLSL darkness mask.
+     * Returns true if the GLSL path handled it (mask composited); false means the pipeline was
+     * unavailable and the caller must run the legacy baked path.
+     */
+    private boolean drawShaderLighting(GdxRenderer g2, float darkness,
+                                       int playerWorldX, int playerWorldY,
+                                       int playerScreenX, int playerScreenY,
+                                       int screenWidth, int screenHeight) {
+        gfx.shader.ShaderPipeline pipe = g2.shaderPipeline();
+        if (pipe == null || !pipe.isAvailable()) return false;
+
+        int n = 0;
+        // Player light (warm white). Center of the player tile. World pos = tile center in world coords.
+        int psx = playerScreenX + gp.tileSize / 2;
+        int psy = playerScreenY + gp.tileSize / 2;
+        int pwx = playerWorldX  + gp.tileSize / 2;
+        int pwy = playerWorldY  + gp.tileSize / 2;
+        int pRad = playerLightRadius * gp.tileSize;
+        n = addShaderLight(n, psx, psy, pwx, pwy, pRad, PLAYER_LIGHT_COLOR, LIGHT_PUNCH_STRENGTH,
+                           screenWidth, screenHeight);
+
+        n = addEntityArrayShaderLights(n, gp.obj, playerWorldX, playerWorldY,
+                                       playerScreenX, playerScreenY, screenWidth, screenHeight);
+        n = addEntityArrayShaderLights(n, gp.npc, playerWorldX, playerWorldY,
+                                       playerScreenX, playerScreenY, screenWidth, screenHeight);
+
+        // Registered colored lights (addLight): crystals, magic glows, scripted torches. These now also
+        // cast shadows via the shader mask (previously they only added flat ambient glow).
+        for (int i = 0; i < lightCount && n < slx.length; i++) {
+            int sx = lightWX[i] - playerWorldX + playerScreenX;
+            int sy = lightWY[i] - playerWorldY + playerScreenY;
+            n = addShaderLight(n, sx, sy, lightWX[i], lightWY[i], lightRadiusPx[i], lightColor[i],
+                               Math.min(1f, lightIntensity[i] + 0.3f), screenWidth, screenHeight);
+        }
+
+        // Shadows are a consequence of light on BOTH shader tiers. HIGH runs the full 32-step march
+        // with organic light detail; MEDIUM (the mobile tier) uses the cheap variant — 12 steps, no
+        // noise — so phones still get real texture-cast shadows at a fraction of the cost.
+        // F9 (LightDebug.noShadows) kills the march for the dancing-lights hunt.
+        boolean shadows = !gfx.shader.LightDebug.noShadows;
+        boolean cheap   = (gp.config.graphicsQuality != Config.GRAPHICS_HIGH);
+        if (shadows) buildOccluderMask(g2);
+
+        // Dancing-lights HUD telemetry: what the shader was actually given this frame.
+        gfx.shader.LightDebug.tier = cheap ? "MED-cheap" : "HIGH";
+        gfx.shader.LightDebug.lightCount = n;
+        if (n > 0) { gfx.shader.LightDebug.light0X = slx[0]; gfx.shader.LightDebug.light0Y = sly[0]; }
+
+        boolean ok = g2.renderShaderLightMask(NIGHT_COLOR, darkness, n,
+                                              slx, sly, swx, swy, srad, sr, sg, sb, sint, shadows, cheap);
+        if (!ok) return false;
+        g2.setBlendMode(GdxRenderer.BLEND_NORMAL);
+        g2.drawLightMask();
+        return true;
+    }
+
+    /**
+     * Render every on-screen shadow-caster's silhouette into the occluder FBO. The light shader then
+     * ray-marches this mask so lit pixels behind a silhouette fall into shadow — the "rays hit the
+     * texture, shadow left behind" effect. Uses each entity's CURRENT sprite frame (via drawOccluder),
+     * so shadows track the visible pose; viewport-culled so off-screen casters cost nothing.
+     */
+    private void buildOccluderMask(GdxRenderer g2) {
+        g2.beginOccluderMask();
+        // SCENERY SILHOUETTES: the walls / trees / rocks / props drawn as depth-sorted tiles are the
+        // actual "things around" — they cast shadows from their TEXTURES (the sprite's own alpha),
+        // not from hitboxes. Flat background floor tiles are the ground the shadows land on, so they
+        // are intentionally excluded (see TileManager.drawDepthOccluders). This is what makes shadows
+        // appear on maps whose scenery is tilemap art rather than entities (e.g. the cave walls).
+        if (gp.tileM != null) gp.tileM.drawDepthOccluders(g2);
+        // The player is NOT drawn into the occluder mask. The player carries the primary light centered
+        // on itself, so its silhouette would ray-march-shadow its OWN light pool — a black player-shaped
+        // hole with starburst streaks (the "shadows mixed up" bug). LIGHT_EXCLUDE can't fully prevent it
+        // because the player body spans a large fraction of its own (small) light radius. Excluding the
+        // player from the mask kills it definitively; other casters (NPCs, monsters, objects, trees) are
+        // offset from the lights that matter, so they cast correctly and get rim light.
+        drawOccluderArray(g2, gp.npc);
+        drawOccluderArray(g2, gp.monster);
+        drawOccluderArray(g2, gp.obj);
+        // Interactive tiles (trees, statues) opt in via castsShadow; wider margin covers tall canopies.
+        if (gp.iTile != null) {
+            for (entity.Entity it : gp.iTile) {
+                if (it != null && it.castsShadow()) drawOccluderIfVisible(g2, it, gp.tileSize * 4);
+            }
+        }
+        g2.endOccluderMask();
+    }
+
+    private void drawOccluderArray(GdxRenderer g2, entity.Entity[] arr) {
+        if (arr == null) return;
+        for (entity.Entity e : arr) {
+            if (e == null) continue;
+            // A light-EMITTING entity (torch, glowing NPC…) must not cast into the mask: its
+            // silhouette sits exactly at its own light's center, so the ray march would shadow the
+            // light it carries and cancel it out entirely — the same reason the player (who carries
+            // the primary light) is excluded above. Its light still casts OTHER entities' shadows.
+            if (e.lightSource && e.lightRadius > 0) continue;
+            if (e.castsShadow()) drawOccluderIfVisible(g2, e);
+        }
+    }
+
+    private void drawOccluderIfVisible(GdxRenderer g2, entity.Entity e) {
+        drawOccluderIfVisible(g2, e, gp.tileSize);
+    }
+
+    private void drawOccluderIfVisible(GdxRenderer g2, entity.Entity e, int margin) {
+        if (e == null) return;
+        if (!gp.isEntityInViewport(e, margin)) return;
+        e.drawOccluder(g2);
+    }
+
+    /** Add each light-emitting entity in an array to the shader light arrays (screen coords). */
+    private int addEntityArrayShaderLights(int count, entity.Entity[] arr,
+                                           int playerWorldX, int playerWorldY,
+                                           int playerScreenX, int playerScreenY,
+                                           int screenWidth, int screenHeight) {
+        if (arr == null) return count;
+        for (entity.Entity e : arr) {
+            if (e == null || !e.lightSource || e.lightRadius <= 0) continue;
+            int rWorld = e.lightRadius * gp.tileSize;
+            int sx = e.worldX - playerWorldX + playerScreenX + gp.tileSize / 2;
+            int sy = e.worldY - playerWorldY + playerScreenY + gp.tileSize / 2;
+            int wx = e.worldX + gp.tileSize / 2;
+            int wy = e.worldY + gp.tileSize / 2;
+            // Entity torch color: warm, matches the reflective glow warmth.
+            count = addShaderLight(count, sx, sy, wx, wy, rWorld, TORCH_LIGHT_COLOR, LIGHT_PUNCH_STRENGTH,
+                                   screenWidth, screenHeight);
+        }
+        return count;
+    }
+
+    // Warm light tints for the shader path (slightly warm white reads far nicer than pure white).
+    // Warmer than pure white — a candle/torch amber-white. The light shader pushes the core warmer
+    // still (hot gold heart), so these are the base/edge tint.
+    private static final Color PLAYER_LIGHT_COLOR = new Color(255, 224, 170);
+    private static final Color TORCH_LIGHT_COLOR  = new Color(255, 205, 140);
+
+    /** Dev diagnostic: when true, prints which lighting path runs each frame + key coords.
+     *  Enable in the REAL game with -Dlight.debug=1 (no harness needed) to see the true runtime tier. */
+    public static boolean DEBUG_LIGHT_PATH = "1".equals(System.getProperty("light.debug"));
+    private int debugFrameCounter = 0;
+    /** Dev diagnostic (-Dlight.track=1): prints the per-frame delta of playerWorldX/screenX and the world
+     *  offset (screenX - worldX) that every world point (and the shader light) is drawn with. If the offset
+     *  is CONSTANT while walking, the light pool is coordinate-correct; if it JUMPS in step with movement,
+     *  screenX lags worldX by a frame and the pool drifts by the walk delta — the "2x/tracks camera" bug. */
+    public static boolean DEBUG_LIGHT_TRACK = "1".equals(System.getProperty("light.track"));
+    private int lastDbgWorldX = Integer.MIN_VALUE, lastDbgScreenX = Integer.MIN_VALUE;
+
     // ===================== MAIN DRAW =====================
     public void draw(GdxRenderer g2, float currentMaxDarkness) {
         int screenWidth  = gp.screenWidth;
@@ -600,6 +788,27 @@ public class Lightning {
         int playerWorldY  = gp.player.worldY;
         int playerScreenX = gp.player.screenX;
         int playerScreenY = gp.player.screenY;
+
+        // Per-frame drift tracker (-Dlight.track=1). Placed BEFORE the darkness early-return and tier
+        // branch so it fires whenever the player moves — dark or not, any graphics tier. The offset
+        // (screenX - worldX) is what every world point AND the shader light are shifted by. dWorld = how
+        // far the player moved this frame; dOffset = how much the drawn offset changed. dOffset ~0 while
+        // dWorld != 0 => pool glued to player (coords correct). dOffset tracking dWorld => screenX lagged
+        // worldX and the pool drifts by exactly the walk delta — the "2x/tracks camera" bug.
+        if (DEBUG_LIGHT_TRACK && lastDbgWorldX != Integer.MIN_VALUE) {
+            int dWorld  = playerWorldX  - lastDbgWorldX;
+            int dScreen = playerScreenX - lastDbgScreenX;
+            int off  = playerScreenX - playerWorldX;
+            int dOff = dScreen - dWorld;   // change in the world-draw offset this frame
+            if (dWorld != 0 || dScreen != 0) {
+                System.out.println("LIGHT_TRACK q=" + gp.config.graphicsQuality
+                    + " dark=" + String.format("%.3f", currentMaxDarkness)
+                    + " dWorld=" + dWorld + " dScreen=" + dScreen
+                    + " offset(screenX-worldX)=" + off + " dOffset=" + dOff
+                    + (dOff != 0 ? "  <-- POOL DRIFTS " + dOff + "px this frame" : "  (pool stable)"));
+            }
+        }
+        lastDbgWorldX = playerWorldX; lastDbgScreenX = playerScreenX;
 
         // Light center = center of the player tile (not the top-left corner)
         int playerLightCX = playerWorldX + gp.tileSize / 2;
@@ -623,9 +832,30 @@ public class Lightning {
             }
         }
 
-        if (currentMaxDarkness <= 0.001f) return;
+        if (currentMaxDarkness <= 0.001f) { gfx.shader.LightDebug.tier = "off (no darkness)"; return; }
 
-        // ========= DARKNESS MASK (offscreen) =========
+        // ========= GLSL SMOOTH-LIGHT PATH (HIGH / MEDIUM) =========
+        // Try the per-pixel shader mask first. On HIGH/MEDIUM with a capable GPU this replaces the
+        // baked-falloff dst-out dance with smooth HDR lighting; if the pipeline is unavailable (old
+        // GPU / shader compile failure) it returns false and we fall through to the legacy baked path
+        // below, so behavior degrades gracefully and never crashes.
+        boolean shaderLit = false;
+        if (gp.config.graphicsQuality != Config.GRAPHICS_LOW) {
+            shaderLit = drawShaderLighting(g2, currentMaxDarkness,
+                    playerWorldX, playerWorldY, playerScreenX, playerScreenY,
+                    screenWidth, screenHeight);
+        }
+        if (DEBUG_LIGHT_PATH && (debugFrameCounter++ % 60) == 0) {
+            System.out.println("LIGHT_PATH quality=" + gp.config.graphicsQuality
+                + " shaderLit=" + shaderLit + " bloomAvail=" + g2.bloomAvailable()
+                + " darkness=" + currentMaxDarkness
+                + " playerWorldX=" + playerWorldX + " playerScreenX=" + playerScreenX
+                + " lightSX=" + (playerScreenX + gp.tileSize / 2)
+                + " translateX=" + g2.getTranslateX() + " translateY=" + g2.getTranslateY());
+        }
+        // ========= DARKNESS MASK (offscreen) — legacy baked path =========
+        if (!shaderLit) {
+        gfx.shader.LightDebug.tier = "baked (shader unavailable)";
         // Proper 2D lighting: render a darkness LAYER into an offscreen alpha buffer, then carve soft
         // holes where lights reach (DST_OUT). Compositing that mask over the finished scene lets the
         // scene show through at its NATURAL brightness in lit areas and stay genuinely dark elsewhere —
@@ -666,6 +896,7 @@ public class Lightning {
         g2.setBlendMode(GdxRenderer.BLEND_NORMAL);
         g2.endLightMask();
         g2.drawLightMask();
+        } // end legacy baked path (!shaderLit)
 
         // ========= COLORED LIGHTS (ambient glow, no shadow casting) =========
         // These ADD colored light on top of the composited scene (a colored torch/crystal glow), so
