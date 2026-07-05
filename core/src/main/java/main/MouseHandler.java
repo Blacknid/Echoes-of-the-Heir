@@ -110,6 +110,8 @@ public class MouseHandler implements InputProcessor {
             case GamePanel.optionsState   -> hoverOptions();
             case GamePanel.journalState   -> hoverJournal();
             case GamePanel.skillTreeState -> hoverSkillTree();
+            case GamePanel.friendsState   -> hoverFriends();
+            case GamePanel.bossCoopState  -> hoverBossCoop();
         }
     }
 
@@ -129,6 +131,8 @@ public class MouseHandler implements InputProcessor {
             case GamePanel.optionsState   -> clickOptions();
             case GamePanel.journalState   -> {} // hover selects; no confirm action
             case GamePanel.skillTreeState -> clickSkillTree();
+            case GamePanel.friendsState   -> clickFriends();
+            case GamePanel.bossCoopState  -> clickBossCoop();
             case GamePanel.playState      -> clickWorld();
         }
     }
@@ -526,6 +530,112 @@ public class MouseHandler implements InputProcessor {
     }
 
     // ════════════════════════════════════════════════════════════════════════
+    // FRIENDS SCREEN
+    // Row order matches KeyHandler.handleFriendsState: pending requests, then friends,
+    // then the 3 action buttons (ADD FRIEND / REFRESH / BACK). Rects recorded by
+    // UI.drawFriendsScreen() into UI.friendsItemAt() every frame, so hit-testing always
+    // matches what's on screen — needed for Android, which has no keyboard to drive Enter/Esc.
+    // ════════════════════════════════════════════════════════════════════════
+
+    private void hoverFriends() {
+        if (gp.ui.nfcSessionActive || gp.ui.friendsInputMode) return;
+        int i = gp.ui.friendsItemAt(gameX, gameY);
+        if (i >= 0) gp.ui.friendsSelection = i;
+    }
+
+    private void clickFriends() {
+        // Neither sub-screen has its own button chrome yet — a tap anywhere just cancels back to
+        // the list, mirroring Esc on desktop. Android has no Esc key, so this is its only way out.
+        if (gp.ui.nfcSessionActive) { gp.ui.cancelNfcAddFriend(); gp.playSE(audio.SFX.MENU_SELECT); return; }
+        if (gp.ui.friendsInputMode) {
+            // Clicking the username box focuses it (so typing resumes); clicking elsewhere on the
+            // panel unfocuses it without leaving the screen — Esc/Enter still cancel/submit.
+            boolean onField = gp.ui.isFriendsInputFieldAt(gameX, gameY);
+            if (onField != gp.ui.friendsInputFieldFocused) gp.playSE(audio.SFX.MENU_SELECT);
+            gp.ui.friendsInputFieldFocused = onField;
+            return;
+        }
+        int i = gp.ui.friendsItemAt(gameX, gameY);
+        if (i < 0) return;
+        gp.ui.friendsSelection = i;
+
+        int requestCount = gp.ui.friendsPendingRequests.size();
+        int friendCount = gp.ui.friendsList.size();
+
+        if (i < requestCount) {
+            // Tapping a pending request accepts it (Delete/decline still keyboard-only, same as
+            // desktop — a tap-to-decline affordance can be added later if needed).
+            String requester = gp.ui.friendsPendingRequests.get(i);
+            data.CloudSaveService.FriendResult result = gp.saveLoad.respondFriendRequest(requester, true);
+            gp.ui.friendsStatusMessage = result.message();
+            gp.ui.refreshFriendsData();
+            gp.playSE(audio.SFX.MENU_SELECT);
+        } else if (i < requestCount + friendCount) {
+            // Tapping a friend row selects it only, same as Enter on desktop.
+        } else {
+            int menuIdx = i - requestCount - friendCount;
+            boolean mobile = gp.ui.isMobilePlatform();
+            gp.playSE(audio.SFX.MENU_SELECT);
+            if (menuIdx == 0) { // ADD FRIEND
+                if (mobile) {
+                    gp.ui.startNfcAddFriend();
+                } else {
+                    gp.ui.friendsInputMode = true;
+                    gp.ui.friendsInputText = "";
+                    gp.ui.friendsStatusMessage = "";
+                }
+            } else if (mobile && menuIdx == 1) { // TAP TO JOIN BOSS FIGHT (mobile only)
+                gp.ui.tapToJoinBossCoop();
+            } else if (menuIdx == (mobile ? 2 : 1)) { // REFRESH
+                gp.ui.refreshFriendsData();
+            } else { // BACK
+                gp.gameState = gp.friendsReturnState;
+            }
+        }
+    }
+
+    // ════════════════════════════════════════════════════════════════════════
+    // LAN CO-OP BOSS SCREEN
+    // Only the PICKER sub-mode has clickable rows (friend list); WAITING/INVITE_POPUP are
+    // keyboard-only modal screens for now, same precedent as the Friends screen's sub-screens.
+    // ════════════════════════════════════════════════════════════════════════
+
+    private void hoverBossCoop() {
+        if (gp.ui.bossCoopScreenMode != ui.UI.BossCoopScreenMode.PICKER) return;
+        int i = gp.ui.bossCoopItemAt(gameX, gameY);
+        if (i >= 0) gp.ui.bossCoopSelection = i;
+    }
+
+    private void clickBossCoop() {
+        if (gp.ui.bossCoopScreenMode == ui.UI.BossCoopScreenMode.PICKER) {
+            int i = gp.ui.bossCoopItemAt(gameX, gameY);
+            if (i < 0 || i >= gp.ui.bossCoopLanFriends.size()) return;
+            gp.ui.bossCoopSelection = i;
+            entity.BOSS_WitheredTree boss = gp.nearbyCoopBoss();
+            if (boss == null) return;
+            String friend = gp.ui.bossCoopLanFriends.get(i);
+            gp.ui.hostInviteFriend(friend, boss);
+            gp.playSE(audio.SFX.MENU_SELECT);
+            return;
+        }
+        // Mobile has no keyboard, so WAITING/INVITE_POPUP need a tap-driven confirm/cancel here —
+        // desktop already covers these via Enter/Esc in KeyHandler.handleBossCoopState.
+        if (!gp.ui.isMobilePlatform()) return;
+        entity.BOSS_WitheredTree boss = gp.nearbyCoopBoss();
+        if (gp.ui.bossCoopScreenMode == ui.UI.BossCoopScreenMode.WAITING) {
+            gp.playSE(audio.SFX.MENU_SELECT);
+            if (gp.bossCoopBtIsHost && boss != null && gp.bossCoopBtSession != null
+                    && gp.bossCoopBtSession.playerCount() > 1) {
+                gp.ui.proceedBossCoop(boss);
+            } else if (gp.bossCoopBtIsHost) {
+                gp.ui.cancelBossCoopHost();
+            } else {
+                gp.ui.leaveBossCoopSession();
+            }
+        }
+    }
+
+    // ════════════════════════════════════════════════════════════════════════
     // WORLD — NPC click-to-interact
     // Click anywhere in playState while an NPC is within its interactRange.
     // No sprite hit-test needed — range proximity is the only requirement.
@@ -534,6 +644,19 @@ public class MouseHandler implements InputProcessor {
     private void clickWorld() {
         // While the wind painter is active, the mouse paints — ignore world interactions.
         if (gp.windPainter != null && gp.windPainter.isActive()) { leftClicked = false; return; }
+
+        // Mobile-only: tapping the boss-coop invite banner opens it, same trigger as desktop's B
+        // key (see KeyHandler.handlePlayState) — mobile has no keyboard to press B on.
+        if (gp.ui.isMobilePlatform() && gp.ui.isBossCoopPromptAt(gameX, gameY)
+                && gp.bossCoopBtSession == null) {
+            entity.BOSS_WitheredTree nearbyBoss = gp.nearbyCoopBoss();
+            if (nearbyBoss != null) {
+                gp.ui.openBossCoopPicker(nearbyBoss);
+                gp.playSE(audio.SFX.MENU_SELECT);
+                leftClicked = false;
+                return;
+            }
+        }
         // Don't steal click if it's meant for combat (handled by Player.update via leftClicked)
         // We only handle NPC interaction here; combat consumes leftClicked separately.
         int playerCX = gp.player.getCenterX();

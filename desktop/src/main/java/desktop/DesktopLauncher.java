@@ -3,7 +3,9 @@ package desktop;
 import com.badlogic.gdx.backends.lwjgl3.Lwjgl3Application;
 import com.badlogic.gdx.backends.lwjgl3.Lwjgl3ApplicationConfiguration;
 
+import desktop.coop.JmdnsLanDiscovery;
 import main.MichiGame;
+import platform.Lan;
 
 /** Desktop entry point (LWJGL3 backend). Runs update check + license bootstrap, then opens the window. */
 public class DesktopLauncher {
@@ -21,6 +23,9 @@ public class DesktopLauncher {
         if (!DesktopBootstrap.bootstrap()) {
             return;
         }
+
+        // LAN co-op boss fights (Phase 2) — mDNS presence/invite discovery, desktop-only.
+        Lan.set(new JmdnsLanDiscovery());
 
         Lwjgl3ApplicationConfiguration config = new Lwjgl3ApplicationConfiguration();
         config.setTitle("Michi's Adventure");

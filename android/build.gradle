@@ -62,6 +62,9 @@ dependencies {
     implementation project(':core')
     implementation "com.badlogicgames.gdx:gdx-backend-android:$gdxVersion"
     implementation "com.badlogicgames.gdx-controllers:gdx-controllers-android:$gdxControllersVersion"
+    // Runtime permission helpers (ActivityCompat/ContextCompat) for Bluetooth boss co-op (Phase 3).
+    // Only a transitive dependency of gdx-backend-android otherwise, not exposed at compile time.
+    implementation "androidx.core:core:1.13.1"
     natives "com.badlogicgames.gdx:gdx-platform:$gdxVersion:natives-arm64-v8a"
     natives "com.badlogicgames.gdx:gdx-freetype-platform:$gdxVersion:natives-arm64-v8a"
 }
