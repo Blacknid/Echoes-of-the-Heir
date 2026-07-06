@@ -45,9 +45,6 @@ dependencies {
     // Same gdx-controllers adapter as core's mobile.GamepadInputAdapter, so desktop gets
     // Xbox/PS controller support for free.
     implementation "com.badlogicgames.gdx-controllers:gdx-controllers-desktop:$gdxControllersVersion"
-    // LAN co-op boss fights (Phase 2): mDNS advertise/browse for the embedded host server.
-    // Desktop-only — mobile's equivalent (Phase 3) pairs over Bluetooth/NFC instead.
-    implementation "org.jmdns:jmdns:3.6.3"
 }
 
 // ── Fat (runnable) JAR. ──
