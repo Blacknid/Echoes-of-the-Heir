@@ -13,7 +13,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.Random;
 
-import audio.SFX;
 import entity.Entity;
 import main.GamePanel;
 
@@ -565,12 +564,8 @@ public class EventHandler {
 
     void damageTrap(DamageTrapData trap) {
         if (gp.player.invincible) return;
-        gp.playSE(SFX.PLAYER_HIT);
         int dmg = Math.max(1, trap.damage - gp.player.defense);
-        gp.player.life -= dmg;
-        gp.player.invincible = true;
-        gp.player.hitFlashCounter = 6;
-        gp.screenShake.shakeMedium();
+        gp.player.onHitByEnemy(dmg, gp.player.worldX, gp.player.worldY, 0);
         if (!trap.repeatable) trap.triggered = true;
         touchConsumed();
     }

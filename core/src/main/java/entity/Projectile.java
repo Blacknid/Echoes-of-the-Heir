@@ -80,13 +80,8 @@ public class Projectile extends Entity implements Poolable {
                 if (damage < 1) {
                     damage = 1;
                 }
-
-                gp.player.life -= damage;
-                gp.player.invincible = true;
-                gp.player.hitFlashCounter = 6;
-                gp.player.bleed();
-                gp.screenShake.shakeLight();
-                gp.playSE(SFX.PLAYER_HIT);
+                int knockbackPower = Math.max(1, (this.attack + 1) / 2);
+                gp.player.onHitByEnemy(damage, worldX, worldY, knockbackPower);
                 if (user.projectile != null) {
                     generateParticle(user.projectile, gp.player);
                 }

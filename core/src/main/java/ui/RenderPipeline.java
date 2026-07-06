@@ -225,6 +225,8 @@ public class RenderPipeline {
             }
         }
 
+        gp.cloudLayer.draw(g2);
+
         // Finish scene capture: blit the world back to screen and add the bloom glow (HIGH only). Must
         // run before the HUD (drawWorldOverlays) so UI text/panels stay crisp and un-bloomed.
         if (bloom) {

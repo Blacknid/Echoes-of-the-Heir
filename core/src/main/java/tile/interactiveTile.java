@@ -31,6 +31,12 @@ public class interactiveTile extends Entity {
         return false;
     }
 
+    // Called whenever the player's attack cone hits this tile, regardless of destructible/invincible.
+    // Non-destructible tiles that react to being struck (e.g. IT_Lever) override this instead of
+    // going through the destroy-on-hit path.
+    public void onAttackHit(Entity player) {
+    }
+
     public void update() {
         if (invincible) {
             invincibleCounter++;

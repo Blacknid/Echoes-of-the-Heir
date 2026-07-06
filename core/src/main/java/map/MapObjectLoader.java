@@ -29,9 +29,12 @@ import object.OBJ_Tent;
 import object.OBJ_Torch;
 import object.OBJ_Tower;
 import tile.IT_Coins;
+import tile.IT_Gate;
 import tile.IT_Grass;
 import tile.IT_GrassPatch;
+import tile.IT_Lever;
 import tile.IT_Pot;
+import tile.IT_Spike;
 import tile.IT_Tree;
 import util.ResourceCache;
 
@@ -50,6 +53,7 @@ import util.ResourceCache;
  *   spawnCol/Row  (int)     default map spawn tile
  *   bgColor       (String)  "#rrggbb" background clear color
  *   dialogueTrigger (String) Message shown to the player once when they spawn on this map
+ *   clouds        (bool)    true enables drifting cloud shadows for this map (default false)
  *
  * ENTITY PROPERTIES (custom Tiled properties on any object):
  *   facing        (String)  up|down|left|right
@@ -413,7 +417,7 @@ public class MapObjectLoader {
                                 continue;
                             }
                             tile.interactiveTile tile =
-                                createInteractiveTile(type, col, row, obj);
+                                createInteractiveTile(type, col, row, obj, worldX, worldY, areaW, areaH);
                             if (tile != null) {
                                 applyCommonProperties(tile, obj);
                                 gp.iTile[iTileIdx++] = tile;
@@ -468,6 +472,7 @@ public class MapObjectLoader {
         // Reset per-map overrides each time a map loads
         gp.eManager.pinnedFilterAlpha = -1f;
         gp.eManager.weatherCycleEnabled = true;
+        gp.cloudLayer.spawningEnabled = false;
         gp.mapManager.defaultSpawnCol = -1;
         gp.mapManager.defaultSpawnRow = -1;
         gp.mapManager.hasNewGameSpawn = false;
@@ -495,6 +500,11 @@ public class MapObjectLoader {
         if (!getBoolProperty(mapEl, "weatherCycle", true)) {
             gp.eManager.weatherCycleEnabled = false;
             System.out.println("MapObjectLoader: weatherCycle=false (cycling disabled)");
+        }
+
+        if (getBoolProperty(mapEl, "clouds", false)) {
+            gp.cloudLayer.spawningEnabled = true;
+            System.out.println("MapObjectLoader: clouds=true");
         }
 
         String ambStr = getStringProperty(mapEl, "ambientLight", null);
@@ -942,12 +952,32 @@ public class MapObjectLoader {
     }
 
     private tile.interactiveTile createInteractiveTile(String type, int col, int row,
-                                                                     Element obj) {
+                                                                     Element obj,
+                                                                     int worldX, int worldY,
+                                                                     int areaW, int areaH) {
         switch (type) {
             case "IT_Pot"   -> { return new IT_Pot(gp, col, row); }
             case "IT_Grass" -> { return new IT_Grass(gp, col, row); }
             case "IT_Tree"  -> { return new IT_Tree(gp, col, row, getStringProperty(obj, "variant", "default")); }
             case "IT_GrassPatch" -> { return new IT_GrassPatch(gp, col, row, getStringProperty(obj, "variant", "default")); }
+            case "IT_Spike" -> {
+                return new IT_Spike(gp, col, row, getStringProperty(obj, "lockId", ""));
+            }
+            case "IT_SpikeTrigger" -> {
+                int tw = areaW > 0 ? areaW : gp.tileSize;
+                int th = areaH > 0 ? areaH : gp.tileSize;
+                return new IT_Spike.SpikeTrigger(gp, worldX, worldY, tw, th,
+                    getStringProperty(obj, "lockId", ""),
+                    getIntProperty(obj, "bossId", 0));
+            }
+            case "IT_Gate" -> {
+                int gw = areaW > 0 ? areaW : gp.tileSize * 2;
+                int gh = areaH > 0 ? areaH : gp.tileSize * 3;
+                return new IT_Gate(gp, worldX, worldY, gw, gh, getStringProperty(obj, "gateId", ""));
+            }
+            case "IT_Lever" -> {
+                return new IT_Lever(gp, col, row, getStringProperty(obj, "targetId", ""));
+            }
             case "IT_Coins" -> {
                 IT_Coins ic = new IT_Coins(gp, col, row);
                 ic.coinValue = getIntProperty(obj, "amount", 1);

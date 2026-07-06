@@ -6,7 +6,6 @@ import gfx.Sprite;
 import gfx.geom.Rect;
 import java.io.IOException;
 
-import audio.SFX;
 import main.GamePanel;
 import util.ResourceCache;
 
@@ -552,25 +551,19 @@ public class Entity {
         gp.cChecker.checkObject(this, false);
         gp.cChecker.checkEntity(this, gp.npc);
         gp.cChecker.checkEntity(this, gp.monster);
+        gp.cChecker.checkEntity(this, gp.iTile);
         boolean contactPlayer = gp.cChecker.checkPlayer(this);
 
         if (type == TYPE_MONSTER && contactPlayer && !gp.player.invincible) {
-            
-            gp.playSE(SFX.PLAYER_HIT);
-
-            int damage = attack - gp.player.defense;
-            if (damage < 1) {
-                damage = 1;
-            }
-
-            gp.player.life -= damage;
-            gp.player.invincible = true;
+            int damage = Math.max(1, attack - gp.player.defense);
+            int knockbackPower = Math.max(1, (attack + 1) / 2);
+            gp.player.onHitByEnemy(damage, worldX, worldY, knockbackPower);
 
             // Grab: root the player if this monster has a rootOnContactDuration
             if (rootOnContactDuration > 0 && !gp.player.rooted) {
                 gp.player.rooted = true;
                 gp.player.rootedTimer = rootOnContactDuration;
-        }
+            }
         }
     }
     public Color getParticleColor() {

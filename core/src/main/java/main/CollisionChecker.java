@@ -529,8 +529,8 @@ public class CollisionChecker {
             for (int row = topRow; row <= bottomRow; row++) {
                 for (int col = leftCol; col <= rightCol; col++) {
                     if (gp.tileM.isTileBlocking(col, row)) {
-                        outContactPoint.x = (int) cone.apexX + (int) (Math.cos(cone.centerAngle) * cone.radius * 0.6);
-                        outContactPoint.y = (int) cone.apexY + (int) (Math.sin(cone.centerAngle) * cone.radius * 0.6);
+                        outContactPoint.x = (int) cone.apexX + (int) (Math.cos(cone.centerAngle) * cone.radius);
+                        outContactPoint.y = (int) cone.apexY + (int) (Math.sin(cone.centerAngle) * cone.radius);
                         return true;
                     }
                 }
@@ -541,8 +541,8 @@ public class CollisionChecker {
         ArrayList<Shape> shapes = gp.tileM.collisionShapes;
         for (int i = 0; i < shapes.size(); i++) {
             if (shapes.get(i).intersects(cb)) {
-                outContactPoint.x = (int) cone.apexX + (int) (Math.cos(cone.centerAngle) * cone.radius * 0.6);
-                outContactPoint.y = (int) cone.apexY + (int) (Math.sin(cone.centerAngle) * cone.radius * 0.6);
+                outContactPoint.x = (int) cone.apexX + (int) (Math.cos(cone.centerAngle) * cone.radius);
+                outContactPoint.y = (int) cone.apexY + (int) (Math.sin(cone.centerAngle) * cone.radius);
                 return true;
             }
         }

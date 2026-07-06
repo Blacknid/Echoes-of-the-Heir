@@ -1273,6 +1273,7 @@ public class BOSS_WitheredTree extends Entity {
         gp.cChecker.checkObject(this, false);
         gp.cChecker.checkEntity(this, gp.npc);
         gp.cChecker.checkEntity(this, gp.monster);
+        gp.cChecker.checkEntity(this, gp.iTile);
         gp.cChecker.checkPlayer(this); // detect collision but skip damage
     }
 

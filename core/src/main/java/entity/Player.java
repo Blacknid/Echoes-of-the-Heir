@@ -98,6 +98,9 @@ public class Player extends Entity {
     // aspect is preserved (uniformly scaled, never stretched independently per axis).
     private Sprite[] sliceFrames; // [0]=peak, [1]=trail
     private static final int SLICE_CELL_W = 32, SLICE_CELL_H = 96;
+    // How far in front of the player (× tileSize) the slash VFX is centered. Bump this up to push
+    // the crescent farther out from the player.
+    private static final float SLICE_VFX_FRONT_DIST_SCALE = 1.1f;
     // Alternates each swing so consecutive attacks mirror each other (default, flipped, default, ...)
     // for a smoother back-and-forth feel. Starts false so the FIRST swing is the default (unflipped)
     // orientation; toggled at swing END so the current swing draws with the value set at its start.
@@ -454,13 +457,31 @@ public class Player extends Entity {
         if (updateDeathAnimation()) return;   // death consumes the frame
         updateHitAnimation();
         freezeForDialogueOrCutscene();
+        if (tickKnockback()) return;          // knockback burst consumes the frame, smooth decay
         tickEnvironmentRecoil();
         updateDashAndEvade();
         tickCooldownsAndTimers();
         handleAbilityInputs();
         tickComboWindow();
+        updateGrassOverlapDepthSort();
         if (updateAttackingOrMovement()) return; // returns true when input is locked mid-frame
         updateCamera();
+    }
+
+    private static final int GRASS_OVERLAP_DEPTH_BOOST = 10_000;
+
+    private void updateGrassOverlapDepthSort() {
+        depthSortYOffset = 0;
+        int px = worldX + solidArea.x, py = worldY + solidArea.y;
+        int pw = solidArea.width, ph = solidArea.height;
+        for (Entity e : gp.iTile) {
+            if (e == null || !(e instanceof tile.IT_GrassPatch)) continue;
+            int gx = e.worldX + e.solidArea.x, gy = e.worldY + e.solidArea.y;
+            if (px < gx + e.solidArea.width && px + pw > gx && py < gy + e.solidArea.height && py + ph > gy) {
+                depthSortYOffset = GRASS_OVERLAP_DEPTH_BOOST;
+                return;
+            }
+        }
     }
 
     /** Advances the death animation and triggers game-over. Returns true while dying (frame consumed). */
@@ -1179,8 +1200,20 @@ public class Player extends Entity {
 
     // Lazily loaded so nothing breaks before the asset exists — ResourceCache.loadImageIfPresent
     // already tolerates a missing file (returns null), same pattern as sliceAnim.png above.
-    private static Sprite slashImpactSprite;
-    private static boolean slashImpactLoadAttempted = false;
+    private static Sprite[] strikeImpactFrames;
+    private static boolean strikeImpactLoadAttempted = false;
+
+    // Fixed visual size/lifetime for the wall-impact stamp — same punch on every hit, no distance
+    // scaling, so it always reads clearly.
+    private static final float IMPACT_SIZE_SCALE = 1.5f;
+    private static final int IMPACT_LIFE_TICKS = 18;
+
+    // The debug cone-visual (drawAttackConeDebug) draws the swing as a fan of 17 ticks spanning the
+    // full ATTACK_CONE_HALF_ANGLE spread. Only a graze near the outer edge of that fan shouldn't be
+    // "enough" to trigger the wall impact/recoil — narrow the check to roughly the middle 3 of those
+    // 17 ticks (so only a near-direct hit on the aim direction counts), by running the environment-hit
+    // test against a slimmer cone. Tune by changing this one fraction.
+    private static final double ENVIRONMENT_HIT_HALF_ANGLE_FRACTION = 3.0 / 16.0;
 
     private void performAttackHitbox() {
         double radius = gp.tileSize * ATTACK_CONE_RADIUS_SCALE;
@@ -1188,26 +1221,25 @@ public class Player extends Entity {
 
         int iTileIndex = gp.cChecker.checkEntityCone(attackCone, gp.iTile);
         damageInteractiveTile(iTileIndex);
+        if (iTileIndex != 999 && gp.iTile[iTileIndex] != null) {
+            gp.iTile[iTileIndex].onAttackHit(this);
+        }
         int monsterIndex = gp.cChecker.checkEntityCone(attackCone, gp.monster);
         damageMonster(monsterIndex, attack);
 
         // Swinging into a solid, non-monster collision (a wall, Tiled collision shape, object, NPC)
-        // bounces the player back and stamps a slash-impact mark at the contact point. Monsters are
-        // excluded — hitting one already knocks THEM back via damageMonster above; this is purely
-        // for "you swung into something solid that didn't take the hit".
+        // bounces the player back and stamps the strike-impact animation at the tip of the attack
+        // cone. Monsters are excluded — hitting one already knocks THEM back via damageMonster above;
+        // this is purely for "you swung into something solid that didn't take the hit". Checked
+        // against a narrower cone than the actual swing (see ENVIRONMENT_HIT_HALF_ANGLE_FRACTION)
+        // so only a hit near the aim direction counts, not a graze at the swing's outer edge.
+        gfx.geom.Cone environmentHitCone = new gfx.geom.Cone(getCenterX(), getCenterY(), radius,
+                attackAngle, ATTACK_CONE_HALF_ANGLE * ENVIRONMENT_HIT_HALF_ANGLE_FRACTION);
         gfx.geom.Rect contact = new gfx.geom.Rect();
-        if (gp.cChecker.checkAttackEnvironmentHit(attackCone, contact)) {
-            double hitDist = Math.hypot(contact.x - getCenterX(), contact.y - getCenterY());
-            double proximityT = 1.0 - Math.max(0.0, Math.min(1.0,
-                    hitDist / (gp.tileSize * ATTACK_CONE_RADIUS_SCALE)));
-            // Bigger impact mark the closer the hit landed — same proximity factor driving the
-            // push/shake below, so a point-blank hit reads as a bigger, punchier stamp.
-            float impactSizeScale = 0.75f + 0.65f * (float) proximityT;
-            spawnSlashImpact(contact.x, contact.y, impactSizeScale);
-            startEnvironmentRecoil(hitDist);
-            // Shake scales with the same proximity as the push itself — a point-blank hit rattles
-            // the screen more than a graze at the edge of the swing.
-            gp.screenShake.shake(2f + 2f * (float) proximityT, 8);
+        if (gp.cChecker.checkAttackEnvironmentHit(environmentHitCone, contact)) {
+            spawnStrikeImpact(contact.x, contact.y);
+            startEnvironmentRecoil();
+            gp.screenShake.shake(3f, 8);
             gp.triggerHitstop(2);
         }
     }
@@ -1220,29 +1252,17 @@ public class Player extends Entity {
     private int recoilTicksLeft = 0;
     private double recoilPxDoneSoFar = 0;
 
-    // Same shape as knockBack()'s monster-facing proximity falloff: full push at contact range,
-    // tapering to a fraction at the attack's max reach, so a hit right at the swing's tip still
-    // recoils a little instead of nothing.
-    private static final double RECOIL_MIN_SCALE = 0.35;
-
     /**
-     * Kick off a short recoil away from the attack direction, scaled by how close the hit landed —
-     * a point-blank hit shoves harder than one caught at the very edge of the swing's reach. Applied
-     * incrementally over several frames (see tickEnvironmentRecoil, called every Player.update())
-     * rather than through knockBackVectorX/Y — those fields are only decayed by
-     * Entity.tickKnockback(), which Player.update() never calls (Player has its own movement
-     * pipeline), so setting them on the player is a no-op elsewhere in the codebase too.
+     * Kick off a short recoil away from the attack direction — same push on every hit, regardless of
+     * how far into the swing's reach it landed. This is a separate, simpler linear-ease push (see
+     * tickEnvironmentRecoil) used only for "swung into a wall" feedback; actual hit knockback (being
+     * struck by a monster/hazard) goes through the shared knockBackVectorX/Y + tickKnockback() burst
+     * instead (see Player.knockBack() / Entity.tickKnockback()).
      */
-    private void startEnvironmentRecoil(double hitDist) {
-        double maxReach = gp.tileSize * ATTACK_CONE_RADIUS_SCALE;
-        double t = Math.max(0.0, Math.min(1.0, hitDist / maxReach));
-        double proximityScale = 1.0 - t * (1.0 - RECOIL_MIN_SCALE);
-
-        recoilTotalPx = gp.tileSize * 0.34 * proximityScale; // noticeably more than the old 0.18 snap
+    private void startEnvironmentRecoil() {
+        recoilTotalPx = gp.tileSize * 0.34;
         recoilAngle = attackAngle + Math.PI; // straight back, away from the swing direction
-        // A harder hit (closer) also lands slightly faster (punchier), a softer graze settles over
-        // a touch longer — small range so it never feels floaty either way.
-        recoilTicksTotal = (int) Math.round(9 + 3 * t);
+        recoilTicksTotal = 10;
         recoilTicksLeft = recoilTicksTotal;
         recoilPxDoneSoFar = 0;
     }
@@ -1275,15 +1295,31 @@ public class Player extends Entity {
         recoilTicksLeft--;
     }
 
-    private void spawnSlashImpact(int worldPx, int worldPy, float sizeScale) {
-        if (!slashImpactLoadAttempted) {
-            slashImpactLoadAttempted = true;
-            slashImpactSprite = util.ResourceCache.loadImageIfPresent("/res/effects/slashImpact.png");
+    private static final int STRIKE_IMPACT_FRAME_COUNT = 3;
+
+    /** Stamps the Strike_impact.png flipbook at a fixed world point (attack cone tip), fixed size. */
+    private void spawnStrikeImpact(int worldPx, int worldPy) {
+        if (!strikeImpactLoadAttempted) {
+            strikeImpactLoadAttempted = true;
+            Sprite sheet = util.ResourceCache.loadImageIfPresent("/res/effects/Strike_impact.png");
+            if (sheet != null) {
+                int frameW = sheet.getWidth() / STRIKE_IMPACT_FRAME_COUNT;
+                strikeImpactFrames = new Sprite[STRIKE_IMPACT_FRAME_COUNT];
+                for (int i = 0; i < STRIKE_IMPACT_FRAME_COUNT; i++) {
+                    strikeImpactFrames[i] = sheet.getSubimage(i * frameW, 0, frameW, sheet.getHeight());
+                }
+            }
         }
-        if (slashImpactSprite == null || gp.particlePool == null) return;
+        if (strikeImpactFrames == null || gp.particlePool == null) return;
         Particle p = gp.particlePool.get();
-        int size = Math.max(1, Math.round(gp.tileSize * sizeScale));
-        p.setAsImpact(slashImpactSprite, worldPx, worldPy, size, 14);
+        int size = Math.max(1, Math.round(gp.tileSize * IMPACT_SIZE_SCALE));
+        p.setAsImpact(null, strikeImpactFrames, worldPx, worldPy, size, IMPACT_LIFE_TICKS);
+        // Tall multi-tile structures (cliffs, trees) share ONE sortY across their whole sprite (their
+        // base row's), which can sit far below the contact point painted mid-face — a plain worldY-
+        // based key isn't enough to guarantee drawing in front of those. Push it forward hard, same
+        // "always draw on top of what's near it" trick the codebase already uses elsewhere via
+        // depthSortYOffset, so the stamp reliably reads as painted ON the surface it hit.
+        p.depthSortYOffset = gp.tileSize * 4;
         gp.particleList.add(p);
     }
 
@@ -1564,43 +1600,28 @@ public class Player extends Entity {
     }
 
     /**
-     * Apply a simplified knockback to a target entity.
-     * The victim is pushed in the direction the player is currently facing,
-     * at a speed equal to `power` pixels per frame, and travels a short
-     * distance proportional to power.
+     * Apply knockback to a target entity: pushed in the direction the player is currently facing,
+     * at a speed equal to `power` pixels per frame, travelling a distance proportional to power.
+     * Same push on every hit regardless of how far into the attack's reach it landed.
      *
      * @param entity victim
      * @param power  strength (larger means farther/longer)
-     * @param srcX   ignored (kept for compatibility)
-     * @param srcY   ignored (kept for compatibility)
+     * @param srcX   unused (kept for call-site compatibility)
+     * @param srcY   unused (kept for call-site compatibility)
      */
-    // Knockback proximity falloff: full power at contact range, tapering to a minimum fraction at
-    // the attack's max reach (so a hit at the very tip of the swing still knocks back a little).
-    private static final double KNOCKBACK_MIN_SCALE = 0.4;
-
     public void knockBack(Entity entity, int power, int srcX, int srcY) {
-        // Closer hits knock back harder — scale power by how close srcX/srcY (the attacker) is to
-        // the target, relative to the attack's max reach. Previously srcX/srcY were accepted but
-        // never used, so every hit knocked back the same amount regardless of distance.
-        double maxReach = gp.tileSize * ATTACK_CONE_RADIUS_SCALE;
-        double dist = Math.hypot(entity.worldX - srcX, entity.worldY - srcY);
-        double t = Math.max(0.0, Math.min(1.0, dist / maxReach));
-        double proximityScale = 1.0 - t * (1.0 - KNOCKBACK_MIN_SCALE);
-        int scaledPower = Math.max(1, (int) Math.round(power * proximityScale));
-
-        // determine vector from player's facing
         int vx = 0, vy = 0;
         switch(direction) {
-            case DIR_UP:    vy = -scaledPower; break;
-            case DIR_DOWN:  vy = scaledPower;  break;
-            case DIR_LEFT:  vx = -scaledPower; break;
-            case DIR_RIGHT: vx = scaledPower;  break;
+            case DIR_UP:    vy = -power; break;
+            case DIR_DOWN:  vy = power;  break;
+            case DIR_LEFT:  vx = -power; break;
+            case DIR_RIGHT: vx = power;  break;
         }
         // assign vector and travel distance (quarter tile per power unit)
         entity.knockBackVectorX = vx;
         entity.knockBackVectorY = vy;
-        entity.knockBackRemaining = scaledPower * (gp.tileSize / 4);
-        entity.knockBackPower = scaledPower; // debug value
+        entity.knockBackRemaining = power * (gp.tileSize / 4);
+        entity.knockBackPower = power; // debug value
         entity.knockBack = true;
     }
 
@@ -1610,7 +1631,6 @@ public class Player extends Entity {
             if (gp.monster[i].dying || !gp.monster[i].alive) {
                 return;
             }
-            gp.playSE(SFX.PLAYER_HIT);
             int damage = gp.monster[i].attack - defense;
             // Last Stand: +3 defense when below 20% HP
             if (lastStandUnlocked && life <= maxLife * 0.2f) {
@@ -1622,37 +1642,10 @@ public class Player extends Entity {
                 mana -= 2;
                 damage = Math.max(1, damage - 2);
             }
-            // Only player bleeds when taking damage (removed generateParticle for monster)
-            bleed(); // Generate blood particles on player
             if (damage < 1) {
                 damage = 1;
             }
-            life -= damage;
-            invincible = true;
-            // Thorns: reflect 2 damage to attacker
-            if (thornsUnlocked && gp.monster[i] != null) {
-                gp.monster[i].life -= 2;
-                gp.monster[i].hitFlashCounter = 4;
-                if (gp.monster[i].life <= 0) {
-                    killMonster(gp.monster[i]);
-                }
-            }
 
-            // HIT FLASH + SHAKE + HITSTOP when player takes damage
-            hitFlashCounter = 6;
-            hitAnimCounter = HIT_TOTAL_FRAMES * hitTicksPerFrame(); // start hit sprite animation
-            hitAnimFrame = 0;
-            hitAnimDirection = direction; // lock current facing for hit animation
-            gp.screenShake.shakeMedium();
-            gp.triggerHitstop(3);
-            // compute knockback direction away from the monster
-            int dx = worldX - gp.monster[i].worldX;
-            int dy = worldY - gp.monster[i].worldY;
-            if (Math.abs(dx) > Math.abs(dy)) {
-                direction = (dx > 0) ? DIR_RIGHT : DIR_LEFT;
-            } else {
-                direction = (dy > 0) ? DIR_DOWN : DIR_UP;
-            }
             // monster hit power is roughly its attack value (smaller)
             int kb = (gp.monster[i].attack + 1) / 2;
             if (kb < 1) kb = 1;
@@ -1660,8 +1653,79 @@ public class Player extends Entity {
             if (lastStandUnlocked && life > 0 && life <= maxLife * 0.2f) {
                 kb = 0;
             }
-            if (kb > 0) knockBack(this, kb, gp.monster[i].worldX, gp.monster[i].worldY);
+
+            onHitByEnemy(damage, gp.monster[i].worldX, gp.monster[i].worldY, kb);
+
+            // Thorns: reflect 2 damage to attacker
+            if (thornsUnlocked) {
+                gp.monster[i].life -= 2;
+                gp.monster[i].hitFlashCounter = 4;
+                if (gp.monster[i].life <= 0) {
+                    killMonster(gp.monster[i]);
+                }
+            }
         }
+    }
+
+    /**
+     * Everything that should happen, in one place, whenever ANY enemy source damages the player:
+     * sound, blood, floating damage number, hit-flash + hit-pose animation, screen shake, hitstop,
+     * and a knockback away from where the hit came from. Called from every player-damage path
+     * (monster contact, generic Entity.checkCollision, projectiles, traps, boss attacks) so tuning
+     * "how a hit feels" only ever needs to change here. Faces the player away from the hit.
+     *
+     * @param damage        already-final damage amount (defense/perks already applied)
+     * @param sourceWorldX  world X the hit came from, used to face/knock the player away from it
+     * @param sourceWorldY  world Y the hit came from
+     * @param knockbackPower 0 to skip knockback entirely (e.g. traps, or Last Stand immunity)
+     */
+    public void onHitByEnemy(int damage, int sourceWorldX, int sourceWorldY, int knockbackPower) {
+        onHitByEnemy(damage, sourceWorldX, sourceWorldY, knockbackPower, true);
+    }
+
+    /** Same as {@link #onHitByEnemy(int, int, int, int)}, with control over whether it turns the
+     *  player to face away from the hit — false keeps whatever direction they were already facing
+     *  (e.g. still walking into a hazard), while the knockback itself still pushes away from the
+     *  source regardless. */
+    public void onHitByEnemy(int damage, int sourceWorldX, int sourceWorldY, int knockbackPower, boolean faceAwayFromHit) {
+        gp.playSE(SFX.PLAYER_HIT);
+        bleed();
+        spawnDamageNumber(this, damage, false);
+        life -= damage;
+        invincible = true;
+
+        hitFlashCounter = 6;
+        hitAnimCounter = HIT_TOTAL_FRAMES * hitTicksPerFrame(); // start hit sprite animation
+        hitAnimFrame = 0;
+        hitAnimDirection = direction; // lock current facing for hit animation
+        gp.screenShake.shakeMedium();
+        gp.triggerHitstop(3);
+
+        if (faceAwayFromHit) {
+            int dx = worldX - sourceWorldX;
+            int dy = worldY - sourceWorldY;
+            if (Math.abs(dx) > Math.abs(dy)) {
+                direction = (dx > 0) ? DIR_RIGHT : DIR_LEFT;
+            } else {
+                direction = (dy > 0) ? DIR_DOWN : DIR_UP;
+            }
+        }
+        // Knockback always pushes straight away from the source point, independent of facing.
+        if (knockbackPower > 0) knockBackAwayFrom(sourceWorldX, sourceWorldY, knockbackPower);
+    }
+
+    /** Pushes the player directly away from (srcX, srcY), at any angle — unlike knockBack(), which
+     *  only pushes along the player's current cardinal facing. */
+    private void knockBackAwayFrom(int srcX, int srcY, int power) {
+        double dx = worldX - srcX;
+        double dy = worldY - srcY;
+        double dist = Math.hypot(dx, dy);
+        if (dist < 0.01) { dx = 1; dy = 0; dist = 1; } // degenerate case: same point, pick a direction
+        knockBackVectorX = (int) Math.round(dx / dist * power);
+        knockBackVectorY = (int) Math.round(dy / dist * power);
+        knockBackRemaining = power * (gp.tileSize / 4);
+        knockBackPower = power;
+        knockBack = true;
     }
 
     /**
@@ -2183,7 +2247,7 @@ public class Player extends Entity {
         float pcy = tempScreenY + solidArea.y + solidArea.height / 2f;
         // Place the crescent's own center a fixed distance in FRONT of the player along attackAngle,
         // so it sits directly ahead rather than off to one side.
-        float frontDist = gp.tileSize * 0.6f;
+        float frontDist = gp.tileSize * 1f;
         float centerX = pcx + (float) Math.cos(attackAngle) * frontDist;
         float centerY = pcy + (float) Math.sin(attackAngle) * frontDist;
         // Pivot at the sprite's geometric center so rotation spins in place about that front point.

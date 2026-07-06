@@ -3,7 +3,6 @@ package entity;
 import gfx.Color;
 import gfx.GdxRenderer;
 import gfx.Sprite;
-
 import main.GamePanel;
 import util.ObjectPool.Poolable;
 
@@ -32,11 +31,13 @@ public class Particle extends Entity implements Poolable {
     // STYLE_BOB it uses whatever Sprite the generator supplies via getParticleImage() — no fixed
     // asset set — so any destructible tile can reuse this just by returning its own sprite.
     public static final int STYLE_IMAGE_DEBRIS = 7;
-    // Static one-shot stamp at a fixed world point (e.g. slashImpact.png where a swing hit a wall/
-    // object) — no movement, no tumble, just fades out in place.
+    // Static one-shot stamp at a fixed world point (e.g. Strike_impact.png where a swing hit a wall/
+    // object) — no movement, no tumble. Plays through `frames` (if set) as a simple flipbook over its
+    // lifetime, else just shows `image` and fades.
     public static final int STYLE_IMPACT = 8;
 
     public Sprite image;
+    public Sprite[] frames; // STYLE_IMPACT: optional flipbook, played once over the particle's life
     public float rotationDeg; // STYLE_IMAGE_DEBRIS: current tumble rotation
 
     private static Sprite[] BOB_IMAGES = null;
@@ -202,10 +203,27 @@ public class Particle extends Entity implements Poolable {
                 }
                 break;
             case STYLE_IMPACT:
-                if (image != null) {
+                Sprite frame = image;
+                float age = 1f - (float) life / initialLife; // 0 -> 1 as it ages
+                if (frames != null && frames.length > 0) {
+                    int idx = Math.min(frames.length - 1, (int) (age * frames.length));
+                    frame = frames[idx];
+                }
+                if (frame != null) {
+                    // Punchy pop-in: scales up from 60% to 100% over the first fifth of its life,
+                    // then holds at full size — reads as an impact rather than a static stamp.
+                    float growT = Math.min(1f, age / 0.2f);
+                    float scale = 0.6f + 0.4f * growT;
+                    int drawSize = Math.max(1, Math.round(size * scale));
+                    int cx = screenX + (size - drawSize) / 2;
+                    int cy = screenY + (size - drawSize) / 2;
+
+                    // Quick fade only on the last stretch of life, so the animation reads at full
+                    // strength and just tapers out at the very end instead of fading the whole time.
                     float progress = (float) life / initialLife; // 1 -> 0 as it ages
-                    changeAlpha(g2, Math.max(0f, progress));
-                    g2.drawImage(image, screenX, screenY, size, size);
+                    float fadeAlpha = Math.min(1f, progress / 0.25f);
+                    changeAlpha(g2, Math.max(0f, fadeAlpha));
+                    g2.drawImage(frame, cx, cy, drawSize, drawSize);
                 }
                 break;
             default:
@@ -280,8 +298,17 @@ public class Particle extends Entity implements Poolable {
 
     /** Static one-shot image stamp at a fixed world point (centered), fading out over lifeTicks. */
     public void setAsImpact(Sprite sprite, int centerX, int centerY, int size, int lifeTicks) {
+        setAsImpact(sprite, null, centerX, centerY, size, lifeTicks);
+    }
+
+    /**
+     * Static one-shot stamp at a fixed world point (centered). If {@code frames} is non-null, plays
+     * through them once as a flipbook over {@code lifeTicks}; otherwise just shows {@code sprite}.
+     */
+    public void setAsImpact(Sprite sprite, Sprite[] frames, int centerX, int centerY, int size, int lifeTicks) {
         this.generator = null;
         this.image = sprite;
+        this.frames = frames;
         this.color = null;
         this.size = size;
         this.style = STYLE_IMPACT;
@@ -294,6 +321,16 @@ public class Particle extends Entity implements Poolable {
         this.worldY = (int) this.fy;
         this.velocityX = 0f;
         this.velocityY = 0f;
+        // renderSorter/tile-interleave both key off "bottom edge" (tiles use worldY + tileSize; see
+        // TileManager's sortY). worldY here is the sprite's TOP-LEFT corner (centerY - size/2), so
+        // solidArea.height = size makes the sort key resolve to the stamp's BOTTOM edge
+        // (centerY + size/2) — at least as deep as the wall tile it's stamped on, so it draws in
+        // front of that tile instead of being hidden behind it (the class-default 48px box put the
+        // key well above the tile's own bottom-edge key, which is why it drew underneath).
+        this.solidArea.x = 0;
+        this.solidArea.y = 0;
+        this.solidArea.width = size;
+        this.solidArea.height = size;
     }
 
     @Override
@@ -314,7 +351,14 @@ public class Particle extends Entity implements Poolable {
         worldX = 0;
         worldY = 0;
         image = null;
+        frames = null;
         rotationDeg = 0;
+        // setAsImpact() customizes solidArea for correct Y-sorting; restore the class default so a
+        // pooled reuse for any other style (which never touches solidArea) isn't left with it.
+        solidArea.x = 0;
+        solidArea.y = 0;
+        solidArea.width = 48;
+        solidArea.height = 48;
     }
 
 }
