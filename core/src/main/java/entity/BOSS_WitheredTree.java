@@ -168,23 +168,6 @@ public class BOSS_WitheredTree extends Entity {
     private static final Color THORN_COLOR  = new Color(180, 220, 60, 200);
     private static final Color HP_DAMAGE_FLASH = new Color(255, 255, 255, 120);
 
-    /**
-     * LAN co-op boss fights only (see {@link coop.BossCoopHostServer}) — number of players in the
-     * active session, 1 for a normal solo fight. Set once, before the intro plays, by whatever
-     * code starts the co-op session on the host's machine; scales HP/attack/defense per the
-     * design's "linear HP + flat damage bonus" formula (see {@link #applyCoopScaling()}).
-     */
-    public int coopPlayerCount = 1;
-    /** Non-null only on the desktop HOST's machine while a LAN co-op session is active; used to
-     *  notify joiners the instant this boss actually dies (see {@link #dyingAnimation}). */
-    public coop.BossCoopHostServer coopHostServer = null;
-    /** True only on the mobile HOST's device while a Bluetooth co-op session is active — the
-     *  actual host server lives behind {@link platform.Bt} (implemented in the android module,
-     *  which this core class can't reference directly), so death notification goes through that
-     *  registry instead of a direct field reference like {@link #coopHostServer} above. */
-    public boolean coopBtIsHost = false;
-    public int coopBtBossId = 0;
-
     public BOSS_WitheredTree(GamePanel gp) {
         super(gp);
 
@@ -268,48 +251,9 @@ public class BOSS_WitheredTree extends Entity {
         attackFrames = phaseAttackFrames[phase];
         speed        = PHASE_SPEED[phase];
         defaultSpeed = PHASE_SPEED[phase];
-        defense      = scaledDefense(PHASE_DEFENSE[phase]);
-        attack       = scaledAttack(PHASE_ATTACK[phase]);
+        defense      = PHASE_DEFENSE[phase];
+        attack       = PHASE_ATTACK[phase];
     }
-
-    /**
-     * Called once by the co-op session starter (host side only) right after construction, before
-     * the intro plays. Re-applies scaling to whatever phase is currently active — safe to call
-     * exactly once per fight; calling it again would compound the multiplier, which nothing in
-     * this codebase does today, but is worth knowing if this is ever wired up differently later.
-     */
-    public void setCoopPlayerCount(int playerCount) {
-        coopPlayerCount = Math.max(1, playerCount);
-        int baseMaxLife = 180; // matches the solo value set in the constructor
-        maxLife = Math.round(baseMaxLife * hpScaleMultiplier());
-        life = maxLife;
-        applyPhase(currentPhase);
-    }
-
-    // HP scales roughly linearly with player count (avoids a pure Nx multiplier, which would
-    // either trivialize DPS races at 2p or turn a 4p fight into a flat damage-sponge slog).
-    private float hpScaleMultiplier() {
-        return 0.7f + 0.3f * coopPlayerCount;
-    }
-
-    // Flat +15% attack / +10% defense per player beyond the first, per the agreed co-op design.
-    private int scaledAttack(int baseAttack) {
-        if (coopPlayerCount <= 1) return baseAttack;
-        return Math.round(baseAttack * (1f + 0.15f * (coopPlayerCount - 1)));
-    }
-
-    private int scaledDefense(int baseDefense) {
-        if (coopPlayerCount <= 1) return baseDefense;
-        return Math.round(baseDefense * (1f + 0.10f * (coopPlayerCount - 1)));
-    }
-
-    /** +1 extra attack pattern unlocked per player beyond the first (co-op only). Callers that
-     *  gate an attack choice on player count (e.g. an extra ranged pattern at 3+ players) should
-     *  check this rather than hardcoding coopPlayerCount comparisons inline. */
-    public int extraAttackPatternsUnlocked() {
-        return Math.max(0, coopPlayerCount - 1);
-    }
-
 
     private void checkPhaseTransition() {
         float hpPct = (float) life / maxLife;
@@ -1526,23 +1470,13 @@ public class BOSS_WitheredTree extends Entity {
         boolean wasAlive = alive;
         super.dyingAnimation(g2);
         if (wasAlive && !alive) {
-            // Boss defeated — advance quest and story flags before map transition. This always
-            // runs on the HOST's own machine (or the only machine, in a solo fight) exactly as
-            // before; joiners never run this method at all — they get the same rewards via
-            // coop.RewardingHelpers once the host's session broadcasts BOSS_DEFEATED below.
+            // Boss defeated — advance quest and story flags before map transition.
             gp.boss1Defeated = true;
             gp.storyAct = Math.max(gp.storyAct, 1);
             if (gp.questManager != null) gp.questManager.progress("defeat_hollow_king", 1);
             // Transition to Shattered Lake at the Coming_from_boss1 spawn point
             gp.mapManager.nextSpawnId = "Coming_from_boss1";
             gp.mapManager.startTransition("shattered_lake", -1, -1);
-
-            if (coopHostServer != null) {
-                coopHostServer.notifyBossDefeated(exp);
-            }
-            if (coopBtIsHost) {
-                platform.Bt.notifyBossDefeated(coopBtBossId, exp);
-            }
         }
     }
 

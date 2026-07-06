@@ -472,85 +472,6 @@ public class CloudSaveService {
         }
     }
 
-    /** Send a friend request to {@code targetUsername}. See server statuses in FriendResult. */
-    public FriendResult sendFriendRequest(String licenseKey, String targetUsername) {
-        try (Session sess = openSession(licenseKey)) {
-            if (sess == null) return FriendResult.fail("No server reachable.");
-            sess.sendJson("{\"cmd\":\"SEND_FRIEND_REQUEST\",\"username\":\"" + jsonEscape(targetUsername) + "\"}");
-            String response = sess.recvJson();
-            String status = extractJsonString(response, "status");
-            return switch (status == null ? "" : status) {
-                case "SENT" -> FriendResult.ok("Friend request sent.");
-                case "ALREADY_FRIENDS" -> FriendResult.fail("You are already friends with " + targetUsername + ".");
-                case "ALREADY_PENDING" -> FriendResult.fail("A friend request with " + targetUsername + " is already pending.");
-                case "NOT_FOUND" -> FriendResult.fail("No player named \"" + targetUsername + "\" was found.");
-                case "SELF" -> FriendResult.fail("You can't friend yourself.");
-                case "INVALID" -> FriendResult.fail("Invalid username.");
-                default -> FriendResult.fail("Unexpected server response.");
-            };
-        } catch (Exception e) {
-            return FriendResult.fail("Friend request failed: " + e.getMessage());
-        }
-    }
-
-    /** Incoming, still-pending friend requests (usernames of requesters). */
-    public List<String> listFriendRequests(String licenseKey) {
-        try (Session sess = openSession(licenseKey)) {
-            if (sess == null) return List.of();
-            sess.sendJson("{\"cmd\":\"LIST_FRIEND_REQUESTS\"}");
-            String response = sess.recvJson();
-            return extractJsonStringArray(response, "requests");
-        } catch (Exception e) {
-            return List.of();
-        }
-    }
-
-    /** Accept or decline a pending incoming request from {@code requesterUsername}. */
-    public FriendResult respondFriendRequest(String licenseKey, String requesterUsername, boolean accept) {
-        try (Session sess = openSession(licenseKey)) {
-            if (sess == null) return FriendResult.fail("No server reachable.");
-            sess.sendJson("{\"cmd\":\"RESPOND_FRIEND_REQUEST\",\"username\":\""
-                    + jsonEscape(requesterUsername) + "\",\"accept\":" + accept + "}");
-            String response = sess.recvJson();
-            String status = extractJsonString(response, "status");
-            return switch (status == null ? "" : status) {
-                case "ACCEPTED" -> FriendResult.ok("You are now friends with " + requesterUsername + ".");
-                case "DECLINED" -> FriendResult.ok("Request declined.");
-                case "NOT_FOUND" -> FriendResult.fail("That request no longer exists.");
-                default -> FriendResult.fail("Unexpected server response.");
-            };
-        } catch (Exception e) {
-            return FriendResult.fail("Failed to respond to request: " + e.getMessage());
-        }
-    }
-
-    /** Current friends list (usernames), or empty if unreachable. */
-    public List<String> listFriends(String licenseKey) {
-        try (Session sess = openSession(licenseKey)) {
-            if (sess == null) return List.of();
-            sess.sendJson("{\"cmd\":\"LIST_FRIENDS\"}");
-            String response = sess.recvJson();
-            return extractJsonStringArray(response, "friends");
-        } catch (Exception e) {
-            return List.of();
-        }
-    }
-
-    /** Remove an existing friend. */
-    public FriendResult removeFriend(String licenseKey, String friendUsername) {
-        try (Session sess = openSession(licenseKey)) {
-            if (sess == null) return FriendResult.fail("No server reachable.");
-            sess.sendJson("{\"cmd\":\"REMOVE_FRIEND\",\"username\":\"" + jsonEscape(friendUsername) + "\"}");
-            String response = sess.recvJson();
-            String status = extractJsonString(response, "status");
-            return "REMOVED".equals(status)
-                    ? FriendResult.ok(friendUsername + " removed from friends.")
-                    : FriendResult.fail("That friend no longer exists.");
-        } catch (Exception e) {
-            return FriendResult.fail("Failed to remove friend: " + e.getMessage());
-        }
-    }
-
     /**
      * Local-cache key = HKDF-SHA256(license_or_anon, salt=machine_fingerprint,
      *                               info="michi-local-v2", length=32).
@@ -820,64 +741,6 @@ public class CloudSaveService {
         return null;
     }
 
-    /** Reads a {@code "key":["a","b",...]} string array. Empty list if the key is absent/empty. */
-    private static List<String> extractJsonStringArray(String json, String key) {
-        List<String> out = new ArrayList<>();
-        String search = "\"" + key + "\":[";
-        int i = json.indexOf(search);
-        if (i < 0) return out;
-        int p = i + search.length();
-        while (p < json.length()) {
-            char c = json.charAt(p);
-            if (c == ']') break;
-            if (c == '"') {
-                StringBuilder sb = new StringBuilder();
-                boolean escape = false;
-                p++;
-                for (; p < json.length(); p++) {
-                    char sc = json.charAt(p);
-                    if (escape) {
-                        switch (sc) {
-                            case 'n' -> sb.append('\n');
-                            case 'r' -> sb.append('\r');
-                            case 't' -> sb.append('\t');
-                            case '"' -> sb.append('"');
-                            case '\\' -> sb.append('\\');
-                            default -> sb.append(sc);
-                        }
-                        escape = false;
-                    } else if (sc == '\\') {
-                        escape = true;
-                    } else if (sc == '"') {
-                        break;
-                    } else {
-                        sb.append(sc);
-                    }
-                }
-                out.add(sb.toString());
-            }
-            p++;
-        }
-        return out;
-    }
-
-    private static String jsonEscape(String s) {
-        if (s == null) return "";
-        StringBuilder b = new StringBuilder(s.length() + 4);
-        for (int i = 0; i < s.length(); i++) {
-            char c = s.charAt(i);
-            switch (c) {
-                case '\\' -> b.append("\\\\");
-                case '"'  -> b.append("\\\"");
-                case '\n' -> b.append("\\n");
-                case '\r' -> b.append("\\r");
-                case '\t' -> b.append("\\t");
-                default   -> { if (c < 0x20) b.append(String.format("\\u%04x", (int) c)); else b.append(c); }
-            }
-        }
-        return b.toString();
-    }
-
     byte[] serializeToJsonBytes(Object value) throws ReflectiveOperationException {
         String json = trySerializeWithGson(value);
         if (json == null) json = trySerializeWithJackson(value);
@@ -992,10 +855,5 @@ public class CloudSaveService {
     public record DownloadResult(boolean ok, String json, String message) {
         public static DownloadResult ok(String json) { return new DownloadResult(true, json, "Downloaded."); }
         public static DownloadResult fail(String msg) { return new DownloadResult(false, null, msg); }
-    }
-
-    public record FriendResult(boolean ok, String message) {
-        public static FriendResult ok(String msg) { return new FriendResult(true, msg); }
-        public static FriendResult fail(String msg) { return new FriendResult(false, msg); }
     }
 }

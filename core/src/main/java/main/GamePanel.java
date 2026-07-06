@@ -283,36 +283,6 @@ public class GamePanel {
     public static final int skillTreeState = 10;
     public static final int multiplayerPlayState = 11;
     public static final int journalState = 12;
-    public static final int friendsState = 13;
-    public static final int bossCoopState = 14;
-
-    /** gameState to return to when the Friends screen (accessible from title or pause) is closed. */
-    public int friendsReturnState = titleState;
-
-    /** Desktop LAN co-op boss session (see coop.*), set while this machine is hosting or has joined one. */
-    public coop.BossCoopHostServer bossCoopHost;
-    public coop.BossCoopClient bossCoopClient;
-
-    /** Mobile Bluetooth co-op boss session (see platform.Bt / androidlauncher.coop.BleBossCoop).
-     *  Same coop.BossCoopSession shape as the desktop fields above — only the transport differs —
-     *  but tracked separately since desktop and mobile never run the same transport at once. */
-    public coop.BossCoopSession bossCoopBtSession;
-    public boolean bossCoopBtIsHost;
-
-    /** Nearby live boss this player could invite friends to fight, or null. Checked from playState
-     *  each frame the "invite friends" prompt/key needs to know whether it's currently offered. */
-    public entity.BOSS_WitheredTree nearbyCoopBoss() {
-        if (player == null) return null;
-        for (Entity m : monster) {
-            if (m instanceof entity.BOSS_WitheredTree boss && boss.alive && !boss.dying) {
-                int dx = boss.getCenterX() - player.getCenterX();
-                int dy = boss.getCenterY() - player.getCenterY();
-                int range = boss.aggroRange;
-                if ((long) dx * dx + (long) dy * dy <= (long) range * range) return boss;
-            }
-        }
-        return null;
-    }
 
     public boolean teleportation = false;
     public boolean bootsUnlocked = false;
@@ -820,57 +790,6 @@ public class GamePanel {
                     }
                 }
             }
-
-            pollBossCoopInvites();
-    }
-
-    private static final int BOSS_COOP_INVITE_POLL_INTERVAL = 120; // ~2s at 60 UPS
-    private static final int BOSS_COOP_FRIEND_LIST_REFRESH_INTERVAL = 1800; // ~30s at 60 UPS
-    private int bossCoopInvitePollCounter = 0;
-    private int bossCoopFriendListRefreshCounter = Integer.MAX_VALUE; // force an immediate first fetch
-    private volatile java.util.List<String> bossCoopCachedFriends = java.util.List.of();
-    private volatile boolean bossCoopFriendFetchInFlight = false;
-
-    /** Surfaces an incoming boss-co-op invite (mDNS, see platform.Lan) the moment a friend sends
-     *  one — polled rather than pushed since {@link platform.LanDiscovery} has no callback API.
-     *  mDNS lookups (pollInvite) are local/instant; the friends LIST itself is a save-server round
-     *  trip, so that part is cached and refreshed on a background thread, never the update loop. */
-    private String bossCoopPresenceUsername; // username currently being broadcast via platform.Lan
-
-    private void pollBossCoopInvites() {
-        if (ui.isMobilePlatform()) return; // mobile discovers sessions via NFC tap, not mDNS polling
-        if (bossCoopHost != null || bossCoopClient != null) return; // already hosting/joined
-        if (gameState == bossCoopState) return; // already showing a boss-coop screen
-        if (ui.playerUsername == null || ui.playerUsername.isEmpty()) return;
-
-        // (Re)start presence broadcast whenever the chosen username changes (including the very
-        // first time one is set) — self-healing rather than hooked to one specific UI event, since
-        // the username field can be edited from more than one place.
-        if (!ui.playerUsername.equals(bossCoopPresenceUsername)) {
-            bossCoopPresenceUsername = ui.playerUsername;
-            platform.Lan.startPresence(bossCoopPresenceUsername);
-        }
-
-        if (++bossCoopFriendListRefreshCounter >= BOSS_COOP_FRIEND_LIST_REFRESH_INTERVAL
-                && !bossCoopFriendFetchInFlight) {
-            bossCoopFriendListRefreshCounter = 0;
-            bossCoopFriendFetchInFlight = true;
-            new Thread(() -> {
-                try { bossCoopCachedFriends = saveLoad.listFriends(); }
-                finally { bossCoopFriendFetchInFlight = false; }
-            }, "BossCoop-FriendListRefresh").start();
-        }
-
-        if (++bossCoopInvitePollCounter < BOSS_COOP_INVITE_POLL_INTERVAL) return;
-        bossCoopInvitePollCounter = 0;
-
-        for (String friendUsername : bossCoopCachedFriends) {
-            platform.LanDiscovery.SessionInvite invite = platform.Lan.pollInvite(friendUsername, ui.playerUsername);
-            if (invite != null) {
-                ui.showBossCoopInvite(friendUsername, invite);
-                return;
-            }
-        }
     }
 
     /**
