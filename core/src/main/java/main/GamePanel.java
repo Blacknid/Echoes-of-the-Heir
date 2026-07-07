@@ -134,6 +134,8 @@ public class GamePanel {
     public environment.WindField windField = new environment.WindField(this);
     public environment.WindPainter windPainter = new environment.WindPainter(this);
     public environment.CloudLayer cloudLayer = new environment.CloudLayer(this);
+    public environment.DustFogLayer dustFogLayer = new environment.DustFogLayer(this);
+    public environment.TensionBeats tensionBeats = new environment.TensionBeats(this);
     public MapShaderManager mapShader;
     public environment.TileParticleEmitter tileParticleEmitter;
     public ScreenShake screenShake = new ScreenShake();
@@ -638,6 +640,7 @@ public class GamePanel {
                 if (tileParticleEmitter != null) tileParticleEmitter.update();
                 if (mapShader != null) mapShader.update();
                 cloudLayer.update();
+                dustFogLayer.update();
                 screenShake.update();
                 for (int i = damageNumbers.size() - 1; i >= 0; i--) {
                     entity.DamageNumber dn = damageNumbers.get(i);
@@ -720,6 +723,8 @@ public class GamePanel {
             windField.update();
             windPainter.update();
             cloudLayer.update();
+            dustFogLayer.update();
+            tensionBeats.update();
             mobSpawner.update();
             eHandler.updateSpawnZones();
             tileM.update();

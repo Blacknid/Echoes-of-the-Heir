@@ -87,6 +87,7 @@ public class MonsterFactory {
         m.exp = intVal(def, "exp", 3);
         m.defaultSpeed = intVal(def, "speed", 1);
         m.speed = m.defaultSpeed;
+        m.animSpeedMultiplier = floatVal(def, "animSpeedMultiplier", 1f);
         m.walkFrameCount = intVal(def, "walkFrameCount", 6);
         m.aggroRange = intVal(def, "aggroRange", 6) * gp.tileSize;
         m.fleeDuration = intVal(def, "fleeDuration", 60);

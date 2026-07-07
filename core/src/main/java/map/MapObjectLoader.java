@@ -473,6 +473,8 @@ public class MapObjectLoader {
         gp.eManager.pinnedFilterAlpha = -1f;
         gp.eManager.weatherCycleEnabled = true;
         gp.cloudLayer.spawningEnabled = false;
+        gp.dustFogLayer.spawningEnabled = false;
+        gp.tensionBeats.enabled = false;
         gp.mapManager.defaultSpawnCol = -1;
         gp.mapManager.defaultSpawnRow = -1;
         gp.mapManager.hasNewGameSpawn = false;
@@ -505,6 +507,16 @@ public class MapObjectLoader {
         if (getBoolProperty(mapEl, "clouds", false)) {
             gp.cloudLayer.spawningEnabled = true;
             System.out.println("MapObjectLoader: clouds=true");
+        }
+
+        if (getBoolProperty(mapEl, "fog", false)) {
+            gp.dustFogLayer.spawningEnabled = true;
+            System.out.println("MapObjectLoader: fog=true");
+        }
+
+        if (getBoolProperty(mapEl, "tensionBeats", false)) {
+            gp.tensionBeats.enabled = true;
+            System.out.println("MapObjectLoader: tensionBeats=true");
         }
 
         String ambStr = getStringProperty(mapEl, "ambientLight", null);
@@ -960,6 +972,9 @@ public class MapObjectLoader {
             case "IT_Grass" -> { return new IT_Grass(gp, col, row); }
             case "IT_Tree"  -> { return new IT_Tree(gp, col, row, getStringProperty(obj, "variant", "default")); }
             case "IT_GrassPatch" -> { return new IT_GrassPatch(gp, col, row, getStringProperty(obj, "variant", "default")); }
+            case "Breakable" -> {
+                return tile.Breakable.atPixel(gp, worldX, worldY, getStringProperty(obj, "kind", "crate_dark"));
+            }
             case "IT_Spike" -> {
                 return new IT_Spike(gp, col, row, getStringProperty(obj, "lockId", ""));
             }

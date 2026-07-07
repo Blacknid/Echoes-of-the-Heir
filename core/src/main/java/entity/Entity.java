@@ -22,6 +22,12 @@ public class Entity {
     private int pathStallCounter = 0;  // frames without reaching the next waypoint
     private static final int PATH_STALL_LIMIT = 10; // force repath after this many stalled frames
 
+    // Consecutive frames spent completely unable to move toward the goal (A* found no route AND
+    // directChase is blocked on both axes) — once this crosses the limit, the chaser gives up and
+    // drops back to idle/wander instead of pushing against a wall forever.
+    private int unreachableCounter = 0;
+    private static final int UNREACHABLE_GIVE_UP_LIMIT = 90; // ~1.5s at 60 ticks/sec
+
     public static final int DIR_DOWN  = 0;
     public static final int DIR_LEFT  = 1;
     public static final int DIR_RIGHT = 2;
@@ -222,6 +228,10 @@ public class Entity {
     public String name;
     public int defaultSpeed = 1;
     public int speed;
+    // Multiplies the walk-cycle frame rate independently of movement speed — normally 1 (animation
+    // cadence tracks movement speed like every other entity); raise it for a slow-moving entity
+    // whose walk animation should still read at a normal pace (e.g. Inkblot).
+    public float animSpeedMultiplier = 1f;
     public int maxLife; //maximul teoretic de viata
     public int life; //viata curenta
     public int maxMana; //maximul teoretic de mana
@@ -632,7 +642,20 @@ public class Entity {
         }
 
         // handling knockback first — check collision before moving to prevent wall phasing
-        if (tickKnockback()) return;
+        if (tickKnockback()) {
+            // i-frames must still count down during knockback, otherwise a fresh hit re-arming
+            // knockback every swing (see Player.damageMonster) freezes invincible permanently and
+            // the target can never be damaged again after the first hit.
+            if (invincible) {
+                invincibleCounter++;
+                if (invincibleCounter > invincibleDuration) {
+                    invincible = false;
+                    invincibleCounter = 0;
+                }
+            }
+            if (hitFlashCounter > 0) hitFlashCounter--;
+            return;
+        }
 
         if (slowedTimer > 0 && --slowedTimer == 0) slowed = false;
         if (rootedTimer > 0 && --rootedTimer == 0) rooted = false;
@@ -788,7 +811,8 @@ public class Entity {
             return;
         }
         if (walkAnim == null || walkAnim.length != walkFrames.length) walkAnim = new gfx.SpriteAnimation[walkFrames.length];
-        float dur = gfx.SpriteAnimation.durationForTicks(Math.max(2, 48 / Math.max(1, speed)));
+        int ticksPerFrame = Math.max(2, (int) (48 / Math.max(1, speed) / Math.max(0.01f, animSpeedMultiplier)));
+        float dur = gfx.SpriteAnimation.durationForTicks(ticksPerFrame);
         walkAnim[dir] = animFor(frames, walkAnim[dir], dur);
         walkStateTime += DT;
         if (walkAnim[dir] != null) spriteNum = walkAnim[dir].getFrameIndex(walkStateTime) + 1;
@@ -797,7 +821,7 @@ public class Entity {
     /** Old counter/bounce for legacy named-field entities (walkFrames == null). */
     private void advanceLegacyWalkCounter() {
         spriteCounter++;
-        int walkInterval = Math.max(2, 48 / Math.max(1, speed));
+        int walkInterval = Math.max(2, (int) (48 / Math.max(1, speed) / Math.max(0.01f, animSpeedMultiplier)));
         if (spriteCounter > walkInterval) {
             int maxWalkFrames = Math.max(1, Math.min(walkFrameCount, 8));
             if (maxWalkFrames == 1) {
@@ -1367,8 +1391,32 @@ public class Entity {
                 onPath = false;
             }
         } else {
+            // A* found no route at all (goal fully walled off) — counts toward giving up exactly
+            // like a blocked directChase does, so a target that's unreachable via any route
+            // doesn't get chased forever.
+            unreachableCounter++;
+            if (giveUpIfUnreachable()) return;
             directChase(goalCol, goalRow);
         }
+    }
+
+    /**
+     * Once {@link #unreachableCounter} (bumped by a blocked {@link #directChase} or a failed A*
+     * search) crosses {@link #UNREACHABLE_GIVE_UP_LIMIT}, drops the chase back to idle/wander
+     * (clears onPath/everAggroed/path cache) instead of pushing against an obstacle forever.
+     * Returns true if the chase was just given up.
+     */
+    protected boolean giveUpIfUnreachable() {
+        if (unreachableCounter < UNREACHABLE_GIVE_UP_LIMIT) return false;
+
+        unreachableCounter = 0;
+        onPath = false;
+        everAggroed = false;
+        waypointCount = 0;
+        waypointIdx = 0;
+        pathCacheGoalCol = -1;
+        pathCacheGoalRow = -1;
+        return true;
     }
 
     private void followWaypoints() {
@@ -1453,8 +1501,12 @@ public class Entity {
 
 
 
-    // Direct chase fallback: move toward the goal tile without A*
-    protected void directChase(int goalCol, int goalRow) {
+    /**
+     * Direct chase fallback: move toward the goal tile without A*. Returns true if either axis
+     * actually moved this frame — false means both the primary and fallback axis were blocked,
+     * i.e. the entity is completely stuck trying to reach the goal this tick.
+     */
+    protected boolean directChase(int goalCol, int goalRow) {
         int goalWorldX = goalCol * gp.tileSize;
         int goalWorldY = goalRow * gp.tileSize;
         int dx = goalWorldX - worldX;
@@ -1466,20 +1518,27 @@ public class Entity {
             if (dy < 0) { direction = DIR_UP; checkCollision(); if (!collisionOn) { worldY -= speed; moved = true; } }
             else if (dy > 0) { direction = DIR_DOWN; checkCollision(); if (!collisionOn) { worldY += speed; moved = true; } }
             if (!moved) {
-                if (dx < 0) { direction = DIR_LEFT; checkCollision(); if (!collisionOn) { worldX -= speed; } }
-                else if (dx > 0) { direction = DIR_RIGHT; checkCollision(); if (!collisionOn) { worldX += speed; } }
+                if (dx < 0) { direction = DIR_LEFT; checkCollision(); if (!collisionOn) { worldX -= speed; moved = true; } }
+                else if (dx > 0) { direction = DIR_RIGHT; checkCollision(); if (!collisionOn) { worldX += speed; moved = true; } }
             }
         } else {
             // Try horizontal
             if (dx < 0) { direction = DIR_LEFT; checkCollision(); if (!collisionOn) { worldX -= speed; moved = true; } }
             else if (dx > 0) { direction = DIR_RIGHT; checkCollision(); if (!collisionOn) { worldX += speed; moved = true; } }
             if (!moved) {
-                if (dy < 0) { direction = DIR_UP; checkCollision(); if (!collisionOn) { worldY -= speed; } }
-                else if (dy > 0) { direction = DIR_DOWN; checkCollision(); if (!collisionOn) { worldY += speed; } }
+                if (dy < 0) { direction = DIR_UP; checkCollision(); if (!collisionOn) { worldY -= speed; moved = true; } }
+                else if (dy > 0) { direction = DIR_DOWN; checkCollision(); if (!collisionOn) { worldY += speed; moved = true; } }
             }
         }
-    }   
-    
+
+        if (moved) {
+            unreachableCounter = 0;
+        } else {
+            unreachableCounter++;
+        }
+        return moved;
+    }
+
     public boolean isPlayerInRange(int range) {
         int dx = Math.abs(getCenterX() - gp.player.getCenterX());
         int dy = Math.abs(getCenterY() - gp.player.getCenterY());

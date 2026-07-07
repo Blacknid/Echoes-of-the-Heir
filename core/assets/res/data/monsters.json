@@ -176,6 +176,7 @@
     "defense": 0,
     "exp": 2,
     "speed": 1,
+    "animSpeedMultiplier": 5,
     "walkFrameCount": 8,
     "spriteSheet": "/res/monster/Inkblot/Inkblot_walking",
     "framesPerRow": [8, 8, 8, 8],

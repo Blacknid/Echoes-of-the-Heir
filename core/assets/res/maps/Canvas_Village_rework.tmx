@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<map version="1.10" tiledversion="1.12.1" orientation="orthogonal" renderorder="right-down" width="130" height="110" tilewidth="32" tileheight="32" infinite="0" nextlayerid="78" nextobjectid="444">
+<map version="1.10" tiledversion="1.12.1" orientation="orthogonal" renderorder="right-down" width="130" height="110" tilewidth="32" tileheight="32" infinite="0" nextlayerid="78" nextobjectid="445">
  <properties>
   <property name="actTitle" value="THE CANVAS VILLAGE"/>
   <property name="ambientLight" type="float" value="0"/>
@@ -162,6 +162,76 @@
  </tileset>
  <tileset firstgid="65" name="ground_grasss" tilewidth="32" tileheight="32" tilecount="742" columns="53">
   <image source="../tiles/CANVAS VILLAGE/Field/ground_grasss.png" width="1696" height="448"/>
+  <tile id="33">
+   <properties>
+    <property name="background" type="bool" value="true"/>
+   </properties>
+  </tile>
+  <tile id="34">
+   <properties>
+    <property name="background" type="bool" value="true"/>
+   </properties>
+  </tile>
+  <tile id="80">
+   <properties>
+    <property name="background" type="bool" value="true"/>
+   </properties>
+  </tile>
+  <tile id="81">
+   <properties>
+    <property name="background" type="bool" value="true"/>
+   </properties>
+  </tile>
+  <tile id="86">
+   <properties>
+    <property name="background" type="bool" value="true"/>
+   </properties>
+  </tile>
+  <tile id="87">
+   <properties>
+    <property name="background" type="bool" value="true"/>
+   </properties>
+  </tile>
+  <tile id="114">
+   <properties>
+    <property name="background" type="bool" value="true"/>
+   </properties>
+  </tile>
+  <tile id="115">
+   <properties>
+    <property name="background" type="bool" value="true"/>
+   </properties>
+  </tile>
+  <tile id="131">
+   <properties>
+    <property name="background" type="bool" value="true"/>
+   </properties>
+  </tile>
+  <tile id="236">
+   <properties>
+    <property name="background" type="bool" value="true"/>
+   </properties>
+  </tile>
+  <tile id="237">
+   <properties>
+    <property name="background" type="bool" value="true"/>
+   </properties>
+  </tile>
+  <tile id="238">
+   <properties>
+    <property name="background" type="bool" value="true"/>
+   </properties>
+  </tile>
+  <tile id="273">
+   <properties>
+    <property name="background" type="bool" value="true"/>
+   </properties>
+  </tile>
+  <tile id="274">
+   <properties>
+    <property name="background" type="bool" value="true"/>
+   </properties>
+  </tile>
   <wangsets>
    <wangset name="Path" type="mixed" tile="-1">
     <wangcolor name="Dirt" color="#ffe734" tile="-1" probability="1"/>
@@ -10674,6 +10744,26 @@
  </tileset>
  <tileset firstgid="14714" name="Cave_door" tilewidth="32" tileheight="32" tilecount="4" columns="2">
   <image source="../tiles/CANVAS VILLAGE/Field/Cave_door.png" width="64" height="64"/>
+  <tile id="0">
+   <properties>
+    <property name="background" type="bool" value="true"/>
+   </properties>
+  </tile>
+  <tile id="1">
+   <properties>
+    <property name="background" type="bool" value="true"/>
+   </properties>
+  </tile>
+  <tile id="2">
+   <properties>
+    <property name="background" type="bool" value="true"/>
+   </properties>
+  </tile>
+  <tile id="3">
+   <properties>
+    <property name="background" type="bool" value="true"/>
+   </properties>
+  </tile>
  </tileset>
  <layer id="33" name="Water" width="130" height="110">
   <properties>
@@ -15278,6 +15368,12 @@
   <object id="439" name="Tree" type="IT_Tree" x="480" y="672">
    <properties>
     <property name="variant" value="Fruit"/>
+   </properties>
+   <point/>
+  </object>
+  <object id="444" type="Breakable" x="544" y="1632">
+   <properties>
+    <property name="kind" value="crate_light"/>
    </properties>
    <point/>
   </object>

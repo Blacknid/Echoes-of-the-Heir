@@ -1224,8 +1224,9 @@ public class Player extends Entity {
         if (iTileIndex != 999 && gp.iTile[iTileIndex] != null) {
             gp.iTile[iTileIndex].onAttackHit(this);
         }
-        int monsterIndex = gp.cChecker.checkEntityCone(attackCone, gp.monster);
-        damageMonster(monsterIndex, attack);
+        for (int idx : gp.cChecker.checkEntityConeAll(attackCone, gp.monster)) {
+            damageMonster(idx, attack);
+        }
 
         // Swinging into a solid, non-monster collision (a wall, Tiled collision shape, object, NPC)
         // bounces the player back and stamps the strike-impact animation at the tip of the attack
@@ -2002,6 +2003,8 @@ public class Player extends Entity {
             gp.iTile[i] = null;
             if (tile instanceof tile.IT_GrassPatch grassPatch) {
                 grassPatch.spawnDestroyBurst();
+            } else if (tile instanceof tile.Breakable breakable) {
+                breakable.spawnDestroyBurst();
             } else {
                 generateParticle(tile, tile);
             }
