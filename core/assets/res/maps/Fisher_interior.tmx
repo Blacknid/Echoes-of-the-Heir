@@ -1088,7 +1088,7 @@
 0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0
 </data>
  </layer>
- <objectgroup id="10" name="Events">
+ <objectgroup id="10" name="Events" visible="0">
   <object id="2" name="Going to exterior" type="MapTransition" x="288" y="384" width="64" height="32">
    <properties>
     <property name="spawnId" value="Fisher_exterior"/>
@@ -1103,14 +1103,17 @@
   </object>
  </objectgroup>
  <objectgroup id="11" name="NPCs">
-  <object id="5" name="Fisher_trader" type="NPC_Generic" x="255.636" y="211.091">
+  <properties>
+   <property name="render" propertytype="RenderBucket" value="depth"/>
+  </properties>
+  <object id="5" name="Fisher_trader" type="NPC_Generic" x="255.818" y="218.636">
    <properties>
     <property name="npcId" value="fisher_trader"/>
    </properties>
    <point/>
   </object>
  </objectgroup>
- <objectgroup id="9" name="Collision">
+ <objectgroup id="9" name="Collision" visible="0">
   <object id="1" name="Walls" x="128" y="160">
    <polyline points="0,0 0,224 160,224 160,256 224,256 224,224 384,224 384,0 0,0"/>
   </object>

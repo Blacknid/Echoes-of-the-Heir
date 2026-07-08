@@ -15,19 +15,28 @@ import java.util.Map;
 public class MemoryJournal {
 
     public static class MemoryFragment {
+        // Default hold time (seconds) for the flashback text screen when a fragment doesn't set its own.
+        public static final float DEFAULT_DISPLAY_SECONDS = 3f;
+
         public final String id;
         public final String name;
         public final String[] text;      // 1–5 lines of flashback narrative
         public final int storyOrder;     // position in the story timeline (lower = earlier)
         public final String source;      // "npc", "boss", "exploration"
+        public final float displaySeconds; // how long MemoryFlashback holds the text screen for this fragment
         public boolean collected;
 
         public MemoryFragment(String id, String name, String[] text, int storyOrder, String source) {
+            this(id, name, text, storyOrder, source, DEFAULT_DISPLAY_SECONDS);
+        }
+
+        public MemoryFragment(String id, String name, String[] text, int storyOrder, String source, float displaySeconds) {
             this.id = id;
             this.name = name;
             this.text = text;
             this.storyOrder = storyOrder;
             this.source = source;
+            this.displaySeconds = displaySeconds;
             this.collected = false;
         }
     }
@@ -36,10 +45,15 @@ public class MemoryJournal {
     private final List<MemoryFragment> sortedFragments = new ArrayList<>();
     private boolean sortDirty = true;
 
-    /** Register a fragment definition (call at setup or from Tiled loading). */
+    /** Register a fragment definition (call at setup or from Tiled loading). Uses the default display duration. */
     public void registerFragment(String id, String name, String[] text, int storyOrder, String source) {
+        registerFragment(id, name, text, storyOrder, source, MemoryFragment.DEFAULT_DISPLAY_SECONDS);
+    }
+
+    /** Register a fragment definition with a custom flashback-screen duration (seconds). */
+    public void registerFragment(String id, String name, String[] text, int storyOrder, String source, float displaySeconds) {
         if (id == null || registry.containsKey(id)) return;
-        registry.put(id, new MemoryFragment(id, name, text, storyOrder, source));
+        registry.put(id, new MemoryFragment(id, name, text, storyOrder, source, displaySeconds));
         sortDirty = true;
     }
 

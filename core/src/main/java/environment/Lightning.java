@@ -651,10 +651,13 @@ public class Lightning {
 
         int n = 0;
         // Player light (warm white). Center of the player tile. World pos = tile center in world coords.
-        int psx = playerScreenX + gp.tileSize / 2;
-        int psy = playerScreenY + gp.tileSize / 2;
-        int pwx = playerWorldX  + gp.tileSize / 2;
-        int pwy = playerWorldY  + gp.tileSize / 2;
+        // psx/psy use the player's OWN screen position (its real worldX/Y offset from the camera), not
+        // playerScreenX/playerWorldX above (the camera's position) — those can differ during a locked-
+        // camera cutscene, and this light must stay attached to the player, not the camera.
+        int psx = gp.player.screenX + (gp.player.worldX - playerWorldX) + gp.tileSize / 2;
+        int psy = gp.player.screenY + (gp.player.worldY - playerWorldY) + gp.tileSize / 2;
+        int pwx = gp.player.worldX + gp.tileSize / 2;
+        int pwy = gp.player.worldY + gp.tileSize / 2;
         int pRad = playerLightRadius * gp.tileSize;
         n = addShaderLight(n, psx, psy, pwx, pwy, pRad, PLAYER_LIGHT_COLOR, SHADER_PUNCH_STRENGTH,
                            screenWidth, screenHeight);
@@ -791,8 +794,8 @@ public class Lightning {
         int screenWidth  = gp.screenWidth;
         int screenHeight = gp.screenHeight;
 
-        int playerWorldX  = gp.player.worldX;
-        int playerWorldY  = gp.player.worldY;
+        int playerWorldX  = gp.getCamWorldX();
+        int playerWorldY  = gp.getCamWorldY();
         int playerScreenX = gp.player.screenX;
         int playerScreenY = gp.player.screenY;
 
@@ -817,9 +820,12 @@ public class Lightning {
         }
         lastDbgWorldX = playerWorldX; lastDbgScreenX = playerScreenX;
 
-        // Light center = center of the player tile (not the top-left corner)
-        int playerLightCX = playerWorldX + gp.tileSize / 2;
-        int playerLightCY = playerWorldY + gp.tileSize / 2;
+        // Light center = center of the player tile (not the top-left corner). World-space, so it must
+        // be the player's own real position, not playerWorldX/Y above (the camera's position, which
+        // can differ during a locked-camera cutscene) — this drives tile-lit bookkeeping/shadow math
+        // that has to line up with where the player actually is.
+        int playerLightCX = gp.player.worldX + gp.tileSize / 2;
+        int playerLightCY = gp.player.worldY + gp.tileSize / 2;
         int lightPxWorld  = playerLightRadius * gp.tileSize;
 
         boolean isLow       = (gp.config.graphicsQuality == Config.GRAPHICS_LOW);
@@ -885,8 +891,13 @@ public class Lightning {
         float punch = LOW_PUNCH_STRENGTH;
 
         // ========= PLAYER LIGHT =========
-        int playerSX = playerScreenX + gp.tileSize / 2;
-        int playerSY = playerScreenY + gp.tileSize / 2;
+        // Anchored to the player's own screen position (gp.player.screenX/Y + camOffset from its real
+        // worldX/Y), NOT playerScreenX/playerWorldX above (those are the CAMERA's position, which can
+        // differ from the player's during a locked-camera cutscene — see Player.draw()'s camOffsetX/Y).
+        // Without this the light stays pinned to the panned camera center while the player's sprite
+        // correctly recedes into the distance, visually detaching the glow from its owner.
+        int playerSX = gp.player.screenX + (gp.player.worldX - playerWorldX) + gp.tileSize / 2;
+        int playerSY = gp.player.screenY + (gp.player.worldY - playerWorldY) + gp.tileSize / 2;
         drawLight(g2, playerSX, playerSY, lightPxWorld, Color.WHITE, punch);
 
         // ========= TORCH / NPC LIGHTS =========

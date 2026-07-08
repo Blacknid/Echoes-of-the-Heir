@@ -43,6 +43,7 @@ public class DataDrivenMonster extends Entity {
         this.worldY = template.worldY;
         this.defaultSpeed = template.defaultSpeed;
         this.speed = template.speed;
+        this.spriteScale = template.spriteScale;
         this.animSpeedMultiplier = template.animSpeedMultiplier;
         this.walkFrameCount = template.walkFrameCount;
         this.maxLife = template.maxLife;

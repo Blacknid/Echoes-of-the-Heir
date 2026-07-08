@@ -145,10 +145,10 @@ public class NPCFactory {
         if (boolVal(def.props, "guardMode", false)) npc.guardMode = true;
         int idleDir = intVal(def.props, "idleDirection", -1);
         if (idleDir >= 0) npc.idleDirection = idleDir;
-        int idleRowsVal = intVal(def.props, "idleRows", 4);
-        npc.idleRows = idleRowsVal;
-        float spriteAspectVal = floatVal(def.props, "spriteAspect", 1.0f);
-        npc.spriteAspect = Math.max(0.1f, spriteAspectVal);
+        int dialogueIdleDir = intVal(def.props, "dialogueIdleDirection", -1);
+        if (dialogueIdleDir >= 0) npc.dialogueIdleDirection = dialogueIdleDir;
+        npc.walkFramesPerRow = intArrayVal(def.props, "walkFramesPerRow", new int[]{6, 6, 6, 6});
+        npc.idleFramesPerRow = intArrayVal(def.props, "idleFramesPerRow", new int[]{6, 6, 6, 6});
         float spriteScaleVal = floatVal(def.props, "spriteScale", 1.0f);
         if (spriteScaleVal > 0) npc.spriteScale = spriteScaleVal;
         int interactRangeVal = intVal(def.props, "interactRange", 0);
@@ -193,11 +193,10 @@ public class NPCFactory {
                     cellW = act.frameWidth;
                     cellH = act.frameHeight;
                 } else {
-                    // Aspect-derived cell size — same approach idleSprite/walk already use, so
-                    // non-square frames (e.g. a forging pose taller than wide) aren't squashed into
-                    // a square cell before being scaled to tileSize x tileSize. -1 (unset) falls
-                    // back to the NPC's own spriteAspect.
-                    float aspect = act.aspect > 0 ? act.aspect : spriteAspectVal;
+                    // Aspect-derived cell size, so non-square frames (e.g. a forging pose taller
+                    // than wide) aren't squashed into a square cell before being scaled to
+                    // tileSize x tileSize. -1 (unset) falls back to square (1.0).
+                    float aspect = act.aspect > 0 ? act.aspect : 1.0f;
                     Sprite rawSheet = util.ResourceCache.loadImage(act.sprite + ".png");
                     int rows = act.framesPerRow.length;
                     cellH = rawSheet.getHeight() / Math.max(1, rows);
@@ -318,8 +317,8 @@ public class NPCFactory {
         String sprite;
         int[] framesPerRow = {6, 6, 6, 6};
         int speed = 0; // 0 = use default idle interval
-        // -1 = unset: falls back to the NPC's top-level "spriteAspect" (see spriteAspectVal in
-        // createAt). Set an "aspect" key on the activity itself to override just that activity.
+        // -1 = unset: falls back to square (1.0). Set an "aspect" key on the activity itself to
+        // give it non-square frames (e.g. a forging pose taller than wide).
         float aspect = -1f;
         // Simplest, least error-prone way to slice a sheet: say the frame size directly in pixels
         // (e.g. "frameWidth": 48, "frameHeight": 48) instead of deriving it from aspect ratio.
@@ -424,6 +423,12 @@ public class NPCFactory {
                 }
             }
         }
+
+        // Extract "walkFramesPerRow"/"idleFramesPerRow": [n,n,n,n] arrays — flattened into a
+        // comma-joined string in props (same idiom MonsterFactory uses for monsters.json's
+        // "framesPerRow"), since the generic parseKeyValues below can't handle array values.
+        json = extractIntArrayProp(json, "walkFramesPerRow", def.props);
+        json = extractIntArrayProp(json, "idleFramesPerRow", def.props);
 
         // Parse remaining flat keys
         parseKeyValues(json, def.props);
@@ -586,6 +591,35 @@ public class NPCFactory {
             def.states.add(sd);
             i = braceEnd + 1;
         }
+    }
+
+    /**
+     * Extracts a top-level "key": [n,n,n,n] int-array property, storing it in map as a comma-joined
+     * string (parsed later by intArrayVal), and returns json with that key/array removed so the
+     * generic parseKeyValues pass afterward doesn't choke on the embedded commas.
+     */
+    private static String extractIntArrayProp(String json, String key, Map<String, String> map) {
+        int idx = json.indexOf("\"" + key + "\"");
+        if (idx < 0) return json;
+        int bracketStart = json.indexOf('[', idx);
+        if (bracketStart < 0) return json;
+        int bracketEnd = json.indexOf(']', bracketStart);
+        if (bracketEnd < 0) return json;
+        String inner = json.substring(bracketStart + 1, bracketEnd).replaceAll("\\s+", "");
+        map.put(key, inner);
+        return json.substring(0, idx) + json.substring(bracketEnd + 1);
+    }
+
+    private static int[] intArrayVal(Map<String, String> m, String key, int[] def) {
+        String v = m.get(key);
+        if (v == null || v.isBlank()) return def;
+        String[] parts = v.split(",");
+        int[] arr = new int[parts.length];
+        for (int i = 0; i < parts.length; i++) {
+            try { arr[i] = Integer.parseInt(parts[i].trim()); }
+            catch (NumberFormatException e) { arr[i] = def.length > 0 ? def[0] : 6; }
+        }
+        return arr;
     }
 
     private static void parseKeyValues(String text, Map<String, String> map) {

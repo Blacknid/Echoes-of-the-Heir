@@ -122,13 +122,13 @@ public class IT_Gate extends interactiveTile {
         g2.drawImage(sprite, screenX(), screenY(), drawW, drawH);
     }
 
-    private int screenX() { return worldX - gp.player.worldX + gp.player.screenX; }
-    private int screenY() { return worldY - gp.player.worldY + gp.player.screenY; }
+    private int screenX() { return worldX - gp.getCamWorldX() + gp.player.screenX; }
+    private int screenY() { return worldY - gp.getCamWorldY() + gp.player.screenY; }
 
     private boolean offscreen() {
-        return worldX + drawW <= gp.player.worldX - gp.player.screenX ||
-               worldX >= gp.player.worldX + (gp.screenWidth - gp.player.screenX) ||
-               worldY + drawH <= gp.player.worldY - gp.player.screenY ||
-               worldY >= gp.player.worldY + (gp.screenHeight - gp.player.screenY);
+        return worldX + drawW <= gp.getCamWorldX() - gp.player.screenX ||
+               worldX >= gp.getCamWorldX() + (gp.screenWidth - gp.player.screenX) ||
+               worldY + drawH <= gp.getCamWorldY() - gp.player.screenY ||
+               worldY >= gp.getCamWorldY() + (gp.screenHeight - gp.player.screenY);
     }
 }

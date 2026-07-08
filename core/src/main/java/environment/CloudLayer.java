@@ -132,8 +132,8 @@ public class CloudLayer {
 
     public void draw(GdxRenderer g2) {
         if (cloudSprites == null) return;
-        float camWX = gp.player.worldX - gp.player.getCamScreenX();
-        float camWY = gp.player.worldY - gp.player.getCamScreenY();
+        float camWX = gp.getCamWorldX() - gp.player.getCamScreenX();
+        float camWY = gp.getCamWorldY() - gp.player.getCamScreenY();
 
         for (int i = 0; i < MAX_CLOUDS; i++) {
             if (!active[i]) continue;

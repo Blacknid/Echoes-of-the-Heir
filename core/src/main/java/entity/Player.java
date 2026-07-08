@@ -80,6 +80,11 @@ public class Player extends Entity {
     public gfx.geom.Cone attackCone;
     private static final double ATTACK_CONE_RADIUS_SCALE = 1.35; // × tileSize
     private static final double ATTACK_CONE_HALF_ANGLE = Math.toRadians(55);
+    // Knockback power cap for melee hits: total slide distance = power * 16px (see Entity's
+    // KNOCKBACK_BURST_MULTIPLIER/KNOCKBACK_DECAY). Keeping it well under the attack cone's own
+    // reach (ATTACK_CONE_RADIUS_SCALE * tileSize) means spamming hits on one target can't shove it
+    // out of range between swings.
+    private static final int MAX_KNOCKBACK_POWER = 2;
 
     /** Nearest-cardinal snap of a continuous angle, for body-sprite `direction` selection. */
     private static int angleToCardinal(double angleRad) {
@@ -762,8 +767,11 @@ public class Player extends Entity {
                 spriteCounter = 0;
                 attackBuffered = false;
                 attackAngle = main.MouseHandler.angleForDirection(direction);
-                if (comboWindow > 0 && comboStep < 2) comboStep++;
-                else if (comboWindow <= 0) comboStep = 0;
+                // Cycle 0 -> 1 -> 2 -> 0 -> ... while chained fast enough (comboWindow > 0); a fresh
+                // swing after the window lapsed also starts back at 0. Without the wraparound, spam-
+                // clicking fast enough to keep re-opening the window (every hit does) would get stuck
+                // at step 2 forever instead of resetting like a real 3-hit combo.
+                comboStep = (comboWindow > 0) ? (comboStep + 1) % 3 : 0;
                 gp.playSE(SFX.WEAPON_SWING);
             }
             attackCanceled = false;
@@ -913,8 +921,8 @@ public class Player extends Entity {
             attacking = true;
             spriteCounter = 0;
             windingDown = false;
-            if (comboWindow > 0 && comboStep < 2) comboStep++;
-            else if (comboWindow <= 0) comboStep = 0;
+            // See the enter-key attack site for why this wraps 2 -> 0 instead of clamping at 2.
+            comboStep = (comboWindow > 0) ? (comboStep + 1) % 3 : 0;
             gp.playSE(SFX.WEAPON_SWING);
         }
     }
@@ -932,7 +940,15 @@ public class Player extends Entity {
         }
     }
 
+    // Debug-menu cheat: holds invincible true indefinitely, bypassing the normal i-frame timeout.
+    public boolean godMode = false;
+
     private void updateInvincibility() {
+        if (godMode) {
+            invincible = true;
+            invincibleCounter = 0;
+            return;
+        }
         if (invincible) {
             invincibleCounter++;
             if (invincibleCounter > 60) {
@@ -1326,6 +1342,7 @@ public class Player extends Entity {
 
     // Combat methods
     public void damageMonster(int i, int attack) {        if (i != 999) {
+            if (gp.monster[i].tryDodgeIncomingHit()) return;
             if (!gp.monster[i].invincible) {
                 gp.playSE(SFX.MONSTER_HIT);
                 boolean isHeavy = (comboStep == 2);
@@ -1338,6 +1355,10 @@ public class Player extends Entity {
                 int kb = (currentWeapon != null) ? currentWeapon.knockBackPower / 2 : 1;
                 if (kb < 1) kb = 1;
                 if (isHeavy) kb = (int)(kb * 2.0f);
+                // Cap total knockback travel so a hit can never shove the target past the attack
+                // cone's own reach — otherwise spamming attacks on the same target could launch it
+                // just out of range between swings, whiffing the follow-up with no visible cause.
+                kb = Math.min(kb, MAX_KNOCKBACK_POWER);
                 knockBack(gp.monster[i], kb, worldX, worldY);
                 int damage = effectiveAttack - gp.monster[i].defense;
                 if (damage < 0) damage = 0;
@@ -2145,10 +2166,19 @@ public class Player extends Entity {
     // Rendering methods
     @Override
     public void draw(GdxRenderer g2) {
+        // Normally screenX/screenY (the player's fixed on-screen anchor) is exactly where the player
+        // draws — the camera IS the player. During a locked-camera cutscene (see ui.BossIntroCutscene)
+        // the camera can pan away from the player's real position; this offset shifts the player's
+        // draw position the opposite way so it stays visually anchored at its real WORLD position
+        // (appears to get left behind / recede into the distance) instead of following the camera
+        // around the screen. Zero whenever the camera isn't locked (normal play).
+        int camOffsetX = worldX - gp.getCamWorldX();
+        int camOffsetY = worldY - gp.getCamWorldY();
+
         // ── DEATH ANIMATION ──
         if (playerDying) {
-            int drawX = screenX;
-            int drawY = screenY;
+            int drawX = screenX + camOffsetX;
+            int drawY = screenY + camOffsetY;
             Sprite deathImg = null;
             if (deathFrames != null && deathDirection >= 0 && deathDirection < deathFrames.length
                     && deathFrames[deathDirection] != null && playerDeathFrame < deathFrames[deathDirection].length) {
@@ -2168,8 +2198,8 @@ public class Player extends Entity {
         }
 
         Sprite image;
-        int tempScreenX = screenX;
-        int tempScreenY = screenY;
+        int tempScreenX = screenX + camOffsetX;
+        int tempScreenY = screenY + camOffsetY;
         int frame = Math.max(1, spriteNum);
 
         int drawW = (int)(gp.tileSize * spriteScale);

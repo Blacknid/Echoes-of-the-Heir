@@ -129,8 +129,8 @@ public class DustFogLayer {
 
     public void draw(GdxRenderer g2) {
         if (fogSprite == null) return;
-        float camWX = gp.player.worldX - gp.player.getCamScreenX();
-        float camWY = gp.player.worldY - gp.player.getCamScreenY();
+        float camWX = gp.getCamWorldX() - gp.player.getCamScreenX();
+        float camWY = gp.getCamWorldY() - gp.player.getCamScreenY();
 
         for (int i = 0; i < MAX_MOTES; i++) {
             if (!active[i]) continue;

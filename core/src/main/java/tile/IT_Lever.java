@@ -90,13 +90,13 @@ public class IT_Lever extends interactiveTile {
         g2.drawImage(sprite, screenX(), screenY(), gp.tileSize, gp.tileSize);
     }
 
-    private int screenX() { return worldX - gp.player.worldX + gp.player.screenX; }
-    private int screenY() { return worldY - gp.player.worldY + gp.player.screenY; }
+    private int screenX() { return worldX - gp.getCamWorldX() + gp.player.screenX; }
+    private int screenY() { return worldY - gp.getCamWorldY() + gp.player.screenY; }
 
     private boolean offscreen() {
-        return worldX + gp.tileSize <= gp.player.worldX - gp.player.screenX ||
-               worldX - gp.tileSize >= gp.player.worldX + (gp.screenWidth - gp.player.screenX) ||
-               worldY + gp.tileSize <= gp.player.worldY - gp.player.screenY ||
-               worldY - gp.tileSize >= gp.player.worldY + (gp.screenHeight - gp.player.screenY);
+        return worldX + gp.tileSize <= gp.getCamWorldX() - gp.player.screenX ||
+               worldX - gp.tileSize >= gp.getCamWorldX() + (gp.screenWidth - gp.player.screenX) ||
+               worldY + gp.tileSize <= gp.getCamWorldY() - gp.player.screenY ||
+               worldY - gp.tileSize >= gp.getCamWorldY() + (gp.screenHeight - gp.player.screenY);
     }
 }

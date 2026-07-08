@@ -72,6 +72,10 @@ public class IT_Spike extends interactiveTile {
         } else {
             phase = Phase.RETRACTING;
             frameTicks = 0;
+            // The normal hazard cycle clears collision in updateHolding()'s own hold->retract
+            // transition; unlocking jumps straight from LOCKED to RETRACTING and skips that, so
+            // without this the spike kept blocking movement even after visually retracting to idle.
+            collision = false;
         }
     }
 
@@ -263,14 +267,14 @@ public class IT_Spike extends interactiveTile {
         g2.drawImage(sprite, drawX, drawY, drawW, drawH);
     }
 
-    private int screenX() { return worldX - gp.player.worldX + gp.player.screenX; }
-    private int screenY() { return worldY - gp.player.worldY + gp.player.screenY; }
+    private int screenX() { return worldX - gp.getCamWorldX() + gp.player.screenX; }
+    private int screenY() { return worldY - gp.getCamWorldY() + gp.player.screenY; }
 
     private boolean offscreen() {
-        return worldX + gp.tileSize <= gp.player.worldX - gp.player.screenX ||
-               worldX - gp.tileSize >= gp.player.worldX + (gp.screenWidth - gp.player.screenX) ||
-               worldY + gp.tileSize <= gp.player.worldY - gp.player.screenY ||
-               worldY - gp.tileSize >= gp.player.worldY + (gp.screenHeight - gp.player.screenY);
+        return worldX + gp.tileSize <= gp.getCamWorldX() - gp.player.screenX ||
+               worldX - gp.tileSize >= gp.getCamWorldX() + (gp.screenWidth - gp.player.screenX) ||
+               worldY + gp.tileSize <= gp.getCamWorldY() - gp.player.screenY ||
+               worldY - gp.tileSize >= gp.getCamWorldY() + (gp.screenHeight - gp.player.screenY);
     }
 
     /**

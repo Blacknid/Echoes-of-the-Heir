@@ -1229,8 +1229,8 @@ public class BOSS_WitheredTree extends Entity {
 
     @Override
     public void draw(GdxRenderer g2) {
-        int screenX = worldX - gp.player.worldX + gp.player.screenX;
-        int screenY = worldY - gp.player.worldY + gp.player.screenY;
+        int screenX = worldX - gp.getCamWorldX() + gp.player.screenX;
+        int screenY = worldY - gp.getCamWorldY() + gp.player.screenY;
         int drawSize = gp.tileSize * BOSS_SCALE;
 
         // Hitbox center in screen space — sprite is centered on this point
@@ -1238,10 +1238,10 @@ public class BOSS_WitheredTree extends Entity {
         int bossCY = screenY + solidArea.y + solidArea.height / 2;
 
         // Viewport culling (wider margin for boss)
-        if (worldX + drawSize < gp.player.worldX - gp.player.screenX - gp.tileSize * 4
-                || worldX - gp.tileSize * 4 > gp.player.worldX + gp.player.screenX + gp.screenWidth
-                || worldY + drawSize < gp.player.worldY - gp.player.screenY - gp.tileSize * 4
-                || worldY - gp.tileSize * 4 > gp.player.worldY + gp.player.screenY + gp.screenHeight) {
+        if (worldX + drawSize < gp.getCamWorldX() - gp.player.screenX - gp.tileSize * 4
+                || worldX - gp.tileSize * 4 > gp.getCamWorldX() + gp.player.screenX + gp.screenWidth
+                || worldY + drawSize < gp.getCamWorldY() - gp.player.screenY - gp.tileSize * 4
+                || worldY - gp.tileSize * 4 > gp.getCamWorldY() + gp.player.screenY + gp.screenHeight) {
             return;
         }
 
@@ -1275,8 +1275,8 @@ public class BOSS_WitheredTree extends Entity {
         // ── Root barrage ground markers ──
         if (rootBarrageActive) {
             for (int i = 0; i < ROOT_WAVE_COUNT; i++) {
-                int rx = rootTargetX[i] - gp.player.worldX + gp.player.screenX;
-                int ry = rootTargetY[i] - gp.player.worldY + gp.player.screenY;
+                int rx = rootTargetX[i] - gp.getCamWorldX() + gp.player.screenX;
+                int ry = rootTargetY[i] - gp.getCamWorldY() + gp.player.screenY;
 
                 if (rootEruptTimer[i] == 0) {
                     // Warning crack on ground

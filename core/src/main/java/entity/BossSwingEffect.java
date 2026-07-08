@@ -59,8 +59,8 @@ public class BossSwingEffect extends Entity {
         Sprite frame = swingFrames[dir][frameIndex];
         if (frame == null) return;
 
-        int screenX = worldX - gp.player.worldX + gp.player.screenX;
-        int screenY = worldY - gp.player.worldY + gp.player.screenY;
+        int screenX = worldX - gp.getCamWorldX() + gp.player.screenX;
+        int screenY = worldY - gp.getCamWorldY() + gp.player.screenY;
         int drawSize = gp.tileSize * 6;
 
         int drawX = screenX - (drawSize - gp.tileSize) / 2;

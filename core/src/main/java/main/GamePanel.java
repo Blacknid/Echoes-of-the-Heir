@@ -1,9 +1,5 @@
 package main;
 
-import gfx.Color;
-import gfx.Font;
-import gfx.GdxRenderer;
-import gfx.Sprite;
 import java.util.ArrayList;
 import java.util.Map;
 
@@ -17,6 +13,10 @@ import entity.Player;
 import entity.Projectile;
 import environment.EnvironmentManager;
 import environment.MapShaderManager;
+import gfx.Color;
+import gfx.Font;
+import gfx.GdxRenderer;
+import gfx.Sprite;
 import map.AssetSetter;
 import map.EventHandler;
 import map.MapManager;
@@ -24,6 +24,7 @@ import map.MapObjectLoader;
 import map.MobSpawner;
 import tile.TileManager;
 import tile.interactiveTile;
+import ui.BossIntroCutscene;
 import ui.CutsceneManager;
 import ui.Minimap;
 import ui.RenderPipeline;
@@ -129,6 +130,7 @@ public class GamePanel {
     public EventHandler eHandler = new EventHandler(this);
     public Config config = new Config(this);
     public CutsceneManager csManager = new CutsceneManager(this);
+    public BossIntroCutscene bossIntroCutscene = new BossIntroCutscene(this);
     public PathFinder pFinder = new PathFinder(this);
     public EnvironmentManager eManager = new EnvironmentManager(this);
     public environment.WindField windField = new environment.WindField(this);
@@ -167,16 +169,17 @@ public class GamePanel {
     private static final int DEBUG_ROW_HITBOXES = 1;
     private static final int DEBUG_ROW_PATHS = 2;
     private static final int DEBUG_ROW_SEPIA = 3;
-    private static final int DEBUG_ROW_RELOAD_ALL = 4;
-    private static final int DEBUG_ROW_RELOAD_NPCS = 5;
-    private static final int DEBUG_ROW_RELOAD_MONSTERS = 6;
-    private static final int DEBUG_ROW_RELOAD_OBJECTS = 7;
-    private static final int DEBUG_ROW_FLASHBACK = 8;
-    private static final int DEBUG_ROW_FRAGMENTS = 9;
-    private static final int DEBUG_ROW_AWAKENING = 10;
-    private static final int DEBUG_ROW_TARGET_MAP = 11;
-    private static final int DEBUG_ROW_TELEPORT_TARGET = 12;
-    private static final int DEBUG_MENU_ROWS = 13;
+    private static final int DEBUG_ROW_INVINCIBLE = 4;
+    private static final int DEBUG_ROW_RELOAD_ALL = 5;
+    private static final int DEBUG_ROW_RELOAD_NPCS = 6;
+    private static final int DEBUG_ROW_RELOAD_MONSTERS = 7;
+    private static final int DEBUG_ROW_RELOAD_OBJECTS = 8;
+    private static final int DEBUG_ROW_FLASHBACK = 9;
+    private static final int DEBUG_ROW_FRAGMENTS = 10;
+    private static final int DEBUG_ROW_AWAKENING = 11;
+    private static final int DEBUG_ROW_TARGET_MAP = 12;
+    private static final int DEBUG_ROW_TELEPORT_TARGET = 13;
+    private static final int DEBUG_MENU_ROWS = 14;
     private gfx.Font mpNametagFont;
 
 
@@ -211,8 +214,7 @@ public class GamePanel {
 
     // Dialogue camera: a subtle zoom-in + recenter that frames the player+NPC when talking, and
     // eases back when the dialogue ends. All values lerp toward their *Target each frame. Applied at
-    // render time (RenderPipeline) via g2.translate + g2.setWorldZoom — there is no real camera
-    // object to move (see getCamWorldX/Y, which nothing reads).
+    // render time (RenderPipeline) via g2.translate + g2.setWorldZoom.
     public float dlgZoom = 1f, dlgZoomTarget = 1f;
     public float dlgPanX = 0f, dlgPanTargetX = 0f;
     public float dlgPanY = 0f, dlgPanTargetY = 0f;
@@ -229,10 +231,19 @@ public class GamePanel {
         dlgBars += (dlgBarsTarget - dlgBars) * DLG_LERP;
     }
 
+    /**
+     * The world position everything (tiles, entities, particles, weather, minimap, UI prompts) draws
+     * relative to. Normally this is just the player's own position — but during a locked-camera
+     * cutscene (see ui.BossIntroCutscene) it can point anywhere, panning the visible world away from
+     * the player without moving the player itself. player.screenX/screenY (the fixed on-screen anchor
+     * point) never changes — only which world position maps to that anchor point changes.
+     *
+     * Every draw call site that used to read gp.player.worldX/worldY as "the camera" should read
+     * these instead; gp.player.screenX/screenY stay as-is everywhere (they're the anchor, not the
+     * panning quantity).
+     */
     public int getCamWorldX() { return cameraLocked ? cameraWorldX : player.worldX; }
     public int getCamWorldY() { return cameraLocked ? cameraWorldY : player.worldY; }
-    public int getCamScreenX() { return player.screenX; }
-    public int getCamScreenY() { return player.screenY; }
     /**
      * Map raw window-space pointer coords (libGDX touch) to game-space coords, returned as
      * int[]{x,y}. libGDX touch coords already share the game's top-left origin (y-down camera);
@@ -253,13 +264,26 @@ public class GamePanel {
     }
     public void unlockCamera() { cameraLocked = false; }
 
+    /** Finds a live (alive, not dying) boss in gp.monster[] by its display name — used by BossIntroTrigger. */
+    public entity.Boss findBossByName(String bossName) {
+        for (Entity m : monster) {
+            if (m instanceof entity.Boss boss && boss.alive && !boss.dying && bossName.equals(boss.name)) {
+                return boss;
+            }
+        }
+        return null;
+    }
+
     public ObjectPool<entity.DamageNumber> damageNumberPool;
     public java.util.ArrayList<entity.DamageNumber> damageNumbers = new java.util.ArrayList<>();
     public Thread gameThread;
 
     public Player player = new Player(this,keyH);
     public Entity obj[] = new Entity[100];
-    public Entity npc[] = new Entity[10];
+    // 20, not 10 — Canvas_Village_rework.tmx alone places 11 NPC_Generic objects; the old cap of 10
+    // silently dropped the 11th (MapObjectLoader logs a warning, but it's easy to miss), so nothing
+    // appeared for it even though its JSON/sprite/placement were all otherwise correct.
+    public Entity npc[] = new Entity[20];
     public Entity monster[] = new Entity[20];
     public interactiveTile iTile[] = new interactiveTile[100];
     public ArrayList<Entity> projectilesList = new ArrayList<>();
@@ -384,7 +408,7 @@ public class GamePanel {
 
     memoryJournal.registerFragment("frag_cave", "Awakening Cave",
         new String[]{"The air was thick with dust and silence.", "He had no memory of how he got here.", "Only a faint glimmer of light in the distance."},
-        1, "battle_cave");
+        1, "battle_cave", 5f);
     memoryJournal.registerFragment("frag_familiar_weight", "Familiar Weight",
         new String[]{"The weight on his back was familiar.", "He had felt it before.", "But where?"},
         2, "shatter_lake");
@@ -398,6 +422,9 @@ public class GamePanel {
     memoryJournal.registerFragment("frag_lake", "Shatter Lake",
         new String[]{"The water remembered everything.", "He had stood here before.", "So had she.", "Never together."},
         5, "shatter_lake");
+    memoryJournal.registerFragment("echo", "Echo, the Unseen",
+        new String[]{"Echo is one of the most feared Phantoms of this Realm," , "due to his teleportation moves and aggrive bites.", "He is the weakest brother.", "To this day, it's still unknown how many of his type are there.", "Also known as 'Echo, the Unseen'."},
+        6, "Unknown", 5f);
 
     renderPipeline = new RenderPipeline(this);
     // GPU port: no Sprite back-buffer — MichiGame renders to the screen via GdxRenderer.
@@ -616,11 +643,18 @@ public class GamePanel {
             ui.updateDialogueState();
         }
 
-        // World keeps simulating during dialogue AND while the inventory/character screen is open
-        // (NPCs, monsters, particles, wind, lighting, etc.) so the game doesn't visibly freeze in the
-        // background — only the player is held out (via the playState-only player.update() below) so
-        // they can't move/act while a menu has their input.
-        if(gameState == playState || gameState == dialogueState || gameState == characterState) {
+        if (bossIntroCutscene.isActive()) {
+            bossIntroCutscene.update();
+        }
+
+        // World keeps simulating during dialogue, while the inventory/character screen is open, AND
+        // during a cutscene (NPCs, monsters, particles, wind, lighting, etc.) so the game doesn't
+        // visibly freeze in the background — only the player is held out (via the playState-only
+        // player.update() below) so they can't move/act while a menu/cutscene has taken over. The boss
+        // being shown off by BossIntroCutscene freezes itself into an idle pose (see the check at the
+        // top of Boss.update()) so it doesn't wander off mid-shot while everything else keeps moving.
+        if(gameState == playState || gameState == dialogueState || gameState == characterState
+                || gameState == cutsceneState) {
             vpCacheValid = false;
             updateViewportCache();
 
@@ -673,8 +707,13 @@ public class GamePanel {
                         if (isEntityInViewport(monster[i], tileSize * 2)) {
                             monster[i].update();
                         } else if (isEntityInViewport(monster[i], tileSize * 6)
-                                   && (tickCounter & 3) == 0) {
-                            // Distant monsters: run AI every 4 frames to prevent snap-teleport on re-entry
+                                   && (tickCounter & 3) == 0
+                                   && bossIntroCutscene.getBoss() != monster[i]) {
+                            // Distant monsters: run AI every 4 frames to prevent snap-teleport on re-entry.
+                            // This calls setAction() directly, bypassing Boss.update()'s intro-cutscene
+                            // freeze check — so a boss the camera hasn't panned to yet (still "distant")
+                            // could otherwise keep chasing the player throughout its own intro. Skip it
+                            // entirely while it's the cutscene's subject.
                             monster[i].setAction();
                         }
                     }
@@ -822,9 +861,9 @@ public class GamePanel {
     private boolean vpCacheValid = false;
 
     private void updateViewportCache() {
-        vpMinX = player.worldX - player.screenX;
+        vpMinX = getCamWorldX() - player.screenX;
         vpMaxX = vpMinX + screenWidth;
-        vpMinY = player.worldY - player.screenY;
+        vpMinY = getCamWorldY() - player.screenY;
         vpMaxY = vpMinY + screenHeight;
         vpCacheValid = true;
     }
@@ -945,6 +984,10 @@ public class GamePanel {
                 playSE(SFX.MENU_SELECT);
             }
             case DEBUG_ROW_SEPIA -> toggleDebugSepia();
+            case DEBUG_ROW_INVINCIBLE -> {
+                player.godMode = !player.godMode;
+                playSE(SFX.MENU_SELECT);
+            }
             case DEBUG_ROW_RELOAD_ALL      -> reloadCurrentMapDebug();
             case DEBUG_ROW_RELOAD_NPCS     -> reloadNPCsDebug();
             case DEBUG_ROW_RELOAD_MONSTERS -> reloadMonstersDebug();
@@ -982,6 +1025,7 @@ public class GamePanel {
         memoryJournal.collect("frag_prologue");
         memoryJournal.collect("frag_forest");
         memoryJournal.collect("frag_lake");
+        memoryJournal.collect("echo");
         gameState = GamePanel.journalState;
         playSE(SFX.MENU_SELECT);
     }
@@ -1088,6 +1132,7 @@ public class GamePanel {
             case DEBUG_ROW_SEPIA -> mapShader == null
                     ? "Sepia shader: unavailable"
                     : debugToggleLabel("Sepia shader", mapShader.sepiaMode);
+            case DEBUG_ROW_INVINCIBLE -> debugToggleLabel("Invincible", player.godMode);
             case DEBUG_ROW_RELOAD_ALL      -> "Full reload (tiles + entities)";
             case DEBUG_ROW_RELOAD_NPCS     -> "Reload NPCs";
             case DEBUG_ROW_RELOAD_MONSTERS -> "Reload Monsters";

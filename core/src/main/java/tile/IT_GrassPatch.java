@@ -93,13 +93,13 @@ public class IT_GrassPatch extends interactiveTile {
     @Override
     public void draw(GdxRenderer g2) {
         if (image == null) return;
-        int screenX = worldX - gp.player.worldX + gp.player.screenX;
-        int screenY = worldY - gp.player.worldY + gp.player.screenY;
+        int screenX = worldX - gp.getCamWorldX() + gp.player.screenX;
+        int screenY = worldY - gp.getCamWorldY() + gp.player.screenY;
 
-        if (worldX + drawWidth  <= gp.player.worldX - gp.player.screenX ||
-            worldX - drawWidth  >= gp.player.worldX + (gp.screenWidth  - gp.player.screenX) ||
-            worldY + drawHeight <= gp.player.worldY - gp.player.screenY ||
-            worldY - drawHeight >= gp.player.worldY + (gp.screenHeight - gp.player.screenY)) return;
+        if (worldX + drawWidth  <= gp.getCamWorldX() - gp.player.screenX ||
+            worldX - drawWidth  >= gp.getCamWorldX() + (gp.screenWidth  - gp.player.screenX) ||
+            worldY + drawHeight <= gp.getCamWorldY() - gp.player.screenY ||
+            worldY - drawHeight >= gp.getCamWorldY() + (gp.screenHeight - gp.player.screenY)) return;
 
         // Drawn at the image's own native resolution, scaled by the game's global content scale
         // (same as every other tile) — not the raw PNG pixel size.

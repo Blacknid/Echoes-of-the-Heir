@@ -176,15 +176,15 @@ public class IT_Tree extends interactiveTile {
 
     private int anchorX(int drawSize) { return worldX - (drawSize - gp.tileSize) / 2; }
     private int anchorY(int drawSize) { return worldY - (drawSize - gp.tileSize); }
-    private int screenX(int drawSize) { return anchorX(drawSize) - gp.player.worldX + gp.player.screenX; }
-    private int screenY(int drawSize) { return anchorY(drawSize) - gp.player.worldY + gp.player.screenY; }
+    private int screenX(int drawSize) { return anchorX(drawSize) - gp.getCamWorldX() + gp.player.screenX; }
+    private int screenY(int drawSize) { return anchorY(drawSize) - gp.getCamWorldY() + gp.player.screenY; }
 
     private boolean offscreen(int drawSize) {
         int ax = anchorX(drawSize), ay = anchorY(drawSize);
-        return ax + drawSize <= gp.player.worldX - gp.player.screenX ||
-               ax >= gp.player.worldX + (gp.screenWidth - gp.player.screenX) ||
-               ay + drawSize <= gp.player.worldY - gp.player.screenY ||
-               ay >= gp.player.worldY + (gp.screenHeight - gp.player.screenY);
+        return ax + drawSize <= gp.getCamWorldX() - gp.player.screenX ||
+               ax >= gp.getCamWorldX() + (gp.screenWidth - gp.player.screenX) ||
+               ay + drawSize <= gp.getCamWorldY() - gp.player.screenY ||
+               ay >= gp.getCamWorldY() + (gp.screenHeight - gp.player.screenY);
     }
 
     /** Trees always cast a dynamic canopy silhouette shadow (Stage 2 lighting). */

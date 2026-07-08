@@ -1253,8 +1253,8 @@ public class TileManager {
     }
 
     public void prepareVisibleTiles() {
-        int cameraWorldX = gp.player.worldX - gp.player.screenX;
-        int cameraWorldY = gp.player.worldY - gp.player.screenY;
+        int cameraWorldX = gp.getCamWorldX() - gp.player.screenX;
+        int cameraWorldY = gp.getCamWorldY() - gp.player.screenY;
 
         // Compute visible tile range
         int extraMargin = tileSize * 2; // load a few extra tiles off-screen to prevent pop-in when moving
@@ -1459,8 +1459,8 @@ public class TileManager {
         // global layer index, so image layers appear at the correct Tiled stack position.
         int imgCursor = 0;
         int numImg = imageLayers.size();
-        int cameraWorldX = gp.player.worldX - gp.player.screenX;
-        int cameraWorldY = gp.player.worldY - gp.player.screenY;
+        int cameraWorldX = gp.getCamWorldX() - gp.player.screenX;
+        int cameraWorldY = gp.getCamWorldY() - gp.player.screenY;
         int lastDrawnOrder = Integer.MIN_VALUE;
 
         for (int i = 0, n = backgroundVisibleTiles.size(); i < n; i++) {
@@ -1507,8 +1507,8 @@ public class TileManager {
         }
 
         // Interleave foreground image layers with foreground tiles by globalLayerIndex
-        int cameraWorldX = gp.player.worldX - gp.player.screenX;
-        int cameraWorldY = gp.player.worldY - gp.player.screenY;
+        int cameraWorldX = gp.getCamWorldX() - gp.player.screenX;
+        int cameraWorldY = gp.getCamWorldY() - gp.player.screenY;
         int imgCursor = 0;
         int numImg = imageLayers.size();
         int lastOrder = Integer.MIN_VALUE;
@@ -1597,8 +1597,8 @@ public class TileManager {
 
     private void drawPathOverlay(GdxRenderer g2) {
         if ( gp.drawPath ) {
-            int playerWorldX = gp.player.worldX;
-            int playerWorldY = gp.player.worldY;
+            int playerWorldX = gp.getCamWorldX();
+            int playerWorldY = gp.getCamWorldY();
             g2.setColor(new Color(255, 0, 0, 128));
             for ( int i = 0 ; i < gp.pFinder.pathList.size() ; i++ ) {
                 int worldX = gp.pFinder.pathList.get(i).col * tileSize;

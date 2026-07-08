@@ -1024,8 +1024,8 @@ public class UI {
         promptBobCounter++;
         int bob = (int)(fastSin(promptBobCounter, 1) * 3); // gentle bob
 
-        int screenX = target.worldX - gp.player.worldX + gp.player.screenX;
-        int screenY = target.worldY - gp.player.worldY + gp.player.screenY;
+        int screenX = target.worldX - gp.getCamWorldX() + gp.player.screenX;
+        int screenY = target.worldY - gp.getCamWorldY() + gp.player.screenY;
 
         g2.setFont(hudFont_prompt);
         FontMetrics fm = cachedFM(hudFont_prompt);

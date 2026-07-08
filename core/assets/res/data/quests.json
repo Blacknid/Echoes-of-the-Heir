@@ -69,6 +69,27 @@
         "description": "Bring 3 mushroom bundles to the Magic Trader." }
     ]
   },
+  {
+    "id": "explore_the_cave",
+    "name": "Explore the mysterious Cave",
+    "description": "Explore the mysterious Cave and find the source of its corruption.",
+    "target": 1,
+    "autoStart": false,
+    "prerequisite": "a_familiar_weight",
+    "rewardCoins": 100,
+    "rewardItemId": "",
+    "rewardFragmentId": "",
+    "steps": [
+      { "action": "talk", "npc": "fisher_trader", "dialogue": "cave_request",
+        "description": "Talk to the Fisher Trader." },
+      { "action": "go", "map": "dungeon",
+        "description": "Go West from the Fishing Dock and find the Cave." },
+      { "action": "defeat", "enemy": "phantom",
+      "description": "Find and defeat the corruption." },
+      { "action": "talk", "npc": "fisher_trader", "dialogue": "cave_done",
+        "description": "Tell the Fisher Trader the cause of the corruption."}
+    ]
+  },
 
 
 
@@ -90,7 +111,7 @@
     "rewardFragmentId": "",
     "chainQuestId": "tutorial_shop",
     "steps": [
-      { "action": "go", "map": "canvas_village", "description": "Reach Canva's Village." }
+      { "action": "go", "map": "canvas_village_rework", "description": "Reach Canva's Village." }
     ]
   },
   {

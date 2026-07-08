@@ -139,8 +139,8 @@ public class Particle extends Entity implements Poolable {
 
     public void draw(GdxRenderer g2) {
 
-        int screenX = worldX - gp.player.worldX + gp.player.screenX;
-        int screenY = worldY - gp.player.worldY + gp.player.screenY;
+        int screenX = worldX - gp.getCamWorldX() + gp.player.screenX;
+        int screenY = worldY - gp.getCamWorldY() + gp.player.screenY;
 
         float alpha = 1.0f;
         if (initialLife > 0) {

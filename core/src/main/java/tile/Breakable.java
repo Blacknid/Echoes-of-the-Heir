@@ -127,13 +127,13 @@ public class Breakable extends interactiveTile {
     @Override
     public void draw(GdxRenderer g2) {
         if (sprite == null) return;
-        int screenX = worldX - gp.player.worldX + gp.player.screenX;
-        int screenY = worldY - gp.player.worldY + gp.player.screenY;
+        int screenX = worldX - gp.getCamWorldX() + gp.player.screenX;
+        int screenY = worldY - gp.getCamWorldY() + gp.player.screenY;
 
-        if (worldX + drawWidth  <= gp.player.worldX - gp.player.screenX ||
-            worldX - drawWidth  >= gp.player.worldX + (gp.screenWidth  - gp.player.screenX) ||
-            worldY + drawHeight <= gp.player.worldY - gp.player.screenY ||
-            worldY - drawHeight >= gp.player.worldY + (gp.screenHeight - gp.player.screenY)) return;
+        if (worldX + drawWidth  <= gp.getCamWorldX() - gp.player.screenX ||
+            worldX - drawWidth  >= gp.getCamWorldX() + (gp.screenWidth  - gp.player.screenX) ||
+            worldY + drawHeight <= gp.getCamWorldY() - gp.player.screenY ||
+            worldY - drawHeight >= gp.getCamWorldY() + (gp.screenHeight - gp.player.screenY)) return;
 
         g2.drawImage(sprite, screenX, screenY, drawWidth, drawHeight);
     }

@@ -671,6 +671,7 @@ public class MapObjectLoader {
             case "MON_Shade"           -> "shade_wolf";
             case "MON_Inkblot", "Inkblot" -> "inkblot";
             case "BOSS_WitheredTree"   -> "withered_tree";
+            case "BOSS_Phantom"        -> "phantom";
             default                    -> type;
         };
         Entity m = MonsterFactory.create(gp, id, col, row);
@@ -942,7 +943,9 @@ public class MapObjectLoader {
             }
             int order = getIntProperty(obj, "fragmentOrder", 99);
             String source = getStringProperty(obj, "fragmentSource", npc.name);
-            gp.memoryJournal.registerFragment(fid, npc.memoryFragmentName, textArr, order, source);
+            float displaySeconds = getFloatProperty(obj, "fragmentDisplaySeconds",
+                data.MemoryJournal.MemoryFragment.DEFAULT_DISPLAY_SECONDS);
+            gp.memoryJournal.registerFragment(fid, npc.memoryFragmentName, textArr, order, source, displaySeconds);
         }
     }
 
@@ -1085,6 +1088,12 @@ public class MapObjectLoader {
                 boolean one  = getBoolProperty(obj, "oneShot", true);
                 if (!fId.isEmpty())
                     gp.eHandler.registerFragmentTrigger(worldX, worldY, ew, eh, fId, one);
+            }
+            case "BossIntroTrigger" -> {
+                String  bossName = getStringProperty(obj, "bossName", "");
+                boolean one      = getBoolProperty(obj, "oneShot", true);
+                if (!bossName.isEmpty())
+                    gp.eHandler.registerBossIntroTrigger(worldX, worldY, ew, eh, bossName, one);
             }
             case "SpawnPoint" -> {
                 // If this SpawnPoint has newGame=true it is the authoritative New Game spawn.
@@ -1252,6 +1261,7 @@ public class MapObjectLoader {
             case "MON_Shade"           -> "shade_wolf";
             case "MON_Inkblot", "Inkblot" -> "inkblot";
             case "BOSS_WitheredTree"   -> "withered_tree";
+            case "BOSS_Phantom"        -> "phantom";
             default                    -> type;
         };
         Entity m = MonsterFactory.create(gp, id, col, row);

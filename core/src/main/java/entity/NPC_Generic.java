@@ -66,14 +66,13 @@ public class NPC_Generic extends Entity {
     public String spritePath = null;
     /** Calea foii de sprite inactiv; incarcata lazy in getImage(). */
     public String idleSpritePath = null;
-    /** Numarul de randuri de directii in foaia de sprite inactiv (1 = directie unica, 4 = complet). Implicit: 4 */
-    public int idleRows = 4;
     /**
-     * Raportul de aspect al celulei pentru foile de sprite walk si idle.
-     * 1 = celule patrate (implicit). 2 = fiecare celula e de 2 ori mai lata decat inalta.
-     * Folosit cand foaia are cadre non-patrate (ex: Fighter_Training).
+     * Numarul de cadre pe fiecare rand de directie (JOS, STANGA, DREAPTA, SUS) pentru foaia walk,
+     * respectiv idle — ex: [6,7,6,7]. O foaie cu un singur rand foloseste doar primul element si
+     * randul e refolosit pe toate cele 4 directii (vezi Entity.loadSheetVariable). Implicit: 4x6.
      */
-    public float spriteAspect = 1.0f;
+    public int[] walkFramesPerRow = {6, 6, 6, 6};
+    public int[] idleFramesPerRow = {6, 6, 6, 6};
     private boolean imageLoaded = false;
 
     public NPC_Generic(GamePanel gp) {
@@ -111,139 +110,28 @@ public class NPC_Generic extends Entity {
         try {
         if (spritePath != null) {
             try {
+                // Plain fixed-grid slice by explicit per-row frame count (row 0=DOWN, 1=LEFT,
+                // 2=RIGHT, 3=UP) — same mechanism monsters.json uses (Entity.loadSheetVariable).
+                // A single-row sheet is duplicated across all 4 directions automatically.
+                Sprite[][] frames = loadSheetVariable(spritePath, walkFramesPerRow);
                 walkFrames = new Sprite[4][];
-                if (spriteAspect != 1.0f) {
-                    // Foaie walk non-patrata: calculeaza dimensiunile celulei din inaltimea foii
-                    Sprite rawWalk = util.ResourceCache.loadImageIfPresent(spritePath + ".png");
-                    if (rawWalk != null) {
-                        int cellH = rawWalk.getHeight() / 4;
-                        int cellW = Math.max(1, Math.round(cellH * spriteAspect));
-                        Sprite[][] matrix = loadSpriteMatrix(spritePath, cellW, cellH);
-                        int ts = gp.tileSize;
-                        // Scale each frame to tileSize x tileSize and map directions (0=DOWN,1=LEFT,2=RIGHT,3=UP)
-                        int[] dirMap = {DIR_DOWN, DIR_LEFT, DIR_RIGHT, DIR_UP};
-                        for (int r = 0; r < Math.min(matrix.length, dirMap.length); r++) {
-                            walkFrames[dirMap[r]] = new Sprite[matrix[r].length];
-                            for (int c = 0; c < matrix[r].length; c++) {
-                                walkFrames[dirMap[r]][c] = util.UtilityTool.scaleImage(matrix[r][c], ts, ts);
-                            }
-                        }
-                    }
-                } else {
-                    int[] framesPerRow = {6, 6, 6, 6};
-                    Sprite[][] frames = loadSheetVariable(spritePath, framesPerRow);
-                    walkFrames[DIR_DOWN]  = frames[0];
-                    walkFrames[DIR_UP]    = frames[3];
-                    walkFrames[DIR_LEFT]  = frames[1];
-                    walkFrames[DIR_RIGHT] = frames[2];
-                }
+                walkFrames[DIR_DOWN]  = frames[0];
+                walkFrames[DIR_LEFT]  = frames.length > 1 ? frames[1] : frames[0];
+                walkFrames[DIR_RIGHT] = frames.length > 2 ? frames[2] : frames[0];
+                walkFrames[DIR_UP]    = frames.length > 3 ? frames[3] : frames[0];
             } catch (Exception e) {
                 System.out.println("NPC_Generic: Failed to load walk sprite '" + spritePath + "': " + e.getMessage());
             }
         }
-        // Foaie sprite inactiv — ordinea randurilor: jos / stanga / dreapta / sus
+        // Idle sheet — same plain fixed-grid slice, row order DOWN/LEFT/RIGHT/UP.
         if (idleSpritePath != null) {
             try {
-                Sprite raw = util.ResourceCache.loadImageIfPresent(idleSpritePath + ".png");
-                if (raw != null) {
-                    int rows = idleRows;
-                    int cellH = raw.getHeight() / rows; // inaltimea celulei
-                    int cellW = Math.max(1, Math.round(cellH * spriteAspect));   // latimea celulei (spriteAspect=1 → patrat, 0.5 → lat jumatate, 2 → dublu lat)
-                    int maxCols  = raw.getWidth()  / cellW;
-
-                    // Numara cadrele reale (non-transparente) per rand
-                    int[] actualFrames = new int[rows];
-                    for (int r = 0; r < rows; r++) {
-                        actualFrames[r] = maxCols;
-                        while (actualFrames[r] > 1) {
-                            int fx = (actualFrames[r] - 1) * cellW;
-                            int fy = r * cellH;
-                            if (hasVisiblePixel(raw, fx, fy, cellW, cellH)) break;
-                            actualFrames[r]--;
-                        }
-                    }
-
-                    // Calculeaza bounding box-urile vizibile per rand — fiecare rand e
-                    // decupat pe baza cadrelor din acel rand (evita decupari extreme
-                    // cauzate de alte randuri).
-                    int[] rowMinX = new int[rows];
-                    int[] rowMaxX = new int[rows];
-                    int[] rowMinY = new int[rows];
-                    int[] rowMaxY = new int[rows];
-                    for (int r = 0; r < rows; r++) {
-                        rowMinX[r] = cellW; rowMaxX[r] = -1;
-                        rowMinY[r] = cellH; rowMaxY[r] = -1;
-                        for (int f = 0; f < actualFrames[r]; f++) {
-                            int ox = f * cellW, oy = r * cellH;
-                            for (int py = 0; py < cellH; py++) {
-                                for (int px = 0; px < cellW; px++) {
-                                    if ((raw.getRGB(ox + px, oy + py) >>> 24) > 10) {
-                                        if (py < rowMinY[r]) rowMinY[r] = py;
-                                        if (py > rowMaxY[r]) rowMaxY[r] = py;
-                                        if (px < rowMinX[r]) rowMinX[r] = px;
-                                        if (px > rowMaxX[r]) rowMaxX[r] = px;
-                                    }
-                                }
-                            }
-                        }
-                        if (rowMaxY[r] < 0) { rowMinX[r] = 0; rowMinY[r] = 0; rowMaxX[r] = cellW - 1; rowMaxY[r] = cellH - 1; }
-                    }
-
-                    int ts = gp.tileSize;
-                    // dirMap: index rand → constanta de directie.
-                    // Pentru o foaie cu 4 randuri: rand0=JOS, rand1=STANGA, rand2=DREAPTA, rand3=SUS.
-                    // Pentru o foaie cu 1 rand: randul unic e folosit pentru toate directiile.
-                    int[] dirMap = {DIR_DOWN, DIR_LEFT, DIR_RIGHT, DIR_UP};
-                    boolean debugFruit = idleSpritePath != null && idleSpritePath.toLowerCase().contains("fruit_trader");
-                    if (debugFruit) {
-                        System.out.println("[NPC_GENERIC DEBUG] Loading idle sprite: " + idleSpritePath +
-                                " rawWxH=" + raw.getWidth() + "x" + raw.getHeight() + " cellWxH=" + cellW + "x" + cellH + " maxCols=" + maxCols + " rows=" + rows);
-                    }
-                    idleFrames = new Sprite[4][];
-                    for (int r = 0; r < rows; r++) {
-                        int cropMinX = rowMinX[r];
-                        int cropMaxX = rowMaxX[r];
-                        int cropMinY = rowMinY[r];
-                        int cropMaxY = rowMaxY[r];
-                        int cropW = cropMaxX - cropMinX + 1;
-                        int cropH2 = cropMaxY - cropMinY + 1;
-                        if (debugFruit) {
-                            System.out.println("[NPC_GENERIC DEBUG] row=" + r + " cropMinX=" + cropMinX + " cropMaxX=" + cropMaxX +
-                                    " cropMinY=" + cropMinY + " cropMaxY=" + cropMaxY + " cropWxH=" + cropW + "x" + cropH2);
-                        }
-
-                        // Safety fallbacks
-                        if (cropW <= 0) cropW = cellW;
-                        if (cropH2 <= 0) cropH2 = cellH;
-
-                        Sprite[] rowFrames = new Sprite[actualFrames[r]];
-                        for (int f = 0; f < actualFrames[r]; f++) {
-                            // Scalare pe inaltime: prefera umplerea inaltimii tile-ului
-                            // pentru ca personajele sa foloseasca tot spatiul vertical.
-                            float scale = (float) ts / (float) cropH2;
-                            int dh = ts;
-                            int dw = Math.max(1, Math.round(cropW * scale));
-                            if (debugFruit) {
-                                System.out.println("[NPC_GENERIC DEBUG] frame=" + f + " scale=" + scale + " dw=" + dw + " dh=" + dh);
-                            }
-                            // GPU-native crop+scale+bottom-align into a tile-sized transparent cell.
-                            rowFrames[f] = raw.croppedBottomAligned(
-                                f * cellW + cropMinX, r * cellH + cropMinY, cropW, cropH2, dw, dh, ts, ts);
-                        }
-
-                        if (r < dirMap.length) {
-                            idleFrames[dirMap[r]] = rowFrames;
-                        }
-                    }
-
-                    // Daca foaia are mai putin de 4 randuri de directii, completeaza directiile
-                    // lipsa cu o copie a randului 0 (sprite cu directie unica).
-                    if (rows < 4 && idleFrames[DIR_DOWN] != null) {
-                        if (idleFrames[DIR_UP]    == null) idleFrames[DIR_UP]    = idleFrames[DIR_DOWN];
-                        if (idleFrames[DIR_LEFT]  == null) idleFrames[DIR_LEFT]  = idleFrames[DIR_DOWN];
-                        if (idleFrames[DIR_RIGHT] == null) idleFrames[DIR_RIGHT] = idleFrames[DIR_DOWN];
-                    }
-                }
+                Sprite[][] frames = loadSheetVariable(idleSpritePath, idleFramesPerRow);
+                idleFrames = new Sprite[4][];
+                idleFrames[DIR_DOWN]  = frames[0];
+                idleFrames[DIR_LEFT]  = frames.length > 1 ? frames[1] : frames[0];
+                idleFrames[DIR_RIGHT] = frames.length > 2 ? frames[2] : frames[0];
+                idleFrames[DIR_UP]    = frames.length > 3 ? frames[3] : frames[0];
             } catch (RuntimeException e) {
                 System.out.println("NPC_Generic: Failed to load idle sprite '" + idleSpritePath + "': " + e.getMessage());
             }
@@ -252,18 +140,6 @@ public class NPC_Generic extends Entity {
             Sprite.endPixelBatch();
         }
         imageLoaded = true;
-    }
-
-    /** Returneaza true daca orice pixel din dreptunghiul dat are alpha > 0. */
-    private boolean hasVisiblePixel(Sprite img, int x, int y, int w, int h) {
-        int x2 = Math.min(x + w, img.getWidth());
-        int y2 = Math.min(y + h, img.getHeight());
-        for (int py = y; py < y2; py++) {
-            for (int px = x; px < x2; px++) {
-                if ((img.getRGB(px, py) >>> 24) > 0) return true;
-            }
-        }
-        return false;
     }
 
     @Override
