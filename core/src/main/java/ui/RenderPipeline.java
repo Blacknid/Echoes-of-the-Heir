@@ -190,6 +190,8 @@ public class RenderPipeline {
 
         gp.tileM.drawForeground(g2);
 
+        drawBossHpBar(g2);
+
         clearRenderableEntities();
 
         drawNPCInteractIndicators(g2);
@@ -231,6 +233,9 @@ public class RenderPipeline {
                 gp.mapShader.drawVignette(g2);
             }
         }
+
+        gp.cloudLayer.draw(g2);
+        gp.dustFogLayer.draw(g2);
 
         // Finish scene capture: blit the world back to screen and add the bloom glow (HIGH only). Must
         // run before the HUD (drawWorldOverlays) so UI text/panels stay crisp and un-bloomed.
@@ -375,8 +380,8 @@ public class RenderPipeline {
         Stroke    oldStroke = g2.getStroke();
         g2.setStroke(new Stroke(1.5f));
 
-        int pwx = gp.player.worldX;
-        int pwy = gp.player.worldY;
+        int pwx = gp.getCamWorldX();
+        int pwy = gp.getCamWorldY();
         int psx = gp.player.screenX;
         int psy = gp.player.screenY;
 
@@ -449,6 +454,12 @@ public class RenderPipeline {
         for (Entity m : gp.monster) {
             if (m == null) continue;
             drawEntityOctagon(g2, m, -pwx + psx, -pwy + psy, DBG_MONSTER, DBG_MONSTER.darker(), m.name != null ? m.name : "MON");
+            if (m instanceof entity.Boss boss && boss.isAttackingNow() && boss.attackCone != null) {
+                float oldTX = g2.getTranslateX(); float oldTY = g2.getTranslateY();
+                g2.translate(-pwx + psx, -pwy + psy);
+                drawAttackConeDebug(g2, boss.attackCone);
+                g2.setTranslate(oldTX, oldTY);
+            }
             if (m.knockBack) {
                 Rect r = m.solidArea;
                 int mx = m.worldX - pwx + psx + r.x;
@@ -657,10 +668,26 @@ public class RenderPipeline {
         }
     }
 
+    /**
+     * Draws the first in-range boss's HP bar, as a pass separate from the Y-sorted world entity
+     * loop. Bosses used to draw their own bar inline inside Boss.draw(), which runs interleaved with
+     * depth-sorted tiles (tall foliage/walls/overhangs) — a depth tile sorted after the boss could
+     * paint over the bar. This overlay always runs after all world/foreground layers, so it can't be
+     * covered by anything in the world.
+     */
+    private void drawBossHpBar(GdxRenderer g2) {
+        for (Entity m : gp.monster) {
+            if (m instanceof entity.Boss boss && boss.shouldShowHpBar()) {
+                boss.drawBossHPBar(g2);
+                return;
+            }
+        }
+    }
+
     private void drawNPCInteractIndicators(GdxRenderer g2) {
         if (agroIndicator == null || gp.gameState != GamePanel.playState) return;
-        int pwx = gp.player.worldX;
-        int pwy = gp.player.worldY;
+        int pwx = gp.getCamWorldX();
+        int pwy = gp.getCamWorldY();
         int psx = gp.player.screenX;
         int psy = gp.player.screenY;
         int pcx = gp.player.getCenterX();

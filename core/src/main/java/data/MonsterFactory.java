@@ -7,6 +7,7 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.Map;
 
+import entity.BOSS_Phantom;
 import entity.BOSS_WitheredTree;
 import entity.Entity;
 import main.GamePanel;
@@ -72,6 +73,12 @@ public class MonsterFactory {
             boss.worldY = row * gp.tileSize;
             return boss;
         }
+        if ("boss_phantom".equals(aiBehavior)) {
+            BOSS_Phantom boss = new BOSS_Phantom(gp);
+            boss.worldX = col * gp.tileSize;
+            boss.worldY = row * gp.tileSize;
+            return boss;
+        }
 
         Entity m = new Entity(gp);
         m.type = Entity.TYPE_MONSTER;
@@ -87,7 +94,12 @@ public class MonsterFactory {
         m.exp = intVal(def, "exp", 3);
         m.defaultSpeed = intVal(def, "speed", 1);
         m.speed = m.defaultSpeed;
+        m.animSpeedMultiplier = floatVal(def, "animSpeedMultiplier", 1f);
         m.walkFrameCount = intVal(def, "walkFrameCount", 6);
+        // Visual size multiplier — 1.0 = normal tile size. Sprite sheet frames are already scaled
+        // down/up to fit one tile regardless of their native resolution (see loadSheetVariable), so
+        // this is purely for making a monster bigger/smaller than the default, not a sheet-cropping fix.
+        m.spriteScale = floatVal(def, "scale", 1f);
         m.aggroRange = intVal(def, "aggroRange", 6) * gp.tileSize;
         m.fleeDuration = intVal(def, "fleeDuration", 60);
 

@@ -95,14 +95,14 @@ public class IT_Grass extends interactiveTile {
         System.out.println("[IT_Grass] draw called imgBlade1=" + imgBlade1 + " imgBlade2=" + imgBlade2);
         if (imgBlade1 == null && imgBlade2 == null) return;
 
-        int screenX = worldX - gp.player.worldX + gp.player.screenX;
-        int screenY = worldY - gp.player.worldY + gp.player.screenY;
+        int screenX = worldX - gp.getCamWorldX() + gp.player.screenX;
+        int screenY = worldY - gp.getCamWorldY() + gp.player.screenY;
 
         // Cull off-screen
-        if (worldX + gp.tileSize <= gp.player.worldX - gp.player.screenX ||
-            worldX - gp.tileSize >= gp.player.worldX + (gp.screenWidth - gp.player.screenX) ||
-            worldY + gp.tileSize <= gp.player.worldY - gp.player.screenY ||
-            worldY - gp.tileSize >= gp.player.worldY + (gp.screenHeight - gp.player.screenY)) return;
+        if (worldX + gp.tileSize <= gp.getCamWorldX() - gp.player.screenX ||
+            worldX - gp.tileSize >= gp.getCamWorldX() + (gp.screenWidth - gp.player.screenX) ||
+            worldY + gp.tileSize <= gp.getCamWorldY() - gp.player.screenY ||
+            worldY - gp.tileSize >= gp.getCamWorldY() + (gp.screenHeight - gp.player.screenY)) return;
 
         // Anchor = bottom-center of the tile (rotation pivot, relative to the sprite's top-left)
         float originX = gp.tileSize * 0.5f;

@@ -370,8 +370,8 @@ public class TileParticleEmitter {
     }
 
     private void drawParticle(GdxRenderer g2, FP p) {
-        int sx = (int) p.worldX - gp.player.worldX + gp.player.screenX;
-        int sy = (int) p.worldY - gp.player.worldY + gp.player.screenY;
+        int sx = (int) p.worldX - gp.getCamWorldX() + gp.player.screenX;
+        int sy = (int) p.worldY - gp.getCamWorldY() + gp.player.screenY;
 
         if (sx + p.size < 0 || sy + p.size < 0 || sx >= gp.screenWidth || sy >= gp.screenHeight) {
             return;

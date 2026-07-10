@@ -56,8 +56,7 @@
     "name": "Cobold",
     "idleSprite": "/res/NPC/Cobold_on_shark",
     "staticNPC": true,
-    "idleRows": 1,
-    "spriteAspect": 0.667,
+    "idleFramesPerRow": [3],
     "interactRange": 96,
     "idleAnimSpeed": 12,
 
@@ -158,14 +157,14 @@
         "animation": "forge",
         "direction": 3,
         "offset": [2, 0],
-        "dialogueSet": "forging",w
+        "dialogueSet": "forging",
         "stationary": true,
         "requiredQuestComplete": "gather_iron"
       },
       {
         "id": "sword_ready",
         "animation": "forge",
-        "direction": 3,w
+        "direction": 3,
         "offset": [2, 0],
         "dialogueSet": "sword_ready",
         "stationary": true,
@@ -187,6 +186,8 @@
     "name": "Soldier",
     "sprite": "/res/NPC/Tutorial_idle",
     "idleSprite": "/res/NPC/Tutorial_idle",
+    "walkFramesPerRow": [12, 12, 12, 12],
+    "idleFramesPerRow": [12, 12, 12, 12],
     "staticNPC": true,
     "idleDirection": 2,
     "idleAnimSpeed": 12,
@@ -228,10 +229,10 @@
   "fruit_trader": {
     "name": "Fruit Trader",
     "idleSprite": "/res/NPC/Fruit_Trader",
-    "idleRows": 1,
-    "spriteAspect": 1.0,
+    "idleFramesPerRow": [9],
     "staticNPC": true,
     "idleDirection": 1,
+    "spriteScale": 2,
     "idleAnimSpeed": 12,
     "interactRange": 250,
     "depthSortYOffset": 128,
@@ -271,8 +272,7 @@
   "drink_trader": {
     "name": "Drink Trader",
     "idleSprite": "/res/NPC/Drinks_Trader",
-    "idleRows": 1,
-    "spriteAspect": 1.0,
+    "idleFramesPerRow": [12],
     "staticNPC": true,
     "idleDirection": 1,
     "idleAnimSpeed": 12,
@@ -333,7 +333,7 @@
   "archer": {
     "name": "Archer",
     "idleSprite": "/res/NPC/Archer_idle",
-    "idleRows": 1,
+    "idleFramesPerRow": [6],
     "staticNPC": true,
     "idleAnimSpeed": 12,
 
@@ -371,8 +371,9 @@
   "weapon_trader": {
     "name": "Weapon Trader",
     "idleSprite": "/res/NPC/Weapon_Trader_idle",
-    "idleRows": 1,
+    "idleFramesPerRow": [8],
     "staticNPC": true,
+    "spriteScale": 1.5,
     "idleAnimSpeed": 12,
     "interactRange": 64,
 
@@ -407,62 +408,44 @@
       }
     ]
   },
-  "citizen": {
-    "name": "Citizen",
-    "sprite": "/res/NPC/Citizen_test_walk-sheet",
-    "staticNPC": false,
+  "explorer": {
+    "name": "Explorer",
+    "idleSprite": "/res/NPC/Explorer",
+    "idleFramesPerRow": [12, 12, 12, 6],
+    "staticNPC": true,
+    "idleDirection": 2,
+    "interactRange": 96,
+    "spriteScale": 1.5,
+    "idleAnimSpeed": 12,
 
     "dialogues": {
-      "greeting": [
-        "Hello there, traveler!",
-        "Welcome to our town.",
-        "Feel free to explore and talk to the locals!"
+      "intro": [
+        "Hello there, I see you've completed the dungeon,",
+        "My people used to call it 'The Dungeon of Souls' because of the power that is corrupting it.",
+        "My name is ..., i'am an explorer and i think you might want to look at the sword waiting for you at the top.",
+        "I have no interest in such things."
       ],
-      "waiting": [
-        "Welcome back, traveler!",
-        "Have you found anything interesting?",
-        "I love hearing about your adventures!"
+      "having_sword": [
+        "It suits you well, I hope you'll use it for good cases.",
+        "Hoping to see you again."
       ],
-      "thanks": [
-        "No way, you found something amazing!\nThat's incredible!",
-        "Here, take this as a reward for your discovery.",
-        "I hope it helps you on your adventure!"
-      ],
-      "done": [
-        "In need of more information?\nI have plenty to share!",
-        "Feel free to come back anytime.\nI love chatting with travelers!"
+      "not_having_sword": [
+        "What are you waiting for?",
+        "There's a new sword waiting for you up there."
       ]
-    },
-
-    "states": [
-      {
-        "id": "post_quest",
-        "dialogue": "thanks",
-        "stationary": true,
-        "requiredQuestComplete": "citizen_quest"
-      },
-      {
-        "id": "waiting",
-        "dialogue": "waiting",
-        "stationary": true,
-        "requiredQuestComplete": "citizen_quest"
-      },
-      {
-        "id": "greeting",
-        "dialogue": "greeting",
-        "stationary": true
-      }
-    ]
+    }
   },
+
   "fighter": {
     "name": "Fighter",
     "sprite": "/res/NPC/Fighter_Training",
     "idleSprite": "/res/NPC/Fighter_Training",
-    "spriteAspect": 2,
+    "walkFramesPerRow": [6, 6, 6, 6],
+    "idleFramesPerRow": [6, 6, 6, 6],
     "staticNPC": true,
+    "spriteScale": 2,
     "idleAnimSpeed": 10,
     "idleDirection": 2,
-    "idleFrameCount": 6,
 
     "dialogues": {
       "intro": [
@@ -495,8 +478,9 @@
     "name": "bread_trader",
     "idleSprite": "/res/NPC/Bread_Trader_idle",
     "staticNPC": true,
-    "idleRows": 1,
+    "idleFramesPerRow": [12],
     "idleDirection": 0,
+    "spriteScale": 1.5,
     "interactRange": 64,
     "idleAnimSpeed": 12,
 
@@ -534,10 +518,10 @@
   "fisher_trader": {
     "name": "Fisher Trader",
     "idleSprite": "/res/NPC/Fisher_Trader",
-    "idleRows": 1,
-    "spriteAspect": 0.5,
+    "idleFramesPerRow": [12],
     "interactRange": 128,
     "staticNPC": true,
+    "spriteScale": 1.5,
     "idleAnimSpeed": 12,
 
     "dialogues": {
@@ -564,10 +548,21 @@
         "I don't want to get involved in whatever drama he's going through, but I know he needs it.",
         "It's a weight, I think. It looks like it might be important to him. Please give it back to him."
       ],
-      "post_quest": [
+      "cave_request": [
         "You returned the weight to the Elder. That's good of you.",
         "I hope it helps him with whatever he's going through.",
-        "If you need any fish, just let me know. I'm always happy to share my catch!"
+        "Also I have a request if you're interested.",
+        "I often feel something coming from the cave west from here,",
+        "I don't know what's causing all this, \nbut could you please take care of it?"
+      ],
+      "cave_waiting": [
+        "The cave is west from the Fishing Dock.",
+        "Please be careful in there — whatever it is, it doesn't feel right."
+      ],
+      "cave_done": [
+        "You found what was causing it? A Phantom... I knew something wasn't right.",
+        "Thank you for taking care of it. I can finally fish in peace again.",
+        "Here, take this as thanks for your help."
       ],
       "done": [
         "In need of more fish?\nI have plenty to share!",
@@ -582,26 +577,39 @@
         "stationary": true
       },
       {
-        "id": "post_quest",
-        "dialogue": "done",
-        "stationary": true,
-        "requiredQuestComplete": "a_familiar_weight"
-      },
-      {
         "id": "elder_request",
         "dialogue": "elder_request",
         "stationary": true,
         "requiredQuestActive": "a_familiar_weight"
+      },
+      {
+        "id": "cave_request",
+        "dialogue": "cave_request",
+        "stationary": true,
+        "requiredQuestComplete": "a_familiar_weight",
+        "requiredQuestActive": "explore_the_cave"
+      },
+      {
+        "id": "cave_waiting",
+        "dialogue": "cave_waiting",
+        "stationary": true,
+        "requiredQuestActive": "explore_the_cave"
+      },
+      {
+        "id": "post_quest",
+        "dialogue": "done",
+        "stationary": true,
+        "requiredQuestComplete": "explore_the_cave"
       }
     ]
   },
   "magic_trader": {
     "name": "Magic Trader",
     "idleSprite": "/res/NPC/Magic_Trader",
-    "idleRows": 1,
-    "spriteAspect": 1,
+    "idleFramesPerRow": [8],
     "interactRange": 64,
     "staticNPC": true,
+    "spriteScale": 2,
     "idleAnimSpeed": 12,
 
     "dialogues": {
@@ -649,9 +657,8 @@
   "knight": {
     "name": "Knight",
     "idleSprite": "/res/NPC/Knight",
-    "idleRows": 1,
+    "idleFramesPerRow": [10],
     "interactRange": 96,
-    "spriteAspect": 1,
     "staticNPC": true,
     "idleAnimSpeed": 12,
     "depthSortYOffset": 96,
@@ -719,9 +726,9 @@
   "village_elder": {
     "name": "Village Elder",
     "idleSprite": "/res/NPC/Main/Elder",
-    "spriteAspect": 1,
-    "idleRows": 1,
+    "idleFramesPerRow": [7],
     "idleDirection": 0,
+    "spriteScale": 2,
     "staticNPC": true,
     "interactRange": 64,
     "idleAnimSpeed": 12,

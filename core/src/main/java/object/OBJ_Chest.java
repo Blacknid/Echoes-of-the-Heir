@@ -40,16 +40,22 @@ public class OBJ_Chest extends Entity {
     }
 
     /**
-     * Load a multi-frame opening animation from a horizontal spritesheet.
-     * Each frame is tileSize × tileSize, laid out left-to-right.
+     * Load a multi-frame opening animation from a horizontal spritesheet, laid out left-to-right
+     * with frameCount equal-width frames spanning the sheet's own native resolution (NOT assumed to
+     * already be tileSize × tileSize — e.g. chests.png is 128x32 native = 32px/frame, regardless of
+     * the current tileSize). Slicing must happen in native pixel space (getSubimage uses the sheet's
+     * native rect), then each frame is scaled up to tileSize × tileSize for drawing. Loading the sheet
+     * pre-scaled and slicing with tileSize-sized steps (the old code) reads out of the native bounds
+     * once tileSize is bigger than a native frame, corrupting every frame after the first.
      */
     public void loadOpenAnimation(String sheetPath, int frameCount) {
-        Sprite sheet = setup(sheetPath, gp.tileSize * frameCount, gp.tileSize);
+        Sprite sheet = util.ResourceCache.loadImageIfPresent(sheetPath + ".png");
         if (sheet != null && frameCount > 1) {
             openFrames = new Sprite[frameCount];
-            int fw = gp.tileSize;
+            int fw = sheet.getWidth() / frameCount;
+            int fh = sheet.getHeight();
             for (int i = 0; i < frameCount; i++) {
-                openFrames[i] = sheet.getSubimage(i * fw, 0, fw, gp.tileSize);
+                openFrames[i] = sheet.getSubimage(i * fw, 0, fw, fh).withLogicalSize(gp.tileSize, gp.tileSize);
             }
             image  = openFrames[0];
             image1 = openFrames[frameCount - 1];
@@ -112,13 +118,13 @@ public class OBJ_Chest extends Entity {
 
     @Override
     public void draw(GdxRenderer g2) {
-        int screenX = worldX - gp.player.worldX + gp.player.screenX;
-        int screenY = worldY - gp.player.worldY + gp.player.screenY;
+        int screenX = worldX - gp.getCamWorldX() + gp.player.screenX;
+        int screenY = worldY - gp.getCamWorldY() + gp.player.screenY;
 
-        if (worldX + gp.tileSize > gp.player.worldX - gp.player.screenX &&
-            worldX - gp.tileSize < gp.player.worldX + (gp.screenWidth - gp.player.screenX) &&
-            worldY + gp.tileSize > gp.player.worldY - gp.player.screenY &&
-            worldY - gp.tileSize < gp.player.worldY + (gp.screenHeight - gp.player.screenY)) {
+        if (worldX + gp.tileSize > gp.getCamWorldX() - gp.player.screenX &&
+            worldX - gp.tileSize < gp.getCamWorldX() + (gp.screenWidth - gp.player.screenX) &&
+            worldY + gp.tileSize > gp.getCamWorldY() - gp.player.screenY &&
+            worldY - gp.tileSize < gp.getCamWorldY() + (gp.screenHeight - gp.player.screenY)) {
 
             if (opening) {
                 openAnimCounter++;

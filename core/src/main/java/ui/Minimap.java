@@ -294,8 +294,8 @@ public class Minimap {
 
         g2.setAlpha(largeMode ? 0.40f : 0.22f);
         g2.setColor(VIEWPORT_COLOR);
-        int vpX = originX + (int)(((gp.player.worldX - gp.player.screenX) / (float)gp.tileSize) * scaleX);
-        int vpY = originY + (int)(((gp.player.worldY - gp.player.screenY) / (float)gp.tileSize) * scaleY);
+        int vpX = originX + (int)(((gp.getCamWorldX() - gp.player.screenX) / (float)gp.tileSize) * scaleX);
+        int vpY = originY + (int)(((gp.getCamWorldY() - gp.player.screenY) / (float)gp.tileSize) * scaleY);
         int vpW = Math.max(1, (int)(gp.maxScreenCol * scaleX));
         int vpH = Math.max(1, (int)(gp.maxScreenRow * scaleY));
         g2.drawRect(vpX, vpY, vpW, vpH);

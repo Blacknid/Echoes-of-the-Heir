@@ -31,6 +31,15 @@ public class UI {
     public Sprite titleBackground;
     private Sprite titleBackgroundRaw;
 
+    // Animated title screen background (TitleScreen.gif, pre-extracted to numbered PNG frames
+    // since the engine has no GIF decoder). Falls back to the static titleBackground if absent.
+    private static final String TITLE_ANIM_DIR = "/res/titlescreen_anim/frame_%03d.png";
+    private static final int TITLE_ANIM_FRAME_COUNT = 130;
+    private static final int TITLE_ANIM_TICKS_PER_FRAME = 6; // ~100ms/frame at 60 UPS
+    private static final int TITLE_ANIM_LOAD_PER_TICK = 4; // frames decoded/uploaded per draw call
+    private Sprite[] titleAnimFrames;
+    private int titleAnimLoadedCount = 0;
+
     // ── Nine-slice UI panel (palette-swappable) ──────────────────────────────
     // One authored 96x96 texture (/res/ui/UI.png) reused for every window via drawPanel(). The
     // PNG is painted with fixed MARKER colors (one per material role); each drawPanel() call
@@ -601,6 +610,11 @@ public class UI {
             } else {
                 System.out.println("Title background file found but could not be loaded");
             }
+
+            // Frames are loaded lazily, a few per draw tick (see loadNextTitleAnimFrames()), instead
+            // of all 130 here — decoding/uploading them all up front made the game freeze/"Not
+            // Responding" for several seconds on launch.
+            titleAnimFrames = new Sprite[TITLE_ANIM_FRAME_COUNT];
 
             // Nine-slice UI panel texture (optional; drawPanel falls back to vector panels if absent).
             uiPanelRaw = ResourceCache.loadImageIfPresent("/res/ui/UI.png");
@@ -1246,8 +1260,8 @@ public class UI {
         promptBobCounter++;
         int bob = (int)(fastSin(promptBobCounter, 1) * 3); // gentle bob
 
-        int screenX = target.worldX - gp.player.worldX + gp.player.screenX;
-        int screenY = target.worldY - gp.player.worldY + gp.player.screenY;
+        int screenX = target.worldX - gp.getCamWorldX() + gp.player.screenX;
+        int screenY = target.worldY - gp.getCamWorldY() + gp.player.screenY;
 
         g2.setFont(hudFont_prompt);
         FontMetrics fm = cachedFM(hudFont_prompt);
@@ -1276,9 +1290,32 @@ public class UI {
         g2.drawString(text, px + 12, py + textH);
     }
 
+    /**
+     * Decodes/uploads a handful of title-animation frames per call instead of all 130 up front —
+     * doing them all in the UI constructor made the game freeze ("Not Responding") for several
+     * seconds on launch. Cheap to call every draw: once fully loaded it's just a length check.
+     */
+    private void loadNextTitleAnimFrames() {
+        if (titleAnimFrames == null || titleAnimLoadedCount >= TITLE_ANIM_FRAME_COUNT) return;
+
+        int end = Math.min(titleAnimLoadedCount + TITLE_ANIM_LOAD_PER_TICK, TITLE_ANIM_FRAME_COUNT);
+        for (int i = titleAnimLoadedCount; i < end; i++) {
+            Sprite sprite = ResourceCache.loadImageIfPresent(String.format(TITLE_ANIM_DIR, i));
+            if (sprite == null) { titleAnimFrames = null; return; } // extraction missing: fall back
+            titleAnimFrames[i] = sprite;
+        }
+        titleAnimLoadedCount = end;
+    }
+
     public void drawTitleScreen() {
 
-        if (titleBackground != null) {
+        loadNextTitleAnimFrames();
+
+        if (titleAnimLoadedCount > 0) {
+            int frame = (animTick / TITLE_ANIM_TICKS_PER_FRAME) % titleAnimLoadedCount;
+            Sprite sprite = titleAnimFrames[frame];
+            if (sprite != null) g2.drawImage(sprite, 0, 0, gp.screenWidth, gp.screenHeight);
+        } else if (titleBackground != null) {
             g2.drawImage(titleBackground, 0, 0);
         } else {
             g2.setColor(cachedColor(0, 0, 0));

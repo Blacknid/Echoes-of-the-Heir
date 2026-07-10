@@ -66,8 +66,8 @@ public class DamageNumber extends Entity implements Poolable {
     public void draw(GdxRenderer g2) {
         if (!alive || text == null) return;
 
-        int screenX = worldX - gp.player.worldX + gp.player.screenX;
-        int screenY = (int) floatY - gp.player.worldY + gp.player.screenY;
+        int screenX = worldX - gp.getCamWorldX() + gp.player.screenX;
+        int screenY = (int) floatY - gp.getCamWorldY() + gp.player.screenY;
 
         changeAlpha(g2, alpha);
 

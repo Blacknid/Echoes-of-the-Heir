@@ -66,28 +66,24 @@ public class IT_GrassPatch extends interactiveTile {
         // hitbox spanning the whole tree). Keeps weapon-hit detection sane regardless of how wide
         // the grass art is drawn.
         if (image != null) {
-            int footW = Math.max(1, Math.round(drawWidth * 0.6f));
-            int footH = Math.max(1, Math.round(drawHeight * 0.25f));
+            int footW = Math.max(1, Math.round(drawWidth * HITBOX_WIDTH_FRACTION));
+            int footH = Math.max(1, Math.round(drawHeight * HITBOX_HEIGHT_FRACTION));
             solidArea.width = footW;
             solidArea.height = footH;
             solidArea.x = (drawWidth - footW) / 2;
             solidArea.y = drawHeight - footH;
             solidAreaDefaultX = solidArea.x;
             solidAreaDefaultY = solidArea.y;
-        }
 
-        // Y-sort "feet" key is pinned to LEG height instead of the sprite's own bottom edge, so the
-        // player draws behind grass (covering just the legs) while standing in the lower half of the
-        // tile, and in front (uncovering the upper body) once past the tile's vertical middle — the
-        // player's own feet key (see Player.solidArea) sits at a similarly low point in its tile, so
-        // this lines the two up at roughly leg height instead of the grass sprite's literal bottom.
-        // renderSorter's key for this entity is worldY + solidArea.y + solidArea.height +
-        // depthSortYOffset, i.e. worldY + drawHeight + depthSortYOffset (solidArea's y+height above
-        // always sums to drawHeight); solving for a final key of worldY + tileSize/2:
-        if (image != null) {
-            depthSortYOffset = gp.tileSize / 2 - 32;
+            int targetKey = gp.tileSize * GRASS_CUTOVER_NUM / GRASS_CUTOVER_DEN;
+            depthSortYOffset = targetKey - drawHeight;
         }
     }
+
+    private static final float HITBOX_WIDTH_FRACTION = 0.85f;
+    private static final float HITBOX_HEIGHT_FRACTION = 1f;
+    private static final int GRASS_CUTOVER_NUM = 19;
+    private static final int GRASS_CUTOVER_DEN = 20;
 
     @Override
     public boolean isCorrectItem(Entity entity) {
@@ -97,13 +93,13 @@ public class IT_GrassPatch extends interactiveTile {
     @Override
     public void draw(GdxRenderer g2) {
         if (image == null) return;
-        int screenX = worldX - gp.player.worldX + gp.player.screenX;
-        int screenY = worldY - gp.player.worldY + gp.player.screenY;
+        int screenX = worldX - gp.getCamWorldX() + gp.player.screenX;
+        int screenY = worldY - gp.getCamWorldY() + gp.player.screenY;
 
-        if (worldX + drawWidth  <= gp.player.worldX - gp.player.screenX ||
-            worldX - drawWidth  >= gp.player.worldX + (gp.screenWidth  - gp.player.screenX) ||
-            worldY + drawHeight <= gp.player.worldY - gp.player.screenY ||
-            worldY - drawHeight >= gp.player.worldY + (gp.screenHeight - gp.player.screenY)) return;
+        if (worldX + drawWidth  <= gp.getCamWorldX() - gp.player.screenX ||
+            worldX - drawWidth  >= gp.getCamWorldX() + (gp.screenWidth  - gp.player.screenX) ||
+            worldY + drawHeight <= gp.getCamWorldY() - gp.player.screenY ||
+            worldY - drawHeight >= gp.getCamWorldY() + (gp.screenHeight - gp.player.screenY)) return;
 
         // Drawn at the image's own native resolution, scaled by the game's global content scale
         // (same as every other tile) — not the raw PNG pixel size.

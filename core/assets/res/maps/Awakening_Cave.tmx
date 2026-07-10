@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<map version="1.10" tiledversion="1.12.1" orientation="orthogonal" renderorder="right-down" width="40" height="30" tilewidth="32" tileheight="32" infinite="0" nextlayerid="24" nextobjectid="130">
+<map version="1.10" tiledversion="1.12.1" orientation="orthogonal" renderorder="right-down" width="40" height="30" tilewidth="32" tileheight="32" infinite="0" nextlayerid="24" nextobjectid="131">
  <properties>
   <property name="ambientLight" type="float" value="1"/>
   <property name="music" type="int" value="1"/>
@@ -4694,11 +4694,11 @@
    <properties>
     <property name="activationRange" type="int" value="4"/>
     <property name="confined" type="bool" value="true"/>
-    <property name="interval" type="int" value="240"/>
+    <property name="interval" type="int" value="180"/>
     <property name="lootItem" value="Key"/>
-    <property name="maxAmount" type="int" value="1"/>
+    <property name="maxAmount" type="int" value="2"/>
     <property name="monster" value="inkblot"/>
-    <property name="totalLimit" type="int" value="2"/>
+    <property name="totalLimit" type="int" value="5"/>
    </properties>
    <polygon points="0,0 0,76.8 32,76.8 32,115.2 224,115.2 224,76.8 352,76.8 384,76.8 384,0 352,0 352,-38.4 160,-38.4 160,-76.8 32,-76.8 32,-38.4 0,-38.4"/>
   </object>
@@ -4840,6 +4840,13 @@ Good luck!</property>
   <object id="125" name="Coming from Canvas" type="SpawnPoint" x="512" y="0">
    <properties>
     <property name="id" value="Coming_from_canvas"/>
+   </properties>
+   <point/>
+  </object>
+  <object id="130" name="Ambient Light" type="Lighting" x="46.167" y="472.333">
+   <properties>
+    <property name="lightColor" value="#6688FF"/>
+    <property name="lightRadius" type="int" value="3"/>
    </properties>
    <point/>
   </object>

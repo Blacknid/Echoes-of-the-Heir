@@ -176,10 +176,32 @@
     "defense": 0,
     "exp": 2,
     "speed": 1,
+    "animSpeedMultiplier": 5,
     "walkFrameCount": 8,
     "spriteSheet": "/res/monster/Inkblot/Inkblot_walking",
     "framesPerRow": [8, 8, 8, 8],
     "solidArea": { "x": 18, "y": 30, "width": 28, "height": 26 },
+    "aiBehavior": "melee_chase",
+    "aggroRange": 4,
+    "fleeThreshold": 0,
+    "fleeDuration": 0,
+    "deathCoins": 0,
+    "deathQuestKills": 1
+  },
+  {
+    "id": "iceblot",
+    "name": "Iceblot",
+    "maxLife": 5,
+    "attack": 1,
+    "defense": 0,
+    "exp": 2,
+    "speed": 1,
+    "animSpeedMultiplier": 5,
+    "walkFrameCount": 8,
+    "scale": 2,
+    "spriteSheet": "/res/monster/Iceblot/Iceblot_walk",
+    "framesPerRow": [8, 8, 8, 8],
+    "solidArea": { "x": 20, "y": -14, "width": 28, "height": 26 },
     "aiBehavior": "melee_chase",
     "aggroRange": 4,
     "fleeThreshold": 0,
@@ -228,6 +250,12 @@
     "fleeDuration": 0,
     "deathCoins": 10,
     "deathQuestKills": 1,
+    "isBoss": true
+  },
+  {
+    "id": "phantom",
+    "name": "Phantom",
+    "aiBehavior": "boss_phantom",
     "isBoss": true
   }
 ]

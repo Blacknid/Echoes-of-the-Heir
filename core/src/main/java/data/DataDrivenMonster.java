@@ -43,6 +43,8 @@ public class DataDrivenMonster extends Entity {
         this.worldY = template.worldY;
         this.defaultSpeed = template.defaultSpeed;
         this.speed = template.speed;
+        this.spriteScale = template.spriteScale;
+        this.animSpeedMultiplier = template.animSpeedMultiplier;
         this.walkFrameCount = template.walkFrameCount;
         this.maxLife = template.maxLife;
         this.life = template.life;
@@ -125,7 +127,7 @@ public class DataDrivenMonster extends Entity {
                 int absDx = Math.abs(getCenterX() - gp.player.getCenterX());
                 int absDy = Math.abs(getCenterY() - gp.player.getCenterY());
                 if (absDx < closeDist && absDy < closeDist) {
-                    directChase(goalCol, goalRow);
+                    if (!directChase(goalCol, goalRow)) giveUpIfUnreachable();
                 } else {
                     searchPath(goalCol, goalRow);
                 }

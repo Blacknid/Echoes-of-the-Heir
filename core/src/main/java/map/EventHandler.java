@@ -13,7 +13,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.Random;
 
-import audio.SFX;
 import entity.Entity;
 import main.GamePanel;
 
@@ -29,6 +28,7 @@ import main.GamePanel;
  *  Checkpoint      — silent save + HP/MP restore (no prompt)
  *  QuestTrigger    — increments quest progress by a set amount
  *  CameraShake     — triggers screen shake on step
+ *  BossIntroTrigger — plays a camera-pan-to-boss cutscene (see ui.BossIntroCutscene) on step
  *
  * ---- NAMED SPAWN POINTS ----------------------------------------------------
  *  SpawnPoint objects in the Events layer register a named {id -> col, row} entry.
@@ -56,6 +56,7 @@ public class EventHandler {
     final List<PixelEvent<MemoryGateData>>   memoryGates       = new ArrayList<>();
     final List<PixelEvent<ThoughtData>>      thoughtTriggers   = new ArrayList<>();
     final List<PixelEvent<FragmentTriggerData>> fragmentTriggers  = new ArrayList<>();
+    final List<PixelEvent<BossIntroData>>    bossIntroTriggers = new ArrayList<>();
 
     final List<Shape> waterZones = new ArrayList<>();
 
@@ -128,6 +129,11 @@ public class EventHandler {
         FragmentTriggerData(String fid, boolean one) { fragmentId=fid; oneShot=one; triggered=false; }
     }
 
+    private static class BossIntroData {
+        String bossName; boolean oneShot, triggered;
+        BossIntroData(String bn, boolean one) { bossName=bn; oneShot=one; triggered=false; }
+    }
+
     static class SpawnZoneData {
         int worldX, worldY, areaW, areaH;
         IntPolygon poly;  // null = rectangle, non-null = exact polygon shape for spawning
@@ -195,6 +201,7 @@ public class EventHandler {
         memoryGates.clear();
         thoughtTriggers.clear();
         fragmentTriggers.clear();
+        bossIntroTriggers.clear();
         namedSpawnPoints.clear();
         waterZones.clear();
         spawnZones.clear();
@@ -306,6 +313,10 @@ public class EventHandler {
 
     public void registerFragmentTrigger(int wx, int wy, int w, int h, String fragmentId, boolean oneShot) {
         fragmentTriggers.add(new PixelEvent<>(wx, wy, w, h, new FragmentTriggerData(fragmentId, oneShot)));
+    }
+
+    public void registerBossIntroTrigger(int wx, int wy, int w, int h, String bossName, boolean oneShot) {
+        bossIntroTriggers.add(new PixelEvent<>(wx, wy, w, h, new BossIntroData(bossName, oneShot)));
     }
 
     public void registerSpawnZone(int worldX, int worldY, int areaW, int areaH,
@@ -528,6 +539,14 @@ public class EventHandler {
             }
         }
 
+        for (PixelEvent<BossIntroData> pe : bossIntroTriggers) {
+            BossIntroData bi = pe.data;
+            if ((!bi.oneShot || !bi.triggered) && playerRect.intersects(pe.hitbox)) {
+                triggerBossIntro(bi);
+                return;
+            }
+        }
+
         for (PixelEvent<String> pe : cameraShakes) {
             if (playerRect.intersects(pe.hitbox)) {
                 applyCameraShake(pe.data);
@@ -565,12 +584,8 @@ public class EventHandler {
 
     void damageTrap(DamageTrapData trap) {
         if (gp.player.invincible) return;
-        gp.playSE(SFX.PLAYER_HIT);
         int dmg = Math.max(1, trap.damage - gp.player.defense);
-        gp.player.life -= dmg;
-        gp.player.invincible = true;
-        gp.player.hitFlashCounter = 6;
-        gp.screenShake.shakeMedium();
+        gp.player.onHitByEnemy(dmg, gp.player.worldX, gp.player.worldY, 0);
         if (!trap.repeatable) trap.triggered = true;
         touchConsumed();
     }
@@ -740,6 +755,14 @@ public class EventHandler {
         gp.ui.addMessage("Memory fragment found: " + ft.fragmentId,
             new Color(180, 140, 255));
         if (ft.oneShot) ft.triggered = true;
+        touchConsumed();
+    }
+
+    private void triggerBossIntro(BossIntroData bi) {
+        entity.Boss boss = gp.findBossByName(bi.bossName);
+        if (boss == null) return; // boss not present/already defeated — skip silently, don't burn the trigger
+        gp.bossIntroCutscene.start(boss);
+        if (bi.oneShot) bi.triggered = true;
         touchConsumed();
     }
 

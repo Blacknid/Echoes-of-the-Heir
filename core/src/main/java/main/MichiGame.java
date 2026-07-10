@@ -53,7 +53,13 @@ public class MichiGame extends ApplicationAdapter {
         // opaque activation_id + encrypted blob (see platform.LicenseActivation). Every later
         // run: LOGIN re-confirms it. Returns null (and leaves LICENSE_KEY unset) if no save
         // server is reachable yet — the game still runs, just without cloud saves/MP this run.
-        main.Main.LICENSE_KEY = platform.LicenseActivation.ensureActivated();
+        // Run on a background thread: this does a real network round trip (with multi-second
+        // timeouts per fallback endpoint tried), and blocking create() on it froze the window
+        // ("Not Responding") for several seconds on every launch. LICENSE_KEY is volatile and
+        // only ever read later by cloud-save/friends/MP actions the player triggers manually,
+        // long after the window is up, so it's safe to let this resolve in the background.
+        new Thread(() -> main.Main.LICENSE_KEY = platform.LicenseActivation.ensureActivated(),
+                "LicenseActivation").start();
 
         camera = new OrthographicCamera();
         syncCamera(Gdx.graphics.getWidth(), Gdx.graphics.getHeight());

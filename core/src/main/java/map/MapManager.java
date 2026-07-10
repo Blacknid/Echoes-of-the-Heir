@@ -217,6 +217,9 @@ public class MapManager {
         for (int i = 0; i < gp.iTile.length; i++) gp.iTile[i] = null;
         gp.projectilesList.clear();
         gp.particleList.clear();
+        gp.cloudLayer.clearAll();
+        gp.dustFogLayer.clearAll();
+        gp.tensionBeats.reset();
 
         // Invalidate torch shadow cache — torches on new map are different
         if (gp.eManager != null && gp.eManager.lightning != null) {

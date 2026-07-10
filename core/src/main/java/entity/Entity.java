@@ -6,7 +6,6 @@ import gfx.Sprite;
 import gfx.geom.Rect;
 import java.io.IOException;
 
-import audio.SFX;
 import main.GamePanel;
 import util.ResourceCache;
 
@@ -23,11 +22,25 @@ public class Entity {
     private int pathStallCounter = 0;  // frames without reaching the next waypoint
     private static final int PATH_STALL_LIMIT = 10; // force repath after this many stalled frames
 
+    // Consecutive frames spent completely unable to move toward the goal (A* found no route AND
+    // directChase is blocked on both axes) — once this crosses the limit, the chaser gives up and
+    // drops back to idle/wander instead of pushing against a wall forever.
+    private int unreachableCounter = 0;
+    private static final int UNREACHABLE_GIVE_UP_LIMIT = 90; // ~1.5s at 60 ticks/sec
+
     public static final int DIR_DOWN  = 0;
     public static final int DIR_LEFT  = 1;
     public static final int DIR_RIGHT = 2;
     public static final int DIR_UP    = 3;
     public static final int DIR_ANY   = -1; // for event checks (any facing)
+
+    // Hysteresis margin for axis-lock direction picking (faceTowardPlayer, directChase): the
+    // current axis must be beaten by more than this factor before switching, so standing near a
+    // ~45 degree angle doesn't flicker the facing direction back and forth every frame.
+    protected static final double DIRECTION_HYSTERESIS = 1.3;
+    // Below this many pixels of separation on an axis, ignore it when deciding facing direction —
+    // avoids flickering left/right (or up/down) from sub-tile jitter at point-blank range.
+    private static final int DIRECTION_DEADZONE = 6;
 
 
 
@@ -61,6 +74,13 @@ public class Entity {
     public String dialogueActivity = null;
     private String preDialogueActivity = null;
     private boolean dialogueActivityActive = false;
+
+    // Forced idleDirection to switch to for as long as this NPC is being talked to (e.g. explorer
+    // faces direction 2 normally but direction 1 while in conversation). -1 = no override, idle
+    // facing is left entirely to the normal idleDirection value.
+    public int dialogueIdleDirection = -1;
+    private int preDialogueIdleDirection = -1;
+    private boolean dialogueIdleDirectionActive = false;
 
     public int direction = DIR_DOWN;
 
@@ -156,17 +176,23 @@ public class Entity {
 
     /** Replace hurtPolygon with a regular octagon. cx/cy are the center offset from worldX/worldY; r is the radius. */
     public void setOctagonHurt(int cx, int cy, int r) {
+        setOctagonHurt(cx, cy, r, r);
+    }
+
+    /** Same as {@link #setOctagonHurt(int, int, int)}, but lets the octagon be taller/wider than it is wide/tall. */
+    public void setOctagonHurt(int cx, int cy, int rx, int ry) {
         int[] xs = new int[8];
         int[] ys = new int[8];
-        int cut = (int) Math.round(r * 0.2);
-        xs[0] = cx - r + cut; ys[0] = cy - r;
-        xs[1] = cx + r - cut; ys[1] = cy - r;
-        xs[2] = cx + r;       ys[2] = cy - r + cut;
-        xs[3] = cx + r;       ys[3] = cy + r - cut;
-        xs[4] = cx + r - cut; ys[4] = cy + r;
-        xs[5] = cx - r + cut; ys[5] = cy + r;
-        xs[6] = cx - r;       ys[6] = cy + r - cut;
-        xs[7] = cx - r;       ys[7] = cy - r + cut;
+        int cutX = (int) Math.round(rx * 0.2);
+        int cutY = (int) Math.round(ry * 0.2);
+        xs[0] = cx - rx + cutX; ys[0] = cy - ry;
+        xs[1] = cx + rx - cutX; ys[1] = cy - ry;
+        xs[2] = cx + rx;        ys[2] = cy - ry + cutY;
+        xs[3] = cx + rx;        ys[3] = cy + ry - cutY;
+        xs[4] = cx + rx - cutX; ys[4] = cy + ry;
+        xs[5] = cx - rx + cutX; ys[5] = cy + ry;
+        xs[6] = cx - rx;        ys[6] = cy + ry - cutY;
+        xs[7] = cx - rx;        ys[7] = cy - ry + cutY;
         hurtPolygon = new gfx.geom.IntPolygon(xs, ys, 8);
     }
     public boolean collisionOn = false;
@@ -223,6 +249,10 @@ public class Entity {
     public String name;
     public int defaultSpeed = 1;
     public int speed;
+    // Multiplies the walk-cycle frame rate independently of movement speed — normally 1 (animation
+    // cadence tracks movement speed like every other entity); raise it for a slow-moving entity
+    // whose walk animation should still read at a normal pace (e.g. Inkblot).
+    public float animSpeedMultiplier = 1f;
     public int maxLife; //maximul teoretic de viata
     public int life; //viata curenta
     public int maxMana; //maximul teoretic de mana
@@ -452,14 +482,38 @@ public class Entity {
             default -> direction;
         };
     }
-    /** Turns this entity to face toward the player's actual position, ignoring the player's facing direction. */
+    /**
+     * Turns this entity to face toward the player's actual position, ignoring the player's facing
+     * direction. Picks a single cardinal axis (never diagonal) and applies hysteresis — both for
+     * switching axis (e.g. horizontal to vertical) and for flipping sign on the current axis (e.g.
+     * left to right) — so standing right next to the player, where dx/dy are tiny and noisy as they
+     * shuffle around, doesn't flicker the facing direction every frame.
+     */
     public void faceTowardPlayer() {
-        int dx = gp.player.worldX - worldX;
-        int dy = gp.player.worldY - worldY;
-        if (Math.abs(dx) >= Math.abs(dy)) {
-            direction = dx >= 0 ? DIR_RIGHT : DIR_LEFT;
+        // Centers, not worldX/worldY corners — entities whose hitbox is offset from their sprite's
+        // top-left (e.g. a boss anchored upper-center for a floating sprite) would otherwise compare
+        // against a point far from where their actual hitbox sits, making "level with the player"
+        // visually mean something different than dy == 0.
+        int dx = gp.player.getCenterX() - getCenterX();
+        int dy = gp.player.getCenterY() - getCenterY();
+
+        // Deadzone: too close on both axes to meaningfully tell a direction apart — keep facing
+        // whatever direction was already chosen instead of reacting to sub-pixel noise.
+        if (Math.abs(dx) < DIRECTION_DEADZONE && Math.abs(dy) < DIRECTION_DEADZONE) return;
+
+        boolean currentlyHorizontal = direction == DIR_LEFT || direction == DIR_RIGHT;
+        boolean horizontalDominant = currentlyHorizontal
+                ? Math.abs(dx) >= Math.abs(dy) * DIRECTION_HYSTERESIS
+                : Math.abs(dx) * DIRECTION_HYSTERESIS > Math.abs(dy);
+
+        if (horizontalDominant) {
+            if (direction == DIR_RIGHT && dx < -DIRECTION_DEADZONE) direction = DIR_LEFT;
+            else if (direction == DIR_LEFT && dx > DIRECTION_DEADZONE) direction = DIR_RIGHT;
+            else if (direction != DIR_LEFT && direction != DIR_RIGHT) direction = dx >= 0 ? DIR_RIGHT : DIR_LEFT;
         } else {
-            direction = dy >= 0 ? DIR_DOWN : DIR_UP;
+            if (direction == DIR_DOWN && dy < -DIRECTION_DEADZONE) direction = DIR_UP;
+            else if (direction == DIR_UP && dy > DIRECTION_DEADZONE) direction = DIR_DOWN;
+            else if (direction != DIR_UP && direction != DIR_DOWN) direction = dy >= 0 ? DIR_DOWN : DIR_UP;
         }
     }
     /**
@@ -479,11 +533,27 @@ public class Entity {
     }
     public void interact() {}
     public void damageReaction() {}
+
+    /**
+     * Called right before a melee hit would apply damage to this entity. Return true to dodge the
+     * hit entirely (no damage, no knockback, no hit reaction) — the caller is responsible for
+     * whatever visual/sound the dodge itself needs. Default: never dodges.
+     */
+    public boolean tryDodgeIncomingHit() { return false; }
     public boolean use(Entity entity) { return false; }
     public void startDialogue(Entity entity, int setNum) {
         gp.gameState = GamePanel.dialogueState;
         gp.ui.npc = entity;
         dialogueSet = setNum;
+
+        // Swap to the dialogue-only facing direction (e.g. explorer faces direction 2 normally but
+        // direction 1 while being talked to). Restored in endDialogueActivity(), called when
+        // dialogue closes.
+        if (dialogueIdleDirection >= 0 && !dialogueIdleDirectionActive) {
+            preDialogueIdleDirection = idleDirection;
+            idleDirection = dialogueIdleDirection;
+            dialogueIdleDirectionActive = true;
+        }
 
         // Swap to the dialogue-only activity (e.g. blacksmith stops forging and just idles while
         // being talked to). Restored in endDialogueActivity(), called when dialogue closes.
@@ -525,9 +595,13 @@ public class Entity {
         }
     }
 
-    /** Restore whatever activity was playing before {@link #startDialogue} swapped it out. Called
-     *  when dialogue with this NPC ends. No-op if no dialogueActivity override was active. */
+    /** Restore whatever activity/idle direction was active before {@link #startDialogue} swapped
+     *  them out. Called when dialogue with this NPC ends. No-op if no override was active. */
     public void endDialogueActivity() {
+        if (dialogueIdleDirectionActive) {
+            idleDirection = preDialogueIdleDirection;
+            dialogueIdleDirectionActive = false;
+        }
         if (!dialogueActivityActive) return;
         currentActivity = preDialogueActivity;
         activitySpriteNum = 1;
@@ -552,25 +626,19 @@ public class Entity {
         gp.cChecker.checkObject(this, false);
         gp.cChecker.checkEntity(this, gp.npc);
         gp.cChecker.checkEntity(this, gp.monster);
+        gp.cChecker.checkEntity(this, gp.iTile);
         boolean contactPlayer = gp.cChecker.checkPlayer(this);
 
         if (type == TYPE_MONSTER && contactPlayer && !gp.player.invincible) {
-            
-            gp.playSE(SFX.PLAYER_HIT);
-
-            int damage = attack - gp.player.defense;
-            if (damage < 1) {
-                damage = 1;
-            }
-
-            gp.player.life -= damage;
-            gp.player.invincible = true;
+            int damage = Math.max(1, attack - gp.player.defense);
+            int knockbackPower = Math.max(1, (attack + 1) / 2);
+            gp.player.onHitByEnemy(damage, worldX, worldY, knockbackPower);
 
             // Grab: root the player if this monster has a rootOnContactDuration
             if (rootOnContactDuration > 0 && !gp.player.rooted) {
                 gp.player.rooted = true;
                 gp.player.rootedTimer = rootOnContactDuration;
-        }
+            }
         }
     }
     public Color getParticleColor() {
@@ -639,7 +707,20 @@ public class Entity {
         }
 
         // handling knockback first — check collision before moving to prevent wall phasing
-        if (tickKnockback()) return;
+        if (tickKnockback()) {
+            // i-frames must still count down during knockback, otherwise a fresh hit re-arming
+            // knockback every swing (see Player.damageMonster) freezes invincible permanently and
+            // the target can never be damaged again after the first hit.
+            if (invincible) {
+                invincibleCounter++;
+                if (invincibleCounter > invincibleDuration) {
+                    invincible = false;
+                    invincibleCounter = 0;
+                }
+            }
+            if (hitFlashCounter > 0) hitFlashCounter--;
+            return;
+        }
 
         if (slowedTimer > 0 && --slowedTimer == 0) slowed = false;
         if (rootedTimer > 0 && --rootedTimer == 0) rooted = false;
@@ -795,7 +876,8 @@ public class Entity {
             return;
         }
         if (walkAnim == null || walkAnim.length != walkFrames.length) walkAnim = new gfx.SpriteAnimation[walkFrames.length];
-        float dur = gfx.SpriteAnimation.durationForTicks(Math.max(2, 48 / Math.max(1, speed)));
+        int ticksPerFrame = Math.max(2, (int) (48 / Math.max(1, speed) / Math.max(0.01f, animSpeedMultiplier)));
+        float dur = gfx.SpriteAnimation.durationForTicks(ticksPerFrame);
         walkAnim[dir] = animFor(frames, walkAnim[dir], dur);
         walkStateTime += DT;
         if (walkAnim[dir] != null) spriteNum = walkAnim[dir].getFrameIndex(walkStateTime) + 1;
@@ -804,7 +886,7 @@ public class Entity {
     /** Old counter/bounce for legacy named-field entities (walkFrames == null). */
     private void advanceLegacyWalkCounter() {
         spriteCounter++;
-        int walkInterval = Math.max(2, 48 / Math.max(1, speed));
+        int walkInterval = Math.max(2, (int) (48 / Math.max(1, speed) / Math.max(0.01f, animSpeedMultiplier)));
         if (spriteCounter > walkInterval) {
             int maxWalkFrames = Math.max(1, Math.min(walkFrameCount, 8));
             if (maxWalkFrames == 1) {
@@ -855,13 +937,13 @@ public class Entity {
 
         Sprite currentSprite = null;
         
-        int screenX = worldX - gp.player.worldX + gp.player.screenX;
-        int screenY = worldY - gp.player.worldY + gp.player.screenY;
+        int screenX = worldX - gp.getCamWorldX() + gp.player.screenX;
+        int screenY = worldY - gp.getCamWorldY() + gp.player.screenY;
 
-        if (worldX + gp.tileSize > gp.player.worldX - gp.player.screenX &&
-            worldX - gp.tileSize < gp.player.worldX + (gp.screenWidth - gp.player.screenX) &&
-            worldY + gp.tileSize > gp.player.worldY - gp.player.screenY &&
-            worldY - gp.tileSize < gp.player.worldY + (gp.screenHeight - gp.player.screenY)) {
+        if (worldX + gp.tileSize > gp.getCamWorldX() - gp.player.screenX &&
+            worldX - gp.tileSize < gp.getCamWorldX() + (gp.screenWidth - gp.player.screenX) &&
+            worldY + gp.tileSize > gp.getCamWorldY() - gp.player.screenY &&
+            worldY - gp.tileSize < gp.getCamWorldY() + (gp.screenHeight - gp.player.screenY)) {
 
             int drawW = (int)(gp.tileSize * spriteScale);
             int drawH = (int)(gp.tileSize * spriteScale);
@@ -1000,8 +1082,8 @@ public class Entity {
         if (!castsShadow()) return;
         Sprite s = resolveCurrentSprite();
         if (s == null) return;
-        int screenX = worldX - gp.player.worldX + gp.player.screenX;
-        int screenY = worldY - gp.player.worldY + gp.player.screenY;
+        int screenX = worldX - gp.getCamWorldX() + gp.player.screenX;
+        int screenY = worldY - gp.getCamWorldY() + gp.player.screenY;
         int drawW = (int)(gp.tileSize * spriteScale);
         int drawH = (int)(gp.tileSize * spriteScale);
         int drawX = screenX - (drawW - gp.tileSize) / 2;
@@ -1022,8 +1104,8 @@ public class Entity {
         // anchorWorldX/Y mirrors screenX/Y's own derivation (worldX/Y offset for a drawSize bigger
         // than one tile — see IT_Tree.anchorX/anchorY) via screenX - player.screenX + player.worldX,
         // so it stays the exact same fixed point screenX is built from, whatever caster this is.
-        int anchorWorldX = screenX - gp.player.screenX + gp.player.worldX;
-        int anchorWorldY = screenY - gp.player.screenY + gp.player.worldY;
+        int anchorWorldX = screenX - gp.player.screenX + gp.getCamWorldX();
+        int anchorWorldY = screenY - gp.player.screenY + gp.getCamWorldY();
         int offX = Math.round(offsetX * gp.tileSize);
         int offY = Math.round(offsetY * gp.tileSize);
         int cx = screenX + drawSize / 2 + offX;
@@ -1188,6 +1270,12 @@ public class Entity {
         int nextX = worldX + stepX;
         int nextY = worldY + stepY;
         gp.cChecker.checkTileNext(this, nextX, nextY);
+        // checkTileNext only guards against static map/tile geometry — also block sliding into any
+        // solid object/interactive tile/NPC/monster, so a knockback never shoves an entity through
+        // (or on top of) something else solid.
+        if (!collisionOn && gp.cChecker.isSolidAt(this, nextX, nextY)) {
+            collisionOn = true;
+        }
         if (!collisionOn) {
             worldX = nextX;
             worldY = nextY;
@@ -1374,8 +1462,32 @@ public class Entity {
                 onPath = false;
             }
         } else {
+            // A* found no route at all (goal fully walled off) — counts toward giving up exactly
+            // like a blocked directChase does, so a target that's unreachable via any route
+            // doesn't get chased forever.
+            unreachableCounter++;
+            if (giveUpIfUnreachable()) return;
             directChase(goalCol, goalRow);
         }
+    }
+
+    /**
+     * Once {@link #unreachableCounter} (bumped by a blocked {@link #directChase} or a failed A*
+     * search) crosses {@link #UNREACHABLE_GIVE_UP_LIMIT}, drops the chase back to idle/wander
+     * (clears onPath/everAggroed/path cache) instead of pushing against an obstacle forever.
+     * Returns true if the chase was just given up.
+     */
+    protected boolean giveUpIfUnreachable() {
+        if (unreachableCounter < UNREACHABLE_GIVE_UP_LIMIT) return false;
+
+        unreachableCounter = 0;
+        onPath = false;
+        everAggroed = false;
+        waypointCount = 0;
+        waypointIdx = 0;
+        pathCacheGoalCol = -1;
+        pathCacheGoalRow = -1;
+        return true;
     }
 
     private void followWaypoints() {
@@ -1417,8 +1529,14 @@ public class Entity {
             return;
         }
 
-        // Move toward the current waypoint
-        if (dy > dx) {
+        // Move toward the current waypoint. Hysteresis on the axis choice (matching
+        // faceTowardPlayer/directChase) stops the entity flip-flopping its primary axis frame to
+        // frame when dx/dy are nearly equal, which otherwise looks like a diagonal-snapping stutter.
+        boolean currentlyVertical = direction == DIR_UP || direction == DIR_DOWN;
+        boolean verticalPrimary = currentlyVertical
+                ? dy >= dx / DIRECTION_HYSTERESIS
+                : dy > dx * DIRECTION_HYSTERESIS;
+        if (verticalPrimary) {
             boolean moved = tryMoveVertical(enTopY, nextY);
             if (!moved) tryMoveHorizontal(enLeftX, nextX);
         } else {
@@ -1460,33 +1578,48 @@ public class Entity {
 
 
 
-    // Direct chase fallback: move toward the goal tile without A*
-    protected void directChase(int goalCol, int goalRow) {
+    /**
+     * Direct chase fallback: move toward the goal tile without A*. Returns true if either axis
+     * actually moved this frame — false means both the primary and fallback axis were blocked,
+     * i.e. the entity is completely stuck trying to reach the goal this tick.
+     */
+    protected boolean directChase(int goalCol, int goalRow) {
         int goalWorldX = goalCol * gp.tileSize;
         int goalWorldY = goalRow * gp.tileSize;
         int dx = goalWorldX - worldX;
         int dy = goalWorldY - worldY;
 
         boolean moved = false;
-        if (Math.abs(dy) > Math.abs(dx)) {
+        boolean currentlyVertical = direction == DIR_UP || direction == DIR_DOWN;
+        boolean verticalDominant = currentlyVertical
+                ? Math.abs(dy) >= Math.abs(dx) / DIRECTION_HYSTERESIS
+                : Math.abs(dy) > Math.abs(dx) * DIRECTION_HYSTERESIS;
+        if (verticalDominant) {
             // Try vertical
             if (dy < 0) { direction = DIR_UP; checkCollision(); if (!collisionOn) { worldY -= speed; moved = true; } }
             else if (dy > 0) { direction = DIR_DOWN; checkCollision(); if (!collisionOn) { worldY += speed; moved = true; } }
             if (!moved) {
-                if (dx < 0) { direction = DIR_LEFT; checkCollision(); if (!collisionOn) { worldX -= speed; } }
-                else if (dx > 0) { direction = DIR_RIGHT; checkCollision(); if (!collisionOn) { worldX += speed; } }
+                if (dx < 0) { direction = DIR_LEFT; checkCollision(); if (!collisionOn) { worldX -= speed; moved = true; } }
+                else if (dx > 0) { direction = DIR_RIGHT; checkCollision(); if (!collisionOn) { worldX += speed; moved = true; } }
             }
         } else {
             // Try horizontal
             if (dx < 0) { direction = DIR_LEFT; checkCollision(); if (!collisionOn) { worldX -= speed; moved = true; } }
             else if (dx > 0) { direction = DIR_RIGHT; checkCollision(); if (!collisionOn) { worldX += speed; moved = true; } }
             if (!moved) {
-                if (dy < 0) { direction = DIR_UP; checkCollision(); if (!collisionOn) { worldY -= speed; } }
-                else if (dy > 0) { direction = DIR_DOWN; checkCollision(); if (!collisionOn) { worldY += speed; } }
+                if (dy < 0) { direction = DIR_UP; checkCollision(); if (!collisionOn) { worldY -= speed; moved = true; } }
+                else if (dy > 0) { direction = DIR_DOWN; checkCollision(); if (!collisionOn) { worldY += speed; moved = true; } }
             }
         }
-    }   
-    
+
+        if (moved) {
+            unreachableCounter = 0;
+        } else {
+            unreachableCounter++;
+        }
+        return moved;
+    }
+
     public boolean isPlayerInRange(int range) {
         int dx = Math.abs(getCenterX() - gp.player.getCenterX());
         int dy = Math.abs(getCenterY() - gp.player.getCenterY());

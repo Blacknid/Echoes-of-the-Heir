@@ -510,6 +510,55 @@ public class CollisionChecker {
     }
 
     /**
+     * Same hit test as {@link #checkEntityCone}, but collects every matching index instead of
+     * stopping at the first — used for the melee attack cone so a single swing can hit all
+     * monsters caught in it, not just the nearest one in array order.
+     */
+    public java.util.List<Integer> checkEntityConeAll(gfx.geom.Cone cone, Entity[] target) {
+        java.util.List<Integer> hits = new java.util.ArrayList<>();
+
+        for (int i = 0; i < target.length; i++) {
+            if (target[i] == null) continue;
+            if (target[i].type == Entity.TYPE_MONSTER &&
+                (target[i].dying || !target[i].alive)) {
+                continue;
+            }
+
+            double dx = cone.apexX - target[i].worldX;
+            double dy = cone.apexY - target[i].worldY;
+            double reach = cone.radius + Math.max(target[i].solidArea.width, target[i].solidArea.height);
+            if (dx * dx + dy * dy > reach * reach) continue;
+
+            boolean hit;
+            if (target[i].hurtPolygon != null) {
+                IntPolygon wp = target[i].hurtPolygon;
+                wp.translate(target[i].worldX, target[i].worldY);
+                hit = false;
+                for (int v = 0; v < wp.npoints; v++) {
+                    if (cone.contains(wp.xpoints[v], wp.ypoints[v])) { hit = true; break; }
+                }
+                if (!hit) {
+                    Rect b = wp.getBounds();
+                    hit = wp.contains(cone.apexX, cone.apexY) ||
+                          cone.intersects(b.x, b.y, b.width, b.height) && wp.contains((b.x + b.width / 2.0), (b.y + b.height / 2.0));
+                }
+                wp.translate(-target[i].worldX, -target[i].worldY);
+            } else {
+                Rect r = target[i].solidArea;
+                int tx = target[i].worldX + r.x;
+                int ty = target[i].worldY + r.y;
+                hit = cone.contains(tx, ty) || cone.contains(tx + r.width, ty) ||
+                      cone.contains(tx, ty + r.height) || cone.contains(tx + r.width, ty + r.height) ||
+                      cone.contains(tx + r.width / 2.0, ty + r.height / 2.0);
+            }
+
+            if (hit) hits.add(i);
+        }
+
+        return hits;
+    }
+
+    /**
      * Where (if anywhere) does the attack cone touch a solid, non-monster collision — a Tiled
      * collision shape/blocking tile, or a solid obj/iTile/npc? Monsters are deliberately excluded:
      * they already get their own knockback from a hit (see Player.damageMonster), this is only for
@@ -529,8 +578,8 @@ public class CollisionChecker {
             for (int row = topRow; row <= bottomRow; row++) {
                 for (int col = leftCol; col <= rightCol; col++) {
                     if (gp.tileM.isTileBlocking(col, row)) {
-                        outContactPoint.x = (int) cone.apexX + (int) (Math.cos(cone.centerAngle) * cone.radius * 0.6);
-                        outContactPoint.y = (int) cone.apexY + (int) (Math.sin(cone.centerAngle) * cone.radius * 0.6);
+                        outContactPoint.x = (int) cone.apexX + (int) (Math.cos(cone.centerAngle) * cone.radius);
+                        outContactPoint.y = (int) cone.apexY + (int) (Math.sin(cone.centerAngle) * cone.radius);
                         return true;
                     }
                 }
@@ -541,8 +590,8 @@ public class CollisionChecker {
         ArrayList<Shape> shapes = gp.tileM.collisionShapes;
         for (int i = 0; i < shapes.size(); i++) {
             if (shapes.get(i).intersects(cb)) {
-                outContactPoint.x = (int) cone.apexX + (int) (Math.cos(cone.centerAngle) * cone.radius * 0.6);
-                outContactPoint.y = (int) cone.apexY + (int) (Math.sin(cone.centerAngle) * cone.radius * 0.6);
+                outContactPoint.x = (int) cone.apexX + (int) (Math.cos(cone.centerAngle) * cone.radius);
+                outContactPoint.y = (int) cone.apexY + (int) (Math.sin(cone.centerAngle) * cone.radius);
                 return true;
             }
         }

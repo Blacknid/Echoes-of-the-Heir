@@ -44,9 +44,11 @@ public class MemoryFlashback {
     private static final Font TEXT_FONT = new Font("Serif", Font.PLAIN, 20);
 
     private static final int FADE_IN_TICKS = 40;    // ~0.67s white fade in
-    private static final int TEXT_HOLD_TICKS = 180;  // ~3s text display (typewriter + hold)
     private static final int FADE_OUT_TICKS = 40;    // ~0.67s fade back
     private static final int TYPEWRITER_SPEED = 2;   // characters per tick
+    private static final int TICKS_PER_SECOND = 60;
+
+    private int textHoldTicks = 180; // set per-fragment in trigger(), from fragment.displaySeconds
 
     public MemoryFlashback(GamePanel gp) {
         this.gp = gp;
@@ -58,6 +60,7 @@ public class MemoryFlashback {
         this.fragment = fragment;
         this.displayTitle = fragment.name != null ? fragment.name : "";
         this.displayLines = fragment.text != null ? fragment.text : new String[]{"..."};
+        this.textHoldTicks = Math.round(fragment.displaySeconds * TICKS_PER_SECOND);
         this.alpha = 0f;
         this.timer = 0;
         this.charIndex = 0;
@@ -90,7 +93,7 @@ public class MemoryFlashback {
                 textTimer++;
                 int totalChars = getTotalTextChars();
                 charIndex = Math.min(totalChars, textTimer * TYPEWRITER_SPEED);
-                if (timer >= TEXT_HOLD_TICKS) {
+                if (timer >= textHoldTicks) {
                     state = FADE_BACK;
                     timer = 0;
                 }
