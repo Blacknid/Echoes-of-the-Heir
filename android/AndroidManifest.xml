@@ -2,7 +2,23 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
 
     <uses-permission android:name="android.permission.INTERNET" />
+    <uses-permission android:name="android.permission.NFC" />
     <uses-feature android:glEsVersion="0x00020000" android:required="true" />
+    <!-- NFC add-friend is the only mobile add-friend path (see FriendHceService), but the game
+         still runs fully without NFC hardware — friends can still be received/managed. -->
+    <uses-feature android:name="android.hardware.nfc.hce" android:required="false" />
+
+    <!-- Local BLE multiplayer (pause menu's INVITE PLAYER — see main.BleMultiplayerSession).
+         Runtime (dangerous) permissions on API 31+ since targetSdk is 34; requested at the point
+         hosting/joining actually starts (androidlauncher.ble.BlePermissions), not at launch.
+         neverForLocation: this app only ever connects to a specific known address handed off via
+         NFC, never derives a guest's physical location from a scan, so the stricter
+         ACCESS_FINE_LOCATION runtime permission legacy BLE scanning otherwise implies isn't needed. -->
+    <uses-permission android:name="android.permission.BLUETOOTH_ADVERTISE" />
+    <uses-permission android:name="android.permission.BLUETOOTH_CONNECT" />
+    <uses-permission android:name="android.permission.BLUETOOTH_SCAN"
+        android:usesPermissionFlags="neverForLocation" />
+    <uses-feature android:name="android.hardware.bluetooth_le" android:required="false" />
 
     <application
         android:label="@string/app_name"
@@ -23,7 +39,45 @@
                 <action android:name="android.intent.action.MAIN" />
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
+
+            <!-- The Android Application Record served by Ndef4Service (see its class doc) is
+                 sufficient on its own for Android's tag dispatcher to cold-launch this app by
+                 package name on tap, even with zero NDEF/TECH/TAG intent-filters declared here —
+                 per Android's documented AAR fallback: if no Activity's filters match (which is
+                 the case, we declare none), the OS starts the app's own default/launcher Activity
+                 directly and delivers ACTION_NDEF_DISCOVERED (with EXTRA_TAG/EXTRA_NDEF_MESSAGES)
+                 to it anyway — see AndroidLauncher's onCreate/onNewIntent NFC-launch detection. -->
         </activity>
+
+        <!-- Emulates this device as an NFC tag carrying this player's add-friend identity, woken
+             by Android's AID routing even when the app is closed — see FriendHceService's class doc. -->
+        <service
+            android:name="androidlauncher.nfc.FriendHceService"
+            android:exported="true"
+            android:permission="android.permission.BIND_NFC_SERVICE">
+            <intent-filter>
+                <action android:name="android.nfc.cardemulation.action.HOST_APDU_SERVICE" />
+            </intent-filter>
+            <meta-data
+                android:name="android.nfc.cardemulation.host_apdu_service"
+                android:resource="@xml/apduservice" />
+        </service>
+
+        <!-- Standard NFC Forum Type-4 Tag emulation, active only while hosting a BLE session (see
+             androidlauncher.ble host wiring) — its NDEF message's Android Application Record is
+             what lets Android cold-launch a closed guest app straight to auto-join on tap. Separate
+             AID/service from FriendHceService above — see Ndef4Service's class doc for why. -->
+        <service
+            android:name="androidlauncher.nfc.Ndef4Service"
+            android:exported="true"
+            android:permission="android.permission.BIND_NFC_SERVICE">
+            <intent-filter>
+                <action android:name="android.nfc.cardemulation.action.HOST_APDU_SERVICE" />
+            </intent-filter>
+            <meta-data
+                android:name="android.nfc.cardemulation.host_apdu_service"
+                android:resource="@xml/apduservice_ndef" />
+        </service>
     </application>
 
 </manifest>

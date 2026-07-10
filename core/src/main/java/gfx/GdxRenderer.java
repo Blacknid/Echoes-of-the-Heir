@@ -329,9 +329,8 @@ public class GdxRenderer {
         } finally {
             Sprite.endPixelBatch();
         }
-        Texture tex = new Texture(out);
+        Texture tex = GdxTextureUtil.managedFromPixmap(out);
         tex.setFilter(Texture.TextureFilter.Nearest, Texture.TextureFilter.Nearest);
-        out.dispose();
         return new Sprite(tex);
     }
 
@@ -1052,9 +1051,8 @@ public class GdxRenderer {
                 pm.drawPixel(x, y);
             }
         }
-        Texture tex = new Texture(pm);
+        Texture tex = GdxTextureUtil.managedFromPixmap(pm);
         tex.setFilter(Texture.TextureFilter.Linear, Texture.TextureFilter.Linear);
-        pm.dispose();
         return new Sprite(tex);
     }
 

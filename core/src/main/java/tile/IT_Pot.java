@@ -55,9 +55,8 @@ public class IT_Pot extends interactiveTile {
         fillOval(pm, s / 4, s * 2 / 5, s / 6, s / 5, 190, 140, 90, 255);          // highlight
         fillOval(pm, s / 6, s * 3 / 4, s * 2 / 3, s / 6, 0, 0, 0, 40);            // shadow
 
-        Texture tex = new Texture(pm);
+        Texture tex = gfx.GdxTextureUtil.managedFromPixmap(pm);
         tex.setFilter(Texture.TextureFilter.Nearest, Texture.TextureFilter.Nearest);
-        pm.dispose();
         return new Sprite(tex);
     }
 

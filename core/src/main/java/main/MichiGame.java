@@ -42,6 +42,12 @@ public class MichiGame extends ApplicationAdapter {
 
     @Override
     public void create() {
+        // Must run first: on Android (singleTask launch mode) a "restart" can reuse the process,
+        // so util.ResourceCache's static image caches may still hold Sprites/Textures tied to the
+        // previous, now-dead GL context — see ResourceCache.resetImages() for why that corrupts
+        // rendering (wrong texture bound to a recycled GL id) if not cleared before anything loads.
+        util.ResourceCache.resetImages();
+
         // Online license activation/login — same call on every backend (desktop, Android).
         // First run on this install: ACTIVATE issues a fresh license and persists only an
         // opaque activation_id + encrypted blob (see platform.LicenseActivation). Every later

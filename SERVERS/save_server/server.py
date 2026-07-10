@@ -50,6 +50,14 @@ Wire format (newline-terminated):
     C -> { "cmd": "RESPOND_FRIEND_REQUEST", "username": "...", "accept": true|false }
     C -> { "cmd": "LIST_FRIENDS" }
     C -> { "cmd": "REMOVE_FRIEND", "username": "..." }
+    C -> { "cmd": "GET_MY_FRIEND_ID" }
+      Returns { "status": "OK", "friend_id": "..." } — an opaque per-account token issued
+      alongside the claimed username, unrelated to license_key. This is what NFC add-friend
+      taps exchange (core/src/main/java/platform, Android HCE) instead of the license key,
+      so a sniffed/replayed NFC payload can only ever resolve to "send this username a friend
+      request", never anything license-scoped.
+    C -> { "cmd": "RESOLVE_FRIEND_ID", "friend_id": "..." }
+      Returns { "status": "OK", "username": "..." } or { "status": "NOT_FOUND" }.
 """
 from __future__ import annotations
 
@@ -236,9 +244,14 @@ def init_db() -> None:
             CREATE TABLE IF NOT EXISTS usernames (
                 username     TEXT PRIMARY KEY,
                 license_key  TEXT NOT NULL UNIQUE,
-                claimed_at   TEXT NOT NULL
+                claimed_at   TEXT NOT NULL,
+                friend_id    TEXT UNIQUE
             )
         """)
+        # Older DBs created before friend_id existed — add the column if missing.
+        existing_cols = {row[1] for row in con.execute("PRAGMA table_info(usernames)").fetchall()}
+        if "friend_id" not in existing_cols:
+            con.execute("ALTER TABLE usernames ADD COLUMN friend_id TEXT UNIQUE")
         # Friendship/request edges, keyed by the stable license_key identity (not username,
         # which can be re-claimed). requester_key is who sent the original request; status
         # transitions PENDING -> ACCEPTED (never re-created — see send_friend_request()).
@@ -320,6 +333,34 @@ def username_for_license(con: sqlite3.Connection, license_key: str) -> Optional[
     row = con.execute(
         "SELECT username FROM usernames WHERE license_key = ?", (license_key,)
     ).fetchone()
+    return row[0] if row else None
+
+
+def friend_id_for_license(license_key: str) -> Optional[str]:
+    with _db_lock:
+        con = sqlite3.connect(str(DB_PATH))
+        con.execute("PRAGMA journal_mode=WAL")
+        try:
+            row = con.execute(
+                "SELECT friend_id FROM usernames WHERE license_key = ?", (license_key,)
+            ).fetchone()
+        finally:
+            con.close()
+    return row[0] if row else None
+
+
+def username_for_friend_id(friend_id: str) -> Optional[str]:
+    if not isinstance(friend_id, str) or not friend_id:
+        return None
+    with _db_lock:
+        con = sqlite3.connect(str(DB_PATH))
+        con.execute("PRAGMA journal_mode=WAL")
+        try:
+            row = con.execute(
+                "SELECT username FROM usernames WHERE friend_id = ?", (friend_id,)
+            ).fetchone()
+        finally:
+            con.close()
     return row[0] if row else None
 
 
@@ -489,9 +530,10 @@ def claim_username(username: str, license_key: str) -> str:
                     return "CLAIMED"
                 return "TAKEN"
             con.execute("DELETE FROM usernames WHERE license_key = ?", (license_key,))
+            friend_id = secrets.token_urlsafe(9)  # short opaque token for NFC payload size
             con.execute(
-                "INSERT INTO usernames (username, license_key, claimed_at) VALUES (?, ?, ?)",
-                (username, license_key, now),
+                "INSERT INTO usernames (username, license_key, claimed_at, friend_id) VALUES (?, ?, ?, ?)",
+                (username, license_key, now, friend_id),
             )
             con.commit()
             return "CLAIMED"
@@ -997,6 +1039,25 @@ def handle_client(conn: socket.socket, addr: tuple[str, int],
             result = remove_friend(uname, license_key)
             sess.send_json({"status": result})
             status = f"REMOVE_FRIEND:{result}:{uname}"
+
+        elif cmd == "GET_MY_FRIEND_ID":
+            fid = friend_id_for_license(license_key)
+            if fid is None:
+                sess.send_json({"status": "NO_USERNAME"})
+                status = "GET_MY_FRIEND_ID:NO_USERNAME"
+            else:
+                sess.send_json({"status": "OK", "friend_id": fid})
+                status = "GET_MY_FRIEND_ID:OK"
+
+        elif cmd == "RESOLVE_FRIEND_ID":
+            fid = str(req.get("friend_id", ""))[:32]
+            uname = username_for_friend_id(fid)
+            if uname is None:
+                sess.send_json({"status": "NOT_FOUND"})
+                status = "RESOLVE_FRIEND_ID:NOT_FOUND"
+            else:
+                sess.send_json({"status": "OK", "username": uname})
+                status = f"RESOLVE_FRIEND_ID:OK:{uname}"
 
         else:
             sess.send_json({"status": "ERROR", "msg": "unknown command"})

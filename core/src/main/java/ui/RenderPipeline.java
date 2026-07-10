@@ -175,7 +175,14 @@ public class RenderPipeline {
         }
         g2.setAlpha(1f);
 
-        if (gp.mpClient != null && gp.mpClient.isConnected()) {
+        // Draw remote players for either transport: the license-bound TCP client (multiplayerMode)
+        // OR a local BLE "invite player" session. The BLE path populates its own remotePlayers map
+        // but is never TCP-connected, so gating solely on mpClient.isConnected() hid every BLE
+        // remote player (host and guests saw only themselves). GamePanel.drawRemotePlayers already
+        // guards each source independently, so an empty/inactive source contributes nothing.
+        boolean tcpConnected = gp.mpClient != null && gp.mpClient.isConnected();
+        boolean bleActive = gp.bleSession != null && gp.bleSession.isActive();
+        if (tcpConnected || bleActive) {
             gp.drawRemotePlayers(g2);
         }
 

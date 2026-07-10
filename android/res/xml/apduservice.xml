@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Registers FriendHceService's custom AID for background AID routing, so Android wakes this
+  service to answer a SELECT even when the game is closed (see FriendHceService's class doc).
+  requireDeviceUnlock=false: taps should work from the lock screen, same as contactless payment
+  cards — there is nothing sensitive in the emulated payload (no license key, see NfcFriendPayload).
+-->
+<host-apdu-service xmlns:android="http://schemas.android.com/apk/res/android"
+    android:description="@string/nfc_friend_service_description"
+    android:requireDeviceUnlock="false">
+    <aid-group android:description="@string/nfc_friend_service_description"
+        android:category="other">
+        <aid-filter android:name="F0464D49434849" />
+    </aid-group>
+</host-apdu-service>

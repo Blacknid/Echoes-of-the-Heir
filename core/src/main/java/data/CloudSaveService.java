@@ -64,7 +64,7 @@ import platform.GameStorage;
 public class CloudSaveService {
 
     /** Used only if {@code save_servers.txt} is missing or empty. */
-    private static final String[] FALLBACK_HOSTS = { "192.168.137.14", "192.168.137.126" };
+    private static final String[] FALLBACK_HOSTS = { "192.168.137.14", "192.168.137.126", "192.168.1.9" };
     private static final int    DEFAULT_PORT       = 5005;
     private static final int    CONNECT_TIMEOUT_MS = 3000;
     private static final int    SOCKET_TIMEOUT_MS  = 8000;
@@ -106,6 +106,17 @@ public class CloudSaveService {
     private volatile boolean pendingUpload = false;
     private volatile String cachedLicenseKey;
 
+    /**
+     * Fired from the heartbeat thread whenever a PING succeeds (i.e. potentially "just came back
+     * online" — checked every heartbeat, not just on the offline-to-online edge, so a late
+     * registration or a listener that itself no-ops when it has nothing to do is still safe).
+     * Used by FriendsListManager to retry NFC-queued friend adds without needing its own poll
+     * loop; keeps this class itself friends-agnostic.
+     */
+    private volatile Runnable onReconnect;
+
+    public void setOnReconnect(Runnable onReconnect) { this.onReconnect = onReconnect; }
+
     public void startHeartbeat() {
         if (heartbeatRunning) return;
         heartbeatRunning = true;
@@ -116,6 +127,9 @@ public class CloudSaveService {
                 serverOnline.set(alive);
                 if (alive && pendingUpload) {
                     syncPendingLocalSave();
+                }
+                if (alive && onReconnect != null) {
+                    onReconnect.run();
                 }
                 try { Thread.sleep(HEARTBEAT_INTERVAL_MS); }
                 catch (InterruptedException e) { Thread.currentThread().interrupt(); break; }
@@ -470,6 +484,141 @@ public class CloudSaveService {
             if ("NO_SAVE".equals(status)) return null;
             throw new IOException("unexpected status: " + status);
         }
+    }
+
+    // ── Friends (username claim + friend requests) ──────────────────────────
+    // Reuses the same encrypted session/framing as save UPLOAD/DOWNLOAD; the server already
+    // implements these commands (see SERVERS/save_server/server.py) keyed by license_key.
+
+    public record FriendResult(boolean ok, String status, List<String> names) {
+        static FriendResult of(String status, List<String> names) {
+            return new FriendResult(true, status, names);
+        }
+        static FriendResult fail(String status) { return new FriendResult(false, status, null); }
+    }
+
+    public FriendResult claimUsername(String licenseKey, String username) {
+        return simpleCommand(licenseKey,
+                "{\"cmd\":\"CLAIM_USERNAME\",\"username\":" + quote(username) + "}");
+    }
+
+    public FriendResult checkUsername(String licenseKey, String username) {
+        return simpleCommand(licenseKey,
+                "{\"cmd\":\"CHECK_USERNAME\",\"username\":" + quote(username) + "}");
+    }
+
+    public FriendResult sendFriendRequest(String licenseKey, String username) {
+        return simpleCommand(licenseKey,
+                "{\"cmd\":\"SEND_FRIEND_REQUEST\",\"username\":" + quote(username) + "}");
+    }
+
+    public FriendResult respondFriendRequest(String licenseKey, String username, boolean accept) {
+        return simpleCommand(licenseKey,
+                "{\"cmd\":\"RESPOND_FRIEND_REQUEST\",\"username\":" + quote(username)
+                        + ",\"accept\":" + accept + "}");
+    }
+
+    public FriendResult removeFriend(String licenseKey, String username) {
+        return simpleCommand(licenseKey,
+                "{\"cmd\":\"REMOVE_FRIEND\",\"username\":" + quote(username) + "}");
+    }
+
+    /** Opaque per-account token (NOT the license key) embedded in this player's NFC add-friend tag. */
+    public record FriendIdResult(boolean ok, String status, String value) {
+        static FriendIdResult of(String status, String value) { return new FriendIdResult(true, status, value); }
+        static FriendIdResult fail(String status) { return new FriendIdResult(false, status, null); }
+    }
+
+    public FriendIdResult getMyFriendId(String licenseKey) {
+        if (licenseKey == null) return FriendIdResult.fail("NO_LICENSE");
+        try (Session sess = openSession(licenseKey)) {
+            if (sess == null) return FriendIdResult.fail("NO_SERVER");
+            sess.sendJson("{\"cmd\":\"GET_MY_FRIEND_ID\"}");
+            String response = sess.recvJson();
+            String status = extractJsonString(response, "status");
+            if (!"OK".equals(status)) return FriendIdResult.fail(status != null ? status : "ERROR");
+            return FriendIdResult.of("OK", extractJsonString(response, "friend_id"));
+        } catch (Exception e) {
+            return FriendIdResult.fail("ERROR");
+        }
+    }
+
+    public FriendResult listFriendRequests(String licenseKey) {
+        return listCommand(licenseKey, "{\"cmd\":\"LIST_FRIEND_REQUESTS\"}", "requests");
+    }
+
+    public FriendResult listFriends(String licenseKey) {
+        return listCommand(licenseKey, "{\"cmd\":\"LIST_FRIENDS\"}", "friends");
+    }
+
+    /** Sends a command whose response is just {"status": "..."}. */
+    private FriendResult simpleCommand(String licenseKey, String requestJson) {
+        if (licenseKey == null) return FriendResult.fail("NO_LICENSE");
+        try (Session sess = openSession(licenseKey)) {
+            if (sess == null) return FriendResult.fail("NO_SERVER");
+            sess.sendJson(requestJson);
+            String response = sess.recvJson();
+            String status = extractJsonString(response, "status");
+            return FriendResult.of(status != null ? status : "ERROR", null);
+        } catch (Exception e) {
+            return FriendResult.fail("ERROR");
+        }
+    }
+
+    /** Sends a command whose response is {"status":"OK","<listKey>":[...]}. */
+    private FriendResult listCommand(String licenseKey, String requestJson, String listKey) {
+        if (licenseKey == null) return FriendResult.fail("NO_LICENSE");
+        try (Session sess = openSession(licenseKey)) {
+            if (sess == null) return FriendResult.fail("NO_SERVER");
+            sess.sendJson(requestJson);
+            String response = sess.recvJson();
+            String status = extractJsonString(response, "status");
+            if (!"OK".equals(status)) return FriendResult.fail(status != null ? status : "ERROR");
+            return FriendResult.of("OK", extractJsonStringArray(response, listKey));
+        } catch (Exception e) {
+            return FriendResult.fail("ERROR");
+        }
+    }
+
+    /** Parses a top-level JSON string array field, e.g. {"friends":["Alice","Bob"]}. */
+    private static List<String> extractJsonStringArray(String json, String key) {
+        List<String> out = new ArrayList<>();
+        String search = "\"" + key + "\":[";
+        int i = json.indexOf(search);
+        if (i < 0) return out;
+        int start = i + search.length();
+        int end = json.indexOf(']', start);
+        if (end < 0) return out;
+        String body = json.substring(start, end);
+        boolean inString = false, escape = false;
+        StringBuilder cur = new StringBuilder();
+        for (int p = 0; p < body.length(); p++) {
+            char c = body.charAt(p);
+            if (inString) {
+                if (escape) {
+                    switch (c) {
+                        case 'n' -> cur.append('\n');
+                        case 'r' -> cur.append('\r');
+                        case 't' -> cur.append('\t');
+                        case '"' -> cur.append('"');
+                        case '\\' -> cur.append('\\');
+                        default -> cur.append(c);
+                    }
+                    escape = false;
+                } else if (c == '\\') {
+                    escape = true;
+                } else if (c == '"') {
+                    inString = false;
+                    out.add(cur.toString());
+                    cur.setLength(0);
+                } else {
+                    cur.append(c);
+                }
+            } else if (c == '"') {
+                inString = true;
+            }
+        }
+        return out;
     }
 
     /**

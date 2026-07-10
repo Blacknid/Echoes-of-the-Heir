@@ -163,6 +163,10 @@ public class MouseHandler implements InputProcessor {
     }
 
     private void clickTitle() {
+        if (gp.ui.titleScreenState == 0 && gp.ui.usernameBoxContains(gameX, gameY)) {
+            focusUsernameField();
+            return;
+        }
         if (gp.ui.titleScreenState == 1) {
             int i = classItemUnderMouse();
             if (i < 0) return;
@@ -182,22 +186,38 @@ public class MouseHandler implements InputProcessor {
         executeTitleAction(i);
     }
 
-    private void executeTitleAction(int i) {
+    /** Focus the username box for typing; on Android this also pops the native soft-keyboard dialog. */
+    private void focusUsernameField() {
+        gp.ui.usernameFieldFocused = true;
         gp.playSE(audio.SFX.MENU_SELECT);
-        boolean hasSave = gp.ui.titleHasSave();
-        // With a save: 0=CONTINUE 1=NEW GAME 2=MULTIPLAYER 3=QUIT
-        // Without:     0=NEW GAME  1=MULTIPLAYER            2=QUIT
-        if (hasSave && i == 0) { gp.saveLoad.load(); startGame(); return; }
-        int newGameIdx = hasSave ? 1 : 0;
-        int multiplayerIdx = hasSave ? 2 : 1;
-        int quitIdx = hasSave ? 3 : 2;
-        if (i == newGameIdx) { gp.ui.titleScreenState = 1; }
-        else if (i == multiplayerIdx) {
-            gp.ui.titleScreenState = 3; gp.ui.mpServerSelection = 0; gp.ui.commandNum = 0;
+        if (Gdx.app.getType() == com.badlogic.gdx.Application.ApplicationType.Android) {
+            Gdx.input.getTextInput(new com.badlogic.gdx.Input.TextInputListener() {
+                @Override public void input(String text) {
+                    String trimmed = text.length() > 20 ? text.substring(0, 20) : text;
+                    gp.ui.playerUsername = trimmed;
+                    gp.player.name = trimmed;
+                    gp.ui.usernameFieldFocused = false;
+                }
+                @Override public void canceled() {
+                    gp.ui.usernameFieldFocused = false;
+                }
+            }, "Enter Username", gp.ui.playerUsername, "");
         }
-        // Gdx.app.exit() over System.exit(0): lets libGDX run its own shutdown/dispose()
-        // sequence and maps to Activity.finish() on Android instead of killing the process.
-        else if (i == quitIdx) { Gdx.app.exit(); }
+    }
+
+    /**
+     * Fires whatever action the clicked item itself declares (see UI.titleMenu()), instead of
+     * re-deriving the item's meaning from its index — the menu's item count/order varies (CONTINUE
+     * only if a save exists, JOIN GAME only if NFC is supported), so a fixed index-to-action
+     * mapping here would silently fire the wrong action whenever the layout doesn't match what was
+     * hardcoded. Mirrors KeyHandler's ENTER handling for the same menu.
+     */
+    private void executeTitleAction(int i) {
+        ui.Menu menu = gp.ui.titleMenu();
+        menu.setSelected(i);
+        ui.MenuItem selItem = menu.selectedItem();
+        String label = selItem != null ? selItem.label : "";
+        if (!gp.ui.blockIfNoUsername(label)) menu.activate();
     }
 
     private void startGame() {
@@ -208,11 +228,22 @@ public class MouseHandler implements InputProcessor {
     }
 
     // ════════════════════════════════════════════════════════════════════════
-    // PAUSE SCREEN — click anywhere to resume
+    // PAUSE SCREEN — click a button to activate it; click outside every button
+    // (the overlay background) resumes, preserving the old "click anywhere to
+    // dismiss" feel for touch/mouse without a near-miss on QUIT TO TITLE (etc.)
+    // silently resuming instead.
     // ════════════════════════════════════════════════════════════════════════
 
     private void clickPause() {
-        gp.gameState = GamePanel.playState;
+        ui.Menu menu = gp.ui.pauseMenu();
+        int i = menu.itemAt(gameX, gameY);
+        if (i >= 0) {
+            gp.ui.pauseSelection = i;
+            menu.setSelected(i);
+            menu.activate();
+        } else {
+            gp.gameState = GamePanel.playState;
+        }
     }
 
     // ════════════════════════════════════════════════════════════════════════

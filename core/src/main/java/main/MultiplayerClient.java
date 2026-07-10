@@ -12,6 +12,8 @@ import java.net.SocketTimeoutException;
 import java.nio.charset.StandardCharsets;
 import java.security.GeneralSecurityException;
 import java.security.KeyFactory;
+import java.security.MessageDigest;
+import java.security.NoSuchAlgorithmException;
 import java.security.PublicKey;
 import java.security.SecureRandom;
 import java.security.spec.MGF1ParameterSpec;
@@ -116,9 +118,12 @@ public class MultiplayerClient {
                     return;
                 }
 
+                connectionStatus = "";
                 if (!connectAndHandshake(ip, port, license, playerName, playerClass)) {
                     connecting.set(false);
-                    connectionStatus = "Handshake failed (auth rejected or bad protocol).";
+                    if (connectionStatus == null || connectionStatus.isBlank()) {
+                        connectionStatus = "Handshake failed (auth rejected or bad protocol).";
+                    }
                     closeQuietly();
                     return;
                 }
@@ -269,7 +274,8 @@ public class MultiplayerClient {
             SECURE_RANDOM.nextBytes(clientNonce);
             sendLine("HELLO " + PROTOCOL_TAG + " " + Base64.getEncoder().encodeToString(clientNonce));
 
-            // Step 2: server nonce
+            // Step 2: server nonce (+ RSA public-key fingerprint, so a stale/mismatched
+            // embedded client key is reported plainly instead of failing opaquely at LOGIN)
             String okLine = readLine();
             if (okLine == null || !okLine.startsWith("OK ")) {
                 if ("RATE_LIMIT".equals(okLine))      connectionStatus = "Rate-limited by server.";
@@ -278,8 +284,18 @@ public class MultiplayerClient {
                 else if ("USERNAME_TAKEN".equals(okLine)) connectionStatus = "Username is already taken. Change it in the main menu (press U).";
                 return false;
             }
-            byte[] serverNonce = Base64.getDecoder().decode(okLine.substring(3));
+            String[] okParts = okLine.substring(3).split(" ", 2);
+            byte[] serverNonce = Base64.getDecoder().decode(okParts[0]);
             if (serverNonce.length != 16) return false;
+            if (okParts.length == 2 && !okParts[1].isBlank()
+                    && !okParts[1].equals(clientPublicKeyFingerprint())) {
+                connectionStatus = "Server key mismatch — this client is out of date, or you are "
+                        + "connecting to a different deployment than expected. Update the game "
+                        + "or confirm the server address.";
+                System.out.println("[MP Client] Public key fingerprint mismatch: server sent "
+                        + okParts[1] + ", client expects " + clientPublicKeyFingerprint());
+                return false;
+            }
 
             // Step 3: LOGIN (RSA-OAEP) — the server resolves our license via activation_id/enc_blob
             // (issued once by platform.LicenseActivation's online ACTIVATE against save_server),
@@ -308,6 +324,10 @@ public class MultiplayerClient {
                     connectionStatus = "Username \"" + name + "\" is already taken. Change it in the main menu (press U).";
                 else if ("AUTH_FAIL".equals(authLine))
                     connectionStatus = "Authentication failed.";
+                else if ("LICENSE_SERVER_UNAVAILABLE".equals(authLine))
+                    connectionStatus = "The multiplayer server can't reach its license server "
+                            + "right now. This is a server-side problem, not your account — "
+                            + "try again shortly or contact the server host.";
                 return false;
             }
             byte[] encSession = Base64.getDecoder().decode(authLine.substring(8));
@@ -745,6 +765,28 @@ public class MultiplayerClient {
     private static PublicKey loadRSAPublicKey() throws GeneralSecurityException {
         byte[] der = Base64.getDecoder().decode(RSA_PUBLIC_KEY_B64);
         return KeyFactory.getInstance("RSA").generatePublic(new X509EncodedKeySpec(der));
+    }
+
+    private static String cachedFingerprint;
+
+    /**
+     * sha256(DER SubjectPublicKeyInfo of the embedded RSA public key)[:16 hex chars],
+     * matching the server's GameServer.public_key_fingerprint computation exactly
+     * (RSA_PUBLIC_KEY_B64 already decodes to that same DER encoding).
+     */
+    private static String clientPublicKeyFingerprint() {
+        if (cachedFingerprint == null) {
+            try {
+                byte[] der = Base64.getDecoder().decode(RSA_PUBLIC_KEY_B64);
+                byte[] digest = MessageDigest.getInstance("SHA-256").digest(der);
+                StringBuilder hex = new StringBuilder();
+                for (int i = 0; i < 8; i++) hex.append(String.format("%02x", digest[i]));
+                cachedFingerprint = hex.toString();
+            } catch (NoSuchAlgorithmException e) {
+                cachedFingerprint = "";
+            }
+        }
+        return cachedFingerprint;
     }
 
     private static byte[] rsaOaepEncrypt(byte[] plain) throws GeneralSecurityException {

@@ -30,11 +30,12 @@ public class FontSystem implements Disposable {
     private final Texture white;
 
     public FontSystem() {
-        // 1x1 white texture for solid fills routed through the batch.
+        // 1x1 white texture for solid fills routed through the batch. Built via
+        // GdxTextureUtil.managedFromPixmap so it survives an Android GL context loss (see its
+        // class doc) — the source Pixmap must stay alive, so it is intentionally not disposed.
         Pixmap pm = new Pixmap(1, 1, Pixmap.Format.RGBA8888);
         pm.setColor(1, 1, 1, 1); pm.fill();
-        white = new Texture(pm);
-        pm.dispose();
+        white = GdxTextureUtil.managedFromPixmap(pm);
     }
 
     /** Register a .ttf face under a logical name (e.g. "Pixeloid Sans"). */

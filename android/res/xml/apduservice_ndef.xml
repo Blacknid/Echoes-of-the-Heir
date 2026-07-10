@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Registers Ndef4Service's standard NDEF Tag Application AID — separate service/AID from
+  apduservice.xml's custom-AID FriendHceService channel, so both can be active at once (Android
+  routes by AID). This is the one that must be present for the OS's tag-dispatch/AAR cold-launch
+  mechanism to recognize this as a real NDEF tag — see Ndef4Service's class doc.
+-->
+<host-apdu-service xmlns:android="http://schemas.android.com/apk/res/android"
+    android:description="@string/nfc_ndef_service_description"
+    android:requireDeviceUnlock="false">
+    <aid-group android:description="@string/nfc_ndef_service_description"
+        android:category="other">
+        <aid-filter android:name="D2760000850101" />
+    </aid-group>
+</host-apdu-service>

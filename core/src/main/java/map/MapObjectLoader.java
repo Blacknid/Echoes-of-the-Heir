@@ -682,6 +682,21 @@ public class MapObjectLoader {
             ((BossMonster) m).onDeathQuestId = getStringProperty(obj, "onDeathQuestId", "");
         }
 
+        // Local multiplayer boss scaling: +40% HP / +15% ATK per player beyond the first, so a
+        // fight stays proportionally challenging with a full BLE session (see
+        // main.BleMultiplayerSession's class doc) just as it would with more human damage output.
+        boolean isBoss = bossId > 0 || m instanceof entity.BOSS_WitheredTree;
+        if (isBoss && gp.bleSession != null) {
+            int extraPlayers = gp.bleSession.totalPlayerCount() - 1;
+            if (extraPlayers > 0) {
+                m.maxLife = (int) (m.maxLife * (1 + 0.4 * extraPlayers));
+                m.life    = m.maxLife;
+                m.attack  = (int) (m.attack  * (1 + 0.15 * extraPlayers));
+                System.out.println("MapObjectLoader: Boss scaled for " + (extraPlayers + 1)
+                    + " players — HP=" + m.maxLife + " ATK=" + m.attack);
+            }
+        }
+
         return m;
     }
 

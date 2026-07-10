@@ -290,7 +290,19 @@ public class GamePanel {
 
     public MultiplayerClient mpClient;
     public ServerListManager serverList;
+    public FriendsListManager friendsListManager;
     public boolean multiplayerMode = false;
+    public BleMultiplayerSession bleSession;
+
+    /**
+     * Puppet {@link entity.RemotePlayerEntity} per connected remote player (TCP mpClient peers keyed
+     * "tcp:<id>", BLE session peers keyed "ble:<id>" — namespaced since both id spaces start at 0 and
+     * a session only ever uses one transport at a time, but this keeps it collision-proof either way).
+     * Rebuilt every tick in syncRemotePlayerEntities() so any system that scans Entity arrays — right
+     * now just the lighting gather in EnvironmentManager/Lightning — treats remote players as real
+     * light-emitting entities instead of the bespoke draw-only RemotePlayerState rectangles.
+     */
+    public final java.util.Map<String, entity.RemotePlayerEntity> remotePlayerEntities = new java.util.HashMap<>();
 
     // BACKWARD-COMPATIBLE DELEGATION: Map fields now live in MapManager.
     // These accessors keep old code compiling while we migrate callers.
@@ -343,6 +355,8 @@ public class GamePanel {
 
     mpClient = new MultiplayerClient(this);
     serverList = new ServerListManager();
+    friendsListManager = new FriendsListManager(saveLoad.getCloudSaveService());
+    bleSession = new BleMultiplayerSession(this);
 
     cChecker.updateCollisionRectsCache();
 
@@ -591,6 +605,15 @@ public class GamePanel {
         // or slow down on weak ones.
         ui.updateAnimations();
 
+        // NFC cold-launch auto-join (see platform.NfcLaunch, androidlauncher.nfc.Ndef4Service):
+        // if this run/tap brought the game to front via a hosting phone's tag, skip straight to
+        // JOIN GAME instead of requiring the player to navigate the title menu manually. Checked
+        // every tick (not just once at boot) so a repeat tap while already idling on the title
+        // screen (singleTask re-delivers via onNewIntent) still triggers it.
+        if (gameState == titleState && platform.NfcLaunch.consumeLaunchedViaNfc()) {
+            ui.startJoinGameFromNfcLaunch();
+        }
+
         // Player keeps idling (breathing/blinking sprite animation) instead of freezing on a single
         // frame while dialogue or the inventory/character screen has their input. Player uses its own
         // sprite/idle-clip system (spriteNum + idleClip), not the generic Entity.tickAnimations()
@@ -720,6 +743,7 @@ public class GamePanel {
             mobSpawner.update();
             eHandler.updateSpawnZones();
             tileM.update();
+            syncRemotePlayerEntities();
 
             if (eManager.lightning != null) {
                 eManager.lightning.clearLights();
@@ -730,6 +754,10 @@ public class GamePanel {
                 addColoredGlows(obj, flickerBase, 0f);
                 // NPC lights (e.g. a glowing figure beckoning in a dark cave) get a colored glow too.
                 addColoredGlows(npc, flickerBase, 100f);
+                // Remote players (BLE "invite player" guests/host, or TCP multiplayer server peers)
+                // broadcast the same warm glow as the local player's own torch light — see
+                // RemotePlayerEntity and syncRemotePlayerEntities().
+                addRemotePlayerGlows();
             }
 
             if (mapShader != null) {
@@ -754,6 +782,9 @@ public class GamePanel {
         }
             if (multiplayerMode && mpClient != null && mpClient.isConnected()) {
                 mpClient.update();
+            }
+            if (bleSession != null && bleSession.isActive()) {
+                bleSession.update();
             }
 
             if (player.life <= 0) {
@@ -807,6 +838,54 @@ public class GamePanel {
             eManager.lightning.addLight(
                 e.worldX + tileSize / 2, e.worldY + tileSize / 2,
                 e.lightRadius * tileSize, lc, flicker);
+        }
+    }
+
+    /**
+     * Rebuilds {@link #remotePlayerEntities} from the live session state (TCP {@link #mpClient} and/or
+     * BLE {@link #bleSession}) every tick, so remote players are real {@link entity.Entity} instances —
+     * not just draw-only rectangles — for any system (currently: lighting) that wants to treat them as
+     * such. Stale entities (player left / session ended) are pruned; existing ones are reused in place
+     * rather than reallocated so this stays allocation-free during steady-state play.
+     */
+    private void syncRemotePlayerEntities() {
+        long nowNs = System.nanoTime();
+        int lightRadiusTiles = (eManager.lightning != null) ? eManager.lightning.playerLightRadius : 2;
+        java.util.HashSet<String> liveKeys = new java.util.HashSet<>();
+
+        if (mpClient != null && mpClient.isConnected()) {
+            for (var entry : mpClient.remotePlayers.entrySet()) {
+                String key = "tcp:" + entry.getKey();
+                liveKeys.add(key);
+                entity.RemotePlayerEntity re = remotePlayerEntities.computeIfAbsent(key,
+                        k -> new entity.RemotePlayerEntity(this));
+                re.syncFrom(entry.getValue(), nowNs, lightRadiusTiles);
+            }
+        }
+        if (bleSession != null && bleSession.isActive()) {
+            for (var entry : bleSession.remotePlayers.entrySet()) {
+                String key = "ble:" + entry.getKey();
+                liveKeys.add(key);
+                entity.RemotePlayerEntity re = remotePlayerEntities.computeIfAbsent(key,
+                        k -> new entity.RemotePlayerEntity(this));
+                re.syncFrom(entry.getValue(), nowNs, lightRadiusTiles);
+            }
+        }
+        if (remotePlayerEntities.size() != liveKeys.size()) {
+            remotePlayerEntities.keySet().retainAll(liveKeys);
+        }
+    }
+
+    /** Colored-glow light per remote player entity, same warm player tint as the local player's torch
+     *  (no flicker — a player's glow should read steady, unlike ambient torch/NPC lights). */
+    private void addRemotePlayerGlows() {
+        if (eManager.lightning == null || remotePlayerEntities.isEmpty()) return;
+        for (entity.RemotePlayerEntity re : remotePlayerEntities.values()) {
+            if (!re.lightSource || re.lightRadius <= 0) continue;
+            gfx.Color lc = (re.lightColor != null) ? re.lightColor : DEFAULT_TORCH_COLOR;
+            eManager.lightning.addLight(
+                re.worldX + tileSize / 2, re.worldY + tileSize / 2,
+                re.lightRadius * tileSize, lc, 0.28f);
         }
     }
 
@@ -1226,8 +1305,15 @@ public class GamePanel {
      * Uses the local player's sprite frames when available.
      */
     public void drawRemotePlayers(GdxRenderer g2) {
+        drawRemotePlayers(g2, mpClient.remotePlayers);
+        if (bleSession != null && bleSession.isActive()) {
+            drawRemotePlayers(g2, bleSession.remotePlayers);
+        }
+    }
+
+    private void drawRemotePlayers(GdxRenderer g2, java.util.Map<Integer, MultiplayerClient.RemotePlayerState> players) {
         long nowNs = System.nanoTime();
-        for (java.util.Map.Entry<Integer, MultiplayerClient.RemotePlayerState> entry : mpClient.remotePlayers.entrySet()) {
+        for (java.util.Map.Entry<Integer, MultiplayerClient.RemotePlayerState> entry : players.entrySet()) {
             MultiplayerClient.RemotePlayerState rp = entry.getValue();
             float[] interp = rp.evalSpline(nowNs);
             int screenPosX = Math.round(interp[0]) - player.worldX + player.screenX;

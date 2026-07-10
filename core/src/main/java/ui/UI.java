@@ -2,6 +2,7 @@ package ui;
 
 import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.List;
 
 import entity.Entity;
 import gfx.Color;
@@ -83,6 +84,27 @@ public class UI {
     public String currentDialogue = "";
     public int commandNum = 0;
 
+    // ── Friends list (titleScreenState 5) ────────────────────────────────────
+    // Row order: friends entries, then pending-request entries, then the menu options
+    // (ADD FRIEND / CLAIM USERNAME / BACK). friendsAddMode/friendsClaimMode reuse the same
+    // text-entry widget for "add friend by username" and "claim my username" respectively.
+    public int friendsSelection = 0;
+    public boolean friendsAddMode = false;   // true while typing a friend's username to add
+    public boolean friendsClaimMode = false; // true while typing a username to claim
+    public String friendsNewName = "";
+    public String friendsStatusMessage = ""; // last server response, shown briefly under the panel
+    public int friendsStatusTimer = 0;
+    // On Android, ADD FRIEND starts NFC reader mode instead of friendsAddMode's text entry — see
+    // platform.NfcFriend and KeyHandler.handleFriendsListState. Desktop has no NFC hardware and
+    // never sets this; platform.NfcFriend.isSupported() is what actually gates the two flows.
+    public volatile boolean friendsNfcWaiting = false;
+
+    // ── Join Game (titleScreenState 6) — guest side of local BLE multiplayer ──────────────────
+    // See main.BleMultiplayerSession's class doc. Tapping the host's phone here decodes an
+    // NfcInvitePayload and connects directly over BLE; Android-only, same gating as Friends' NFC.
+    public volatile boolean joinGameNfcWaiting = false;
+    public volatile String joinGameStatusMessage = "";
+
     /** Whether a save file exists — decides if the title screen shows a "CONTINUE" entry. */
     public boolean titleHasSave() {
         return platform.GameStorage.exists("save.dat");
@@ -96,13 +118,47 @@ public class UI {
     }
     public int titleScreenState = 0; // 0 : the first screen, 1: the second screen
 
+    // Set true for a brief moment when the player tries to proceed (Enter/click Play, etc.)
+    // without having entered a username yet, so the box can flash red to draw the eye to it.
+    public int usernameNagTimer = 0;
+
+    /** Username box geometry (top-right corner of the main title screen) — shared by draw + hit-test. */
+    public int usernameBoxX() { return gp.screenWidth - 220 - 22; }
+    public int usernameBoxY() { return 18; }
+    public int usernameBoxW() { return 220; }
+    public int usernameBoxH() { return 34; }
+
+    public boolean usernameBoxContains(int px, int py) {
+        int x = usernameBoxX(), y = usernameBoxY(), w = usernameBoxW(), h = usernameBoxH();
+        return px >= x && px < x + w && py >= y && py < y + h;
+    }
+
+    /**
+     * Gate for every "leave the main title screen" action (Continue/New Game/Multiplayer/Friends,
+     * by click or Enter): a blank username blocks the action, focuses the box, and flashes it red
+     * instead. QUIT is exempt — the player must always be able to close the game. Returns true if
+     * the action was blocked.
+     */
+    public boolean blockIfNoUsername(String actionLabel) {
+        if (!playerUsername.isBlank() || "QUIT".equals(actionLabel)) return false;
+        usernameFieldFocused = true;
+        usernameNagTimer = 40; // ~0.67s at 60 UPS
+        gp.playSE(audio.SFX.MENU_SELECT);
+        return true;
+    }
+
     // ── Declarative menus (built lazily, cached). Each owns its item list + actions so a button is
     //    declared in ONE place; navigation flows through the Menu instead of hand-mapped indices. ──
     private Menu titleMenu;      // title main menu (state 0) — count changes with save presence
     private boolean titleMenuHadSave; // last titleHasSave() used to build titleMenu; rebuild on change
+    private boolean titleMenuHadNfc;  // last NfcFriend.isSupported() used to build titleMenu; rebuild on change
     private Menu classMenu;      // class select (state 1)
     private Menu gameOverMenu;   // game over (Retry / Quit)
     private Menu optionsMenu;    // options/settings top screen (subState 0)
+    private Menu pauseMenu;      // pause screen (RESUME / INVITE PLAYER [Android] / QUIT TO TITLE)
+
+    // ── Pause menu / BLE "invite player" status (see main.BleMultiplayerSession) ──────────────
+    public String pauseBleStatusMessage = ""; // brief status line shown under the pause menu
 
     /**
      * Title main-menu items + actions, in ONE list. Rebuilt only when save-presence changes (which
@@ -110,7 +166,8 @@ public class UI {
      */
     public Menu titleMenu() {
         boolean hasSave = titleHasSave();
-        if (titleMenu == null || hasSave != titleMenuHadSave) {
+        boolean hasNfc = platform.NfcFriend.isSupported();
+        if (titleMenu == null || hasSave != titleMenuHadSave || hasNfc != titleMenuHadNfc) {
             titleMenu = Menu.of(null, THEME_PAUSE).onNavigate(() -> gp.playSE(audio.SFX.MENU_SELECT));
             if (hasSave) {
                 titleMenu.button("CONTINUE", () -> { gp.saveLoad.load(); gp.keyH.startGame(); });
@@ -122,8 +179,39 @@ public class UI {
                 commandNum = 0;
                 gp.playSE(audio.SFX.MENU_SELECT);
             });
+            titleMenu.button("FRIENDS", () -> {
+                titleScreenState = 5;
+                friendsSelection = 0;
+                friendsAddMode = false;
+                friendsClaimMode = false;
+                friendsNfcWaiting = false;
+                friendsStatusMessage = "";
+                commandNum = 0;
+                gp.playSE(audio.SFX.MENU_SELECT);
+                new Thread(() -> {
+                    gp.friendsListManager.refresh();
+                    gp.friendsListManager.retryPendingAdds(); // in case connectivity returned since last visit
+                    // Keeps the emulated NFC tag's identity current for the rest of this screen
+                    // visit (and while backgrounded — see platform.NfcFriendService's class doc).
+                    String friendId = gp.friendsListManager.getMyFriendId();
+                    String username = gp.friendsListManager.getClaimedUsername();
+                    if (friendId != null && username != null) {
+                        platform.NfcFriend.setEmulatedPayload(friendId, username);
+                    }
+                }, "Friends-Refresh").start();
+            });
+            if (hasNfc) {
+                titleMenu.button("JOIN GAME", () -> {
+                    titleScreenState = 6;
+                    joinGameStatusMessage = "";
+                    commandNum = 0;
+                    gp.playSE(audio.SFX.MENU_SELECT);
+                    startJoinGameNfcRead();
+                });
+            }
             titleMenu.button("QUIT", () -> System.exit(0));
             titleMenuHadSave = hasSave;
+            titleMenuHadNfc = hasNfc;
         }
         return titleMenu;
     }
@@ -143,6 +231,153 @@ public class UI {
                 .item(MenuItem.button("← Back", () -> { titleScreenState = 0; commandNum = 0; gp.playSE(audio.SFX.MENU_SELECT); }).separator().centered());
         }
         return classMenu;
+    }
+
+    // Rebuild trigger for pauseMenu(): whether BLE is available/hosting, and (while hosting) the
+    // guest count — the INVITE PLAYER label needs to reflect both, and MenuItem.label is immutable
+    // by design (see MenuItem's SELECTOR precedent for dynamic values), so a change rebuilds the
+    // item list. Tracked as the 3 primitive values themselves (not a concatenated String) since
+    // this is checked every frame while paused — avoids a string allocation/boxing per frame for
+    // what's fundamentally a cheap 2-bool-1-int comparison. The Menu instance itself is still
+    // cached/reused otherwise, so the rects drawItems() records stay valid for
+    // MouseHandler.clickPause()'s hit-testing between frames.
+    private boolean pauseMenuHadBle;
+    private boolean pauseMenuWasHosting;
+    private int pauseMenuLastPlayerCount = -1;
+
+    /**
+     * Pause menu (RESUME / INVITE PLAYER [Android+BLE only] / QUIT TO TITLE). Cached like
+     * titleMenu/classMenu — MouseHandler.clickPause() calls this same cached instance, not a fresh
+     * one, so its previously-drawn item rects stay valid for hit-testing.
+     */
+    public Menu pauseMenu() {
+        boolean hosting = gp.bleSession.isHosting();
+        boolean guesting = gp.bleSession.isGuesting();
+        int playerCount = gp.bleSession.totalPlayerCount();
+        // isHostingSupported() does a real permission-check IPC (Binder call to PackageManager) —
+        // skip it once hosting has actually started, since hosting==true already implies support
+        // and re-checking every frame while paused would otherwise cost that IPC 60x/sec for no
+        // reason (support/permission state doesn't change mid-frame). A guest never sees INVITE
+        // PLAYER at all — only the host of a session can invite further guests (see
+        // main.BleMultiplayerSession's class doc: the host is the single source of truth for the
+        // session, and hosting from inside someone else's session isn't a supported topology).
+        boolean hasBle = !guesting && (hosting || platform.BleMultiplayer.isHostingSupported());
+
+        if (pauseMenu == null || hasBle != pauseMenuHadBle || hosting != pauseMenuWasHosting
+                || (hosting && playerCount != pauseMenuLastPlayerCount)) {
+            pauseMenu = Menu.of(null, THEME_PAUSE).onNavigate(() -> gp.playSE(audio.SFX.MENU_SELECT));
+            pauseMenu.button("RESUME", () -> gp.gameState = GamePanel.playState);
+            if (hasBle) {
+                String label = hosting
+                    ? "STOP HOSTING (" + playerCount + "/" + (main.BleMultiplayerSession.MAX_GUESTS + 1) + ")"
+                    : "INVITE PLAYER";
+                pauseMenu.button(label, this::toggleBleHosting);
+            }
+            pauseMenu.button("QUIT TO TITLE", () -> {
+                if (gp.bleSession.isHosting()) { gp.bleSession.stopHosting(); restoreDefaultNfcPayload(); }
+                if (gp.bleSession.isActive()) gp.bleSession.leaveHost();
+                platform.NfcFriend.stopReading();
+                gp.gameState = GamePanel.titleState;
+                titleScreenState = 0;
+                commandNum = 0;
+            });
+            pauseMenuHadBle = hasBle;
+            pauseMenuWasHosting = hosting;
+            pauseMenuLastPlayerCount = playerCount;
+        }
+        return pauseMenu;
+    }
+
+    private void toggleBleHosting() {
+        if (gp.bleSession.isHosting()) {
+            gp.bleSession.stopHosting();
+            restoreDefaultNfcPayload();
+            pauseBleStatusMessage = "Hosting stopped";
+            return;
+        }
+        if (!gp.bleSession.startHosting()) {
+            pauseBleStatusMessage = "Couldn't start hosting (check Bluetooth is on)";
+            return;
+        }
+        String invitePayload = platform.NfcInvitePayload.encode(
+                gp.bleSession.getSessionToken(), gp.bleSession.getHostMapId(), gp.bleSession.getHostDisplayName());
+        platform.NfcFriend.setEmulatedPayloadRaw(invitePayload);
+        pauseBleStatusMessage = "Waiting for guests — have them tap your phone";
+    }
+
+    /**
+     * Stops the phone from answering NFC taps with the (now-stale) BLE invite once hosting ends —
+     * otherwise the emulated tag would keep offering a session token/MAC that no longer accepts
+     * connections indefinitely, since HCE payloads are otherwise long-lived (see
+     * NfcFriendService's class doc). Restores the player's own friend-add payload if they've
+     * claimed a username (so tap-to-add-friend keeps working), or clears the tag entirely
+     * otherwise — either way, a fresh INVITE PLAYER tap is required to broadcast an invite again.
+     */
+    private void restoreDefaultNfcPayload() {
+        String friendId = gp.friendsListManager.getMyFriendId();
+        String username = gp.friendsListManager.getClaimedUsername();
+        if (friendId != null && username != null) {
+            platform.NfcFriend.setEmulatedPayload(friendId, username);
+        } else {
+            platform.NfcFriend.setEmulatedPayloadRaw(null);
+        }
+    }
+
+    /**
+     * Entry point for platform.NfcLaunch's cold-launch auto-join (see GamePanel.update()): the
+     * player's first tap already got them here (Android's AAR cold-launched the app — see
+     * androidlauncher.nfc.Ndef4Service), so this jumps straight past the title menu into the same
+     * waiting-for-tap state JOIN GAME uses, and starts reading immediately — from the player's
+     * perspective it's one continuous "tap and hold the phones together" gesture, even though
+     * technically the first NFC read (the AAR) and this second one (the real invite payload, over
+     * FriendHceService's custom-AID channel) are two separate taps a moment apart.
+     */
+    public void startJoinGameFromNfcLaunch() {
+        titleScreenState = 6;
+        joinGameStatusMessage = "";
+        commandNum = 0;
+        startJoinGameNfcRead();
+    }
+
+    /**
+     * Starts NFC reader mode for JOIN GAME (titleScreenState 6): on a successful tap, decodes the
+     * host's NfcInvitePayload and connects over BLE via main.BleMultiplayerSession#joinHost, which
+     * on success loads the host's map and drops the local player in at spawn with default stats —
+     * see that method's class doc for why no map data needs to be transmitted.
+     */
+    private void startJoinGameNfcRead() {
+        joinGameNfcWaiting = true;
+        platform.NfcFriend.startReading(this::onJoinGameTagRead);
+    }
+
+    /**
+     * Fires once per NFC tag Android's reader mode detects — including a misread (wrong tag,
+     * mid-tap glitch), which comes through as {@code payload == null}. Reader mode itself keeps
+     * polling underneath regardless (see NfcFriendServiceImpl#startReading), so a failed decode
+     * here just re-arms silently rather than surfacing a dead-end "try again" — this is what makes
+     * the cold-launch flow feel like one continuous "hold the phones together" gesture instead of
+     * needing a deliberate second tap (see startJoinGameFromNfcLaunch's class doc).
+     */
+    private void onJoinGameTagRead(String payload) {
+        System.out.println("[BleJoin] onJoinGameTagRead payload=" + payload);
+        platform.NfcInvitePayload.Decoded invite =
+                payload != null ? platform.NfcInvitePayload.decode(payload) : null;
+        System.out.println("[BleJoin] decoded invite=" + invite);
+        if (invite == null) {
+            if (joinGameNfcWaiting) startJoinGameNfcRead(); // re-arm; still on the join screen
+            return;
+        }
+        joinGameNfcWaiting = false;
+        platform.NfcFriend.stopReading(); // got what we needed — no reason to keep scanning
+        joinGameStatusMessage = "Connecting…";
+        gp.bleSession.joinHost(invite, accepted -> {
+            if (accepted) {
+                gp.gameState = GamePanel.playState;
+                gp.multiplayerMode = false; // BLE session, not the TCP MultiplayerClient path
+            } else {
+                joinGameStatusMessage = "Couldn't join — host may be full or out of range";
+            }
+        });
     }
 
     public int slotCol = 0;
@@ -603,6 +838,7 @@ public class UI {
      *  Must be called from GamePanel.update() so animations run at a fixed rate on weak hardware. */
     public void updateAnimations() {
         animTick++;
+        if (usernameNagTimer > 0) usernameNagTimer--;
     }
 
     public void drawPlayerLife() {
@@ -1150,19 +1386,28 @@ public class UI {
             // Username input box — top-right corner of title screen
             {
                 float pulse2 = fastPulse(animTick, 2);
-                int boxW = 220, boxH = 34;
-                int boxX = gp.screenWidth - boxW - 22;
-                int boxY = 18;
+                int boxW = usernameBoxW(), boxH = usernameBoxH();
+                int boxX = usernameBoxX();
+                int boxY = usernameBoxY();
                 int boxRound = 8;
+                boolean needsUsername = playerUsername.isBlank();
+                boolean nagging = usernameNagTimer > 0;
 
                 // Background panel
                 g2.setColor(cachedColor(6, 4, 14, 200));
                 g2.fillRoundRect(boxX, boxY, boxW, boxH, boxRound, boxRound);
 
-                // Border — highlighted when focused
-                if (usernameFieldFocused) {
+                // Border — highlighted when focused, flashes red when the player tried to proceed
+                // without a name (nagging), pulses amber when empty to invite the very first tap.
+                if (nagging) {
+                    int bordA = (int)(180 + fastPulse(animTick, 6) * 75);
+                    g2.setColor(cachedColor(235, 60, 60, bordA));
+                } else if (usernameFieldFocused) {
                     int bordA = (int)(160 + pulse2 * 80);
                     g2.setColor(cachedColor(232, 52, 118, bordA));
+                } else if (needsUsername) {
+                    int bordA = (int)(120 + pulse2 * 90);
+                    g2.setColor(cachedColor(235, 190, 60, bordA));
                 } else {
                     g2.setColor(cachedColor(90, 80, 110, 160));
                 }
@@ -1172,7 +1417,7 @@ public class UI {
                 // Label
                 g2.setFont(cachedFont(Font.PLAIN, 11F));
                 g2.setColor(cachedColor(160, 145, 200, 180));
-                g2.drawString("USERNAME", boxX + 8, boxY - 3);
+                g2.drawString("USERNAME (required)", boxX + 8, boxY - 3);
 
                 // Text content + cursor
                 g2.setFont(cachedFont(Font.BOLD, 13F));
@@ -1195,8 +1440,10 @@ public class UI {
 
                 // Hint below box
                 g2.setFont(cachedFont(Font.PLAIN, 11F));
-                g2.setColor(cachedColor(100, 92, 120, 140));
-                String hint = usernameFieldFocused ? "Press ENTER or ESC to confirm" : "Press U to edit";
+                g2.setColor(nagging ? cachedColor(235, 90, 90, 220) : cachedColor(100, 92, 120, 140));
+                String hint = nagging ? "Set a username first!"
+                        : usernameFieldFocused ? "Press ENTER or ESC to confirm"
+                        : "Tap here or press U to edit";
                 g2.drawString(hint, boxX, boxY + boxH + 13);
             }
 
@@ -1384,6 +1631,12 @@ public class UI {
         }
         else if (titleScreenState == 4) {
             drawMultiplayerInput();
+        }
+        else if (titleScreenState == 5) {
+            drawFriendsList();
+        }
+        else if (titleScreenState == 6) {
+            drawJoinGameScreen();
         }
     }
     // MULTIPLAYER BROWSER (titleScreenState 3)
@@ -1704,12 +1957,30 @@ public class UI {
             sx += cachedFM().stringWidth(quickStats[i]) + gap;
         }
 
-        g2.setFont(cachedFont(Font.PLAIN, 16F));
+        int menuW = Math.min(360, gp.screenWidth - frameInset * 2 - 60);
+        int menuX = gp.screenWidth / 2 - menuW / 2;
+        int menuY = statsY + 30;
+        Menu pm = pauseMenu();
+        pm.setSelected(pauseSelection);
+        pm.drawItems(this, g2, menuX, menuY, menuW, pm.size() * 54 + 20);
+
+        if (!pauseBleStatusMessage.isEmpty()) {
+            g2.setFont(cachedFont(Font.PLAIN, 14F));
+            g2.setColor(cachedColor(230, 200, 140, (int)(220 * pauseAlpha)));
+            int msgW = cachedFM().stringWidth(pauseBleStatusMessage);
+            g2.drawString(pauseBleStatusMessage, gp.screenWidth / 2 - msgW / 2,
+                    menuY + pm.size() * 54 + 30);
+        }
+
+        g2.setFont(cachedFont(Font.PLAIN, 14F));
         g2.setColor(cachedColor(150, 145, 130, (int)(120 * pauseAlpha)));
-        String hint = "Press P to resume";
+        String hint = "[W/S] Navigate   [Enter] Select   [P/Esc] Resume";
         int hx = getXforCenteredText(hint);
-        g2.drawString(hint, hx, gp.screenHeight - gp.tileSize * 2);
+        g2.drawString(hint, hx, gp.screenHeight - gp.tileSize);
     }
+
+    /** Selection index into pauseMenu() — separate from commandNum since pause isn't a titleScreenState. */
+    public int pauseSelection = 0;
 
     private final HashMap<String, Sprite> portraitCache = new HashMap<>();
     private Sprite getPortrait(String path) {
@@ -3643,5 +3914,234 @@ public class UI {
             return "/res/background_royal.png";
         else
             return "/res/background.png";
+    }
+
+    /** Total row count for the friends screen: friend + syncing + pending-request entries + menu options. */
+    public int friendsTotalRows() {
+        return gp.friendsListManager.getFriends().size()
+                + gp.friendsListManager.getPendingLocalAdds().size()
+                + gp.friendsListManager.getPendingRequests().size()
+                + friendsMenuOptions().length;
+    }
+
+    /** Bottom menu options — CLAIM USERNAME only shows up before a username has been claimed. */
+    private String[] friendsMenuOptions() {
+        boolean hasUsername = gp.friendsListManager.getClaimedUsername() != null;
+        if (friendsClaimMode) {
+            return new String[]{ "TYPE USERNAME: " + friendsNewName + (((animTick / 20) % 2 == 0) ? "_" : ""), "BACK" };
+        }
+        if (friendsAddMode) {
+            return new String[]{ "TYPE USERNAME: " + friendsNewName + (((animTick / 20) % 2 == 0) ? "_" : ""), "BACK" };
+        }
+        if (friendsNfcWaiting) {
+            String dots = ".".repeat(((animTick / 20) % 3) + 1);
+            return new String[]{ "WAITING FOR TAP" + dots, "BACK" };
+        }
+        String addLabel = platform.NfcFriend.isSupported() ? "TAP TO ADD FRIEND" : "ADD FRIEND";
+        return hasUsername
+            ? new String[]{ addLabel, "BACK" }
+            : new String[]{ addLabel, "CLAIM USERNAME", "BACK" };
+    }
+
+    // FRIENDS LIST (titleScreenState 5)
+    public void drawFriendsList() {
+        int panelW = 560, panelH = 520;
+        int px = (gp.screenWidth - panelW) / 2;
+        int py = (gp.screenHeight - panelH) / 2;
+
+        g2.setColor(cachedColor(12, 14, 24, 235));
+        g2.fillRoundRect(px, py, panelW, panelH, 16, 16);
+        g2.setColor(cachedColor(200, 140, 90, 90));
+        g2.setStroke(STROKE_2);
+        g2.drawRoundRect(px + 2, py + 2, panelW - 4, panelH - 4, 14, 14);
+
+        g2.setFont(cachedFont(Font.BOLD, 32F));
+        g2.setColor(cachedColor(230, 170, 100));
+        String text = "♥  FRIENDS";
+        int tw = cachedFM().stringWidth(text);
+        g2.drawString(text, px + (panelW - tw) / 2, py + 44);
+
+        String claimedUsername = gp.friendsListManager.getClaimedUsername();
+        g2.setFont(cachedFont(Font.PLAIN, 13F));
+        g2.setColor(cachedColor(150, 145, 130));
+        String uLine = claimedUsername != null ? "Your username: " + claimedUsername : "No username claimed yet";
+        int uw = cachedFM().stringWidth(uLine);
+        g2.drawString(uLine, px + (panelW - uw) / 2, py + 62);
+
+        g2.setColor(cachedColor(180, 120, 80, 80));
+        g2.drawLine(px + 30, py + 74, px + panelW - 30, py + 74);
+
+        ArrayList<String> friends = gp.friendsListManager.getFriends();
+        List<String> syncing = gp.friendsListManager.getPendingLocalAdds();
+        ArrayList<String> requests = gp.friendsListManager.getPendingRequests();
+        int listStartY = py + 94;
+        int entryH = 44;
+        int entryW = panelW - 60;
+        int entryX = px + 30;
+        int maxVisible = 5;
+        int rowCount = friends.size() + syncing.size() + requests.size();
+        int scrollOffset = Math.max(0, Math.min(friendsSelection, rowCount - 1) - maxVisible + 1);
+        if (friendsSelection >= rowCount) scrollOffset = Math.max(0, rowCount - maxVisible); // cursor on menu items
+
+        if (rowCount == 0) {
+            g2.setFont(cachedFont(Font.ITALIC, 16F));
+            g2.setColor(cachedColor(120, 115, 105));
+            String empty = "No friends yet. Add one below!";
+            int ew = cachedFM().stringWidth(empty);
+            g2.drawString(empty, px + (panelW - ew) / 2, listStartY + 30);
+        } else {
+            for (int i = scrollOffset; i < Math.min(rowCount, scrollOffset + maxVisible); i++) {
+                boolean isSyncing = i >= friends.size() && i < friends.size() + syncing.size();
+                boolean isRequest = i >= friends.size() + syncing.size();
+                String name = isRequest ? requests.get(i - friends.size() - syncing.size())
+                        : isSyncing ? syncing.get(i - friends.size())
+                        : friends.get(i);
+                int ey = listStartY + (i - scrollOffset) * (entryH + 6);
+                boolean sel = (friendsSelection == i);
+
+                Color accent = isRequest ? cachedColor(120, 170, 230)
+                        : isSyncing ? cachedColor(180, 160, 120)
+                        : cachedColor(230, 170, 100);
+                if (sel) {
+                    g2.setColor(cachedColor(accent.getRed(), accent.getGreen(), accent.getBlue(), 50));
+                    g2.fillRoundRect(entryX - 4, ey - 4, entryW + 8, entryH + 8, 12, 12);
+                    g2.setColor(cachedColor(accent.getRed(), accent.getGreen(), accent.getBlue(), 80));
+                    g2.fillRoundRect(entryX, ey, entryW, entryH, 10, 10);
+                    g2.setColor(accent);
+                    g2.setStroke(STROKE_2);
+                    g2.drawRoundRect(entryX, ey, entryW, entryH, 10, 10);
+                    g2.fillRoundRect(entryX, ey + 8, 3, entryH - 16, 2, 2);
+                } else {
+                    g2.setColor(cachedColor(25, 28, 40, 160));
+                    g2.fillRoundRect(entryX, ey, entryW, entryH, 10, 10);
+                    g2.setColor(cachedColor(50, 55, 70, 60));
+                    g2.setStroke(STROKE_1);
+                    g2.drawRoundRect(entryX, ey, entryW, entryH, 10, 10);
+                }
+
+                g2.setFont(cachedFont(sel ? Font.BOLD : Font.PLAIN, 17F));
+                g2.setColor(isSyncing ? cachedColor(180, 175, 160, 160) : (sel ? Color.WHITE : cachedColor(180, 175, 160)));
+                g2.drawString(name, entryX + 16, ey + entryH / 2 + 5);
+
+                if (isRequest) {
+                    g2.setFont(cachedFont(Font.BOLD, 12F));
+                    g2.setColor(sel ? cachedColor(120, 170, 230) : cachedColor(90, 110, 140));
+                    String tag = sel ? "[Enter] Accept  [Delete] Decline" : "REQUEST";
+                    int tagW = cachedFM().stringWidth(tag);
+                    g2.drawString(tag, entryX + entryW - tagW - 14, ey + entryH / 2 + 5);
+                } else if (isSyncing) {
+                    g2.setFont(cachedFont(Font.BOLD, 12F));
+                    g2.setColor(cachedColor(180, 160, 120));
+                    String tag = "SYNCING…";
+                    int tagW = cachedFM().stringWidth(tag);
+                    g2.drawString(tag, entryX + entryW - tagW - 14, ey + entryH / 2 + 5);
+                } else {
+                    g2.setColor(cachedColor(80, 200, 100, sel ? 200 : 100));
+                    g2.fillOval(entryX + entryW - 20, ey + entryH / 2 - 4, 8, 8);
+                }
+            }
+        }
+
+        int menuStartY = listStartY + Math.min(rowCount, maxVisible) * (entryH + 6) + 20;
+        if (rowCount == 0) menuStartY = listStartY + 60;
+
+        String[] options = friendsMenuOptions();
+        Color[] optColors = options.length == 3
+            ? new Color[]{ cachedColor(80, 200, 120), cachedColor(120, 170, 230), cachedColor(180, 160, 120) }
+            : new Color[]{ cachedColor(80, 200, 120), cachedColor(180, 160, 120) };
+        int optH = 36;
+        int optW = panelW - 100;
+        int optX = px + 50;
+
+        for (int i = 0; i < options.length; i++) {
+            int idx = rowCount + i;
+            int oy = menuStartY + i * (optH + 8);
+            boolean typing = friendsAddMode || friendsClaimMode;
+            boolean sel = (friendsSelection == idx) || (typing && i == 0);
+
+            if (sel) {
+                g2.setColor(cachedColor(optColors[i].getRed(), optColors[i].getGreen(), optColors[i].getBlue(), 20));
+                g2.fillRoundRect(optX - 4, oy - 3, optW + 8, optH + 6, 12, 12);
+                g2.setColor(cachedColor(optColors[i].getRed(), optColors[i].getGreen(), optColors[i].getBlue(), 50));
+                g2.fillRoundRect(optX, oy, optW, optH, 10, 10);
+                g2.setColor(optColors[i]);
+                g2.setStroke(STROKE_2);
+                g2.drawRoundRect(optX, oy, optW, optH, 10, 10);
+            } else {
+                g2.setColor(cachedColor(20, 22, 35, 140));
+                g2.fillRoundRect(optX, oy, optW, optH, 10, 10);
+                g2.setColor(cachedColor(50, 50, 65, 60));
+                g2.setStroke(STROKE_1);
+                g2.drawRoundRect(optX, oy, optW, optH, 10, 10);
+            }
+
+            g2.setFont(cachedFont(Font.BOLD, 17F));
+            text = options[i];
+            tw = cachedFM().stringWidth(text);
+            g2.setColor(sel ? optColors[i] : cachedColor(140, 135, 120));
+            g2.drawString(text, optX + (optW - tw) / 2, oy + optH / 2 + 6);
+        }
+
+        if (!friendsStatusMessage.isEmpty()) {
+            g2.setFont(cachedFont(Font.BOLD, 13F));
+            g2.setColor(cachedColor(230, 200, 140));
+            int sw = cachedFM().stringWidth(friendsStatusMessage);
+            g2.drawString(friendsStatusMessage, px + (panelW - sw) / 2, py + panelH - 34);
+        }
+
+        g2.setFont(cachedFont(Font.PLAIN, 12F));
+        g2.setColor(cachedColor(90, 85, 75));
+        String hint = (friendsAddMode || friendsClaimMode)
+            ? "[Enter] Confirm   [Esc] Cancel"
+            : friendsNfcWaiting
+                ? "Hold your phone against a friend's phone   [Esc] Cancel"
+                : "[W/S] Navigate   [Enter] Select   [Delete] Remove/Decline   [Esc] Back";
+        int hw = cachedFM().stringWidth(hint);
+        g2.drawString(hint, px + (panelW - hw) / 2, py + panelH - 16);
+     }
+
+    // JOIN GAME (titleScreenState 6) — guest side of local BLE multiplayer, see
+    // main.BleMultiplayerSession's class doc. Tap the host's phone to connect directly over BLE.
+    public void drawJoinGameScreen() {
+        int panelW = 480, panelH = 260;
+        int px = (gp.screenWidth - panelW) / 2;
+        int py = (gp.screenHeight - panelH) / 2;
+
+        g2.setColor(cachedColor(12, 14, 24, 235));
+        g2.fillRoundRect(px, py, panelW, panelH, 16, 16);
+        g2.setColor(cachedColor(120, 170, 230, 90));
+        g2.setStroke(STROKE_2);
+        g2.drawRoundRect(px + 2, py + 2, panelW - 4, panelH - 4, 14, 14);
+
+        g2.setFont(cachedFont(Font.BOLD, 28F));
+        g2.setColor(cachedColor(150, 190, 240));
+        String title = "JOIN GAME";
+        int tw = cachedFM().stringWidth(title);
+        g2.drawString(title, px + (panelW - tw) / 2, py + 46);
+
+        g2.setFont(cachedFont(Font.PLAIN, 15F));
+        g2.setColor(cachedColor(180, 175, 160));
+        String body = joinGameNfcWaiting
+            ? "Waiting for tap" + ".".repeat(((animTick / 20) % 3) + 1)
+            : "Tap your phone against a host's phone\nthat has INVITE PLAYER open.";
+        int by = py + 100;
+        for (String line : body.split("\n")) {
+            int lw = cachedFM().stringWidth(line);
+            g2.drawString(line, px + (panelW - lw) / 2, by);
+            by += 22;
+        }
+
+        if (!joinGameStatusMessage.isEmpty()) {
+            g2.setFont(cachedFont(Font.BOLD, 13F));
+            g2.setColor(cachedColor(230, 200, 140));
+            int sw = cachedFM().stringWidth(joinGameStatusMessage);
+            g2.drawString(joinGameStatusMessage, px + (panelW - sw) / 2, py + panelH - 46);
+        }
+
+        g2.setFont(cachedFont(Font.PLAIN, 12F));
+        g2.setColor(cachedColor(90, 85, 75));
+        String hint = "[Esc] Back";
+        int hw2 = cachedFM().stringWidth(hint);
+        g2.drawString(hint, px + (panelW - hw2) / 2, py + panelH - 16);
     }
 }

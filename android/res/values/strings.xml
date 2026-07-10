@@ -1,4 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <string name="app_name">Michi\'s Adventure</string>
+    <string name="nfc_friend_service_description">Michi\'s Adventure friend tap</string>
+    <string name="nfc_ndef_service_description">Michi\'s Adventure game invite</string>
 </resources>

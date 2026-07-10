@@ -16,11 +16,6 @@ import entity.Entity;
 import main.GamePanel;
 import object.OBJ_Chest;
 
-/**
- * Don't Starve Together-style circular minimap.
- * Paints flat biome colours (no tile images), clips to a circle,
- * applies a radial vignette and draws an ornate ring border.
- */
 public class Minimap {
 
     private final GamePanel gp;
@@ -137,9 +132,8 @@ public class Minimap {
             Sprite.endPixelBatch();
         }
 
-        Texture tex = new Texture(pm);
+        Texture tex = gfx.GdxTextureUtil.managedFromPixmap(pm);
         tex.setFilter(Texture.TextureFilter.Linear, Texture.TextureFilter.Linear);
-        pm.dispose();
         terrainImage = new Sprite(tex);
         bakedTerrainCache.put(cacheKey, terrainImage);
     }

@@ -170,9 +170,8 @@ public class Sprite {
         cell.drawPixmap(src,
             rx + srcX, ry + srcY, srcW, srcH, // src rect (native top-left pixel coords)
             ox, oy, dw, dh);                  // dst rect (scaled)
-        Texture out = new Texture(cell);
+        Texture out = GdxTextureUtil.managedFromPixmap(cell);
         out.setFilter(Texture.TextureFilter.Nearest, Texture.TextureFilter.Nearest);
-        cell.dispose();
         if (owns[0]) src.dispose(); // release the decoded source Pixmap (native memory) if unbatched
         return new Sprite(out);
     }

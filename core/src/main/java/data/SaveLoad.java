@@ -44,6 +44,10 @@ public class SaveLoad {
         return cloudSaveService.isServerOnline();
     }
 
+    public CloudSaveService getCloudSaveService() {
+        return cloudSaveService;
+    }
+
     private byte[] encrypt(String plaintext) throws GeneralSecurityException {
         byte[] iv = new byte[16];
         new SecureRandom().nextBytes(iv);

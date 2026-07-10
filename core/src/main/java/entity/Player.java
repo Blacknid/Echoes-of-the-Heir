@@ -579,6 +579,9 @@ public class Player extends Entity {
                     if (gp.mpClient != null && gp.mpClient.isConnected()) {
                         gp.mpClient.sendMobDamage(si, dmg, m.life, m.maxLife, m.name);
                     }
+                    if (gp.bleSession != null && gp.bleSession.isActive()) {
+                        gp.bleSession.sendMobDamage(si, dmg, m.life, m.maxLife);
+                    }
                 }
             }
         }
@@ -1354,6 +1357,9 @@ public class Player extends Entity {
                 if (gp.mpClient != null && gp.mpClient.isConnected()) {
                     gp.mpClient.sendMobDamage(i, damage, gp.monster[i].life, gp.monster[i].maxLife, gp.monster[i].name);
                 }
+                if (gp.bleSession != null && gp.bleSession.isActive()) {
+                    gp.bleSession.sendMobDamage(i, damage, gp.monster[i].life, gp.monster[i].maxLife);
+                }
             }
         }
     }
@@ -1441,6 +1447,9 @@ public class Player extends Entity {
                 if (gp.mpClient != null && gp.mpClient.isConnected()) {
                     gp.mpClient.sendMobDamage(i, damage, m.life, m.maxLife, m.name);
                 }
+                if (gp.bleSession != null && gp.bleSession.isActive()) {
+                    gp.bleSession.sendMobDamage(i, damage, m.life, m.maxLife);
+                }
             }
         }
 
@@ -1511,6 +1520,9 @@ public class Player extends Entity {
                 if (gp.mpClient != null && gp.mpClient.isConnected()) {
                     gp.mpClient.sendMobDamage(i, damage, m.life, m.maxLife, m.name);
                 }
+                if (gp.bleSession != null && gp.bleSession.isActive()) {
+                    gp.bleSession.sendMobDamage(i, damage, m.life, m.maxLife);
+                }
             }
 
             Particle p = gp.particlePool.get();
@@ -1553,10 +1565,12 @@ public class Player extends Entity {
             life++;
         }
         // Find monster index and sync death to other players in multiplayer
-        if (gp.mpClient != null && gp.mpClient.isConnected()) {
+        if ((gp.mpClient != null && gp.mpClient.isConnected())
+                || (gp.bleSession != null && gp.bleSession.isActive())) {
             for (int i = 0; i < gp.monster.length; i++) {
                 if (gp.monster[i] == monster) {
-                    gp.mpClient.sendMobDeath(i, monster.name);
+                    if (gp.mpClient != null && gp.mpClient.isConnected()) gp.mpClient.sendMobDeath(i, monster.name);
+                    if (gp.bleSession != null && gp.bleSession.isActive()) gp.bleSession.sendMobDeath(i);
                     break;
                 }
             }

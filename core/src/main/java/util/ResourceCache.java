@@ -310,6 +310,24 @@ public final class ResourceCache {
         scaledImageCache.entrySet().removeIf(entry -> entry.getKey().startsWith(path + '|'));
     }
 
+    /**
+     * Drops every cached {@link Sprite}/{@link TextureAtlas} entry without disposing the GL
+     * textures they wrap. Must run at the very start of each {@code MichiGame.create()} — these
+     * maps are static, so on Android (singleTask launch mode) they survive a "restart" that
+     * reuses the process, while the old GL context and its {@code Texture} objects are gone.
+     * Handing out a {@link Sprite} built against a dead context makes the GPU sample whatever
+     * texture now happens to occupy that recycled id (e.g. the wrong NPC portrait bleeding into
+     * the background). Skipping disposal is intentional: the textures belong to a context that no
+     * longer exists, so disposing them would just make GL calls against invalid/reused handles.
+     */
+    public static synchronized void resetImages() {
+        imageCache.clear();
+        scaledImageCache.clear();
+        missingImageCache.clear();
+        spriteAtlas = null;
+        spriteAtlasLoadAttempted = false;
+    }
+
     private static DocumentBuilderFactory createXmlFactory() {
         DocumentBuilderFactory factory = DocumentBuilderFactory.newInstance();
 

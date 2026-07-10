@@ -154,9 +154,8 @@ public class Projectile extends Entity implements Poolable {
                 }
             }
         }
-        Texture tex = new Texture(out);
+        Texture tex = gfx.GdxTextureUtil.managedFromPixmap(out);
         tex.setFilter(Texture.TextureFilter.Nearest, Texture.TextureFilter.Nearest);
-        out.dispose();
         return new Sprite(tex);
     }
     public void subtractResource(Entity user) {}

@@ -4,7 +4,10 @@ Michi's Adventure - Multiplayer Server v2
 
 Handshake (first message C->S):
     C -> "HELLO v2 <base64(client_nonce_16)>"
-    S -> "OK <base64(server_nonce_16)>"
+    S -> "OK <base64(server_nonce_16)> <server_public_key_fingerprint_hex16>"
+        The fingerprint is sha256(DER SubjectPublicKeyInfo of this server's RSA public key)[:16
+        hex chars]. It lets the client detect "wrong server / stale embedded key" up front and
+        report it distinctly from a real auth rejection, instead of failing opaquely at LOGIN.
     C -> "LOGIN <base64(rsa_oaep_sha256(handshake_json))> <activation_id> <base64(enc_blob)>"
         handshake_json = {
           "ts":           <unix epoch s>,
@@ -23,6 +26,10 @@ Handshake (first message C->S):
     a database of licenses directly — it asks save_server to resolve the
     pair into a trusted license_key via the loopback-only internal
     VERIFY_ACTIVATION command (see _save_server_verify_activation).
+
+    If that internal link itself is broken (save_server down, wrong host/port,
+    mismatched internal_api_key) the server replies "LICENSE_SERVER_UNAVAILABLE\n"
+    instead of "AUTH_FAIL\n", so it's not confused with a real bad license/ban.
 
 Session frames (after handshake), each direction has its own counter:
     wire = "DATA <base64(seq_8 || nonce_12 || ciphertext || tag_16)>"
@@ -152,11 +159,19 @@ def _save_server_internal(cfg: dict, cmd: str, license_key: str, username: str,
     )
 
 
+class SaveServerUnreachable(Exception):
+    """Raised when the mp<->save server internal link itself is broken (bad host/port/
+    api_key, connection refused, timeout) as opposed to a clean reject from save_server.
+    Kept distinct from "license invalid" so the client can be told to check server config
+    instead of being told its license/account is bad."""
+
+
 def _save_server_verify_activation(cfg: dict, activation_id: str, enc_blob_b64: str,
                                     timeout: float = 5.0) -> Optional[str]:
     """Resolve a client's (activation_id, enc_blob) into a trusted license_key via save_server's
-    online-issued licenses table. Returns the license_key on success, or None (auth must fail —
-    unlike the username helpers, there's no online license to trust without this call)."""
+    online-issued licenses table. Returns the license_key on success, or None if save_server
+    cleanly rejected it (auth must fail — unlike the username helpers, there's no online license
+    to trust without this call). Raises SaveServerUnreachable if the link itself is broken."""
     resp = _save_server_internal_raw(
         cfg, {"cmd": "VERIFY_ACTIVATION", "activation_id": activation_id, "enc_blob": enc_blob_b64},
         timeout=timeout, want_full_response=True,
@@ -171,7 +186,9 @@ def _save_server_internal_raw(cfg: dict, payload: dict, timeout: float = 5.0,
     """Send a single internal JSON command to the save server over its loopback-only INTERNAL
     protocol. Both servers must share the same "internal_api_key" in their configs.
     Returns "SKIP" (or None if want_full_response) if save_server_host/port/internal_api_key
-    aren't set. Runs in a thread-pool executor so it doesn't block the event loop.
+    aren't set. Raises SaveServerUnreachable if they're set but the connection/handshake itself
+    fails (host down, wrong port, refused, timeout) — distinct from a clean reject.
+    Runs in a thread-pool executor so it doesn't block the event loop.
     """
     host = cfg.get("save_server_host")
     port = cfg.get("save_server_port")
@@ -196,6 +213,10 @@ def _save_server_internal_raw(cfg: dict, payload: dict, timeout: float = 5.0,
                     break
             resp = json.loads(buf.decode("utf-8"))
             return resp if want_full_response else resp.get("status", "ERROR")
+    except (OSError, _socket.timeout) as exc:
+        log.error("save_server internal %s: link unreachable (%s:%s): %s",
+                   payload.get("cmd"), host, port, exc)
+        raise SaveServerUnreachable(str(exc)) from exc
     except Exception as exc:
         log.warning("save_server internal %s failed: %s", payload.get("cmd"), exc)
         return None if want_full_response else "SKIP"
@@ -510,6 +531,12 @@ class GameServer:
         self.port = port
         self.max_players = max_players
         self.private_key = private_key
+        self.public_key_fingerprint = hashlib.sha256(
+            private_key.public_key().public_bytes(
+                encoding=serialization.Encoding.DER,
+                format=serialization.PublicFormat.SubjectPublicKeyInfo,
+            )
+        ).hexdigest()[:16]
         self.nonce_cache = nonce_cache
         self.rate_limiter = rate_limiter
         self.cfg = cfg
@@ -656,7 +683,8 @@ class GameServer:
             return None
 
         server_nonce = os.urandom(16)
-        writer.write(b"OK " + base64.b64encode(server_nonce) + b"\n")
+        writer.write(b"OK " + base64.b64encode(server_nonce)
+                     + b" " + self.public_key_fingerprint.encode("ascii") + b"\n")
         await writer.drain()
 
         # Stage 2: LOGIN — the client proves it holds a license this deployment's save_server
@@ -704,10 +732,17 @@ class GameServer:
 
         license_key = ""
         if not dev_mode:
-            license_key = await asyncio.get_event_loop().run_in_executor(
-                None,
-                lambda: _save_server_verify_activation(self.cfg, activation_id, enc_blob_b64)
-            )
+            try:
+                license_key = await asyncio.get_event_loop().run_in_executor(
+                    None,
+                    lambda: _save_server_verify_activation(self.cfg, activation_id, enc_blob_b64)
+                )
+            except SaveServerUnreachable:
+                writer.write(b"LICENSE_SERVER_UNAVAILABLE\n")
+                await writer.drain()
+                log.error("LOGIN from %s could not be verified: save_server link is down. "
+                          "Check save_server_host/port/internal_api_key in mp_config.json.", peer)
+                return None
             if not license_key:
                 writer.write(b"AUTH_FAIL\n")
                 await writer.drain()

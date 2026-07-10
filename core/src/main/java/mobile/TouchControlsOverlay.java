@@ -269,8 +269,7 @@ public class TouchControlsOverlay {
         Pixmap pixmap = new Pixmap(1, 1, Pixmap.Format.RGBA8888);
         pixmap.setColor(1f, 1f, 1f, 1f);
         pixmap.fill();
-        skin.add("white", new Texture(pixmap));
-        pixmap.dispose();
+        skin.add("white", gfx.GdxTextureUtil.managedFromPixmap(pixmap));
 
         Touchpad.TouchpadStyle padStyle = new Touchpad.TouchpadStyle();
         padStyle.background = tint(skin, new Color(0.3f, 0.3f, 0.3f, 0.35f));
