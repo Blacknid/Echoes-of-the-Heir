@@ -82,9 +82,17 @@ tasks.register('innoInstaller') {
             logger.warn('[packaging] Inno Setup (ISCC.exe) not found — skipping installer. Get it: https://jrsoftware.org/isdl.php')
             return
         }
-        def pb = new ProcessBuilder(iscc, iss.absolutePath); pb.inheritIO(); pb.start().waitFor()
+        def pb = new ProcessBuilder(iscc, iss.absolutePath); pb.inheritIO()
+        def exitCode = pb.start().waitFor()
+        if (exitCode != 0) {
+            throw new GradleException("[packaging] ISCC failed with exit code ${exitCode} — see output above.")
+        }
         def out = new File(deployDir, 'MichiGame_Setup.exe')
-        if (out.exists()) logger.lifecycle('[packaging] Installer: deploy/MichiGame_Setup.exe')
+        if (out.exists()) {
+            logger.lifecycle('[packaging] Installer: deploy/MichiGame_Setup.exe')
+        } else {
+            throw new GradleException('[packaging] ISCC reported success but deploy/MichiGame_Setup.exe was not produced.')
+        }
     }
 }
 
