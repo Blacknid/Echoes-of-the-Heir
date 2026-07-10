@@ -19,13 +19,38 @@ public class IT_Tree extends interactiveTile {
     // tall/wide this variant's trunk+canopy is drawn at (bigger tree = bigger sizeInTiles).
     private record Variant(String trunkPath, String[] canopyPaths, int[] bandCounts, int sizeInTiles,
                             float swayPixels, float hitboxWidth, float hitboxHeight,
-                            float shadowWidth, float shadowHeight, float shadowOffsetX, float shadowOffsetY) {
-        // Single-canopy convenience: one bandCount for the one layer, default size of 4 tiles.
+                            float shadowWidth, float shadowHeight, float shadowOffsetX, float shadowOffsetY,
+                            float hitboxOffsetX, float hitboxOffsetY, boolean hasShadow) {
+        // Single-canopy convenience: one bandCount for the one layer, default size of 4 tiles,
+        // hitbox centered/bottom-anchored (offset 0,0), shadow on — matches every variant defined so far.
         Variant(String trunkPath, String canopyPath, int bandCount, float swayPixels,
                 float hitboxWidth, float hitboxHeight,
                 float shadowWidth, float shadowHeight, float shadowOffsetX, float shadowOffsetY) {
             this(trunkPath, new String[] { canopyPath }, new int[] { bandCount }, 4, swayPixels,
-                    hitboxWidth, hitboxHeight, shadowWidth, shadowHeight, shadowOffsetX, shadowOffsetY);
+                    hitboxWidth, hitboxHeight, shadowWidth, shadowHeight, shadowOffsetX, shadowOffsetY,
+                    0f, 0f, true);
+        }
+
+        // Same as above but with an explicit hitbox X/Y offset (in tiles, added to the default
+        // centered-bottom position — positive X shifts right, positive Y shifts down).
+        Variant(String trunkPath, String canopyPath, int bandCount, float swayPixels,
+                float hitboxWidth, float hitboxHeight,
+                float shadowWidth, float shadowHeight, float shadowOffsetX, float shadowOffsetY,
+                float hitboxOffsetX, float hitboxOffsetY) {
+            this(trunkPath, new String[] { canopyPath }, new int[] { bandCount }, 4, swayPixels,
+                    hitboxWidth, hitboxHeight, shadowWidth, shadowHeight, shadowOffsetX, shadowOffsetY,
+                    hitboxOffsetX, hitboxOffsetY, true);
+        }
+
+        // Same as above but with an explicit hasShadow flag (both the ground blob shadow and the
+        // dynamic lighting occluder silhouette — set false for a variant that shouldn't cast either).
+        Variant(String trunkPath, String canopyPath, int bandCount, float swayPixels,
+                float hitboxWidth, float hitboxHeight,
+                float shadowWidth, float shadowHeight, float shadowOffsetX, float shadowOffsetY,
+                float hitboxOffsetX, float hitboxOffsetY, boolean hasShadow) {
+            this(trunkPath, new String[] { canopyPath }, new int[] { bandCount }, 4, swayPixels,
+                    hitboxWidth, hitboxHeight, shadowWidth, shadowHeight, shadowOffsetX, shadowOffsetY,
+                    hitboxOffsetX, hitboxOffsetY, hasShadow);
         }
     }
 
@@ -53,7 +78,18 @@ public class IT_Tree extends interactiveTile {
                  new int[] { 1, 1, 1 }, // band count per branch: top, middle, bottom
                  5, // sizeInTiles
                 1f, 1.5f, 1f,
-                3f, 1f, 0.1f, -0.25f));
+                3f, 1f, 0.1f, -0.25f, 0f, 0f, true));
+        VARIANTS.put("Pin", new Variant(
+                "/res/Interactive/Trees/pin_trunk.png",
+                "/res/Interactive/Trees/pin_canopy.png",
+                4, 1f, 1.5f, 0.5f, 
+                3f, 1f, 0f, -0.5f));
+        VARIANTS.put("Statue", new Variant(
+                "/res/Interactive/Statues_idea/statue_base.png",
+                "/res/Interactive/Statues_idea/statue_plants.png",
+                4, 1f, 1.5f, 0.5f, 
+                3f, 1f, 0f, -0.5f,
+            0f, 0f, false));
         
        
 
@@ -151,8 +187,8 @@ public class IT_Tree extends interactiveTile {
         int hitboxH = Math.round(gp.tileSize * variant.hitboxHeight());
         solidArea.width = hitboxW;
         solidArea.height = hitboxH;
-        solidArea.x = (gp.tileSize - hitboxW) / 2;
-        solidArea.y = gp.tileSize - hitboxH;
+        solidArea.x = (gp.tileSize - hitboxW) / 2 + Math.round(gp.tileSize * variant.hitboxOffsetX());
+        solidArea.y = gp.tileSize - hitboxH + Math.round(gp.tileSize * variant.hitboxOffsetY());
         solidAreaDefaultX = solidArea.x;
         solidAreaDefaultY = solidArea.y;
 
@@ -187,9 +223,9 @@ public class IT_Tree extends interactiveTile {
                ay >= gp.getCamWorldY() + (gp.screenHeight - gp.player.screenY);
     }
 
-    /** Trees always cast a dynamic canopy silhouette shadow (Stage 2 lighting). */
+    /** Casts a dynamic canopy silhouette shadow (Stage 2 lighting) unless the variant opts out. */
     @Override
-    public boolean castsShadow() { return true; }
+    public boolean castsShadow() { return variant.hasShadow(); }
 
     /**
      * Draw the tree's silhouette (trunk + canopy bands) in solid black into the shadow-occluder mask,
@@ -239,6 +275,7 @@ public class IT_Tree extends interactiveTile {
      */
     @Override
     public void drawGroundShadowPass(GdxRenderer g2) {
+        if (!variant.hasShadow()) return;
         int drawSize = gp.tileSize * variant.sizeInTiles();
         if (offscreen(drawSize)) return;
         drawGroundShadow(g2, screenX(drawSize), screenY(drawSize), drawSize,

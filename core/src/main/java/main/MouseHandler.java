@@ -167,6 +167,14 @@ public class MouseHandler implements InputProcessor {
             focusUsernameField();
             return;
         }
+        // Clicking anywhere else while the username field is focused should drop focus,
+        // otherwise usernameFieldFocused can stay stuck true and silently block all
+        // direction-key menu navigation for the rest of the session (see isDirKey guard
+        // in KeyHandler.keyDown).
+        if (gp.ui.usernameFieldFocused) {
+            gp.ui.usernameFieldFocused = false;
+            gp.player.name = gp.ui.playerUsername;
+        }
         if (gp.ui.titleScreenState == 1) {
             int i = classItemUnderMouse();
             if (i < 0) return;

@@ -38,6 +38,8 @@ public class Player extends Entity {
 
     private Sprite[][] hitFrames;    // getHit sprite sheet [dir][frame]
     private Sprite[][] deathFrames;  // death sprite sheet  [dir][frame]
+    private Sprite[][] swimFrames;   // swimming sheet [dir][frame] — only 2 frames/direction
+    public boolean isSwimming = false; // true while standing in a WaterZone (see EventHandler.isInWaterZone)
     public boolean playerDying = false;     // death animation in progress
     public int playerDeathCounter = 0;      // tick counter for death anim
     public int playerDeathFrame = 0;        // current death frame index
@@ -296,6 +298,7 @@ public class Player extends Entity {
         getPlayerAttackImages();
         getPlayerHitImages();
         getPlayerDeathImages();
+        getPlayerSwimImages();
         setItems();
         setDialogue();
     }
@@ -443,6 +446,25 @@ public class Player extends Entity {
      *  from deathClip's ms (167 ms = 10 ticks), so all coupled timing stays in ticks. */
     private int deathTicksPerFrame() { return Math.max(1, Math.round(deathClip.frameMs * 60f / 1000f)); }
 
+    private void getPlayerSwimImages() {
+        int[] framesPerRow = {2, 2, 2, 2}; // sheet rows: down, up, left, right (2 frames/dir)
+        Sprite[][] frames = loadSheetVariable("/res/player/player_swimming", framesPerRow);
+        swimFrames = new Sprite[4][];
+        swimFrames[DIR_DOWN]  = frames[1]; // row 0 = down (facing camera)
+        swimFrames[DIR_UP]    = frames[0]; // row 1 = up (back of head)
+        swimFrames[DIR_LEFT]  = frames[2]; // row 2 = left profile
+        swimFrames[DIR_RIGHT] = frames[3]; // row 3 = right profile
+    }
+
+    /** Swim sheet only has 2 frames/direction; wrap the normal walk/idle frame counter into that range. */
+    private Sprite getSwimFrame(int dir, int frame) {
+        if (swimFrames == null || dir < 0 || dir >= swimFrames.length || swimFrames[dir] == null
+                || swimFrames[dir].length == 0) return null;
+        int len = swimFrames[dir].length;
+        int idx = Math.floorMod(frame - 1, len);
+        return swimFrames[dir][idx];
+    }
+
     private void getPlayerIdleImages() {
         int[] framesPerRow = {6, 6, 6, 6}; // sheet rows: up, down, left, right
         Sprite[][] frames = loadSheetVariable("/res/player/Player_idle-sheet", framesPerRow);
@@ -458,6 +480,10 @@ public class Player extends Entity {
     @Override
     public void update() {
         if (levelUpBannerTimer > 0) levelUpBannerTimer--;
+
+        isSwimming = gp.eHandler.isInWaterZone(
+                worldX + solidArea.x, worldY + solidArea.y,
+                solidArea.width, solidArea.height);
 
         if (updateDeathAnimation()) return;   // death consumes the frame
         updateHitAnimation();
@@ -557,7 +583,7 @@ public class Player extends Entity {
             dashCooldown = getDashCooldownMax();
             invincible = true;
             keyH.dashPressed = false;
-            spawnBobBurst();
+            if (isSwimming) spawnSplashBurst(); else spawnBobBurst();
             gp.playSE(SFX.WEAPON_SWING); // quick whoosh
             currentSpeed = defaultSpeed; // start dash from full speed, bypassing ramp-up
             inertiaVelX = 0f;
@@ -565,7 +591,8 @@ public class Player extends Entity {
         }
         if (dashing) {
             float t = Math.max(0f, Math.min(1f, (dashDuration - dashCounter) / (float)Math.max(1, dashDuration)));
-            float speedMultiplier = 3.2f * (1f - t * t);  // burst → decel
+            float burstStrength = isSwimming ? 1.4f : 3.2f; // dashing through water is much weaker
+            float speedMultiplier = burstStrength * (1f - t * t);  // burst → decel
             speed = Math.max(defaultSpeed + 1, Math.round(defaultSpeed * speedMultiplier));
             invincible = true;
             invincibleCounter = 0;  // hold i-frames during evade
@@ -700,9 +727,7 @@ public class Player extends Entity {
             // Accelerate currentSpeed toward target speed
             float targetSpeed = speed;
             if (slowed && !dashing) targetSpeed *= 0.5f;
-            if (!dashing && gp.eHandler.isInWaterZone(
-                    worldX + solidArea.x, worldY + solidArea.y,
-                    solidArea.width, solidArea.height)) {
+            if (!dashing && isSwimming) {
                 targetSpeed *= 0.6f;
             }
             if (dashing) {
@@ -781,13 +806,13 @@ public class Player extends Entity {
             attackBuffered = false;
             keyH.enterPressed = false;
             if (!wasMovingLastFrame) {
-                spawnBobParticle(1);
+                if (!isSwimming) spawnBobParticle(1);
                 footstepParticleCounter = 0;
                 pWalkStateTime = 0f; // restart the walk cycle cleanly on movement start
             }
             wasMovingLastFrame = true;
             updateSprite();
-            if (!dashing) {
+            if (!dashing && !isSwimming) {
                 footstepParticleCounter++;
                 int bobInterval = Math.max(2, 48 / Math.max(1, speed)) * 4;
                 if (footstepParticleCounter >= bobInterval) {
@@ -1870,6 +1895,43 @@ public class Player extends Entity {
         }
     }
 
+    /** Splash burst for dashing through water — same fan layout as spawnBobBurst() but more
+     *  particles, color-only (no bob sprite), and splashy outward-then-falling physics. */
+    private void spawnSplashBurst() {
+        double baseAngle;
+        switch (direction) {
+            case DIR_UP    -> baseAngle = Math.PI / 2;   // burst downward
+            case DIR_DOWN  -> baseAngle = -Math.PI / 2;  // burst upward
+            case DIR_LEFT  -> baseAngle = 0;              // burst rightward
+            default        -> baseAngle = Math.PI;        // burst leftward (DIR_RIGHT)
+        }
+        int count = 9;
+        float cx = worldX + gp.tileSize / 2f;
+        float cy = worldY + gp.tileSize - 20f;
+        float spread = (float)(Math.PI * 0.9); // wider spread than the dust bob burst
+        for (int i = 0; i < count; i++) {
+            double angle = baseAngle + spread * (i / (float)(count - 1) - 0.5f);
+            float radius = 3 + (float)(Math.random() * 6);
+            Particle p = gp.particlePool.get();
+            p.image = null;
+            p.color = Math.random() < 0.5 ? new gfx.Color(210, 235, 255) : new gfx.Color(90, 150, 210);
+            p.fx = cx + (float)Math.cos(angle) * radius - 3;
+            p.fy = cy + (float)Math.sin(angle) * radius;
+            p.worldX = (int) p.fx;
+            p.worldY = (int) p.fy;
+            p.velocityX = (float)Math.cos(angle) * 1.6f;
+            p.velocityY = (float)Math.sin(angle) * 1.6f - 1.0f; // sharper pop than the dust bob
+            p.size = 5 + (int)(Math.random() * 4);
+            p.style = Particle.STYLE_SPLASH;
+            p.life = 16 + (int)(Math.random() * 8);
+            p.initialLife = p.life;
+            p.alive = true;
+            p.generator = this;
+            p.depthSortYOffset = -gp.tileSize * 2;
+            gp.particleList.add(p);
+        }
+    }
+
     private void spawnBobParticle(int count) {
         for (int i = 0; i < count; i++) {
             Particle p = gp.particlePool.get();
@@ -2227,6 +2289,8 @@ public class Player extends Entity {
         } else if (hitAnimCounter > 0 && hitFrames != null && hitAnimDirection >= 0 && hitAnimDirection < hitFrames.length
                    && hitFrames[hitAnimDirection] != null && hitAnimFrame < hitFrames[hitAnimDirection].length) {
             image = hitFrames[hitAnimDirection][hitAnimFrame];
+        } else if (isSwimming && getSwimFrame(direction, frame) != null) {
+            image = getSwimFrame(direction, frame);
         } else if (!movingThisFrame) {
             image = getIdleFrame(direction, frame);
         } else {

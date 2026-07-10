@@ -35,6 +35,9 @@ public class Particle extends Entity implements Poolable {
     // object) — no movement, no tumble. Plays through `frames` (if set) as a simple flipbook over its
     // lifetime, else just shows `image` and fades.
     public static final int STYLE_IMPACT = 8;
+    // Water droplet: quick outward burst that arcs under gravity and falls back down (unlike STYLE_BOB's
+    // gentle rise) — used for swim dashes instead of the dust bob burst.
+    public static final int STYLE_SPLASH = 9;
 
     public Sprite image;
     public Sprite[] frames; // STYLE_IMPACT: optional flipbook, played once over the particle's life
@@ -59,6 +62,8 @@ public class Particle extends Entity implements Poolable {
     private static final Color SPARK_CORE = new Color(255, 255, 220);
     private static final Color SPARK_OUTER = new Color(255, 180, 60);
     private static final Color TRAIL_COLOR = new Color(200, 190, 170, 160);
+    private static final Color SPLASH_CORE = new Color(210, 235, 255);
+    private static final Color SPLASH_OUTER = new Color(90, 150, 210);
 
     public Particle(GamePanel gp, Entity generator, Color color, int size, int speed, int maxLife, int xd, int yd) {
 
@@ -121,6 +126,10 @@ public class Particle extends Entity implements Poolable {
                 break;
             case STYLE_IMPACT:
                 break; // static — no velocity, just ages out (fade handled in draw())
+            case STYLE_SPLASH:
+                velocityX *= 0.92f;
+                velocityY += 0.16f; // stronger gravity than dust — falls back to the water fast
+                break;
             default:
                 velocityY += 0.09f;
                 break;
@@ -172,6 +181,13 @@ public class Particle extends Entity implements Poolable {
                 g2.fillOval(screenX - 1, screenY - 1, size + 2, size + 2);
                 g2.setColor(SPARK_CORE);
                 g2.fillOval(screenX, screenY, size, size);
+                break;
+            case STYLE_SPLASH:
+                g2.setColor(SPLASH_OUTER);
+                g2.fillOval(screenX - 1, screenY - 1, size + 2, size + 2);
+                g2.setColor(SPLASH_CORE);
+                int splashCore = Math.max(1, size - 2);
+                g2.fillOval(screenX + 1, screenY + 1, splashCore, splashCore);
                 break;
             case STYLE_TRAIL:
                 g2.setColor(TRAIL_COLOR);

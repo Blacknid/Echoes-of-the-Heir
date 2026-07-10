@@ -49,3 +49,7 @@ android/libs/
 # AGP reads local.properties (sdk.dir) from the ROOT project directory, not the module dir.
 local.properties
 
+# Release signing key and credentials — never commit, losing these breaks Play Store updates.
+android/release.keystore
+android/keystore.properties
+
