@@ -7,6 +7,28 @@ android {
     namespace 'com.michi.adventure'
     compileSdk 34
 
+    // Release signing: keystore lives in build_tools/keystore/ (see that dir for the password
+    // file). Every future release build must reuse this same key, or Android will refuse to
+    // treat it as an update to previously-installed copies.
+    def releaseKeystoreFile = rootProject.file('build_tools/keystore/michis-adventure-release.jks')
+    def releaseKeystorePasswordFile = rootProject.file('build_tools/keystore/michis-adventure-release.jks.passwd.txt')
+    if (releaseKeystoreFile.exists() && releaseKeystorePasswordFile.exists()) {
+        def releaseKeystorePassword = releaseKeystorePasswordFile.text.trim()
+        signingConfigs {
+            release {
+                storeFile releaseKeystoreFile
+                storePassword releaseKeystorePassword
+                keyAlias 'michis-adventure'
+                keyPassword releaseKeystorePassword
+            }
+        }
+        buildTypes {
+            release {
+                signingConfig signingConfigs.release
+            }
+        }
+    }
+
     defaultConfig {
         applicationId 'com.michi.adventure'
         // minSdk 26 (Android 8.0): comfortably below anything the S24/S25 Ultra ship, and above

@@ -19,10 +19,13 @@ Source: "..\jpackage_tmp\MichisAdventure\*"; DestDir: "{app}"; Flags: ignorevers
 
 ; 2. Patch-server endpoint list (used by UpdateClient at startup).
 ;    onlyifdoesntexist preserves any local edits the player may have made.
-Source: "..\deploy\update_servers.txt"; DestDir: "{app}"; DestName: "update_servers.txt"; Flags: ignoreversion onlyifdoesntexist
+;    skipifsourcedoesntexist: both files are genuinely optional — UpdateClient/
+;    CloudSaveService fall back to built-in defaults when absent, so the
+;    installer must not hard-fail when they haven't been hand-placed in deploy/.
+Source: "..\deploy\update_servers.txt"; DestDir: "{app}"; DestName: "update_servers.txt"; Flags: ignoreversion onlyifdoesntexist skipifsourcedoesntexist
 
 ; 3. Save-server endpoint list (used by CloudSaveService).
-Source: "..\deploy\save_servers.txt"; DestDir: "{app}"; DestName: "save_servers.txt"; Flags: ignoreversion onlyifdoesntexist
+Source: "..\deploy\save_servers.txt"; DestDir: "{app}"; DestName: "save_servers.txt"; Flags: ignoreversion onlyifdoesntexist skipifsourcedoesntexist
 
 [Icons]
 ; Creates a shortcut in the Start Menu
