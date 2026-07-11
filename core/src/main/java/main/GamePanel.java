@@ -774,8 +774,8 @@ public class GamePanel {
             }
             for ( int i = 0 ; i < iTile.length ; i++ ) {
                 if ( iTile[i] != null ) {
-                    // Margin covers the tallest interactive tile sprite (IT_Tree, 4 tiles) so it
-                    // isn't updated/culled based on just its 1-tile base position.
+                    // Margin covers the tallest interactive tile sprite (IT_Prop, up to 5 tiles) so
+                    // it isn't updated/culled based on just its 1-tile base position.
                     if (iTile[i].invincible || isEntityInViewport(iTile[i], tileSize * 4)) {
                         iTile[i].update();
                     }

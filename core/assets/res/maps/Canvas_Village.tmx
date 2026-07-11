@@ -14519,7 +14519,7 @@
   <object id="387" type="IT_Grass" x="2624" y="1536">
    <point/>
   </object>
-  <object id="388" type="IT_Tree" x="2592" y="1600">
+  <object id="388" type="IT_Prop" x="2592" y="1600">
    <point/>
   </object>
  </objectgroup>

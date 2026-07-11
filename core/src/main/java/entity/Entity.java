@@ -1065,9 +1065,10 @@ public class Entity {
     }
 
     /**
-     * Flat ground shadow pass, called once per frame by RenderPipeline BEFORE any entity draws, so
+     * Ground shadow pass, called once per frame by RenderPipeline BEFORE any entity draws, so
      * shadows always sit under everyone regardless of depth-sort order. No-op by default; overridden
-     * by types that draw a flat ground shadow (currently IT_Tree).
+     * by types that draw a background-anchored shadow (currently IT_Prop, which draws real shadow
+     * art from its sheet rather than a procedural shape).
      */
     public void drawGroundShadowPass(GdxRenderer g2) {}
 
@@ -1092,36 +1093,6 @@ public class Entity {
         g2.drawImageTinted(s, drawX, drawY, drawW, drawH, Color.BLACK, 1f);
     }
 
-    /**
-     * Flat, always-on ground shadow (a soft dark ellipse at the caster's feet), independent of the
-     * darkness/light shader. The occluder-mask shadow in {@link #drawOccluder} only exists while
-     * Lightning's darkness pass is active (it early-returns at ambientLight 0, e.g. daytime maps), so
-     * without this a caster like a tree has no shadow at all in full daylight. Cheap: one alpha-blended
-     * ellipse, no shader/FBO involved. w/h are in tiles, offsetX/offsetY in tiles from the caster's feet.
-     */
-    protected void drawGroundShadow(GdxRenderer g2, int screenX, int screenY, int drawSize,
-                                     float w, float h, float offsetX, float offsetY) {
-        // anchorWorldX/Y mirrors screenX/Y's own derivation (worldX/Y offset for a drawSize bigger
-        // than one tile — see IT_Tree.anchorX/anchorY) via screenX - player.screenX + player.worldX,
-        // so it stays the exact same fixed point screenX is built from, whatever caster this is.
-        int anchorWorldX = screenX - gp.player.screenX + gp.getCamWorldX();
-        int anchorWorldY = screenY - gp.player.screenY + gp.getCamWorldY();
-        int offX = Math.round(offsetX * gp.tileSize);
-        int offY = Math.round(offsetY * gp.tileSize);
-        int cx = screenX + drawSize / 2 + offX;
-        int cy = screenY + drawSize + offY;
-        int sw = Math.round(gp.tileSize * w);
-        int sh = Math.round(gp.tileSize * h);
-        // Step sized so the oval reads as a 32x32-px sprite scaled up to fit its bounding box (like a
-        // real pixel-art shadow texture would be), instead of a fixed real-world block size — the step
-        // shrinks/grows with the shadow's own footprint so bigger trees don't get chunkier pixels.
-        final int SHADOW_SRC_PX = 32;
-        int step = Math.max(1, Math.max(sw, sh) / SHADOW_SRC_PX);
-        g2.setColor(new gfx.Color(0, 0, 0, 90));
-        g2.fillPixelOval(cx - sw / 2, cy - sh / 2, sw, sh, step, step,
-                anchorWorldX + drawSize / 2 + offX, anchorWorldY + drawSize + offY);
-        g2.setColor(Color.WHITE);
-    }
 
     protected Sprite getWalkFrameImage(int dir, int frame) {
         // Try new array-based storage first (Player, Monster, NPC)

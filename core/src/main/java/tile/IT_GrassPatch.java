@@ -62,7 +62,7 @@ public class IT_GrassPatch extends interactiveTile {
         }
 
         // Hitbox is a small footprint anchored at the sprite's visual BASE, not the whole image
-        // bounds — matching IT_Tree's pattern (a tall canopy has a small trunk-sized hitbox, not a
+        // bounds — matching IT_Prop's pattern (a tall canopy has a small trunk-sized hitbox, not a
         // hitbox spanning the whole tree). Keeps weapon-hit detection sane regardless of how wide
         // the grass art is drawn.
         if (image != null) {

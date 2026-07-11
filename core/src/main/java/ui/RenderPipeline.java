@@ -612,8 +612,8 @@ public class RenderPipeline {
         }
 
         for (int i = 0; i < gp.iTile.length; i++) {
-            // Wider margin: covers the tallest interactive tile sprite (IT_Tree, 4 tiles), so a
-            // tree isn't culled based on just its 1-tile base position while its canopy is
+            // Wider margin: covers the tallest interactive tile sprite (IT_Prop, up to 5 tiles), so
+            // a tree/statue isn't culled based on just its 1-tile base position while its canopy is
             // still visible on screen.
             if (gp.iTile[i] != null) addToRenderList(gp.iTile[i], gp.tileSize * 4);
         }

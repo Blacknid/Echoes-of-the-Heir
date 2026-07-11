@@ -100,7 +100,7 @@ public class Breakable extends interactiveTile {
             drawWidth = (int) Math.round(sprite.getWidth() * totalScale);
             drawHeight = (int) Math.round(sprite.getHeight() * totalScale);
 
-            // Footprint hitbox anchored at the sprite's visual base, matching IT_GrassPatch/IT_Tree.
+            // Footprint hitbox anchored at the sprite's visual base, matching IT_GrassPatch/IT_Prop.
             int footW = Math.max(1, Math.round(drawWidth * HITBOX_WIDTH_FRACTION));
             int footH = Math.max(1, Math.round(drawHeight * HITBOX_HEIGHT_FRACTION));
             solidArea.width = footW;

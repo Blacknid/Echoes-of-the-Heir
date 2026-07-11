@@ -416,7 +416,7 @@ step1_walkToRow   = 25
 | `IT_Pot` | Breakable pot (drops coin) |
 | `IT_Coins` | Coin pile (interactive pickup) |
 | `IT_Grass` | Decorative grass tuft, idle sway + player-proximity deflect |
-| `IT_Tree` | Decorative tree: static trunk, canopy sways in 3 bands (outer two together, middle opposite) |
+| `IT_Prop` | Decorative tree / statue / movable plant: trunk + swaying canopy + real background shadow, all sliced from one sheet (`variant` selects which) |
 
 ---
 

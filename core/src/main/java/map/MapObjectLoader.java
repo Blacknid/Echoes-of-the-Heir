@@ -35,7 +35,7 @@ import tile.IT_GrassPatch;
 import tile.IT_Lever;
 import tile.IT_Pot;
 import tile.IT_Spike;
-import tile.IT_Tree;
+import tile.IT_Prop;
 import util.ResourceCache;
 
 /**
@@ -988,7 +988,7 @@ public class MapObjectLoader {
         switch (type) {
             case "IT_Pot"   -> { return new IT_Pot(gp, col, row); }
             case "IT_Grass" -> { return new IT_Grass(gp, col, row); }
-            case "IT_Tree"  -> { return new IT_Tree(gp, col, row, getStringProperty(obj, "variant", "default")); }
+            case "IT_Prop"  -> { return new IT_Prop(gp, col, row, getStringProperty(obj, "variant", "default")); }
             case "IT_GrassPatch" -> { return new IT_GrassPatch(gp, col, row, getStringProperty(obj, "variant", "default")); }
             case "Breakable" -> {
                 return tile.Breakable.atPixel(gp, worldX, worldY, getStringProperty(obj, "kind", "crate_dark"));

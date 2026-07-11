@@ -220,6 +220,20 @@ public class GdxRenderer {
     }
 
     /**
+     * Fractional-position variant of {@link #drawImage(Sprite, int, int, int, int)}: lets a caller
+     * animate at sub-pixel precision (e.g. a slow small-amplitude sway) instead of snapping to whole
+     * screen pixels every frame. Most draws should keep using the int overload — nearest-neighbor
+     * pixel art elsewhere in the game relies on whole-pixel alignment; only use this where smooth
+     * sub-pixel motion is explicitly wanted over crisp pixel-grid alignment.
+     */
+    public void drawImage(Sprite img, float x, float y, float w, float h) {
+        if (img == null) return;
+        useBatch();
+        batch.setColor(1f, 1f, 1f, alpha);
+        batch.draw(img.region(), x, y, w, h);
+    }
+
+    /**
      * dst-rect ↔ src-rect blit, mirroring
      * {@code drawImage(img, dx1,dy1,dx2,dy2, sx1,sy1,sx2,sy2, observer)}.
      * Used by the legacy back-buffer scaler and a few sub-image draws.

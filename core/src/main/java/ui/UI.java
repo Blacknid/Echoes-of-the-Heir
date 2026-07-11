@@ -430,6 +430,38 @@ public class UI {
     private float gameOverAlpha = 0f;  // fade-in for game over screen
     private float pauseAlpha = 0f;     // fade-in for pause overlay
 
+    // ── HP bar "hit juice": trailing damage chunk, flash, shake ──────────────────────────────
+    // Everything below is self-contained in UI.java and driven purely by watching gp.player.life
+    // change frame to frame in updateAnimations() — no changes needed anywhere damage is dealt.
+    private float lastSeenLife = -1f;   // life value last tick, to detect "damage just happened"
+    private float chunkLife = -1f;      // trailing chunk edge (0..1), catches down to smoothLife
+    private int hpFlashTimer = 0;       // ticks remaining on the on-hit flash overlay
+    private int hpShakeTimer = 0;       // ticks remaining on the on-hit bar shake
+    private float hpShakeStrength = 0f; // current shake magnitude in px, decays over hpShakeTimer
+
+    // ---- Tune the HP bar "feel" here — every knob for drain/chunk/flash/shake/color lives in
+    // ---- this one block, nothing else needs touching to change how damage reads on the bar.
+    private static final float HP_DRAIN_IN_RATE   = 0.35f;  // main bar: fast catch-up toward target
+    private static final float HP_DRAIN_MID_RATE  = 0.06f;  // main bar: slow drift once close
+    private static final float HP_DRAIN_MID_BAND  = 0.15f;  // |target-current| below this = "close", use MID rate
+    private static final float HP_CHUNK_RATE       = 0.05f; // trailing chunk: how fast it catches down to the main bar
+    private static final Color HP_CHUNK_COLOR      = new Color(255, 255, 255, 100); // change this to restyle the damage chunk
+    private static final int   HP_FLASH_DURATION   = 10;    // ticks the on-hit flash overlay lasts
+    private static final Color HP_FLASH_COLOR      = new Color(255, 255, 255, 160); // on-hit flash tint
+    private static final int   HP_SHAKE_DURATION   = 10;    // ticks the on-hit bar shake lasts
+    private static final float HP_SHAKE_STRENGTH   = 3f;    // on-hit bar shake magnitude in px
+    private static final int   HP_BAR_CORNER_RADIUS = 3;    // bar corner rounding in px — 0 = sharp rectangle
+    // Color-by-fullness: continuous gradient from red (empty) through orange/yellow to green (full).
+    // More stops = finer/less steppy transition — add/remove/reorder {fullnessThreshold 0..1, r, g, b}
+    // rows freely, they just need ascending thresholds from 0.0 to 1.0.
+    private static final float[][] HP_COLOR_STOPS = {
+        { 0.00f, 210, 45, 45 },   // empty: red
+        { 0.25f, 220, 100, 45 },  // orange
+        { 0.50f, 225, 195, 60 },  // yellow
+        { 0.75f, 165, 205, 60 },  // yellow-green
+        { 1.00f, 70, 200, 90 },   // full: green
+    };
+
     private String actTitleText = null;
     private int actTitleTimer = 0;
     private static final int ACT_TITLE_FADE_IN  = 60;   // 1 sec
@@ -853,6 +885,76 @@ public class UI {
     public void updateAnimations() {
         animTick++;
         if (usernameNagTimer > 0) usernameNagTimer--;
+        updateHpBarJuice();
+    }
+
+    /**
+     * Watches gp.player.life for a drop and, when one happens, kicks off the flash + shake + resets
+     * the trailing damage chunk to the pre-hit value so it can catch down. No hook needed anywhere
+     * damage is dealt — this just compares life to what it was last tick, the same way smoothLife
+     * already tracks targetLife in drawPlayerLife().
+     */
+    private void updateHpBarJuice() {
+        float life = gp.player.life;
+        if (lastSeenLife < 0) lastSeenLife = life; // first tick: nothing to compare against yet
+        if (life < lastSeenLife) {
+            hpFlashTimer = HP_FLASH_DURATION;
+            hpShakeTimer = HP_SHAKE_DURATION;
+            hpShakeStrength = HP_SHAKE_STRENGTH;
+            // Chunk starts at the OLD (pre-hit) ratio so it visibly sits ahead of the newly-drained
+            // main bar, then eases down to meet it — if already mid-catch-up from an earlier hit,
+            // don't snap backwards, keep whichever edge is further out.
+            float preHitRatio = lastSeenLife / Math.max(1, gp.player.maxLife);
+            chunkLife = Math.max(chunkLife, preHitRatio);
+        }
+        lastSeenLife = life;
+
+        if (hpFlashTimer > 0) hpFlashTimer--;
+        if (hpShakeTimer > 0) {
+            hpShakeTimer--;
+            hpShakeStrength *= 0.85f; // decay so the shake settles instead of stopping abruptly
+        } else {
+            hpShakeStrength = 0f;
+        }
+    }
+
+    /**
+     * Fast-in, slow-middle, fast-out drain: far from the target it closes the gap quickly, near the
+     * target it eases gently, and once it's essentially arrived it speeds back up to snap the last
+     * sliver shut instead of crawling forever. The rate blends smoothly between HP_DRAIN_IN_RATE and
+     * HP_DRAIN_MID_RATE as a function of distance (no hard threshold switch — an earlier version
+     * hard-switched rate at HP_DRAIN_MID_BAND, which produced a visible "kick" right at that distance;
+     * this version ramps the rate continuously instead, so there's no single point where the speed
+     * jumps). Hand-tuned lerp, matching the rest of the codebase's inline-lerp style instead of
+     * pulling in an easing library.
+     */
+    private static float drainTowards(float current, float target) {
+        float diff = target - current;
+        // 0 at/beyond HP_DRAIN_MID_BAND away, ramps to 1 as it approaches the target — smoothstep,
+        // not a hard cutoff, so the blended rate below has no discontinuity.
+        float closeness = 1f - Math.min(1f, Math.abs(diff) / HP_DRAIN_MID_BAND);
+        closeness = closeness * closeness * (3f - 2f * closeness); // smoothstep
+        float rate = HP_DRAIN_IN_RATE + (HP_DRAIN_MID_RATE - HP_DRAIN_IN_RATE) * closeness;
+        float next = current + diff * rate;
+        // Snap the last sliver shut so it doesn't asymptotically crawl forever without ever landing.
+        return (Math.abs(target - next) < 0.001f) ? target : next;
+    }
+
+    /** Green-at-full -> yellow-at-half -> red-at-empty, interpolated between HP_COLOR_STOPS. */
+    private static Color hpFullnessColor(float ratio) {
+        ratio = Math.max(0f, Math.min(1f, ratio));
+        for (int i = 0; i < HP_COLOR_STOPS.length - 1; i++) {
+            float[] lo = HP_COLOR_STOPS[i], hi = HP_COLOR_STOPS[i + 1];
+            if (ratio <= hi[0]) {
+                float t = (ratio - lo[0]) / Math.max(0.0001f, hi[0] - lo[0]);
+                int r = (int) (lo[1] + (hi[1] - lo[1]) * t);
+                int g = (int) (lo[2] + (hi[2] - lo[2]) * t);
+                int b = (int) (lo[3] + (hi[3] - lo[3]) * t);
+                return new Color(r, g, b);
+            }
+        }
+        float[] last = HP_COLOR_STOPS[HP_COLOR_STOPS.length - 1];
+        return new Color((int) last[1], (int) last[2], (int) last[3]);
     }
 
     public void drawPlayerLife() {
@@ -868,9 +970,15 @@ public class UI {
         if (smoothLife < 0) smoothLife = targetLife;
         if (smoothMana < 0) smoothMana = targetMana;
         if (smoothExp  < 0) smoothExp  = targetExp;
-        smoothLife += (targetLife - smoothLife) * 0.08f;
+        if (chunkLife  < 0) chunkLife  = targetLife;
+        // Main HP bar: fast-in/slow-mid/fast-out (see drainTowards). Mana/XP keep the original flat
+        // lerp — only HP got the "juice" treatment per the rework.
+        smoothLife = drainTowards(smoothLife, targetLife);
         smoothMana += (targetMana - smoothMana) * 0.08f;
         smoothExp  += (targetExp  - smoothExp)  * 0.08f;
+        // Trailing damage chunk: always sits at or ahead of the main bar, catching down to it at its
+        // own (slower) rate — reset to the pre-hit ratio in updateHpBarJuice() the instant HP drops.
+        chunkLife = Math.max(targetLife, chunkLife + (smoothLife - chunkLife) * HP_CHUNK_RATE);
 
         float pulse = fastPulse(animTick, 1);       // 0..1 slow breathe (~1 Hz at 60 UPS)
         float hpFastPulse = fastPulse(animTick, 3); // faster pulse for HP glow
@@ -916,7 +1024,7 @@ public class UI {
         g2.drawImage(Hearts_Full, barsX, barsY, smallIcon, smallIcon);
         int barStartX = barsX + smallIcon + (int)(4 * sf);
         int barContentW = fullBarW - smallIcon - (int)(4 * sf);
-        drawStatBar(barStartX, barsY + (int)(1 * sf), barContentW, barH, smoothLife, HP_BAR_BG, HP_BAR_FILL, HP_BAR_GLOW);
+        drawHpBar(barStartX, barsY + (int)(1 * sf), barContentW, barH);
         if (smoothLife < 0.3f) {
             g2.setColor(cachedColor(255, 40, 40, (int)(40 * hpFastPulse)));
             g2.fillRoundRect(barStartX, barsY + (int)(1 * sf), barContentW, barH, barH, barH);
@@ -1137,26 +1245,70 @@ public class UI {
     }
 
     /** Draws a smooth stat bar with modern glow and highlight. */
+    /**
+     * HP bar specifically (MP/XP still use the plain drawStatBar below): draws the trailing damage
+     * chunk behind the main fill, colors the fill by current fullness (green->yellow->red), and
+     * applies the on-hit flash overlay + a small shake to the bar's own position. All tunables live
+     * in the HP_* constants near the top of this class.
+     */
+    private void drawHpBar(int x, int y, int w, int h) {
+        // Shake only this bar, not the whole HUD/world — a tiny random jitter around (x, y) that
+        // decays via hpShakeStrength (updated once per tick in updateHpBarJuice()).
+        int shakeX = hpShakeStrength > 0.05f ? (int) ((Math.random() * 2 - 1) * hpShakeStrength) : 0;
+        int shakeY = hpShakeStrength > 0.05f ? (int) ((Math.random() * 2 - 1) * hpShakeStrength) : 0;
+        int bx = x + shakeX, by = y + shakeY;
+        int r = HP_BAR_CORNER_RADIUS;
+
+        g2.setColor(HP_BAR_BG);
+        g2.fillRoundRect(bx, by, w, h, r, r);
+
+        // Trailing chunk first (drawn wider, sits behind/under the main fill since it's always >= it).
+        int chunkW = (int) ((w - 2) * Math.max(0f, Math.min(1f, chunkLife)));
+        if (chunkW > 0) {
+            g2.setColor(HP_CHUNK_COLOR);
+            g2.fillRoundRect(bx + 1, by + 1, chunkW, h - 2, r, r);
+        }
+
+        float pct = Math.max(0f, Math.min(1f, smoothLife));
+        int fillW = (int) ((w - 2) * pct);
+        if (fillW > 0) {
+            Color fill = hpFullnessColor(pct);
+            g2.setColor(fill);
+            g2.fillRoundRect(bx + 1, by + 1, fillW, h - 2, r, r);
+        }
+
+        if (hpFlashTimer > 0) {
+            int flashAlpha = (int) (HP_FLASH_COLOR.getAlpha() * (hpFlashTimer / (float) HP_FLASH_DURATION));
+            g2.setColor(cachedColor(HP_FLASH_COLOR.getRed(), HP_FLASH_COLOR.getGreen(), HP_FLASH_COLOR.getBlue(), flashAlpha));
+            g2.fillRoundRect(bx + 1, by + 1, Math.max(fillW, 0), h - 2, r, r);
+        }
+
+        g2.setColor(STAT_BAR_OUTLINE);
+        g2.setStroke(STROKE_1);
+        g2.drawRoundRect(bx, by, w, h, r, r);
+    }
+
     private void drawStatBar(int x, int y, int w, int h, float pct, Color bg, Color fill, Color glow) {
         pct = Math.max(0f, Math.min(1f, pct));
+        int r = HP_BAR_CORNER_RADIUS; // same slight-bevel rectangle style as the HP bar, not a pill
         g2.setColor(bg);
-        g2.fillRoundRect(x, y, w, h, h, h);
+        g2.fillRoundRect(x, y, w, h, r, r);
         int fillW = (int)((w - 2) * pct);
         if (fillW > 0) {
             g2.setColor(fill);
-            g2.fillRoundRect(x + 1, y + 1, fillW, h - 2, h - 2, h - 2);
+            g2.fillRoundRect(x + 1, y + 1, fillW, h - 2, r, r);
             // Top highlight (simulate light reflection)
             g2.setColor(glow);
-            g2.fillRoundRect(x + 1, y + 1, fillW, Math.max(2, (h - 2) / 3), h - 2, h - 2);
+            g2.fillRoundRect(x + 1, y + 1, fillW, Math.max(2, (h - 2) / 3), r, r);
             if (fillW > 4) {
                 int tipW = Math.min(6, fillW / 3);
                 g2.setColor(STAT_BAR_TIP);
-                g2.fillRoundRect(x + 1 + fillW - tipW, y + 1, tipW, h - 2, h - 2, h - 2);
+                g2.fillRoundRect(x + 1 + fillW - tipW, y + 1, tipW, h - 2, r, r);
             }
         }
         g2.setColor(STAT_BAR_OUTLINE);
         g2.setStroke(STROKE_1);
-        g2.drawRoundRect(x, y, w, h, h, h);
+        g2.drawRoundRect(x, y, w, h, r, r);
     }
     public void drawMessage() {
 
