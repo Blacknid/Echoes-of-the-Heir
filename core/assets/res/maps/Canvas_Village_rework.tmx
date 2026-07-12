@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<map version="1.10" tiledversion="1.12.1" orientation="orthogonal" renderorder="right-down" width="130" height="110" tilewidth="32" tileheight="32" infinite="0" nextlayerid="78" nextobjectid="447">
+<map version="1.10" tiledversion="1.12.1" orientation="orthogonal" renderorder="right-down" width="130" height="110" tilewidth="32" tileheight="32" infinite="0" nextlayerid="78" nextobjectid="448">
  <properties>
   <property name="actTitle" value="THE CANVAS VILLAGE"/>
   <property name="ambientLight" type="float" value="0"/>
@@ -15887,7 +15887,7 @@
    <polyline points="0,0 115.909,0.0909091 115.93,-64.0971 128,-64 128,-96 238.031,-96 237.847,-114.005 272.207,-114.008 272.026,-94.0235 416,-96 416,-64 595.844,-63.5847 596.058,-913.918 179.972,-916.057 179.636,-1280.55 1108.06,-1280.06 1108,-1408.18 1088,-1408 1088,-1344 160,-1344 160,-896 576,-896 576,-128 448,-128 448,-160 96,-160 96,-64 0,-64"/>
   </object>
  </objectgroup>
- <objectgroup id="12" name="Events" visible="0">
+ <objectgroup id="12" name="Events">
   <object id="137" name="Painted Citadel" type="MemoryGate" x="1920" y="160" width="192" height="64">
    <properties>
     <property name="requiredFragments" type="int" value="7"/>
@@ -15905,7 +15905,7 @@
   <object id="139" name="Ashen Woods" type="MemoryGate" x="128" y="1664" width="192" height="64" rotation="90">
    <properties>
     <property name="requiredFragments" type="int" value="3"/>
-    <property name="spawnId" value=""/>
+    <property name="spawnId" value="coming_from_canvas"/>
     <property name="targetMap" value="ashen_woods"/>
    </properties>
   </object>
@@ -15961,6 +15961,12 @@
   <object id="443" name="Going to Dungeon" type="SpawnPoint" x="512" y="1632">
    <properties>
     <property name="id" value="goind_to_dungeon"/>
+   </properties>
+   <point/>
+  </object>
+  <object id="447" name="Coming_from_Ashen" type="SpawnPoint" x="160" y="1760">
+   <properties>
+    <property name="id" value="going_to_canvas"/>
    </properties>
    <point/>
   </object>

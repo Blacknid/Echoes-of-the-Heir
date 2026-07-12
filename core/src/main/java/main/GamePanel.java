@@ -137,6 +137,7 @@ public class GamePanel {
     public environment.WindPainter windPainter = new environment.WindPainter(this);
     public environment.CloudLayer cloudLayer = new environment.CloudLayer(this);
     public environment.DustFogLayer dustFogLayer = new environment.DustFogLayer(this);
+    public environment.FireflyLayer fireflyLayer = new environment.FireflyLayer(this);
     public environment.TensionBeats tensionBeats = new environment.TensionBeats(this);
     public MapShaderManager mapShader;
     public environment.TileParticleEmitter tileParticleEmitter;
@@ -698,6 +699,7 @@ public class GamePanel {
                 if (mapShader != null) mapShader.update();
                 cloudLayer.update();
                 dustFogLayer.update();
+                fireflyLayer.update();
                 screenShake.update();
                 for (int i = damageNumbers.size() - 1; i >= 0; i--) {
                     entity.DamageNumber dn = damageNumbers.get(i);
@@ -786,6 +788,7 @@ public class GamePanel {
             windPainter.update();
             cloudLayer.update();
             dustFogLayer.update();
+            fireflyLayer.update();
             tensionBeats.update();
             mobSpawner.update();
             eHandler.updateSpawnZones();
@@ -805,6 +808,7 @@ public class GamePanel {
                 // broadcast the same warm glow as the local player's own torch light — see
                 // RemotePlayerEntity and syncRemotePlayerEntities().
                 addRemotePlayerGlows();
+                fireflyLayer.addLights(eManager.lightning);
             }
 
             if (mapShader != null) {

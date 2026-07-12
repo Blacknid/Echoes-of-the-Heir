@@ -191,17 +191,29 @@ public class GdxRenderer {
         if (mode == blendMode) return;
         flush(); // queued quads must render with the old blend before we change it
         blendMode = mode;
+        int src, dst;
         switch (mode) {
-            case BLEND_ADDITIVE -> batch.setBlendFunction(
-                    com.badlogic.gdx.graphics.GL20.GL_SRC_ALPHA,
-                    com.badlogic.gdx.graphics.GL20.GL_ONE);
-            case BLEND_DSTOUT -> batch.setBlendFunction(
-                    com.badlogic.gdx.graphics.GL20.GL_ZERO,
-                    com.badlogic.gdx.graphics.GL20.GL_ONE_MINUS_SRC_ALPHA);
-            default -> batch.setBlendFunction(
-                    com.badlogic.gdx.graphics.GL20.GL_SRC_ALPHA,
-                    com.badlogic.gdx.graphics.GL20.GL_ONE_MINUS_SRC_ALPHA);
+            case BLEND_ADDITIVE -> {
+                src = com.badlogic.gdx.graphics.GL20.GL_SRC_ALPHA;
+                dst = com.badlogic.gdx.graphics.GL20.GL_ONE;
+            }
+            case BLEND_DSTOUT -> {
+                src = com.badlogic.gdx.graphics.GL20.GL_ZERO;
+                dst = com.badlogic.gdx.graphics.GL20.GL_ONE_MINUS_SRC_ALPHA;
+            }
+            default -> {
+                src = com.badlogic.gdx.graphics.GL20.GL_SRC_ALPHA;
+                dst = com.badlogic.gdx.graphics.GL20.GL_ONE_MINUS_SRC_ALPHA;
+            }
         }
+        // SpriteBatch only applies its own blend function lazily on its next draw call, and
+        // ShapeRenderer never sets one at all — it just issues geometry through whatever GL blend
+        // function is currently bound. Setting it here directly is the single source of truth both
+        // renderers actually draw with, instead of silently inheriting stale state from whichever
+        // renderer last touched the GL context (e.g. a fillRect drawn via ShapeRenderer right after
+        // a DST_OUT batch pass would otherwise still render DST_OUT).
+        batch.setBlendFunction(src, dst);
+        Gdx.gl.glBlendFunc(src, dst);
     }
     public int getBlendMode() { return blendMode; }
 

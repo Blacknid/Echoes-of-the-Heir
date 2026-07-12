@@ -26,7 +26,7 @@ public class IT_Gate extends interactiveTile {
     private static final int INTERIOR_X = 14;
     private static final int INTERIOR_Y = 34;
     private static final int INTERIOR_W = 37;
-    private static final int INTERIOR_H = NATIVE_H - INTERIOR_Y;
+    private static final int INTERIOR_H = NATIVE_H - INTERIOR_Y - 18;
 
     private static Sprite[] frames;
     private static boolean loadAttempted = false;

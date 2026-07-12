@@ -219,6 +219,7 @@ public class MapManager {
         gp.particleList.clear();
         gp.cloudLayer.clearAll();
         gp.dustFogLayer.clearAll();
+        gp.fireflyLayer.clearAll();
         gp.tensionBeats.reset();
 
         // Invalidate torch shadow cache — torches on new map are different

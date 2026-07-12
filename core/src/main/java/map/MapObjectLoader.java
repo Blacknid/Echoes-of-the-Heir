@@ -49,11 +49,13 @@ import util.ResourceCache;
  *   weatherCycle  (bool)    true (default) enables day/night + auto weather;
  *                           false disables both cycles for this map
  *   ambientLight  (float)   0.0 (bright) to 0.95 (very dark)
+ *   nightColor    (String)  "#rrggbb" tint for this map's darkness (default: deep indigo)
  *   lightLevel    (int)     0=day 1=dusk 2=night 3=dawn
  *   spawnCol/Row  (int)     default map spawn tile
  *   bgColor       (String)  "#rrggbb" background clear color
  *   dialogueTrigger (String) Message shown to the player once when they spawn on this map
  *   clouds        (bool)    true enables drifting cloud shadows for this map (default false)
+ *   fireflies     (bool)    true enables glowing fireflies for this map (default false)
  *
  * ENTITY PROPERTIES (custom Tiled properties on any object):
  *   facing        (String)  up|down|left|right
@@ -474,11 +476,13 @@ public class MapObjectLoader {
         gp.eManager.weatherCycleEnabled = true;
         gp.cloudLayer.spawningEnabled = false;
         gp.dustFogLayer.spawningEnabled = false;
+        gp.fireflyLayer.spawningEnabled = false;
         gp.tensionBeats.enabled = false;
         gp.mapManager.defaultSpawnCol = -1;
         gp.mapManager.defaultSpawnRow = -1;
         gp.mapManager.hasNewGameSpawn = false;
         gp.mapManager.mapBackgroundColor = Color.BLACK;
+        gp.eManager.lightning.resetNightColor();
 
         String mapName = getStringProperty(mapEl, "mapName", null);
         if (mapName != null && !mapName.isBlank()) {
@@ -514,6 +518,11 @@ public class MapObjectLoader {
             System.out.println("MapObjectLoader: fog=true");
         }
 
+        if (getBoolProperty(mapEl, "fireflies", false)) {
+            gp.fireflyLayer.spawningEnabled = true;
+            System.out.println("MapObjectLoader: fireflies=true");
+        }
+
         if (getBoolProperty(mapEl, "tensionBeats", false)) {
             gp.tensionBeats.enabled = true;
             System.out.println("MapObjectLoader: tensionBeats=true");
@@ -545,6 +554,15 @@ public class MapObjectLoader {
         if (bgColor != null && !bgColor.isBlank()) {
             try { gp.mapManager.mapBackgroundColor = Color.decode(bgColor.trim()); }
             catch (NumberFormatException ignored) {}
+        }
+
+        // nightColor: "#rrggbb" tint the darkness mask uses for this map's night (default: deep indigo)
+        String nightColorStr = getStringProperty(mapEl, "nightColor", null);
+        if (nightColorStr != null && !nightColorStr.isBlank()) {
+            try {
+                gp.eManager.lightning.setNightColor(Color.decode(nightColorStr.trim()));
+                System.out.println("MapObjectLoader: nightColor=" + nightColorStr.trim());
+            } catch (NumberFormatException ignored) {}
         }
 
         // dialogueTrigger: message shown to the player once when they spawn on this map

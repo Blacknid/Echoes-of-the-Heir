@@ -59,28 +59,17 @@ public class IT_Prop extends interactiveTile {
                 3, 3, 1f, 1.5f, 0.5f,
                 0f, -0.75f
             ));
+        VARIANTS.put("Glow", new Variant(
+                "/res/Interactive/Glow_Tree.png",
+                5, 5, 1f, 1.5f, 1f));
+        VARIANTS.put("Glow2", new Variant(
+                "/res/Interactive/Glow2_Tree.png",
+                4, 5, 1f, 1.5f, 1f));
 
-        // Exemplu prop cu mai multe straturi de coroana (frunze/ramuri separate care se leagana
-        // independent): sheet = [canopy0 | canopy1 | trunk | shadow] (4 cells).
-        // VARIANTS.put("bushy", new Variant(
-        //         "/res/tiles/CANVAS VILLAGE/Field/tree_sheet.png",
-        //         4, 4, 1.5f, 2f, 1.25f, 0f, 0.5f));
     }
 
-    /**
-     * One sheet sliced by the [canopy...][trunk][shadow] convention (last=shadow, prev=trunk).
-     * Every cell is scaled to drawSize WIDE, keeping its own native aspect ratio for height
-     * (never forced square), so a wider-than-tall cell doesn't get vertically squashed.
-     * If there's exactly ONE canopy cell it's sliced into CANOPY_BANDS horizontal bands that sway
-     * independently (the classic single-tree rustle); with 2+ canopy cells each cell is already an
-     * independent layer, so no further slicing happens — they sway as whole pieces.
-     */
     private static final class PropAssets {
         private static final int CANOPY_BANDS = 3;
-        // Source art is authored at 16x16 then upscaled 2x to 32x32 PNGs — every native pixel is
-        // really a 2x2 block. Slicing/scaling math that lands mid-block (odd native Y, or a scale
-        // factor that isn't a whole multiple) cuts through a block and leaves a visible seam/gap.
-        // Snapping every boundary and scaled size to this grid keeps every cut pixel-perfect.
         private static final int PIXEL_SCALE = 2;
 
         final Sprite[] canopyLayers; // whole-piece layers (used when there are 2+ canopy cells)
@@ -151,11 +140,15 @@ public class IT_Prop extends interactiveTile {
     private final PropAssets assets;
     private final Variant variant;
 
-    private float phase;
-    private final float swaySpeed;
+    // Per-instance random starting point in the sway cycle (seeded from tile position — see ctor).
+    private final float phaseSeed;
+    // Radians/second, NOT radians/tick: the sway is driven by wall-clock time at draw time (see
+    // drawPhase()) instead of the fixed 60Hz update() tick, so it stays perfectly smooth even when
+    // the monitor refresh rate isn't a clean multiple of 60 — a fixed-tick phase only changes 60
+    // times/sec, which on a 75/144/165Hz display redraws the same position for several frames in a
+    // row before jumping, reading as stepped motion no matter how smooth the easing curve is.
+    private final float swaySpeedPerSecond;
     private final float swayPixels;
-    // +1 or -1: which way "odd" canopy layers sway relative to "even" ones. Randomized per-prop
-    // (but fixed for that prop's lifetime) so neighboring props don't all sway in visual lockstep.
     private final float swayParityFlip;
 
     public IT_Prop(GamePanel gp, int col, int row) {
@@ -181,26 +174,26 @@ public class IT_Prop extends interactiveTile {
         solidAreaDefaultX = solidArea.x;
         solidAreaDefaultY = solidArea.y;
 
-        // One cheap deterministic per-tile hash drives all the "make each prop feel distinct"
-        // randomness below — same tile position always gives the same prop, but neighboring
-        // props land on different phase/speed/pixels/direction so they don't animate in lockstep.
+
         int hash = (col * 928371 + row * 68273 + 12345);
         hash ^= (hash >>> 15);
 
-        phase = (hash & 0xFF) * 0.0245f;
-        swaySpeed = 0.03f + ((hash >>> 8) % 21 - 10) * 0.00045f; // 0.03 +/- 0.0045 (slow, gentle sway)
-        // variant.swayPixels() is authored in NATIVE art pixels, but sway is applied in screen space
-        // (already gp.scale'd up, e.g. 2x by default) — without this, swayPixels=1 only ever moves
-        // 1 screen px, which is half a native pixel and reads as barely-there jitter.
+        phaseSeed = (hash & 0xFF) * 0.0245f;
+        float swaySpeedPerTick = 0.03f + ((hash >>> 8) % 21 - 10) * 0.00045f; // 0.03 +/- 0.0045 (slow, gentle sway)
+        swaySpeedPerSecond = swaySpeedPerTick * TARGET_UPS_FOR_SWAY;
+
         float swayPixelsNative = variant.swayPixels() + ((hash >>> 16) % 21 - 10) * 0.02f; // +/- 0.2px
         swayPixels = (float) (swayPixelsNative * gp.scale);
         swayParityFlip = (hash & 1) == 0 ? 1f : -1f;
     }
 
-    @Override
-    public void update() {
-        super.update();
-        phase += swaySpeed;
+    // Matches GamePanel.TARGET_UPS (the fixed simulation rate the old per-tick swaySpeed was tuned
+    // against) so converting to radians/second preserves the exact same sway speed as before.
+    private static final float TARGET_UPS_FOR_SWAY = 60f;
+
+    /** Wall-clock phase at draw time — see the swaySpeedPerSecond field doc for why. */
+    private float drawPhase() {
+        return phaseSeed + (System.nanoTime() * 1e-9f) * swaySpeedPerSecond;
     }
 
     private int anchorX(int drawSize) { return worldX - (drawSize - gp.tileSize) / 2; }
@@ -216,36 +209,34 @@ public class IT_Prop extends interactiveTile {
                ay >= gp.getCamWorldY() + (gp.screenHeight - gp.player.screenY);
     }
 
-    /** Every prop casts a dynamic canopy+trunk silhouette shadow (Stage 2 lighting). */
     @Override
     public boolean castsShadow() { return true; }
 
-    // Mostly plain sin(x) (the smoothest, most even glide) with just a light touch of sin(x)^3
-    // mixed in for a faint settle at center — a full 50/50 blend still felt rushed between the
-    // pause points, since the cube component forces the same travel through a shorter window.
-    // Lean this ratio further toward sin(x) (lower the 0.2 weight) for an even more even glide, or
-    // toward sin(x)^3 (raise it) for a more pronounced center pause — they trade off directly.
+
+    // A plain sine's velocity peaks at the zero-crossing and drops to zero at the extremes, which
+    // reads as "hold at the end, then dart through the middle" instead of a continuous slide.
+    // Re-mapping the PHASE through a smoothstep (not the output) flattens the middle crossing and
+    // spreads the motion evenly across the swing instead, so the branch glides from side to side at
+    // a steadier speed and only truly eases right at the two extremes where it turns around.
     private static float ease(double radians) {
-        float s = (float) Math.sin(radians);
-        return 0.8f * s + 0.2f * (s * s * s);
+        double twoPi = Math.PI * 2;
+        double cycle = radians / twoPi;
+        double frac = cycle - Math.floor(cycle);       // 0..1 position in the cycle
+        float t = (float) (frac * 2.0);                 // 0..2, two half-swings per cycle
+        boolean secondHalf = t >= 1f;
+        float local = secondHalf ? t - 1f : t;          // 0..1 within this half-swing
+        float smooth = local * local * (3f - 2f * local); // smoothstep: steady mid, easing at ends
+        float half = smooth * 2f - 1f;                  // -1..1 across this half-swing
+        return secondHalf ? -half : half;
     }
 
-    // Per-layer sway offset (in px) for canopy layer `i` at the current phase. Even layers sway one
-    // way, odd layers the opposite way — swayParityFlip randomizes (per-prop, fixed) which physical
-    // direction counts as "even" so neighboring props don't sway in lockstep.
     private float canopySwayOffset(int layerIndex) {
-        float layerPhase = phase + layerIndex * 1.7f;
+        float layerPhase = drawPhase() + layerIndex * 1.7f;
         float speedMul = 1f + (layerIndex % 3) * 0.15f; // 1.0, 1.15, 1.3, 1.0, ...
         float swayDir = ((layerIndex % 2 == 0) ? 1f : -1f) * swayParityFlip;
         return ease(layerPhase * speedMul) * swayPixels * swayDir;
     }
 
-    /**
-     * Draw the prop's silhouette (trunk + canopy layers) in solid black into the shadow-occluder
-     * mask, reusing the exact same layout/sway as {@link #draw} so the cast shadow matches the
-     * swaying canopy. IT_Prop overrides draw() with a custom renderer and stores no walkFrames, so
-     * the generic Entity.drawOccluder can't handle it — this override does.
-     */
     @Override
     public void drawOccluder(GdxRenderer g2) {
         int drawSize = gp.tileSize * variant.sizeInTiles();
@@ -276,13 +267,7 @@ public class IT_Prop extends interactiveTile {
         }
     }
 
-    /**
-     * Ground shadow is drawn in its own pre-entity pass (see Entity.drawGroundShadowPass /
-     * RenderPipeline.drawGroundShadows) instead of inline here, so it never gets depth-sorted
-     * alongside the prop's own trunk/canopy — otherwise a player or NPC standing "in front of" the
-     * prop in depth order would have the prop's shadow painted on top of their sprite. The shadow
-     * is real art (the sheet's last cell), drawn once at the same rect as the trunk.
-     */
+
     @Override
     public void drawGroundShadowPass(GdxRenderer g2) {
         if (assets.shadow == null) return;
@@ -304,53 +289,65 @@ public class IT_Prop extends interactiveTile {
         }
 
         if (assets.canopyBands != null) {
-            // Single canopy cell, sliced into bands that sway independently (classic rustle).
-            drawCanopyBands(g2, screenX, screenY);
-        } else {
-            // 2+ canopy cells: each is already an independent layer (e.g. separate branches), drawn
-            // in sheet order (cell 0 first, so later cells draw on top) swaying as a whole piece via
-            // its own phase/speed/direction (see canopySwayOffset) so layers don't move in lockstep.
-            for (int i = 0; i < assets.canopyLayers.length; i++) {
-                if (assets.canopyLayers[i] == null) continue;
-                float offset = canopySwayOffset(i);
-                Sprite layer = assets.canopyLayers[i];
-                g2.drawImage(layer, screenX + offset, screenY, layer.getWidth(), layer.getHeight());
-            }
+
+            withLinearFilter(assets.canopyBands[0], () -> drawCanopyBands(g2, screenX, screenY));
+        } else if (assets.canopyLayers.length > 0) {
+
+            withLinearFilter(assets.canopyLayers[0], () -> {
+                for (int i = 0; i < assets.canopyLayers.length; i++) {
+                    if (assets.canopyLayers[i] == null) continue;
+                    float offset = canopySwayOffset(i);
+                    Sprite layer = assets.canopyLayers[i];
+                    g2.drawImage(layer, screenX + offset, screenY, layer.getWidth(), layer.getHeight());
+                }
+            });
         }
     }
 
-    // Per-band sway offset (in px) for band `b` of a single sliced canopy cell — even bands sway
-    // one way, odd bands the opposite way, giving the "1st/3rd together, 2nd opposite" rustle look.
     private float bandSwayOffset(int b) {
         float swayDir = ((b % 2 == 0) ? 1f : -1f) * swayParityFlip;
-        return ease(phase) * swayPixels * swayDir;
+        return ease(drawPhase()) * swayPixels * swayDir;
     }
 
     private void drawCanopyBands(GdxRenderer g2, int screenX, int screenY) {
         int bandCount = assets.canopyBands.length;
-        // Draw bottom-to-top so each band overlaps 1px on top of the band below it — matches
-        // natural stacking order and means the overlap pixel always belongs to whichever band
-        // is "in front".
+
         for (int b = bandCount - 1; b >= 0; b--) {
             Sprite band = assets.canopyBands[b];
             if (band == null) continue;
-            // Sub-pixel offset (float, not rounded): at small swayPixels a whole-pixel snap only
-            // ever lands on a couple of positions and reads as a jump, not a slide. Fractional
-            // positioning here trades perfect pixel-grid alignment for a genuinely smooth glide.
+
             float offset = bandSwayOffset(b);
             int bandY = assets.canopyBandY[b];
             int bandH = band.getHeight();
-            // Adjacent bands sway to different X offsets, which can leave a hairline seam at their
-            // shared Y boundary. Extend this band's draw rect 1px upward (reusing its own top edge
-            // pixels via scaling) so it overlaps the band above by 1px and hides the seam, same as
-            // before fractional positioning — the bottom band's bottom edge is untouched.
+
             int growTop = (b == 0) ? 0 : 1;
             g2.drawImage(band, screenX + offset, (float) (screenY + bandY - growTop), (float) band.getWidth(), (float) (bandH + growTop));
         }
     }
 
+    /**
+     * Swaying canopy layers move by sub-pixel amounts each frame; under this game's usual
+     * nearest-neighbor filtering that motion only becomes visible once it crosses a whole device
+     * pixel, so a slow small-amplitude sway reads as a jerky stair-step instead of a slide.
+     * Switching just the canopy texture to bilinear filtering for these draws lets it genuinely
+     * interpolate between pixels. Trunk/shadow/every other sprite sharing the same sheet texture is
+     * unaffected since the filter is restored immediately after.
+     */
+    private static void withLinearFilter(Sprite anyCanopySprite, Runnable drawCalls) {
+        if (anyCanopySprite == null) { drawCalls.run(); return; }
+        com.badlogic.gdx.graphics.Texture tex = anyCanopySprite.texture();
+        tex.setFilter(com.badlogic.gdx.graphics.Texture.TextureFilter.Linear,
+                      com.badlogic.gdx.graphics.Texture.TextureFilter.Linear);
+        try {
+            drawCalls.run();
+        } finally {
+            tex.setFilter(com.badlogic.gdx.graphics.Texture.TextureFilter.Nearest,
+                          com.badlogic.gdx.graphics.Texture.TextureFilter.Nearest);
+        }
+    }
+
     @Override
     public boolean isCorrectItem(Entity entity) {
-        return false; // not choppable/destructible for now
+        return false;
     }
 }

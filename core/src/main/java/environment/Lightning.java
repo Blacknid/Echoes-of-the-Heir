@@ -75,7 +75,13 @@ public class Lightning {
     // Night ambient: a deep moonlit indigo-teal — cool and atmospheric, but with enough blue life that
     // shadowed areas read as "moonlit night" rather than a dead flat black/purple. The warm light pools
     // pop against this cool base (classic warm-key / cool-fill contrast that makes lighting feel alive).
-    private static final Color NIGHT_COLOR = new Color(12, 16, 32);
+    // Per-map override: set via the Tiled 'nightColor' property (see MapObjectLoader), reset here so
+    // maps without the property keep the default.
+    public static final Color DEFAULT_NIGHT_COLOR = new Color(12, 16, 32);
+    private Color nightColor = DEFAULT_NIGHT_COLOR;
+
+    public void setNightColor(Color color) { nightColor = color != null ? color : DEFAULT_NIGHT_COLOR; }
+    public void resetNightColor() { nightColor = DEFAULT_NIGHT_COLOR; }
 
     // Baked unit "falloff" texture: white center → transparent edge. Scaled per light when drawn.
     private static final int FALLOFF_TEX_SIZE = 256;
@@ -689,7 +695,7 @@ public class Lightning {
         gfx.shader.LightDebug.lightCount = n;
         if (n > 0) { gfx.shader.LightDebug.light0X = slx[0]; gfx.shader.LightDebug.light0Y = sly[0]; }
 
-        boolean ok = g2.renderShaderLightMask(NIGHT_COLOR, darkness, n,
+        boolean ok = g2.renderShaderLightMask(nightColor, darkness, n,
                                               slx, sly, swx, swy, srad, sr, sg, sb, sint, shadows, cheap);
         if (!ok) return false;
         g2.setBlendMode(GdxRenderer.BLEND_NORMAL);
@@ -879,7 +885,7 @@ public class Lightning {
 
         // Fill the mask with the night color at the darkness alpha.
         g2.setBlendMode(GdxRenderer.BLEND_NORMAL);
-        g2.setColor(NIGHT_COLOR);
+        g2.setColor(nightColor);
         g2.setAlpha(currentMaxDarkness);
         g2.fillRect(0, 0, screenWidth, screenHeight);
         g2.setAlpha(1f);
