@@ -46,6 +46,8 @@ public class UI {
     // remaps those markers to the real per-window colors via a cached palette-swap bake.
     private Sprite uiPanelRaw; // loaded UI.png, or null → drawPanel falls back to the old vector look
     private Sprite buttonPanelRaw; // loaded Button.png, or null → drawButton falls back to a vector button
+    private Sprite selectedSlotIcon; // loaded selected.png, or null → inventory cursor falls back to the vector highlight
+    private Sprite inventorySlotIcon; // loaded Slots.png, or null → inventory slots fall back to the vector background
     // Recolored Button.png textures keyed by theme (same palette-swap scheme as uiPanelCache).
     private final HashMap<Long, Sprite> buttonPanelCache = new HashMap<>();
     // Marker colors as painted in UI.png. Must match the PNG pixel-for-pixel (no anti-aliasing).
@@ -661,6 +663,12 @@ public class UI {
                 System.out.println("UI button texture loaded (" + buttonPanelRaw.nativeWidth()
                         + "x" + buttonPanelRaw.nativeHeight() + ")");
             }
+
+            // Inventory slot-selection icon (optional; falls back to the vector cursor highlight if absent).
+            selectedSlotIcon = ResourceCache.loadImageIfPresent("/res/ui/selected.png");
+
+            // Inventory slot background icon (optional; falls back to the vector slot background if absent).
+            inventorySlotIcon = ResourceCache.loadImageIfPresent("/res/ui/Slots1.png");
         } catch(Exception e) {
             System.out.println("Title background not found at /res/background.png, using default black background");
             e.printStackTrace();
@@ -2933,7 +2941,11 @@ public class UI {
             for (int col = 0; col < maxCol; col++) {
                 int x = slotXstart + col * slotSize;
                 int y = slotYstart + row * slotSize;
-                g2.fillRoundRect(x, y, gp.tileSize, gp.tileSize, 10, 10);
+                if (inventorySlotIcon != null) {
+                    g2.drawImage(inventorySlotIcon, x, y, gp.tileSize, gp.tileSize);
+                } else {
+                    g2.fillRoundRect(x, y, gp.tileSize, gp.tileSize, 10, 10);
+                }
             }
         }
 
@@ -2968,13 +2980,17 @@ public class UI {
         int cursorY = slotYstart + (slotSize * slotRow);
         int cursorWidth = gp.tileSize;
         int cursorHeight = gp.tileSize;
-        g2.setColor(cachedColor(255, 255, 255, 40));
-        g2.fillRoundRect(cursorX, cursorY, cursorWidth, cursorHeight, 10, 10);
-        float rawStroke = 2f + 2f * fastPulse(counter, 2);
-        int strokeKey = Math.round(rawStroke * 2); // quantize to 0.5 steps
-        g2.setColor(Color.white);
-        g2.setStroke(cachedStroke(strokeKey * 0.5f));
-        g2.drawRoundRect(cursorX, cursorY, cursorWidth, cursorHeight, 10, 10);
+        if (selectedSlotIcon != null) {
+            g2.drawImage(selectedSlotIcon, cursorX, cursorY, cursorWidth, cursorHeight);
+        } else {
+            g2.setColor(cachedColor(255, 255, 255, 40));
+            g2.fillRoundRect(cursorX, cursorY, cursorWidth, cursorHeight, 10, 10);
+            float rawStroke = 2f + 2f * fastPulse(counter, 2);
+            int strokeKey = Math.round(rawStroke * 2); // quantize to 0.5 steps
+            g2.setColor(Color.white);
+            g2.setStroke(cachedStroke(strokeKey * 0.5f));
+            g2.drawRoundRect(cursorX, cursorY, cursorWidth, cursorHeight, 10, 10);
+        }
 
         int itemIndex = getItemIndexOnSlot();
         String actionHint = "";

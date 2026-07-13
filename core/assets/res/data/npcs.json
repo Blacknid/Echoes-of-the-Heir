@@ -523,6 +523,7 @@
     "staticNPC": true,
     "spriteScale": 1.5,
     "idleAnimSpeed": 12,
+    "depthSortYOffset": 64,
 
     "dialogues": {
       "intro": [
@@ -603,6 +604,37 @@
       }
     ]
   },
+  "drunk": {
+    "name": "Drunk",
+    "idleSprite": "/res/NPC/drunk",
+    "idleFramesPerRow": [4],
+    "interactRange": 96,
+    "staticNPC": true,
+    "spriteScale": 1.5,
+    "idleAnimSpeed": 24,
+    "depthSortYOffset": 128,
+
+    "dialogues": {
+      "intro": [
+        "I am! I'm listenin'! The charm... it was an accident. Don' tell the Boss.",
+        "Bhut... Where ham I? \nMy name is..., i don't even know."
+      ],
+      "sleeping": [
+        "Zzz..."
+      ]
+    },
+    "states": [
+      {
+        "id": "intro",
+        "dialogueSet": 1
+      },
+      {
+        "id": "sleeping",
+        "dialogueSet": 2
+      }
+    ]
+  },
+
   "magic_trader": {
     "name": "Magic Trader",
     "idleSprite": "/res/NPC/Magic_Trader",
@@ -660,6 +692,7 @@
     "idleFramesPerRow": [10],
     "interactRange": 96,
     "staticNPC": true,
+    "spriteScale": 1.5,
     "idleAnimSpeed": 12,
     "depthSortYOffset": 96,
 

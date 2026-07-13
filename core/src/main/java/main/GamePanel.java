@@ -122,6 +122,7 @@ public class GamePanel {
     public TileManager tileM = new TileManager(this);
     public KeyHandler keyH = new KeyHandler(this);
     public MouseHandler mouseH = new MouseHandler(this);
+    public main.input.InputActions actions = new main.input.InputActions();
     public AudioManager audio = new AudioManager();
     public CollisionChecker cChecker = new CollisionChecker(this);
     public AssetSetter aSetter = new AssetSetter(this);
@@ -609,6 +610,11 @@ public class GamePanel {
             } else if (previousGameState == titleState) {
                 stopMusic();
             }
+            // Whatever key/click closed the previous screen may have left a bound action's
+            // one-shot "pending press" flag stale (e.g. E read via a raw key check instead of
+            // consumePressed()) — cleared here, one place, instead of every individual
+            // screen-close site having to remember to drain it. See InputActions.clearAllPending().
+            actions.clearAllPending();
             previousGameState = gameState;
         }
 
@@ -1053,6 +1059,7 @@ public class GamePanel {
     }
 
     public void activateDebugMenuSelection() {
+        System.out.println("[DBG] activateDebugMenuSelection called, selectedIndex=" + debugMenuSelectedIndex + " (DEBUG_ROW_HITBOXES=" + DEBUG_ROW_HITBOXES + ")");
         switch (debugMenuSelectedIndex) {
             case DEBUG_ROW_DEBUG_TEXT -> {
                 keyH.showDebugText = !keyH.showDebugText;
@@ -1060,6 +1067,7 @@ public class GamePanel {
             }
             case DEBUG_ROW_HITBOXES -> {
                 HitBoxes = !HitBoxes;
+                System.out.println("[DBG] HitBoxes toggled to " + HitBoxes);
                 playSE(SFX.MENU_SELECT);
             }
             case DEBUG_ROW_PATHS -> {

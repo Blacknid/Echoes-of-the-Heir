@@ -101,6 +101,48 @@ public class Lightning {
     // Warm highlight color for reflective tiles (water, crystals, polished stone, …)
     private static final Color REFLECT_GLOW = new Color(255, 245, 200);
 
+    // ===================== BORDER VIGNETTE (night-scaled) =====================
+    // A screen-edge darkening that grows with the current darkness level, so the far corners/edges of
+    // the screen read as blacker margins at night instead of the flat uniform darkness mask — makes
+    // night feel like the light is a pool in a bigger dark world, not a dark filter over the whole
+    // screen. Baked once per screen size (like MapShaderManager's vignette), tinted with nightColor,
+    // and its alpha is scaled by currentMaxDarkness each frame so it fades out completely by day.
+    private Sprite borderVignette;
+    private int borderVignetteW = -1, borderVignetteH = -1;
+    private Color borderVignetteNightColor;
+
+    private Sprite getBorderVignette(int screenW, int screenH) {
+        if (borderVignette != null && borderVignetteW == screenW && borderVignetteH == screenH
+                && borderVignetteNightColor == nightColor) return borderVignette;
+        float cx = screenW / 2f, cy = screenH / 2f;
+        float radius = (float) Math.sqrt(cx * cx + cy * cy);
+        Color edge = new Color(
+                Math.max(0, nightColor.getRed()   / 3),
+                Math.max(0, nightColor.getGreen() / 3),
+                Math.max(0, nightColor.getBlue()  / 3));
+        RadialGradient grad = new RadialGradient(
+                cx, cy, radius,
+                new float[]{ 0.45f, 0.75f, 1.0f },
+                new Color[]{
+                    new Color(edge.getRed(), edge.getGreen(), edge.getBlue(), 0),
+                    new Color(edge.getRed(), edge.getGreen(), edge.getBlue(), 140),
+                    new Color(edge.getRed(), edge.getGreen(), edge.getBlue(), 235)
+                });
+        borderVignette = GdxRenderer.bakeRadialGradient(grad, screenW, screenH);
+        borderVignetteW = screenW; borderVignetteH = screenH; borderVignetteNightColor = nightColor;
+        return borderVignette;
+    }
+
+    /** Draw the night-scaled border vignette. Alpha ramps in with darkness so it's invisible by day. */
+    private void drawBorderVignette(GdxRenderer g2, float currentMaxDarkness, int screenWidth, int screenHeight) {
+        if (currentMaxDarkness < 0.03f) return;
+        Sprite v = getBorderVignette(screenWidth, screenHeight);
+        g2.setBlendMode(GdxRenderer.BLEND_NORMAL);
+        g2.setAlpha(Math.min(1f, currentMaxDarkness));
+        g2.drawImage(v, 0, 0, screenWidth, screenHeight);
+        g2.setAlpha(1f);
+    }
+
     public Lightning(GamePanel gp2) { this.gp = gp2; }
 
     public void clearLights() { lightCount = 0; }
@@ -921,6 +963,12 @@ public class Lightning {
         g2.endLightMask();
         g2.drawLightMask();
         } // end legacy baked path (!shaderLit)
+
+        // ========= BORDER VIGNETTE (night-scaled) =========
+        // Extra darkening toward the screen edges, scaled with darkness — the far margins read as
+        // blacker at night so the world feels bigger/darker beyond the light pool, without affecting
+        // daytime at all (alpha is gated on currentMaxDarkness).
+        drawBorderVignette(g2, currentMaxDarkness, screenWidth, screenHeight);
 
         // ========= COLORED LIGHTS (ambient glow, no shadow casting) =========
         // These ADD colored light on top of the composited scene (a colored torch/crystal glow), so

@@ -46,15 +46,15 @@ public class MouseHandler implements InputProcessor {
 
     @Override public boolean touchDown(int screenX, int screenY, int pointer, int button) {
         updatePos(screenX, screenY);
-        if (button == Input.Buttons.LEFT)  { leftPressed = true;  leftClicked = true; }
-        if (button == Input.Buttons.RIGHT) { rightPressed = true; rightClicked = true; }
+        if (button == Input.Buttons.LEFT)  { leftPressed = true;  leftClicked = true; gp.actions.setPhysical("mouse:left_click", true); }
+        if (button == Input.Buttons.RIGHT) { rightPressed = true; rightClicked = true; gp.actions.setPhysical("mouse:right_click", true); }
         handleClick();
         return false;
     }
 
     @Override public boolean touchUp(int screenX, int screenY, int pointer, int button) {
-        if (button == Input.Buttons.LEFT)  leftPressed  = false;
-        if (button == Input.Buttons.RIGHT) rightPressed = false;
+        if (button == Input.Buttons.LEFT)  { leftPressed  = false; gp.actions.setPhysical("mouse:left_click", false); }
+        if (button == Input.Buttons.RIGHT) { rightPressed = false; gp.actions.setPhysical("mouse:right_click", false); }
         return false;
     }
 

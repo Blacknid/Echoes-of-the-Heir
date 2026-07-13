@@ -1,9 +1,9 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<map version="1.10" tiledversion="1.12.1" orientation="orthogonal" renderorder="right-down" width="100" height="100" tilewidth="32" tileheight="32" infinite="0" nextlayerid="20" nextobjectid="39">
+<map version="1.10" tiledversion="1.12.1" orientation="orthogonal" renderorder="right-down" width="100" height="100" tilewidth="32" tileheight="32" infinite="0" nextlayerid="20" nextobjectid="40">
  <properties>
   <property name="actTitle" value="Ashen Woods"/>
   <property name="ambientLight" type="float" value="0.6"/>
-  <property name="clouds" type="bool" value="false"/>
+  <property name="clouds" type="bool" value="true"/>
   <property name="fireflies" type="bool" value="true"/>
   <property name="music" value="0"/>
   <property name="nightColor" value="#141b3a"/>
@@ -2264,6 +2264,12 @@
   <object id="38" name="Tree" type="IT_Prop" x="2176" y="1664">
    <properties>
     <property name="variant" value="Glow"/>
+   </properties>
+   <point/>
+  </object>
+  <object id="39" name="Tree" type="IT_Prop" x="3072" y="1760">
+   <properties>
+    <property name="variant" value="Glow2"/>
    </properties>
    <point/>
   </object>
