@@ -39,6 +39,12 @@ public class CloudLayer {
     public static final float MIN_SPACING_PX = 700f;
 
     private static final Color CLOUD_TINT = new Color(235, 235, 245);
+    // What clouds fade toward as darkness rises — a cool, shadowed slate-blue instead of staying a
+    // bright off-white at night (which read as clouds "glowing" with no light source). Interpolated
+    // with CLOUD_TINT by the current darkness level (EnvironmentManager.lastDarkness) each frame.
+    // Darkened further than a naive lerp target so the shift reads clearly even at partial ambient
+    // darkness (e.g. ambientLight=0.6 maps) instead of staying a barely-off white.
+    private static final Color CLOUD_NIGHT_TINT = new Color(30, 32, 50);
 
     public boolean spawningEnabled = false;
 
@@ -135,6 +141,14 @@ public class CloudLayer {
         float camWX = gp.getCamWorldX() - gp.player.getCamScreenX();
         float camWY = gp.getCamWorldY() - gp.player.getCamScreenY();
 
+        // Darken/cool the cloud tint as night falls so clouds read as being in shadow instead of
+        // staying a flat bright white with no relation to the ambient light level. Curved (not linear)
+        // so partial darkness (e.g. ambientLight=0.6 maps like Ashen Woods) already shows a clear
+        // shift instead of needing near-full night before it's noticeable.
+        float darkness = gp.eManager != null ? gp.eManager.lastDarkness : 0f;
+        float tintT = (float) Math.pow(Math.min(1f, darkness / 0.95f), 0.6f);
+        Color tint = lerpColor(CLOUD_TINT, CLOUD_NIGHT_TINT, tintT);
+
         for (int i = 0; i < MAX_CLOUDS; i++) {
             if (!active[i]) continue;
             Sprite sprite = cloudSprites[spriteIndex[i]];
@@ -150,7 +164,16 @@ public class CloudLayer {
             float alpha = Math.min(fadeIn, fadeOut);
             if (alpha <= 0f) continue;
 
-            g2.drawImageTinted(sprite, sx, sy, w, h, CLOUD_TINT, MAX_ALPHA * alpha);
+            g2.drawImageTinted(sprite, sx, sy, w, h, tint, MAX_ALPHA * alpha);
         }
+    }
+
+    private static Color lerpColor(Color a, Color b, float t) {
+        if (t <= 0f) return a;
+        if (t >= 1f) return b;
+        int r = Math.round(a.getRed()   + (b.getRed()   - a.getRed())   * t);
+        int g = Math.round(a.getGreen() + (b.getGreen() - a.getGreen()) * t);
+        int bl = Math.round(a.getBlue() + (b.getBlue()  - a.getBlue())  * t);
+        return new Color(r, g, bl);
     }
 }

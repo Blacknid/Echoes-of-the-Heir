@@ -956,6 +956,11 @@ public class Player extends Entity {
     }
 
     private void fireProjectileIfRequested() {
+        if (gp.keyH.shotKeyPressed) {
+            System.out.println("[DBG] fireProjectileIfRequested: shotKeyPressed=true alive=" + projectile.alive
+                + " counter=" + shotAvailableCounter + " mana=" + mana
+                + " haveResource=" + projectile.haveResource(this));
+        }
         if(gp.keyH.shotKeyPressed && !projectile.alive && shotAvailableCounter == 30 && projectile.haveResource(this)) {
             projectile.set(worldX, worldY, direction, true, this);
             projectile.subtractResource(this);

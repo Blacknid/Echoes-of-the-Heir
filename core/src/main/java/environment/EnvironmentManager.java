@@ -15,8 +15,13 @@ public class EnvironmentManager {
     public final int night = 2;
     public final int dawn = 3;
 
-    public float filterAlpha = 0f; 
+    public float filterAlpha = 0f;
     public int dayCounter = 0;
+
+    /** Current darkness (0 = full day, up to 0.95 = full night/storm), updated each draw(). Other
+     *  systems (e.g. CloudLayer) read this to darken themselves to match the night ambiance instead
+     *  of staying at their flat daytime tint. */
+    public float lastDarkness = 0f;
 
     /**
      * Dacă >= 0, suprascrie întunericul ciclului zi/noapte.
@@ -198,6 +203,7 @@ public class EnvironmentManager {
             weatherDarkness = 0.50f * weatherIntensity;
         }
         float effectiveAlpha = Math.min(0.95f, filterAlpha + weatherDarkness);
+        lastDarkness = effectiveAlpha;
 
         if (Lightning.DEBUG_LIGHT_PATH && (envDebugCounter++ % 60) == 0) {
             System.out.println("ENV_LIGHT effectiveAlpha=" + effectiveAlpha + " filterAlpha=" + filterAlpha

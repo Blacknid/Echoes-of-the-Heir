@@ -1,0 +1,32 @@
+{
+  "move_up":    ["key:W", "key:UP", "controller:axisLeftY-"],
+  "move_down":  ["key:S", "key:DOWN", "controller:axisLeftY+"],
+  "move_left":  ["key:A", "key:LEFT", "controller:axisLeftX-"],
+  "move_right": ["key:D", "key:RIGHT", "controller:axisLeftX+"],
+
+  "dash":       ["key:SHIFT_LEFT", "key:SHIFT_RIGHT", "controller:buttonB"],
+  "attack":     ["key:ENTER", "controller:buttonX"],
+  "interact":   ["key:ENTER", "controller:buttonX"],
+  "shoot":      ["key:F", "controller:buttonY"],
+
+  "skill_shockwave":  ["key:Z", "controller:buttonL1"],
+  "skill_void_snare": ["key:X", "controller:buttonY"],
+  "skill_frost_nova": ["key:C", "controller:buttonL2"],
+  "skill_overdrive":  ["key:V", "controller:buttonRightStick"],
+
+  "teleport":         ["key:SPACE"],
+  "pause":            ["key:P", "controller:buttonDpadRight"],
+  "options":          ["key:ESCAPE", "controller:buttonStart"],
+  "character_screen": ["key:E", "controller:buttonLeftStick"],
+  "skill_tree":       ["key:K", "controller:buttonDpadDown"],
+  "journal":          ["key:J", "controller:buttonDpadLeft"],
+  "quest_log":        ["key:Q", "controller:buttonBack"],
+  "minimap":          ["key:M", "controller:buttonDpadUp"],
+
+  "menu_up":      ["key:W", "key:UP", "controller:buttonDpadUp", "controller:axisLeftY-"],
+  "menu_down":    ["key:S", "key:DOWN", "controller:buttonDpadDown", "controller:axisLeftY+"],
+  "menu_left":    ["key:A", "key:LEFT", "controller:buttonDpadLeft", "controller:axisLeftX-"],
+  "menu_right":   ["key:D", "key:RIGHT", "controller:buttonDpadRight", "controller:axisLeftX+"],
+  "menu_confirm": ["key:ENTER", "controller:buttonA"],
+  "menu_cancel":  ["key:ESCAPE", "controller:buttonB"]
+}

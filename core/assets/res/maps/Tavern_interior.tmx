@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<map version="1.10" tiledversion="1.12.1" orientation="orthogonal" renderorder="right-down" width="26" height="20" tilewidth="32" tileheight="32" infinite="0" nextlayerid="21" nextobjectid="22">
+<map version="1.10" tiledversion="1.12.1" orientation="orthogonal" renderorder="right-down" width="26" height="20" tilewidth="32" tileheight="32" infinite="0" nextlayerid="21" nextobjectid="24">
  <properties>
   <property name="ambientLight" type="float" value="0"/>
   <property name="weather" value="CLEAR"/>
@@ -1400,9 +1400,9 @@
 0,0,0,0,0,0,0,0,231,0,0,0,0,0,0,0,0,240,0,0,0,262,264,0,0,0,
 0,0,0,0,0,0,0,0,252,0,0,0,0,0,0,0,0,261,0,0,0,283,0,0,0,0,
 0,0,0,0,0,0,0,0,273,274,275,276,277,278,279,280,281,282,0,0,0,0,0,0,0,0,
-0,0,0,0,0,0,0,0,294,295,296,297,298,299,300,301,302,303,0,0,0,0,0,0,0,0,
-0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
-0,0,0,0,0,0,0,0,185,186,187,188,0,0,244,245,246,247,0,0,0,0,0,0,0,0,
+0,0,0,0,384,385,386,0,294,295,296,297,298,299,300,301,302,303,0,0,0,0,0,0,0,0,
+0,0,0,0,405,406,407,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
+0,0,0,0,426,427,428,0,185,186,187,188,0,0,244,245,246,247,0,0,0,0,0,0,0,0,
 0,0,0,0,373,374,375,379,206,207,208,209,0,0,265,266,267,268,0,321,322,323,0,0,0,0,
 0,0,0,0,394,395,396,0,227,228,229,230,0,0,286,287,288,289,0,342,343,344,0,0,0,0,
 0,0,0,0,415,416,417,0,185,186,187,188,0,0,244,245,246,247,0,363,364,365,0,0,0,0,
@@ -1608,6 +1608,9 @@
   <object id="19" x="605.667" y="469.333">
    <polygon points="0,0 0,32 70.875,32 70.875,0"/>
   </object>
+  <object id="22" x="161" y="250.75">
+   <polygon points="-0.176136,9.1875 -29.9375,9.27273 -30.0625,28.7102 61.875,28.0227 61.9375,9.27273 39.75,9.08523 39.75,-4.97727 -0.375,-4.85227"/>
+  </object>
  </objectgroup>
  <objectgroup id="18" name="Events">
   <object id="3" name="Going to exterior" type="MapTransition" x="384" y="480" width="64" height="32">
@@ -1643,9 +1646,15 @@
   <properties>
    <property name="render" propertytype="RenderBucket" value="foreground"/>
   </properties>
-  <object id="21" name="Knight" type="NPC_Generic" x="466.75" y="375.5">
+  <object id="21" name="Knight" type="NPC_Generic" x="467.227" y="375.485">
    <properties>
     <property name="npcId" value="knight"/>
+   </properties>
+   <point/>
+  </object>
+  <object id="23" name="Drunk" type="NPC_Generic" x="159.625" y="239.875">
+   <properties>
+    <property name="npcId" value="drunk"/>
    </properties>
    <point/>
   </object>
