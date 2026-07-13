@@ -87,6 +87,8 @@ public final class LicenseActivation implements LicenseCheck {
     private volatile String encBlobB64;
     /** Set once the server has answered AUTH_OK this run (via ACTIVATE or LOGIN). */
     private volatile boolean confirmed;
+    /** Player-facing reason the last activation attempt failed; null when it succeeded. */
+    private volatile String lastError;
 
     private LicenseActivation() {}
 
@@ -122,10 +124,30 @@ public final class LicenseActivation implements LicenseCheck {
         String existingBlob = existing == null ? "" : existing.getProperty("enc_blob", "").trim();
         boolean isLogin = !existingId.isEmpty() && !existingBlob.isEmpty();
 
+        m.lastError = null;
+
+        // Proof of purchase is needed ONLY when this install has no license yet. A returning
+        // player logs in with the credentials they already hold and never sees a browser —
+        // the license is ours, not itch's, and it keeps working offline forever.
+        String itchToken = null;
+        if (!isLogin) {
+            itchToken = ItchAuthProvider.tokenOrNull();
+            if (itchToken == null) {
+                System.out.println("[License] No itch.io proof of purchase obtained — the server "
+                        + "will refuse activation if its purchase gate is on.");
+            }
+        }
+
         for (Endpoint ep : serverPool()) {
             try {
-                Result r = m.handshake(ep, isLogin, existingId, existingBlob);
-                if (r == null) continue;
+                Result r = m.handshake(ep, isLogin, existingId, existingBlob, itchToken);
+                if (r == null) {
+                    // A definitive verdict (not owned / itch down) is the server's final answer.
+                    // Trying the next endpoint would just re-ask the same question — and, worse,
+                    // burn the one-shot itch token against a server that already rejected it.
+                    if (m.lastError != null) return null;
+                    continue;  // this endpoint is simply unreachable — try the next one
+                }
                 if (!isLogin) writeLocal(r.activationId, r.encBlobB64);
                 m.activationId = r.activationId;
                 m.encBlobB64 = r.encBlobB64;
@@ -142,15 +164,21 @@ public final class LicenseActivation implements LicenseCheck {
                 // try next endpoint
             }
         }
+        if (m.lastError == null) {
+            m.lastError = "Couldn't reach the license server. Check your internet connection.";
+        }
         System.out.println("[License] No save server reachable — cannot "
                 + (isLogin ? "log in" : "activate") + " yet.");
         return null;
     }
 
+    /** Why the last {@link #ensureActivated()} failed, phrased for the player. Null if it worked. */
+    public static String lastError() { return INSTANCE.lastError; }
+
     private record Result(String licenseKey, String activationId, String encBlobB64) {}
 
-    private Result handshake(Endpoint ep, boolean isLogin, String activationId, String encBlobB64)
-            throws Exception {
+    private Result handshake(Endpoint ep, boolean isLogin, String activationId, String encBlobB64,
+                             String itchToken) throws Exception {
         try (Socket socket = new Socket()) {
             socket.connect(new InetSocketAddress(ep.host, ep.port), CONNECT_TIMEOUT_MS);
             socket.setSoTimeout(SOCKET_TIMEOUT_MS);
@@ -166,10 +194,18 @@ public final class LicenseActivation implements LicenseCheck {
             byte[] serverNonce = Base64.getDecoder().decode(okLine.substring(3));
             if (serverNonce.length != 16) return null;
 
+            // The itch token rides INSIDE the RSA envelope, never on the wire in the clear:
+            // it is a live credential for the player's itch account, and anyone who sniffed it
+            // could impersonate them to itch. Only sent on ACTIVATE — LOGIN needs no proof of
+            // purchase, because holding a license already is the proof.
+            String itchField = (!isLogin && itchToken != null && !itchToken.isBlank())
+                    ? ",\"itch_token\":\"" + jsonEscape(itchToken) + "\""
+                    : "";
             String handshakeJson = "{"
                     + "\"ts\":" + (System.currentTimeMillis() / 1000L) + ","
                     + "\"client_nonce\":\"" + toHex(clientNonce) + "\","
                     + "\"server_nonce\":\"" + toHex(serverNonce) + "\""
+                    + itchField
                     + "}";
             byte[] enc = rsaOaepEncrypt(handshakeJson.getBytes(StandardCharsets.UTF_8));
             String encB64 = Base64.getEncoder().encodeToString(enc);
@@ -181,7 +217,22 @@ public final class LicenseActivation implements LicenseCheck {
             }
 
             String authLine = r.readLine();
-            if (authLine == null || !authLine.startsWith("AUTH_OK ")) return null;
+            if (authLine == null || !authLine.startsWith("AUTH_OK ")) {
+                // Distinguish "you don't own the game" from "our licence server is having a
+                // bad day" — otherwise a server-side outage reads to the player as an accusation
+                // of piracy, and they have no idea whether to buy again or just wait.
+                if ("ITCH_NOT_OWNED".equals(authLine)) {
+                    lastError = "itch.io says this account hasn't purchased Michi's Adventure. "
+                            + "Make sure you signed in with the account you bought it on.";
+                } else if ("ITCH_UNAVAILABLE".equals(authLine)) {
+                    lastError = "Couldn't reach itch.io to verify your purchase. "
+                            + "This is on our side — please try again in a few minutes.";
+                } else if ("AUTH_FAIL".equals(authLine)) {
+                    lastError = "The server rejected this activation.";
+                }
+                if (lastError != null) System.out.println("[License] " + lastError);
+                return null;
+            }
             String[] parts = authLine.split(" ");
 
             // issuance_key is derived purely from the nonces (both sides already share those at
@@ -337,6 +388,26 @@ public final class LicenseActivation implements LicenseCheck {
     private static String toHex(byte[] data) {
         StringBuilder sb = new StringBuilder(data.length * 2);
         for (byte b : data) sb.append(String.format("%02x", b & 0xff));
+        return sb.toString();
+    }
+
+    /** Escape a value for the hand-built handshake JSON. */
+    private static String jsonEscape(String s) {
+        StringBuilder sb = new StringBuilder(s.length() + 8);
+        for (int i = 0; i < s.length(); i++) {
+            char c = s.charAt(i);
+            switch (c) {
+                case '"'  -> sb.append("\\\"");
+                case '\\' -> sb.append("\\\\");
+                case '\n' -> sb.append("\\n");
+                case '\r' -> sb.append("\\r");
+                case '\t' -> sb.append("\\t");
+                default -> {
+                    if (c < 0x20) sb.append(String.format("\\u%04x", (int) c));
+                    else sb.append(c);
+                }
+            }
+        }
         return sb.toString();
     }
 }

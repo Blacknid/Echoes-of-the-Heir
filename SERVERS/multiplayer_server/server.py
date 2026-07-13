@@ -159,6 +159,18 @@ def _save_server_internal(cfg: dict, cmd: str, license_key: str, username: str,
     )
 
 
+def _in_container() -> bool:
+    """Best-effort: are we running inside a Docker container? Used only to make a fatal
+    misconfiguration (loopback save_server_host) loud, so a false negative is harmless."""
+    if os.path.exists("/.dockerenv"):
+        return True
+    try:
+        with open("/proc/1/cgroup", "r", encoding="utf-8", errors="replace") as fh:
+            return any(marker in fh.read() for marker in ("docker", "containerd", "kubepods"))
+    except OSError:
+        return False
+
+
 class SaveServerUnreachable(Exception):
     """Raised when the mp<->save server internal link itself is broken (bad host/port/
     api_key, connection refused, timeout) as opposed to a clean reject from save_server.
@@ -234,6 +246,20 @@ def load_config() -> dict:
     if raw_port:
         try:
             cfg["port"] = int(raw_port)
+        except ValueError:
+            pass
+
+    # Secrets from the environment (SERVERS/.env), never the committed config.
+    cfg["internal_api_key"] = (os.environ.get("MICHI_INTERNAL_API_KEY", "").strip()
+                               or cfg.get("internal_api_key", ""))
+    cfg["admin_password"] = (os.environ.get("MICHI_ADMIN_PASSWORD", "").strip()
+                             or cfg.get("admin_password", ""))
+    cfg["save_server_host"] = (os.environ.get("MICHI_SAVE_SERVER_HOST", "").strip()
+                               or cfg.get("save_server_host", ""))
+    raw_save_port = os.environ.get("MICHI_SAVE_SERVER_PORT", "").strip()
+    if raw_save_port:
+        try:
+            cfg["save_server_port"] = int(raw_save_port)
         except ValueError:
             pass
     return cfg
@@ -1279,12 +1305,41 @@ async def amain(host: str, port: int, max_players: int, private_key, cfg: dict) 
 
     if cfg.get("dev_mode", False):
         log.warning("dev_mode=True — ALL license checks bypassed. Do NOT use in production.")
-    elif not (cfg.get("save_server_host") and cfg.get("save_server_port") and cfg.get("internal_api_key")):
-        log.warning(
-            "save_server_host/save_server_port/internal_api_key not fully set — this server "
-            "cannot verify any client's online-issued license and every LOGIN will fail. "
-            "Set them in mp_config.json to match save_server's config."
-        )
+    else:
+        if not (cfg.get("save_server_host") and cfg.get("save_server_port")
+                and cfg.get("internal_api_key")):
+            log.error(
+                "save_server_host/save_server_port/internal_api_key not fully set — this server "
+                "cannot verify any client's online-issued license and every LOGIN will fail with "
+                "LICENSE_SERVER_UNAVAILABLE. Set them in mp_config.json / SERVERS/.env."
+            )
+        # Running in a container and pointing the license link at loopback means pointing it at
+        # OURSELVES — save_server is a different container. This exact misconfiguration is what
+        # silently broke multiplayer: every LOGIN got LICENSE_SERVER_UNAVAILABLE. Fail loudly
+        # rather than serve a game nobody can join.
+        elif (_in_container()
+              and str(cfg.get("save_server_host")) in ("127.0.0.1", "localhost", "::1")):
+            log.error(
+                "save_server_host is %r, but this server is running inside a container — "
+                "loopback there means THIS container, not the save server, so every license "
+                "verification will fail. Use the save service's network name (e.g. 'save').",
+                cfg.get("save_server_host"),
+            )
+        # Verify the link actually works before we start accepting players, so a broken
+        # deployment is obvious at boot instead of only when the first player tries to join.
+        else:
+            try:
+                await asyncio.get_event_loop().run_in_executor(
+                    None, lambda: _save_server_internal_raw(cfg, {"cmd": "PING_LINK"}, timeout=5.0)
+                )
+                log.info("save_server license link OK (%s:%s).",
+                         cfg.get("save_server_host"), cfg.get("save_server_port"))
+            except SaveServerUnreachable as exc:
+                log.error(
+                    "save_server license link is DOWN (%s:%s): %s — multiplayer logins will fail "
+                    "until this is fixed.",
+                    cfg.get("save_server_host"), cfg.get("save_server_port"), exc,
+                )
 
     server = GameServer(
         host=host, port=port, max_players=max_players,

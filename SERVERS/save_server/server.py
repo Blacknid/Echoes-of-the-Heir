@@ -71,6 +71,7 @@ import hmac
 import json
 import logging
 import os
+import re
 import secrets
 import socket
 import sqlite3
@@ -78,6 +79,9 @@ import struct
 import sys
 import threading
 import time
+import urllib.error
+import urllib.parse
+import urllib.request
 from pathlib import Path
 from typing import Optional
 
@@ -101,11 +105,25 @@ MAX_LINE_BYTES = 16 * 1024 * 1024
 DEFAULT_CONFIG = {
     "host": "0.0.0.0",
     "port": 5005,
+    # Internal license API (VERIFY_ACTIVATION / username lookups for multiplayer_server).
+    # Listens on a SEPARATE port that is deliberately never published outside the Docker
+    # network — see docker-compose.yml. The public port (5005) does not speak INTERNAL at
+    # all, so no internet client can reach it regardless of what it sends.
+    "internal_host": "0.0.0.0",
+    "internal_port": 5105,
     "private_key_path": "server_private_key.pem",
-    # Set true ONLY on a dev/localhost instance. Currently unused by the online-activation
-    # flow itself (every license is issued fresh by this server) but kept for any future
-    # dev-only bypass needs.
+    # Set true ONLY on a dev/localhost instance. Skips the itch.io purchase check so a
+    # dev build can activate without buying the game. NEVER true in production.
     "dev_mode": False,
+    # --- itch.io proof-of-purchase gate (checked once, at ACTIVATE) -----------------
+    # itch_api_key: YOUR itch.io API key (itch.io -> Settings -> API keys). Server-side
+    #   only; never shipped to clients. Used to ask itch whether a given user owns the game.
+    # itch_game_id: the numeric id of the game on itch.io (NOT the URL slug).
+    # If either is unset, activation is UNGATED (anyone who asks gets a license) and the
+    # server logs a loud warning at boot — that is the old, broken-by-design behaviour.
+    "itch_api_key": "",
+    "itch_game_id": 0,
+    "itch_api_timeout_seconds": 10,
     "rate_limit_per_ip_per_minute": 30,
     "max_concurrent_connections": 200,
     "handshake_timeout_seconds": 10,
@@ -141,6 +159,21 @@ def load_config() -> dict:
     # Allow overriding host/port via env (handy for systemd drop-ins)
     cfg["host"] = os.environ.get("MICHI_SAVE_HOST", cfg["host"])
     cfg["port"] = int(os.environ.get("MICHI_SAVE_PORT", cfg["port"]))
+    cfg["internal_port"] = int(os.environ.get("MICHI_SAVE_INTERNAL_PORT",
+                                              cfg.get("internal_port", 5105)))
+
+    # Secrets come from the environment (SERVERS/.env), never from the committed config.
+    # Env wins; the config value is only a fallback for non-Docker/dev runs.
+    cfg["internal_api_key"] = (os.environ.get("MICHI_INTERNAL_API_KEY", "").strip()
+                               or cfg.get("internal_api_key", ""))
+    cfg["itch_api_key"] = (os.environ.get("MICHI_ITCH_API_KEY", "").strip()
+                           or cfg.get("itch_api_key", ""))
+    try:
+        cfg["itch_game_id"] = int(os.environ.get("MICHI_ITCH_GAME_ID", "").strip()
+                                  or cfg.get("itch_game_id", 0) or 0)
+    except ValueError:
+        logging.error("MICHI_ITCH_GAME_ID is not a number — itch gate will stay INACTIVE.")
+        cfg["itch_game_id"] = 0
     return cfg
 
 
@@ -230,8 +263,22 @@ def init_db() -> None:
                 license_key    TEXT    PRIMARY KEY,
                 activation_id  TEXT    NOT NULL UNIQUE,
                 enc_key_b64    TEXT    NOT NULL,
-                created_at     TEXT    NOT NULL
+                created_at     TEXT    NOT NULL,
+                itch_user_id   INTEGER
             )
+        """)
+        # Older DBs predate the itch gate. Existing licenses keep itch_user_id = NULL and stay
+        # valid forever (they were issued before the game was sold — don't lock those players
+        # out); only NEW activations must present proof of purchase.
+        license_cols = {row[1] for row in con.execute("PRAGMA table_info(licenses)").fetchall()}
+        if "itch_user_id" not in license_cols:
+            con.execute("ALTER TABLE licenses ADD COLUMN itch_user_id INTEGER")
+        # One itch account = one license. Enforced in the DB, not just in code, so a race
+        # between two concurrent ACTIVATEs from the same buyer cannot mint two licenses.
+        # Partial index: legacy NULL rows are exempt.
+        con.execute("""
+            CREATE UNIQUE INDEX IF NOT EXISTS idx_licenses_itch_user
+            ON licenses (itch_user_id) WHERE itch_user_id IS NOT NULL
         """)
         con.execute("""
             CREATE TABLE IF NOT EXISTS events (
@@ -272,6 +319,96 @@ def init_db() -> None:
         con.close()
 
 
+# ---------------------------------------------------------------------------
+# itch.io proof-of-purchase
+#
+# Runs exactly once per install, during ACTIVATE. After that the license belongs to
+# THIS server: the client authenticates with (activation_id, enc_blob) forever after and
+# itch is never contacted again. itch is the door, not the landlord.
+#
+# Two calls, and both are necessary:
+#   1. /api/1/<player_oauth_token>/me      -> who is this player? (they prove their identity)
+#   2. /api/1/<OUR_api_key>/game/<id>/download_keys?user_id=N
+#                                          -> did that user actually buy OUR game?
+#
+# Call 1 alone is worthless as a purchase proof — any itch account can produce a token.
+# Call 2 is the real gate, and it must use OUR key, because only the game's owner may ask
+# itch about its download keys. That is why itch_api_key never leaves the server.
+# ---------------------------------------------------------------------------
+
+ITCH_API_BASE = "https://itch.io/api/1"
+
+
+class ItchError(Exception):
+    """itch.io could not be reached / answered nonsense. Distinct from 'user does not own
+    the game', which is a definitive NO rather than an inconclusive result — we must not
+    hand out a license just because itch happened to be down."""
+
+
+def itch_is_configured(cfg: dict) -> bool:
+    return bool(cfg.get("itch_api_key")) and int(cfg.get("itch_game_id") or 0) > 0
+
+
+def _itch_get(url: str, timeout: float) -> tuple[int, dict]:
+    """GET a JSON endpoint. Returns (http_status, parsed_body). Raises ItchError on
+    transport failure or unparseable body."""
+    req = urllib.request.Request(url, headers={"User-Agent": "MichisAdventure-SaveServer/2"})
+    try:
+        with urllib.request.urlopen(req, timeout=timeout) as resp:
+            body = resp.read(1 * 1024 * 1024)
+            return resp.status, json.loads(body.decode("utf-8"))
+    except urllib.error.HTTPError as exc:
+        # 404 from download_keys is itch's way of saying "no such key" — a real answer,
+        # not an error, so surface the status instead of raising.
+        try:
+            body = exc.read(1 * 1024 * 1024)
+            return exc.code, json.loads(body.decode("utf-8"))
+        except Exception:
+            return exc.code, {}
+    except (urllib.error.URLError, socket.timeout, TimeoutError, json.JSONDecodeError,
+            UnicodeDecodeError) as exc:
+        raise ItchError(f"{type(exc).__name__}: {exc}") from exc
+
+
+def itch_verify_purchase(cfg: dict, oauth_token: str) -> tuple[bool, str]:
+    """Does the itch user behind `oauth_token` own this game?
+
+    Returns (owns, detail). `detail` is the itch username/id for logging.
+    Raises ItchError if itch itself is unreachable — the caller must then FAIL the
+    activation rather than assume ownership.
+    """
+    timeout = float(cfg.get("itch_api_timeout_seconds", 10))
+    api_key = str(cfg.get("itch_api_key", ""))
+    game_id = int(cfg.get("itch_game_id") or 0)
+
+    if not oauth_token or not _ITCH_TOKEN_RE.match(oauth_token):
+        return False, "malformed-token"
+
+    # 1. Identify the player from their own token.
+    status, body = _itch_get(f"{ITCH_API_BASE}/{urllib.parse.quote(oauth_token)}/me", timeout)
+    if status != 200 or not isinstance(body.get("user"), dict):
+        # A bad/expired token is a definitive "no", not an outage.
+        return False, "bad-token"
+    user = body["user"]
+    user_id = user.get("id")
+    username = str(user.get("username", "?"))
+    if not isinstance(user_id, int):
+        return False, "no-user-id"
+
+    # 2. Ask itch — with OUR key — whether that user holds a download key for OUR game.
+    url = (f"{ITCH_API_BASE}/{urllib.parse.quote(api_key)}/game/{game_id}"
+           f"/download_keys?user_id={user_id}")
+    status, body = _itch_get(url, timeout)
+    if status == 200 and isinstance(body.get("download_key"), dict):
+        return True, f"{username}#{user_id}"
+    if status == 404 or "errors" in body:
+        return False, f"{username}#{user_id}"
+    # Anything else (5xx, weird shape) is inconclusive — do not guess.
+    raise ItchError(f"unexpected download_keys response: status={status} body={body!r}")
+
+
+_ITCH_TOKEN_RE = re.compile(r"^[A-Za-z0-9_\-]{8,120}$")
+
 _LICENSE_CHARSET = "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789"
 
 
@@ -282,30 +419,63 @@ def _random_license_key() -> str:
     return f"{prefix}-{suffix}"
 
 
-def create_license() -> tuple[str, str, bytes]:
+def create_license(itch_user_id: Optional[int] = None) -> tuple[str, str, bytes]:
     """
     Issue a brand-new license online: random license_key + activation_id + enc_key,
     persisted in the `licenses` table. Returns (license_key, activation_id, enc_key).
+
+    If `itch_user_id` already has a license (the buyer reinstalled, or wiped
+    activation.dat), the EXISTING one is re-issued with a fresh activation_id and enc_key
+    rather than a second license being minted. That keeps their saves/friends/username —
+    all of which hang off license_key — intact across a reinstall, while still ensuring one
+    purchase can never become two accounts.
     """
     enc_key = os.urandom(32)
+    enc_key_b64 = base64.b64encode(enc_key).decode("ascii")
+    now = time.strftime("%Y-%m-%d %H:%M:%S", time.gmtime())
     with _db_lock:
         con = sqlite3.connect(str(DB_PATH))
         con.execute("PRAGMA journal_mode=WAL")
         try:
             while True:
-                license_key = _random_license_key()
                 activation_id = secrets.token_urlsafe(24)
+
+                # Does this buyer already hold a license? (Reinstall, or a concurrent
+                # ACTIVATE that won the race on the itch_user_id unique index.) Re-key it
+                # rather than minting a second one: a fresh activation_id/enc_key also
+                # invalidates whatever credentials their previous install held.
+                if itch_user_id is not None:
+                    row = con.execute(
+                        "SELECT license_key FROM licenses WHERE itch_user_id = ?",
+                        (itch_user_id,),
+                    ).fetchone()
+                    if row is not None:
+                        try:
+                            con.execute(
+                                """UPDATE licenses SET activation_id = ?, enc_key_b64 = ?
+                                   WHERE license_key = ?""",
+                                (activation_id, enc_key_b64, row[0]),
+                            )
+                            con.commit()
+                            return row[0], activation_id, enc_key
+                        except sqlite3.IntegrityError:
+                            continue  # activation_id collided — retry with a fresh one
+
                 try:
+                    license_key = _random_license_key()
                     con.execute(
-                        """INSERT INTO licenses (license_key, activation_id, enc_key_b64, created_at)
-                           VALUES (?, ?, ?, ?)""",
-                        (license_key, activation_id, base64.b64encode(enc_key).decode("ascii"),
-                         time.strftime("%Y-%m-%d %H:%M:%S", time.gmtime())),
+                        """INSERT INTO licenses
+                               (license_key, activation_id, enc_key_b64, created_at, itch_user_id)
+                           VALUES (?, ?, ?, ?, ?)""",
+                        (license_key, activation_id, enc_key_b64, now, itch_user_id),
                     )
                     con.commit()
                     return license_key, activation_id, enc_key
                 except sqlite3.IntegrityError:
-                    continue  # extremely unlikely collision — retry with fresh random values
+                    # license_key/activation_id collision (astronomically unlikely), or the
+                    # itch_user_id index fired mid-race — either way loop: the ownership
+                    # lookup at the top of the next pass resolves the race correctly.
+                    continue
         finally:
             con.close()
 
@@ -508,7 +678,7 @@ def remove_friend(username: str, license_key: str) -> str:
             con.close()
 
 
-_USERNAME_RE = __import__("re").compile(r"^[A-Za-z0-9_\-]{1,20}$")
+_USERNAME_RE = re.compile(r"^[A-Za-z0-9_\-]{1,20}$")
 
 def username_is_valid(name: str) -> bool:
     return isinstance(name, str) and bool(_USERNAME_RE.match(name))
@@ -727,6 +897,12 @@ def _handle_internal(conn: socket.socket, client_ip: str, cfg: dict,
     license_key = str(cmd_json.get("license", ""))[:32]
     username    = str(cmd_json.get("username", ""))[:32]
 
+    if cmd == "PING_LINK":
+        # Used by multiplayer_server at boot to prove the internal license link works
+        # (right host, right port, right api_key) before it starts accepting players.
+        send_line(conn, json.dumps({"status": "OK"}))
+        return "INTERNAL_PING_LINK:OK"
+
     if cmd == "CLAIM_USERNAME":
         result = claim_username(username, license_key)
         send_line(conn, json.dumps({"status": result}))
@@ -777,22 +953,18 @@ def handle_client(conn: socket.socket, addr: tuple[str, int],
             return
 
         if first.startswith("INTERNAL "):
-            is_loopback = client_ip in ("127.0.0.1", "::1", "localhost")
-            internal_api_key = cfg.get("internal_api_key", "")
-            parts_int = first.split(" ", 2)
-            if (is_loopback and internal_api_key
-                    and len(parts_int) == 3
-                    and hmac.compare_digest(parts_int[1], internal_api_key)):
-                try:
-                    cmd_json = json.loads(parts_int[2])
-                except json.JSONDecodeError:
-                    send_line(conn, json.dumps({"status": "ERROR", "msg": "bad json"}))
-                    status = "INTERNAL_BAD_JSON"
-                    return
-                status = _handle_internal(conn, client_ip, cfg, cmd_json)
-            else:
-                send_line(conn, json.dumps({"status": "ERROR", "msg": "forbidden"}))
-                status = "INTERNAL_FORBIDDEN"
+            # The INTERNAL protocol is NOT served on the public port, at all — it lives on
+            # its own listener (internal_port), which docker-compose never publishes. This
+            # used to be gated by an IP allowlist on this same public port, which was both
+            # too strict (it rejected the MP server, whose traffic arrives from a Docker
+            # bridge address, breaking every multiplayer login) and too fragile (the only
+            # thing standing between the internet and license forgery was a shared secret
+            # that shipped as "CHANGE_THIS_TO_A_RANDOM_SECRET").
+            send_line(conn, json.dumps({"status": "ERROR", "msg": "forbidden"}))
+            status = "INTERNAL_ON_PUBLIC_PORT"
+            logging.warning("INTERNAL command attempted on the PUBLIC port from %s — refused. "
+                            "(multiplayer_server must connect to internal_port instead.)",
+                            client_ip)
             return
 
         parts = first.split(" ")
@@ -821,8 +993,11 @@ def handle_client(conn: socket.socket, addr: tuple[str, int],
                 raise ValueError("missing ACTIVATE/LOGIN")
             auth_parts = auth.split(" ")
             if is_activate:
-                # Format: "ACTIVATE <enc_b64>" — no account exists yet, envelope only
-                # carries ts/nonces (no license/activation fields to check).
+                # Format: "ACTIVATE <enc_b64>" — no account exists yet, so the envelope
+                # carries ts/nonces plus the buyer's itch.io OAuth token ("itch_token").
+                # The token stays INSIDE the RSA envelope and never appears on the wire in
+                # the clear: it is a live credential for that player's itch account, and a
+                # passive eavesdropper who lifted it could impersonate them to itch.
                 if len(auth_parts) != 2:
                     raise ValueError("bad ACTIVATE format")
                 activation_id = None
@@ -869,10 +1044,42 @@ def handle_client(conn: socket.socket, addr: tuple[str, int],
             return
 
         if is_activate:
-            # Brand-new account: issue license_key + activation_id + enc_key, encrypt the
-            # license_key with enc_key, and hand the client back only the ciphertext —
-            # the plaintext license_key never leaves the server on this path.
-            license_key, new_activation_id, enc_key = create_license()
+            # ---- itch.io proof-of-purchase gate -------------------------------------
+            # This is the ONLY place ownership is checked. Once a license exists, the client
+            # authenticates with (activation_id, enc_blob) forever after and itch is never
+            # consulted again — the license is ours, itch is just the door.
+            itch_user_id = None
+            if itch_is_configured(cfg):
+                itch_token = str(payload.get("itch_token", ""))[:200]
+                try:
+                    owns, who = itch_verify_purchase(cfg, itch_token)
+                except ItchError as exc:
+                    # itch is down / unreachable. We must NOT issue a license on an
+                    # inconclusive answer, but this is our outage, not the player's fault —
+                    # so say so distinctly instead of accusing them of not owning the game.
+                    send_line(conn, "ITCH_UNAVAILABLE")
+                    status = f"ACTIVATE_ITCH_UNAVAILABLE:{exc}"
+                    logging.error("itch.io verification failed (activation refused): %s", exc)
+                    return
+                if not owns:
+                    send_line(conn, "ITCH_NOT_OWNED")
+                    status = f"ACTIVATE_ITCH_NOT_OWNED:{who}"
+                    logging.info("Activation refused from %s — itch user %s does not own the game",
+                                 client_ip, who)
+                    return
+                itch_user_id = int(who.rsplit("#", 1)[1])
+                logging.info("itch.io purchase verified for %s (ip=%s)", who, client_ip)
+            elif not cfg.get("dev_mode", False):
+                # Unconfigured in production = the old broken behaviour (free licenses for
+                # anyone who asks). Allowed so the server still boots, but never silently.
+                logging.warning(
+                    "ACTIVATE from %s issued a license WITHOUT any purchase check — "
+                    "itch_api_key/itch_game_id are not set in server_config.json.", client_ip)
+
+            # Issue license_key + activation_id + enc_key, encrypt the license_key with
+            # enc_key, and hand the client back only the ciphertext — the plaintext
+            # license_key never leaves the server on this path.
+            license_key, new_activation_id, enc_key = create_license(itch_user_id)
             blob_nonce = os.urandom(12)
             enc_license_blob = aesgcm_encrypt(
                 plaintext=license_key.encode("utf-8"),
@@ -1104,6 +1311,72 @@ def handle_client(conn: socket.socket, addr: tuple[str, int],
             pass
 
 
+def handle_internal_client(conn: socket.socket, addr: tuple[str, int], cfg: dict) -> None:
+    """One connection on the internal-only port. Speaks nothing but INTERNAL."""
+    client_ip = addr[0]
+    status = "INTERNAL_INIT"
+    try:
+        conn.settimeout(cfg.get("handshake_timeout_seconds", 10))
+        first = recv_line(conn, max_bytes=8192)
+
+        if first == "PING":
+            send_line(conn, "PONG")
+            status = "INTERNAL_PING"
+            return
+
+        internal_api_key = cfg.get("internal_api_key", "")
+        parts_int = first.split(" ", 2)
+        # The api_key is still required — the network boundary is the primary defence, but
+        # a second container (or anything else that lands on the michi bridge) must not be
+        # able to forge license verifications just by being on the network.
+        if not (first.startswith("INTERNAL ") and internal_api_key
+                and len(parts_int) == 3
+                and hmac.compare_digest(parts_int[1], internal_api_key)):
+            send_line(conn, json.dumps({"status": "ERROR", "msg": "forbidden"}))
+            status = "INTERNAL_FORBIDDEN"
+            logging.warning("Rejected internal-port connection from %s (bad/missing api key)",
+                            client_ip)
+            return
+
+        try:
+            cmd_json = json.loads(parts_int[2])
+        except json.JSONDecodeError:
+            send_line(conn, json.dumps({"status": "ERROR", "msg": "bad json"}))
+            status = "INTERNAL_BAD_JSON"
+            return
+
+        status = _handle_internal(conn, client_ip, cfg, cmd_json)
+    except (OSError, ValueError, UnicodeDecodeError) as exc:
+        status = f"INTERNAL_ERROR:{type(exc).__name__}"
+    except Exception as exc:
+        status = f"INTERNAL_CRASH:{type(exc).__name__}"
+        logging.exception("Unhandled error on internal port from %s", client_ip)
+    finally:
+        logging.info("internal ip=%s status=%s", client_ip, status)
+        try:
+            conn.close()
+        except OSError:
+            pass
+
+
+def serve_internal(cfg: dict) -> None:
+    """Internal license API listener. Bound to a port docker-compose does NOT publish, so
+    only sibling containers on the `michi` network can reach it — never the internet."""
+    host = cfg.get("internal_host", "0.0.0.0")
+    port = int(cfg.get("internal_port", 5105))
+    with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as srv:
+        srv.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+        srv.bind((host, port))
+        srv.listen(32)
+        logging.info("Internal license API listening on %s:%d (not internet-exposed)",
+                     host, port)
+        while True:
+            conn, addr = srv.accept()
+            threading.Thread(
+                target=handle_internal_client, args=(conn, addr, cfg), daemon=True
+            ).start()
+
+
 def serve_forever() -> None:
     configure_logging()
     cfg = load_config()
@@ -1119,9 +1392,29 @@ def serve_forever() -> None:
         sys.exit(2)
     load_private_key(pk_path)
 
+    if not cfg.get("internal_api_key") or cfg["internal_api_key"] == "CHANGE_THIS_TO_A_RANDOM_SECRET":
+        logging.error(
+            "internal_api_key is unset or still the placeholder. multiplayer_server will NOT "
+            "be able to verify licenses, so every multiplayer login will fail. Generate one "
+            "with:  python -c \"import secrets;print(secrets.token_urlsafe(32))\"  and put the "
+            "SAME value in save_server/server_config.json and multiplayer_server/mp_config.json."
+        )
+    if itch_is_configured(cfg):
+        logging.info("itch.io purchase gate ACTIVE (game_id=%s) — ACTIVATE requires proof of purchase.",
+                     cfg.get("itch_game_id"))
+    elif cfg.get("dev_mode", False):
+        logging.warning("dev_mode=True — itch.io purchase gate DISABLED. Do not use in production.")
+    else:
+        logging.warning(
+            "itch.io purchase gate INACTIVE: itch_api_key/itch_game_id are not set, so this "
+            "server will hand a free license to ANYONE who asks. Set them in server_config.json."
+        )
+
     rate_limiter = IpRateLimiter(cfg["rate_limit_per_ip_per_minute"])
     nonce_cache = NonceCache()
     semaphore = threading.BoundedSemaphore(cfg["max_concurrent_connections"])
+
+    threading.Thread(target=serve_internal, args=(cfg,), daemon=True).start()
 
     with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as srv:
         srv.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)

@@ -36,6 +36,15 @@ SERVERS/save_server/saves.db
 SERVERS/save_server/server.log
 SERVERS/multiplayer_server/*.db
 
+# Server secrets: internal API key, itch.io developer API key, admin password.
+# Only .env.example (with empty values) belongs in the repo.
+SERVERS/.env
+!SERVERS/.env.example
+
+# The client's local license credentials (activation_id + encrypted blob). Machine-specific;
+# committing it would hand your license to everyone who clones the repo.
+activation.dat
+
 # Android SDK dropped directly into android/ (large, machine-specific — not shipped in the repo)
 android/build-tools/
 android/cmdline-tools/

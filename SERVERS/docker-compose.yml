@@ -1,13 +1,25 @@
 # ---------------------------------------------------------------------------
 # Michi's Adventure — all three back-end servers in one stack.
 #
-#   save_server         tcp/5005   cloud saves
-#   patch_server        tcp/5006   game updates (signed patches)
-#   multiplayer_server  tcp/7777   real-time MP
+#   save_server         tcp/5005   cloud saves + license activation (PUBLIC)
+#                       tcp/5105   internal license API           (NOT published)
+#   patch_server        tcp/5006   game updates (signed patches)   (PUBLIC)
+#   multiplayer_server  tcp/7777   real-time MP                    (PUBLIC)
+#                       tcp/8888   admin dashboard    (loopback-only, see below)
 #
 # Mutable state (saves.db, logs, manifest.json, patches/)
 # is bind-mounted from the host so it survives `docker compose down` and
 # can be edited without rebuilding the image.
+#
+# Networking: every service joins the `michi` bridge network, so the MP server
+# reaches the save server as host `save` (its service name). It CANNOT use
+# 127.0.0.1 — inside a container that is the container itself, not a sibling.
+# That misconfiguration is what made every multiplayer LOGIN fail with
+# LICENSE_SERVER_UNAVAILABLE.
+#
+# The internal license API (5105) is deliberately NOT in `ports:` — it is
+# reachable only from inside the `michi` network, never from the internet,
+# even though the public save port (5005) is. See save_server/server.py.
 #
 # Quick start:
 #   cd SERVERS
@@ -20,6 +32,10 @@
 #   docker compose logs -f
 # ---------------------------------------------------------------------------
 
+networks:
+  michi:
+    driver: bridge
+
 services:
 
   save:
@@ -31,8 +47,19 @@ services:
     working_dir: /srv/save_server
     command: ["python", "-u", "server.py"]
     restart: unless-stopped
+    networks:
+      - michi
+    environment:
+      # Secrets live in SERVERS/.env (gitignored), never in the committed configs.
+      MICHI_INTERNAL_API_KEY: "${MICHI_INTERNAL_API_KEY:?set MICHI_INTERNAL_API_KEY in SERVERS/.env}"
+      # itch.io proof-of-purchase. If unset, the server issues free licenses to anyone.
+      MICHI_ITCH_API_KEY: "${MICHI_ITCH_API_KEY:-}"
+      MICHI_ITCH_GAME_ID: "${MICHI_ITCH_GAME_ID:-}"
     ports:
+      # Public: clients ACTIVATE/LOGIN and sync saves here.
       - "5005:5005"
+      # NOTE: 5105 (internal license API) is intentionally absent — it must stay
+      # reachable only from the `michi` network, never from the internet.
     volumes:
       # Config (live-editable, no rebuild needed)
       - ./save_server/server_config.json:/srv/save_server/server_config.json:ro
@@ -57,6 +84,8 @@ services:
     working_dir: /srv/patch_server
     command: ["python", "-u", "server.py"]
     restart: unless-stopped
+    networks:
+      - michi
     ports:
       - "5006:5006"
     volumes:
@@ -80,9 +109,24 @@ services:
     working_dir: /srv/multiplayer_server
     command: ["python", "-u", "server.py"]
     restart: unless-stopped
+    networks:
+      - michi
+    depends_on:
+      - save
+    environment:
+      # Must be the SAME value the save service gets, or license verification fails.
+      MICHI_INTERNAL_API_KEY: "${MICHI_INTERNAL_API_KEY:?set MICHI_INTERNAL_API_KEY in SERVERS/.env}"
+      MICHI_ADMIN_PASSWORD: "${MICHI_ADMIN_PASSWORD:-}"
+      # Reach the save server by its compose service name — NEVER 127.0.0.1.
+      MICHI_SAVE_SERVER_HOST: "save"
+      MICHI_SAVE_SERVER_PORT: "5105"
     ports:
       - "7777:7777"
-      - "8888:8888"
+      # Admin dashboard: bound to the VPS's loopback only, so it is NOT on the
+      # public internet. Reach it through an SSH tunnel from your machine:
+      #   ssh -L 8888:127.0.0.1:8888 root@142.93.103.51
+      # then open http://127.0.0.1:8888/
+      - "127.0.0.1:8888:8888"
     volumes:
       - ./multiplayer_server/mp_config.json:/srv/multiplayer_server/mp_config.json:ro
       - ./multiplayer_server/server_private_key.pem:/srv/multiplayer_server/server_private_key.pem:ro

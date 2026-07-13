@@ -112,8 +112,24 @@ public class MultiplayerClient {
             try {
                 String license = Main.LICENSE_KEY;
                 if (license == null || license.isBlank()) {
+                    // Activation runs in the background at boot (MichiGame.create), so it may not
+                    // have finished yet — or it may have failed against a server that was briefly
+                    // down. Either way this used to be a dead end: the player was told they had no
+                    // license and given no way to get one short of restarting the game. Retry it
+                    // here instead. ensureActivated() is idempotent: it LOGINs with the stored
+                    // credentials if this install already has them, and only ever activates once.
+                    connectionStatus = "Checking your license...";
+                    System.out.println("[MP Client] No license yet — retrying activation.");
+                    license = platform.LicenseActivation.ensureActivated();
+                    if (license != null && !license.isBlank()) Main.LICENSE_KEY = license;
+                }
+
+                if (license == null || license.isBlank()) {
                     connecting.set(false);
-                    connectionStatus = "No valid license. Multiplayer requires a signed license.";
+                    String why = platform.LicenseActivation.lastError();
+                    connectionStatus = (why != null && !why.isBlank())
+                            ? why
+                            : "No valid license — multiplayer needs one. Check your connection.";
                     System.out.println("[MP Client] Missing license — aborting connect.");
                     return;
                 }

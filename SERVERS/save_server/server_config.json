@@ -1,12 +1,25 @@
 {
   "host": "0.0.0.0",
   "port": 5005,
+
+  "_comment_internal": "Internal license API (VERIFY_ACTIVATION etc). docker-compose deliberately does NOT publish this port — only sibling containers on the `michi` network can reach it. The public port (5005) refuses INTERNAL outright.",
+  "internal_host": "0.0.0.0",
+  "internal_port": 5105,
+
   "private_key_path": "server_private_key.pem",
   "dev_mode": false,
+
+  "_comment_itch": "itch.io proof-of-purchase, checked ONCE at ACTIVATE. itch_api_key and itch_game_id come from the MICHI_ITCH_API_KEY / MICHI_ITCH_GAME_ID environment variables (see SERVERS/.env.example) — the API key is yours, not a player's, and must never ship to clients or be committed. Leave both empty/0 here. If unset, activation is UNGATED and anyone who asks gets a free license.",
+  "itch_api_key": "",
+  "itch_game_id": 0,
+  "itch_api_timeout_seconds": 10,
+
   "rate_limit_per_ip_per_minute": 30,
   "max_concurrent_connections": 200,
   "handshake_timeout_seconds": 10,
   "session_timeout_seconds": 30,
   "max_payload_bytes": 10485760,
-  "internal_api_key": "CHANGE_THIS_TO_A_RANDOM_SECRET"
+
+  "_comment_secrets": "internal_api_key is read from MICHI_INTERNAL_API_KEY and must match multiplayer_server's. Never commit the real value.",
+  "internal_api_key": ""
 }

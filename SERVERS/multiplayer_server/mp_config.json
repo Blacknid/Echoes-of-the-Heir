@@ -12,11 +12,15 @@
   "max_tile_step_per_move": 4,
   "player_hitbox_w": 24,
   "player_hitbox_h": 24,
-  "save_server_host": "127.0.0.1",
-  "save_server_port": 5005,
-  "internal_api_key": "CHANGE_THIS_TO_A_RANDOM_SECRET",
+
+  "_comment_save_server": "save_server_host MUST be the save service's Docker network name. It was '127.0.0.1', which inside this container means THIS container, not the save server — every multiplayer login failed with LICENSE_SERVER_UNAVAILABLE as a result. Port 5105 is save_server's internal-only license API (never published to the internet); 5005 is its public client port and no longer answers INTERNAL at all.",
+  "save_server_host": "save",
+  "save_server_port": 5105,
+
+  "_comment_secrets": "internal_api_key and admin_password are read from the MICHI_INTERNAL_API_KEY / MICHI_ADMIN_PASSWORD environment variables (see SERVERS/.env.example). Leave them empty here — never commit real secrets.",
+  "internal_api_key": "",
   "dashboard_port": 8888,
-  "admin_password": "CHANGE_ME_BEFORE_DEPLOYING",
+  "admin_password": "",
   "saves_db_path": "",
 
   "maps": {
