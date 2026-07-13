@@ -64,7 +64,7 @@ import platform.GameStorage;
 public class CloudSaveService {
 
     /** Used only if {@code save_servers.txt} is missing or empty. */
-    private static final String[] FALLBACK_HOSTS = { "192.168.137.14", "192.168.137.126", "192.168.1.9" };
+    private static final String[] FALLBACK_HOSTS = { "192.168.137.14", "192.168.137.126", "192.168.1.9", "192.168.1.212" };
     private static final int    DEFAULT_PORT       = 5005;
     private static final int    CONNECT_TIMEOUT_MS = 3000;
     private static final int    SOCKET_TIMEOUT_MS  = 8000;

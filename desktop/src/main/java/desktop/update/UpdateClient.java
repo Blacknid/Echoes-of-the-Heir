@@ -54,7 +54,8 @@ public final class UpdateClient {
     private static final List<String> FALLBACK_HOSTS = List.of(
             "192.168.137.14:5006",
             "192.168.137.126:5006",
-            "192.168.1.9:5006"
+            "192.168.1.9:5006",
+            "192.168.1.212:5006"
     );
 
     private static final int CONNECT_TIMEOUT_MS = 4000;

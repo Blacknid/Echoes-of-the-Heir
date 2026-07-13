@@ -56,7 +56,7 @@ public final class LicenseActivation implements LicenseCheck {
 
     private static final String ACTIVATION_FILE = "activation.dat";
     private static final int DEFAULT_PORT = 5005;
-    private static final String[] FALLBACK_HOSTS = { "192.168.137.14", "192.168.137.126", "192.168.1.9" };
+    private static final String[] FALLBACK_HOSTS = { "192.168.137.14", "192.168.137.126", "192.168.1.9", "192.168.1.212" };
     private static final String SAVE_SERVERS_FILE = "save_servers.txt";
 
     private static final String PROTOCOL_TAG = "v2";
