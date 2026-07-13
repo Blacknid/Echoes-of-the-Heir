@@ -64,7 +64,8 @@ import platform.GameStorage;
 public class CloudSaveService {
 
     /** Used only if {@code save_servers.txt} is missing or empty. */
-    private static final String[] FALLBACK_HOSTS = { "192.168.137.14", "192.168.137.126", "192.168.1.9", "192.168.1.212" };
+    // Public hosts first — the 192.168.* entries are LAN-only and unreachable for shipped builds.
+    private static final String[] FALLBACK_HOSTS = { "142.93.103.51", "128.127.115.96", "192.168.137.14", "192.168.137.126", "192.168.1.9", "192.168.1.212" };
     private static final int    DEFAULT_PORT       = 5005;
     private static final int    CONNECT_TIMEOUT_MS = 3000;
     private static final int    SOCKET_TIMEOUT_MS  = 8000;
@@ -155,12 +156,16 @@ public class CloudSaveService {
         // Local re-verify: detect on-disk tampering / fp drift before each
         // network attempt. If verifyCurrent() fails, skip cloud and fall
         // through to the offline cache. (No throw — game must keep running.)
-        if (licenseKey != null && !platform.License.verifyCurrent()) {
+        if (!platform.License.verifyCurrent()) {
             System.out.println("[CloudSave] License re-verify failed — falling back to offline cache.");
             licenseKey = null;
         }
 
-        if (licenseKey != null && (serverOnline.get() || pingPool())) {
+        // Gate on the *licensed* state, not on holding the plaintext key: only the very first run
+        // (ACTIVATE) ever learns the key, while later runs authenticate over LOGIN with
+        // activation_id + enc_blob — which is exactly what uploadToServer() sends anyway. Requiring
+        // licenseKey != null here meant cloud saves silently died after the first session.
+        if (platform.License.verifyCurrent() && (serverOnline.get() || pingPool())) {
             SaveResult result = uploadToServer(state, licenseKey);
             if (result.ok()) {
                 pendingUpload = false;
@@ -179,12 +184,13 @@ public class CloudSaveService {
     public DownloadResult download(String licenseKey) {
         cachedLicenseKey = licenseKey;
 
-        if (licenseKey != null && !platform.License.verifyCurrent()) {
+        if (!platform.License.verifyCurrent()) {
             System.out.println("[CloudSave] License re-verify failed — refusing remote download.");
             licenseKey = null;
         }
 
-        if (licenseKey != null && (serverOnline.get() || pingPool())) {
+        // See save(): gate on licensed state, not on holding the plaintext key.
+        if (platform.License.verifyCurrent() && (serverOnline.get() || pingPool())) {
             try {
                 String json = downloadFromServer(licenseKey);
                 if (json != null) {

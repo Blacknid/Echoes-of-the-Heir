@@ -51,7 +51,10 @@ public final class UpdateClient {
           + "fQXQjNE11pteAASgyluRNu7rqbsfHitvkZk2KQ91hJ642VRyf2IIfSezvwDOee5ST"
           + "QIDAQAB";
 
+    // Public hosts first — the 192.168.* entries are LAN-only and unreachable for shipped builds.
     private static final List<String> FALLBACK_HOSTS = List.of(
+            "142.93.103.51:5006",
+            "128.127.115.96:5006",
             "192.168.137.14:5006",
             "192.168.137.126:5006",
             "192.168.1.9:5006",

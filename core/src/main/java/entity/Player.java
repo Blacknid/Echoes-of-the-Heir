@@ -313,8 +313,12 @@ public class Player extends Entity {
 
     public void setDefaultPositions() {
         if (gp.mapManager.defaultSpawnCol >= 0 && gp.mapManager.defaultSpawnRow >= 0) {
-            worldX = gp.mapManager.defaultSpawnCol * gp.tileSize;
-            worldY = gp.mapManager.defaultSpawnRow * gp.tileSize;
+            // Nudge out of collision if the map's default spawn tile sits inside a wall,
+            // so new-game start never leaves the player stuck (matches the MP server).
+            int[] sp = gp.mapManager.safeSpawn(
+                gp.mapManager.defaultSpawnCol, gp.mapManager.defaultSpawnRow);
+            worldX = sp[0] * gp.tileSize;
+            worldY = sp[1] * gp.tileSize;
         } else {
             worldX = (int)(gp.tileSize * 24.5);
             worldY = (int)(gp.tileSize * 15.5);

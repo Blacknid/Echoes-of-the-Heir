@@ -165,6 +165,49 @@ public class MapManager {
     }
 
     /**
+     * Return a collision-free tile near (col, row), searching in expanding rings.
+     * Mirrors the authoritative multiplayer server's world.safe_spawn() so a map whose
+     * default spawn tile happens to sit inside collision doesn't leave the player stuck
+     * in a wall on new-game start. Returns {col, row}; falls back to the original tile
+     * if nothing clear is found within the search radius.
+     */
+    public int[] safeSpawn(int col, int row) {
+        if (isSpawnTileClear(col, row)) return new int[]{col, row};
+
+        for (int radius = 1; radius <= 20; radius++) {
+            for (int dc = -radius; dc <= radius; dc++) {
+                for (int dr = -radius; dr <= radius; dr++) {
+                    // Only the ring at exactly `radius` (perimeter), not the filled square.
+                    if (Math.abs(dc) != radius && Math.abs(dr) != radius) continue;
+                    if (isSpawnTileClear(col + dc, row + dr)) {
+                        System.out.println("MapManager: Spawn (" + col + "," + row
+                            + ") is inside collision; relocated to (" + (col + dc) + "," + (row + dr) + ")");
+                        return new int[]{col + dc, row + dr};
+                    }
+                }
+            }
+        }
+
+        System.out.println("MapManager: No collision-free spawn within 20 tiles of ("
+            + col + "," + row + "); using original");
+        return new int[]{col, row};
+    }
+
+    /** True if the player's solidArea would not overlap map collision when spawned at (col, row). */
+    private boolean isSpawnTileClear(int col, int row) {
+        if (col < 0 || row < 0
+            || col >= gp.tileM.currentMapCols || row >= gp.tileM.currentMapRows) {
+            return false;
+        }
+        gfx.geom.Rect sa = gp.player.solidArea;
+        gfx.geom.Rect box = new gfx.geom.Rect(
+            col * gp.tileSize + sa.x,
+            row * gp.tileSize + sa.y,
+            sa.width, sa.height);
+        return !gp.cChecker.rectHitsCollision(box);
+    }
+
+    /**
      * Begin a smooth fade-to-black → map load → fade-from-black transition.
      */
     public void startTransition(String mapId, int spawnCol, int spawnRow) {
@@ -272,6 +315,11 @@ public class MapManager {
                 spawnRow = gp.maxWorldRow / 2;
             }
         }
+
+        // Nudge out of collision so a spawn tile inside a wall never leaves the player stuck.
+        int[] safe = safeSpawn(spawnCol, spawnRow);
+        spawnCol = safe[0];
+        spawnRow = safe[1];
 
         gp.player.worldX = spawnCol * gp.tileSize;
         gp.player.worldY = spawnRow * gp.tileSize;

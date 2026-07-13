@@ -56,7 +56,10 @@ public final class LicenseActivation implements LicenseCheck {
 
     private static final String ACTIVATION_FILE = "activation.dat";
     private static final int DEFAULT_PORT = 5005;
-    private static final String[] FALLBACK_HOSTS = { "192.168.137.14", "192.168.137.126", "192.168.1.9", "192.168.1.212" };
+    // Public hosts first: the 192.168.* entries are LAN-only and unreachable from a player's machine,
+    // so a shipped build that falls back to them can never activate. Kept after the public hosts as a
+    // dev convenience only. Production endpoints normally come from save_servers.txt.
+    private static final String[] FALLBACK_HOSTS = { "142.93.103.51", "128.127.115.96", "192.168.137.14", "192.168.137.126", "192.168.1.9", "192.168.1.212" };
     private static final String SAVE_SERVERS_FILE = "save_servers.txt";
 
     private static final String PROTOCOL_TAG = "v2";
@@ -82,10 +85,22 @@ public final class LicenseActivation implements LicenseCheck {
     private volatile String cachedKey;
     private volatile String activationId;
     private volatile String encBlobB64;
+    /** Set once the server has answered AUTH_OK this run (via ACTIVATE or LOGIN). */
+    private volatile boolean confirmed;
 
     private LicenseActivation() {}
 
-    @Override public boolean verifyCurrent() { return cachedKey != null; }
+    /**
+     * True once the save server has confirmed this install's license this run.
+     *
+     * <p>Deliberately does NOT require {@link #cachedKey}: only ACTIVATE (first ever run) discloses
+     * the plaintext license_key. On every later run we authenticate with LOGIN, and the server —
+     * which alone holds enc_key — decrypts enc_blob, verifies it, and answers AUTH_OK without
+     * echoing the key back. A successful LOGIN is therefore itself the proof of license. Gating on
+     * cachedKey != null here silently marked every returning player unlicensed and disabled their
+     * cloud saves.
+     */
+    @Override public boolean verifyCurrent() { return confirmed; }
     @Override public String getActivationId() { return activationId; }
     @Override public String getEncBlob() { return encBlobB64; }
     @Override public String getCachedKey() { return cachedKey; }
@@ -114,7 +129,12 @@ public final class LicenseActivation implements LicenseCheck {
                 if (!isLogin) writeLocal(r.activationId, r.encBlobB64);
                 m.activationId = r.activationId;
                 m.encBlobB64 = r.encBlobB64;
+                // Set on both paths: ACTIVATE issues the key, LOGIN re-delivers it (CloudSaveService
+                // derives its session delivery_key from it, so it's needed every run). Stays null
+                // only against an older server that doesn't send it — hence `confirmed`, not
+                // cachedKey, is what marks this install licensed.
                 m.cachedKey = r.licenseKey;
+                m.confirmed = true;
                 License.set(m);
                 System.out.println(isLogin ? "[License] Logged in." : "[License] Activated online — license issued.");
                 return r.licenseKey;
@@ -164,27 +184,38 @@ public final class LicenseActivation implements LicenseCheck {
             if (authLine == null || !authLine.startsWith("AUTH_OK ")) return null;
             String[] parts = authLine.split(" ");
 
+            // issuance_key is derived purely from the nonces (both sides already share those at
+            // this point) — NOT from license_key, since on ACTIVATE the client doesn't know it yet;
+            // that's the value being delivered. Must match the server's hkdf() call exactly.
+            byte[] issuanceKey = hkdf(concat(clientNonce, serverNonce), serverNonce, ISSUANCE_INFO, 32);
+
             if (isLogin) {
-                // "AUTH_OK <enc_session_b64>" — LOGIN doesn't repeat the license_key; we already
-                // know it (it's how we got here) so just confirm success.
-                if (parts.length != 2) return null;
-                return new Result(cachedKey, activationId, encBlobB64);
+                // "AUTH_OK <enc_session_b64> <enc_license_key_b64>" — the key is re-delivered every
+                // run because we never persist it, yet CloudSaveService derives its session
+                // delivery_key from it. A 2-token reply means an older server that doesn't send it:
+                // stay licensed (the handshake still proved it), just without cloud access.
+                if (parts.length < 2) return null;
+                if (parts.length < 3) return new Result(null, activationId, encBlobB64);
+                String relicensed = decryptIssuedKey(parts[2], issuanceKey, clientNonce);
+                return new Result(relicensed, activationId, encBlobB64);
             }
 
             // "AUTH_OK <enc_session_b64> <activation_id> <enc_blob_b64> <enc_license_key_b64>"
             if (parts.length != 5) return null;
             String newActivationId = parts[2];
             String newEncBlobB64 = parts[3];
-            // issuance_key is derived purely from the nonces (both sides already share those at
-            // this point) — NOT from license_key, since the client doesn't know it yet; that's
-            // the value being delivered right now. Must match the server's hkdf() call exactly.
-            byte[] issuanceKey = hkdf(concat(clientNonce, serverNonce), serverNonce, ISSUANCE_INFO, 32);
-            byte[] encLicenseKey = Base64.getDecoder().decode(parts[4]);
-            byte[] licenseKeyBytes = aesGcmDecrypt(encLicenseKey, issuanceKey,
-                    java.util.Arrays.copyOfRange(clientNonce, 0, 12), ISSUED_LICENSE_AAD);
-            String licenseKey = new String(licenseKeyBytes, StandardCharsets.UTF_8);
+            String licenseKey = decryptIssuedKey(parts[4], issuanceKey, clientNonce);
             return new Result(licenseKey, newActivationId, newEncBlobB64);
         }
+    }
+
+    /** Unwrap the AEAD-wrapped license_key the server delivers on ACTIVATE and LOGIN. */
+    private static String decryptIssuedKey(String encB64, byte[] issuanceKey, byte[] clientNonce)
+            throws GeneralSecurityException {
+        byte[] ct = Base64.getDecoder().decode(encB64);
+        byte[] plain = aesGcmDecrypt(ct, issuanceKey,
+                java.util.Arrays.copyOfRange(clientNonce, 0, 12), ISSUED_LICENSE_AAD);
+        return new String(plain, StandardCharsets.UTF_8);
     }
 
     private static Properties readLocal() {

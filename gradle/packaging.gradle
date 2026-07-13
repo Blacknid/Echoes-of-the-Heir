@@ -14,6 +14,11 @@ def rootDir       = rootProject.projectDir
 def buildToolsDir = new File(rootDir, 'build_tools')
 def deployDir     = new File(rootDir, 'deploy')
 def jpackageTmp   = new File(rootDir, 'jpackage_tmp')
+// jpackage copies *everything* in --input into the app-image. It must never be deployDir:
+// deployDir is also where this pipeline writes the app-image .exe and the Inno installer, so
+// pointing --input at it makes each build bundle the previous build's installer, growing the
+// archive until Inno's integrity check fails ("The setup files are corrupted").
+def jpackageInput = new File(rootDir, 'build/jpackage_input')
 def appName       = 'MichisAdventure'
 def jarName       = 'Michi-s-adventure.jar'
 def mainClass     = 'desktop.DesktopLauncher'
@@ -40,9 +45,18 @@ tasks.register('jpackageImage') {
             logger.warn("[packaging] jpackage not found at ${jpackage} — skipping .exe. Fat JAR is in deploy/.")
             return
         }
+
+        // Stage a clean input dir holding only the fat JAR, so nothing else in deploy/ is bundled.
+        if (jpackageInput.exists()) jpackageInput.deleteDir()
+        jpackageInput.mkdirs()
+        java.nio.file.Files.copy(
+            new File(deployDir, jarName).toPath(),
+            new File(jpackageInput, jarName).toPath(),
+            java.nio.file.StandardCopyOption.REPLACE_EXISTING)
+
         // Gradle 9 removed Project.exec at execution time — use ProcessBuilder directly.
         def pb = new ProcessBuilder(jpackage,
-            '--input',       deployDir.absolutePath,
+            '--input',       jpackageInput.absolutePath,
             '--name',        appName,
             '--main-jar',    jarName,
             '--main-class',  mainClass,

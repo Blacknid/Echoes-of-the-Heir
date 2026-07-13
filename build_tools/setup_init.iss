@@ -19,20 +19,12 @@ Source: "..\jpackage_tmp\MichisAdventure\*"; DestDir: "{app}"; Flags: ignorevers
 
 ; 2. Patch-server endpoint list (used by UpdateClient at startup).
 ;    onlyifdoesntexist preserves any local edits the player may have made.
-<<<<<<< HEAD
-;    skipifsourcedoesntexist: this file is optional — UpdateClient falls back to its
-;    built-in FALLBACK_HOSTS when it's absent, so a missing source must not fail the build.
-Source: "..\deploy\update_servers.txt"; DestDir: "{app}"; DestName: "update_servers.txt"; Flags: ignoreversion onlyifdoesntexist skipifsourcedoesntexist
-
-; 3. Save-server endpoint list (used by CloudSaveService). Same optionality as above.
-=======
 ;    skipifsourcedoesntexist: both files are genuinely optional — UpdateClient/
 ;    CloudSaveService fall back to built-in defaults when absent, so the
 ;    installer must not hard-fail when they haven't been hand-placed in deploy/.
 Source: "..\deploy\update_servers.txt"; DestDir: "{app}"; DestName: "update_servers.txt"; Flags: ignoreversion onlyifdoesntexist skipifsourcedoesntexist
 
 ; 3. Save-server endpoint list (used by CloudSaveService).
->>>>>>> 7ad106be66fed11be5e3dbc1cca5882d73c06d00
 Source: "..\deploy\save_servers.txt"; DestDir: "{app}"; DestName: "save_servers.txt"; Flags: ignoreversion onlyifdoesntexist skipifsourcedoesntexist
 
 [Icons]
@@ -68,8 +60,12 @@ begin
   if FileExists(ServersPath) then
     exit;
 
-  SetArrayLength(Lines, 1);
-  Lines[0] := 'Local Server|127.0.0.1|7777';
+  // The official VPS must come first: a shipped build whose only entry is 127.0.0.1 points the
+  // player at their own machine, where no server runs, so multiplayer looks dead on every install.
+  // Localhost is kept below it for local/dev hosting.
+  SetArrayLength(Lines, 2);
+  Lines[0] := 'Official Server|142.93.103.51|7777';
+  Lines[1] := 'Local Server|127.0.0.1|7777';
   SaveStringsToFile(ServersPath, Lines, False);
 end;
 

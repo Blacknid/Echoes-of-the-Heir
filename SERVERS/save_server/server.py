@@ -30,7 +30,10 @@ Wire format (newline-terminated):
     S -> "OK <base64(server_nonce_16)>"
     C -> "LOGIN <base64(rsa_oaep_sha256(handshake_json))> <activation_id> <base64(enc_blob)>"
          handshake_json = { "ts", "client_nonce" (hex), "server_nonce" (hex) }
-    S -> "AUTH_OK <base64(aesgcm(session_key, key=delivery_key, nonce=cn[:12], aad='MichiCloudSession'))>"
+    S -> "AUTH_OK <base64(aesgcm(session_key, key=delivery_key, nonce=cn[:12], aad='MichiCloudSession'))> <base64(aesgcm(license_key, key=issuance_key, nonce=cn[:12], aad='MichiIssuedLicense'))>"
+
+    The license_key is re-delivered on every LOGIN (not just ACTIVATE): the client never persists
+    it, yet delivery_key is derived from it, so without it the client cannot decrypt session_key.
       or "AUTH_FAIL"
     The server looks up enc_key by activation_id, decrypts enc_blob to
     recover license_key, and verifies the decrypted value matches — proving
@@ -912,29 +915,38 @@ def handle_client(conn: socket.socket, addr: tuple[str, int],
             nonce=client_nonce[:12],
             aad=b"MichiCloudSession",
         )
+        # The client needs its license_key in-hand every run — it's the account identifier for every
+        # save/friend/MP call, AND delivery_key above is derived from it, so without it the client
+        # cannot even decrypt enc_session. It is never persisted client-side (by design), so it must
+        # be re-delivered on LOGIN too, not just on ACTIVATE — otherwise every returning player is
+        # left unable to open a session and their cloud saves silently stop working.
+        #
+        # Can't wrap it under delivery_key: that key is derived FROM license_key, which on ACTIVATE
+        # the client doesn't know yet. Use a key derived purely from the nonces — both sides already
+        # share those at this point in the handshake.
+        issuance_key = hkdf(
+            secret=client_nonce + server_nonce,
+            salt=server_nonce,
+            info=b"michi-issuance-v2",
+            length=32,
+        )
+        enc_license_key = aesgcm_encrypt(
+            plaintext=license_key.encode("utf-8"),
+            key=issuance_key,
+            nonce=client_nonce[:12],
+            aad=b"MichiIssuedLicense",
+        )
+        enc_license_key_b64 = base64.b64encode(enc_license_key).decode("ascii")
+
         if is_activate:
-            # The client needs its own freshly issued license_key in-hand this run (it's the
-            # account identifier used for every save/friend/MP call) — send it once, AEAD-wrapped.
-            # Can't use delivery_key here: it's derived FROM license_key, which the client doesn't
-            # know yet (that's the value being delivered). Use a key derived purely from the
-            # nonces instead — both sides already share those at this point in the handshake.
-            issuance_key = hkdf(
-                secret=client_nonce + server_nonce,
-                salt=server_nonce,
-                info=b"michi-issuance-v2",
-                length=32,
-            )
-            enc_license_key = aesgcm_encrypt(
-                plaintext=license_key.encode("utf-8"),
-                key=issuance_key,
-                nonce=client_nonce[:12],
-                aad=b"MichiIssuedLicense",
-            )
             send_line(conn, "AUTH_OK " + base64.b64encode(enc_session).decode("ascii")
                        + " " + new_activation_id + " " + enc_blob_wire
-                       + " " + base64.b64encode(enc_license_key).decode("ascii"))
+                       + " " + enc_license_key_b64)
         else:
-            send_line(conn, "AUTH_OK " + base64.b64encode(enc_session).decode("ascii"))
+            # 3 tokens. Older clients read only parts[1] (enc_session) and ignore the trailing
+            # field, so this stays backward-compatible with already-shipped builds.
+            send_line(conn, "AUTH_OK " + base64.b64encode(enc_session).decode("ascii")
+                       + " " + enc_license_key_b64)
         status = status_prefix
 
         conn.settimeout(cfg["session_timeout_seconds"])
