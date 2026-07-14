@@ -141,6 +141,10 @@ public class KeyHandler implements InputProcessor {
         else if (gp.gameState == GamePanel.skillTreeState) {
             handleSkillTreeState(code);
         }
+        // SHOP STATE
+        else if (gp.gameState == GamePanel.shopState) {
+            handleShopState(code);
+        }
     }
 
     /** Sentinel passed as the "key code" for controller-sourced dispatch — matches no real
@@ -225,6 +229,10 @@ public class KeyHandler implements InputProcessor {
         menuDown  = gp.actions.isDown(InputBindings.MENU_DOWN);
         menuLeft  = gp.actions.isDown(InputBindings.MENU_LEFT);
         menuRight = gp.actions.isDown(InputBindings.MENU_RIGHT);
+        // Any keyboard/controller nav press reveals the slot-selection cursor (see UI.selectionVisible) —
+        // covers every menu-direction source uniformly since gp.actions.isDown already abstracts
+        // keyboard/d-pad/stick.
+        if (menuUp || menuDown || menuLeft || menuRight) gp.ui.selectionVisible = true;
     }
 
     @Override
@@ -876,7 +884,7 @@ public class KeyHandler implements InputProcessor {
         // that press had nothing to do with.
         if (gp.actions.consumePressed(InputBindings.PAUSE))            { gp.gameState = GamePanel.pauseState; gp.actions.clearAllPending(); }
         if (gp.actions.consumePressed(InputBindings.OPTIONS))          { gp.gameState = GamePanel.optionsState; gp.actions.clearAllPending(); }
-        if (gp.actions.consumePressed(InputBindings.CHARACTER_SCREEN) && !isOverlayOpen()) { gp.gameState = GamePanel.characterState; gp.actions.clearAllPending(); }
+        if (gp.actions.consumePressed(InputBindings.CHARACTER_SCREEN) && !isOverlayOpen()) { gp.gameState = GamePanel.characterState; gp.ui.selectionVisible = false; gp.actions.clearAllPending(); }
         if (gp.actions.consumePressed(InputBindings.SKILL_TREE) && !isOverlayOpen())       { gp.gameState = GamePanel.skillTreeState; gp.actions.clearAllPending(); }
         if (gp.actions.consumePressed(InputBindings.JOURNAL) && !isOverlayOpen())          { gp.gameState = GamePanel.journalState; gp.actions.clearAllPending(); }
         // enterPressed drives melee swing (Player.java) AND dialogue/interact (EventHandler.java)
@@ -1011,6 +1019,10 @@ public class KeyHandler implements InputProcessor {
                 gp.playSE(SFX.PLAYER_HIT);
             } else {
                 gp.ui.invalidateSkillTreeConnectorCache();
+                // Persist immediately — a skill unlock is real player progress, and waiting for a
+                // manual Save Game meant it could silently vanish on the next Continue (see
+                // dashUnlocked bug: unlock WINDSTEP, reload, dash is gone with no error shown).
+                gp.saveLoad.save();
             }
         }
     }
@@ -1065,6 +1077,39 @@ public class KeyHandler implements InputProcessor {
         };
         if (gp.actions.consumePressed(InputBindings.MENU_UP))   gp.ui.commandNum = (gp.ui.commandNum - 1 + maxCommandNum + 1) % (maxCommandNum + 1);
         if (gp.actions.consumePressed(InputBindings.MENU_DOWN)) gp.ui.commandNum = (gp.ui.commandNum + 1) % (maxCommandNum + 1);
+    }
+
+    private void handleShopState(int code) {
+        // Consuming MENU_CANCEL here (not just checking the raw key) drains its pending-press
+        // flag — otherwise the close keypress leaves one pending, and the next playState poll
+        // in pollGameplayActions() would immediately re-trigger an interact.
+        if (gp.actions.consumePressed(InputBindings.MENU_CANCEL)) {
+            gp.ui.closeShop();
+            gp.playSE(SFX.MENU_SELECT);
+            return;
+        }
+
+        if (gp.ui.isShopPromptActive()) {
+            // Single "Enter Shop" button, no left/right selection: MENU_CONFIRM opens it, any
+            // other key closes it. Direction keys are intercepted earlier (consumeFreshDirPress ->
+            // fireMenuNavigation, see its shopState branch) and never reach here, so this only
+            // needs to handle "some other key" vs. confirm.
+            if (gp.actions.consumePressed(InputBindings.MENU_CONFIRM)) {
+                gp.ui.confirmShopPrompt();
+            } else {
+                gp.ui.closeShop();
+                gp.playSE(SFX.MENU_SELECT);
+            }
+            return;
+        }
+
+        if (gp.actions.consumePressed(InputBindings.MENU_LEFT))  gp.ui.moveShopSelection(-1, 0);
+        if (gp.actions.consumePressed(InputBindings.MENU_RIGHT)) gp.ui.moveShopSelection(1, 0);
+        if (gp.actions.consumePressed(InputBindings.MENU_UP))    gp.ui.moveShopSelection(0, -1);
+        if (gp.actions.consumePressed(InputBindings.MENU_DOWN))  gp.ui.moveShopSelection(0, 1);
+        if (gp.actions.consumePressed(InputBindings.MENU_CONFIRM)) gp.ui.activateShopSelection();
+        // Buy/Sell tabs are click-only (see MouseHandler.clickShop) — keyboard players don't need
+        // a dedicated binding for something this infrequent, keeps the input surface small.
     }
 
     private void handleGameOverState(int code) {
@@ -1144,7 +1189,7 @@ public class KeyHandler implements InputProcessor {
         return s == GamePanel.characterState || s == GamePanel.levelUpState ||
                s == GamePanel.skillTreeState || s == GamePanel.optionsState ||
                s == GamePanel.journalState   || s == GamePanel.gameOverState ||
-               s == GamePanel.pauseState     ||
+               s == GamePanel.pauseState     || s == GamePanel.shopState ||
                gp.debugMenuOpen;
     }
 
@@ -1231,6 +1276,19 @@ public class KeyHandler implements InputProcessor {
             if (menuUp)   menu.moveUp();
             if (menuDown) menu.moveDown();
             gp.ui.pauseSelection = menu.getSelected();
+        }
+        else if (state == GamePanel.shopState) {
+            if (gp.ui.isShopPromptActive()) {
+                // Single "Enter Shop" button, no left/right selection on the prompt itself — any
+                // direction press means the player wants out, same as Escape (see handleShopState).
+                gp.ui.closeShop();
+                gp.playSE(SFX.MENU_SELECT);
+            } else {
+                if (menuLeft)  gp.ui.moveShopSelection(-1, 0);
+                if (menuRight) gp.ui.moveShopSelection(1, 0);
+                if (menuUp)    gp.ui.moveShopSelection(0, -1);
+                if (menuDown)  gp.ui.moveShopSelection(0, 1);
+            }
         }
     }
 

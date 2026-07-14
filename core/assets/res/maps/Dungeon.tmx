@@ -1225,7 +1225,7 @@
 0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0
 </data>
  </layer>
- <objectgroup id="6" name="InteractiveTiles" visible="0">
+ <objectgroup id="6" name="InteractiveTiles">
   <object id="6" name="Spike" type="IT_Spike" x="1024" y="896">
    <point/>
   </object>
@@ -1365,8 +1365,8 @@
    <point/>
   </object>
  </objectgroup>
- <objectgroup id="8" name="Monsters" visible="0">
-  <object id="33" name="Phantom" type="BOSS_Phantom" x="544" y="192">
+ <objectgroup id="8" name="Monsters">
+  <object id="33" name="Phantom" type="BOSS_Phantom" x="512" y="416">
    <properties>
     <property name="bossId" value="Phantom"/>
    </properties>
@@ -1403,7 +1403,7 @@
    <point/>
   </object>
  </objectgroup>
- <objectgroup id="7" name="Objects" visible="0"/>
+ <objectgroup id="7" name="Objects"/>
  <objectgroup id="3" name="Events">
   <object id="2" name="Dungeon_start" type="SpawnPoint" x="1088" y="1248">
    <properties>
@@ -1527,7 +1527,7 @@
    </properties>
    <point/>
   </object>
-  <object id="91" name="Phantom Intro" type="BossIntroTrigger" x="832" y="-32" width="32" height="352">
+  <object id="91" name="Phantom Intro" type="BossIntroTrigger" x="832" y="288" width="32" height="352">
    <properties>
     <property name="bossName" value="Phantom"/>
     <property name="oneShot" type="bool" value="true"/>

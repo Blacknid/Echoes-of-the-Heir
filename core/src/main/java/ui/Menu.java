@@ -289,10 +289,11 @@ public class Menu {
                 : bx + 18;
 
         if (selected && it.enabled && !it.centered) {
-            // Right-pointing caret nudged by the shared UI pulse.
+            // Right-pointing caret nudged by the shared UI pulse. Drawn as a real triangle, not a
+            // font glyph — Pixeloid Sans (this project's pixel font) has no arrow characters at all.
             int nudge = (int) (pulse * 3);
             g2.setColor(theme.highlight2());
-            g2.drawString("▶", bx + 4 + nudge, labelBaseline);
+            g2.fillTriangle(GdxRenderer.TriangleDir.RIGHT, bx + 4 + nudge, labelBaseline - 10, 10, 12);
         }
         g2.setColor(ui.cachedColorFor(0, 0, 0, 120));
         g2.drawString(it.label, labelX + 1, labelBaseline + 1);
@@ -314,9 +315,10 @@ public class Menu {
                 int vw = vfm.stringWidth(val);
                 int valCx = ctrlRight - 90;
                 g2.setColor(selected ? theme.highlight2() : ui.cachedColorFor(200, 190, 170, 220));
-                g2.drawString("◀", valCx - 40, labelBaseline);
+                // Real triangles, not font glyphs — see the RIGHT-caret comment above.
+                g2.fillTriangle(GdxRenderer.TriangleDir.LEFT, valCx - 46, labelBaseline - 10, 10, 12);
                 g2.drawString(val, valCx - vw / 2, labelBaseline);
-                g2.drawString("▶", valCx + 40, labelBaseline);
+                g2.fillTriangle(GdxRenderer.TriangleDir.RIGHT, valCx + 36, labelBaseline - 10, 10, 12);
             }
             case SLIDER -> {
                 ui.drawMedievalSlider(ctrlRight - SLIDER_BAR_W, textCy - 10,

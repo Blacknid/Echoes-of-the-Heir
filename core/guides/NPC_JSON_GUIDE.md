@@ -126,6 +126,35 @@ To play an activity in-game, reference its name in a **state's** `animation` fie
 
 ---
 
+## Shop Block
+
+Turns this NPC into a vendor. When present, talking to the NPC opens the Buy/Sell shop screen
+instead of dialogue (any active quest step for this NPC still takes priority — see Worked
+Example 4 below).
+
+```json
+"shop": {
+  "sellMultiplier": 0.5,
+  "items": [
+    { "id": "iron_sword", "price": 75 },
+    { "id": "bandage", "price": 10, "stock": 5 }
+  ]
+}
+```
+
+| Field                    | Type   | Default | Description |
+|---------------------------|--------|---------|-------------|
+| `sellMultiplier`          | float  | `0.5`   | Fraction of an item's listed `price` the vendor pays when the **player** sells it back. Only applies to items this vendor also buys (i.e. appear in `items`) — the vendor won't buy things outside their own stock. |
+| `items`                   | array  | —       | The vendor's stock. Each entry: |
+| `items[].id`               | String | —       | An id from `res/data/items.json` |
+| `items[].price`            | int    | `0`     | Coins the player pays to buy one |
+| `items[].stock`            | int    | infinite| Units available. Omit for infinite stock. If set, decrements on purchase and **persists across saves** (keyed by this NPC's `objectId`). |
+
+The shop UI is the same declarative `Menu`/`MenuItem` system used for Settings/Pause — rows
+grey out automatically when the player can't afford an item or it's out of stock.
+
+---
+
 ## States Block
 
 States let the NPC **automatically change behaviour based on quest/game progress**.

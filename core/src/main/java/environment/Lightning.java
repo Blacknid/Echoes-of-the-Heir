@@ -714,6 +714,8 @@ public class Lightning {
                                        playerScreenX, playerScreenY, screenWidth, screenHeight);
         n = addEntityArrayShaderLights(n, gp.npc, playerWorldX, playerWorldY,
                                        playerScreenX, playerScreenY, screenWidth, screenHeight);
+        n = addEntityArrayShaderLights(n, gp.monster, playerWorldX, playerWorldY,
+                                       playerScreenX, playerScreenY, screenWidth, screenHeight);
 
         // Registered colored lights (addLight): crystals, magic glows, scripted torches. These now also
         // cast shadows via the shader mask (previously they only added flat ambient glow).
@@ -886,10 +888,12 @@ public class Lightning {
                 markTilesLitLowBFS(playerLightCX, playerLightCY, lightPxWorld);
                 markEntityArrayTilesLit(gp.obj, isLow, useTileShadows);
                 markEntityArrayTilesLit(gp.npc, isLow, useTileShadows);
+                markEntityArrayTilesLit(gp.monster, isLow, useTileShadows);
             } else {
                 markTilesLit(playerLightCX, playerLightCY, lightPxWorld, useTileShadows, false);
                 markEntityArrayTilesLit(gp.obj, isLow, useTileShadows);
                 markEntityArrayTilesLit(gp.npc, isLow, useTileShadows);
+                markEntityArrayTilesLit(gp.monster, isLow, useTileShadows);
             }
         }
 
@@ -948,13 +952,16 @@ public class Lightning {
         int playerSY = gp.player.screenY + (gp.player.worldY - playerWorldY) + gp.tileSize / 2;
         drawLight(g2, playerSX, playerSY, lightPxWorld, Color.WHITE, punch);
 
-        // ========= TORCH / NPC LIGHTS =========
-        // Any entity flagged lightSource carves a light hole — torches (gp.obj) and NPCs (gp.npc), so a
-        // glowing NPC beckons the player through a dark cave. New light-emitting entity types just get
-        // passed here.
+        // ========= TORCH / NPC / MONSTER LIGHTS =========
+        // Any entity flagged lightSource carves a light hole — torches (gp.obj), NPCs (gp.npc), and
+        // now monsters (gp.monster, opt-in via monsters.json lightRadius), so a glowing NPC beckons
+        // the player through a dark cave and a lit monster telegraphs its position. New light-emitting
+        // entity types just get passed here.
         drawEntityArrayLights(g2, gp.obj, playerWorldX, playerWorldY, playerScreenX, playerScreenY,
                               screenWidth, screenHeight, punch);
         drawEntityArrayLights(g2, gp.npc, playerWorldX, playerWorldY, playerScreenX, playerScreenY,
+                              screenWidth, screenHeight, punch);
+        drawEntityArrayLights(g2, gp.monster, playerWorldX, playerWorldY, playerScreenX, playerScreenY,
                               screenWidth, screenHeight, punch);
         torchShadowCacheDirty = false;
 

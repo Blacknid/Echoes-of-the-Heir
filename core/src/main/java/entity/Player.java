@@ -254,7 +254,7 @@ public class Player extends Entity {
         dexterity = 1;
         exp = 0;
         nextLevelExp = 5;
-        coin = 0;
+        coin = 1000;
         maxMana = 3;
         mana = maxMana;
         skillPoints = 100;
@@ -2242,10 +2242,18 @@ public class Player extends Entity {
         int itemIndex = gp.ui.getItemIndexOnSlot();
         if (itemIndex < inventory.size()) {
             Entity item = inventory.get(itemIndex);
+            unequipIfCurrent(item);
             inventory.remove(itemIndex);
             gp.ui.addMessage("Dropped " + item.name + ".", Color.WHITE);
             gp.playSE(SFX.ARROW); // use a drop sound or simple click
         }
+    }
+
+    /** Clears currentWeapon/currentShield if they point at this item, so leaving it (drop, sell,
+     *  quest consume) can never leave the player attacking/blocking with an item no longer held. */
+    public void unequipIfCurrent(Entity item) {
+        if (currentWeapon == item) currentWeapon = null;
+        if (currentShield == item) currentShield = null;
     }
 
     // Rendering methods

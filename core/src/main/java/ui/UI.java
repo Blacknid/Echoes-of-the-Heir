@@ -48,6 +48,13 @@ public class UI {
     private Sprite buttonPanelRaw; // loaded Button.png, or null → drawButton falls back to a vector button
     private Sprite selectedSlotIcon; // loaded selected.png, or null → inventory cursor falls back to the vector highlight
     private Sprite inventorySlotIcon; // loaded Slots.png, or null → inventory slots fall back to the vector background
+
+    /** Whether the slot-selection cursor (inventory/shop) should be drawn this frame. False right
+     *  after a menu opens or once the mouse leaves every slot with no keyboard/controller nav since
+     *  — set true by KeyHandler.pollMenuDirections() on any menu-direction press, and by
+     *  MouseHandler's hover code only while actually over a slot. Prevents a cursor "stuck" on a
+     *  slot the player never actually navigated to or is no longer pointing at. */
+    public boolean selectionVisible = false;
     // Recolored Button.png textures keyed by theme (same palette-swap scheme as uiPanelCache).
     private final HashMap<Long, Sprite> buttonPanelCache = new HashMap<>();
     // Marker colors as painted in UI.png. Must match the PNG pixel-for-pixel (no anti-aliasing).
@@ -85,6 +92,7 @@ public class UI {
     private static final PanelTheme THEME_SKILLTREE = PanelTheme.of("#000000", "#503C1E", "#C8A046", "#FFC850");
     private static final PanelTheme THEME_PAUSE     = PanelTheme.of("#0A0810", "#5A4623", "#B48C3C", "#DCAF46");
     private static final PanelTheme THEME_HUD       = PanelTheme.of("#06040E", "#282234", "#463C5A", "#6E5F82");
+    private static final PanelTheme THEME_SHOP      = PanelTheme.of("#0C0A02", "#5A4B1E", "#C8A83C", "#FFDC64");
     public boolean messageOn = false;
     ArrayList<String> message = new ArrayList<>();
     ArrayList<Integer> messageCounter = new ArrayList<>();
@@ -800,6 +808,10 @@ public class UI {
 
         if ( gp.gameState == GamePanel.journalState ) {
             drawJournalScreen();
+        }
+
+        if ( gp.gameState == GamePanel.shopState ) {
+            drawShopScreen();
         }
 
         if (actTitleTimer > 0) {
@@ -2341,6 +2353,11 @@ public class UI {
                     gp.metNPCs.add(gNpc.objectId);
                 }
             }
+            // Shop NPCs: keep the greeting line on screen (see openShopPrompt/drawShopPrompt) instead
+            // of clearing it — must capture it before currentDialogue is wiped below.
+            boolean isShopNpc = npc instanceof entity.NPC_Generic gn0 && gn0.shopItems != null && !gn0.shopItems.isEmpty();
+            String heldGreeting = isShopNpc ? currentDialogue : null;
+
             npc.endDialogueActivity();
             npc.dialogueIndex = 0;
             dialogueBuilder.setLength(0);
@@ -2348,12 +2365,22 @@ public class UI {
             gp.stopDialogueTyping();
 
             if (gp.gameState == GamePanel.dialogueState) {
-                gp.gameState = GamePanel.playState;
-                // Ease the dialogue camera back to neutral (zoom out, un-pan, retract bars).
-                gp.dlgZoomTarget = 1f;
-                gp.dlgPanTargetX = 0f;
-                gp.dlgPanTargetY = 0f;
-                gp.dlgBarsTarget = 0f;
+                // Shop NPCs: the greeting line just finished — offer an "Enter Shop" prompt
+                // (attached to the SAME dialogue box, which stays visible with the held line)
+                // instead of dropping straight back into play. Deliberately skip the camera
+                // zoom-out/un-pan/bar-retract below for this case: the box doesn't move or go
+                // away, so retracting the cinematic framing right now reads as a jarring snap
+                // rather than a real scene change — closeShop() eases it back out later instead.
+                if (isShopNpc) {
+                    openShopPrompt((entity.NPC_Generic) npc, heldGreeting);
+                } else {
+                    // Ease the dialogue camera back to neutral (zoom out, un-pan, retract bars).
+                    gp.dlgZoomTarget = 1f;
+                    gp.dlgPanTargetX = 0f;
+                    gp.dlgPanTargetY = 0f;
+                    gp.dlgBarsTarget = 0f;
+                    gp.gameState = GamePanel.playState;
+                }
             }
             if (gp.gameState == GamePanel.cutsceneState) {
                 gp.csManager.scenePhase++;
@@ -2362,9 +2389,18 @@ public class UI {
         }
     }
 
-    public void drawDialogueScreen() {
+    /** Box geometry shared by drawDialogueScreen() and the shop's Enter-Shop prompt, so the box
+     *  is pixel-identical across that transition (see drawDialogueBoxChrome). */
+    private static final class DialogueBoxLayout {
+        int boxX, boxY, width, height; // outer panel
+        int textX, textY;              // where body text starts
+    }
 
-        if (npc == null) return;
+    /** Draws the panel + name-tag + portrait shared by drawDialogueScreen() and the shop's
+     *  Enter-Shop prompt (drawShopPrompt) — ONE piece of drawing code for both, so there is no
+     *  possible drift (a flicker/blink) between the two at the moment they hand off to each other. */
+    private DialogueBoxLayout drawDialogueBoxChrome(String npcName, String portraitPath) {
+        DialogueBoxLayout l = new DialogueBoxLayout();
 
         // Anchored to the TOP of the screen, just under the cinematic letterbox bar, and kept
         // compact so it doesn't cover the player+NPC that the dialogue camera zooms in on and
@@ -2373,13 +2409,12 @@ public class UI {
         int width = gp.screenWidth - (gp.tileSize * 4);
         int height = (int)(gp.tileSize * 3.5f);
         int y = GamePanel.DLG_BAR_MAX_H + 30 /* name-tag height below */;
-        int boxX = x, boxY = y; // keep the original box origin for prompt/choices layout below
+        l.boxX = x; l.boxY = y; l.width = width; l.height = height;
 
         drawSubWindow(x, y, width, height, THEME_DIALOGUE);
 
-        if (npc != null && npc.name != null && !npc.name.isEmpty()) {
-            int nameTagW = cachedFM(cachedFont(Font.BOLD, 20F))
-                    .stringWidth(npc.name) + 30;
+        if (npcName != null && !npcName.isEmpty()) {
+            int nameTagW = cachedFM(cachedFont(Font.BOLD, 20F)).stringWidth(npcName) + 30;
             int nameTagH = 30;
             int nameTagX = x + 16;
             int nameTagY = y - nameTagH + 4;
@@ -2390,7 +2425,7 @@ public class UI {
             g2.drawRoundRect(nameTagX, nameTagY, nameTagW, nameTagH, 10, 10);
             g2.setFont(cachedFont(Font.BOLD, 20F));
             g2.setColor(DIALOGUE_NAME);
-            g2.drawString(npc.name, nameTagX + 14, nameTagY + 21);
+            g2.drawString(npcName, nameTagX + 14, nameTagY + 21);
         }
 
         g2.setFont(cachedFont(Font.PLAIN, 28F));
@@ -2398,8 +2433,8 @@ public class UI {
         y += gp.tileSize;
 
         int portraitOffset = 0;
-        if (npc.portraitPath != null) {
-            Sprite portrait = getPortrait(npc.portraitPath);
+        if (portraitPath != null) {
+            Sprite portrait = getPortrait(portraitPath);
             if (portrait != null) {
                 int portraitX = x - 4;
                 int portraitY = y - 8;
@@ -2412,7 +2447,20 @@ public class UI {
                 portraitOffset = 112;
             }
         }
-        int textX = x + portraitOffset;
+        l.textX = x + portraitOffset;
+        l.textY = y;
+        return l;
+    }
+
+    public void drawDialogueScreen() {
+
+        if (npc == null) return;
+
+        DialogueBoxLayout l = drawDialogueBoxChrome(npc.name, npc.portraitPath);
+        int boxX = l.boxX, boxY = l.boxY, width = l.width, height = l.height;
+        int textX = l.textX;
+        int y = l.textY;
+        int portraitOffset = l.textX - (l.boxX + gp.tileSize);
 
         // All state mutations (typewriter tick, Enter handling, gameState changes) happen in
         // updateDialogueState() at 60 UPS. drawDialogueScreen() is read-only — it only draws.
@@ -2445,10 +2493,12 @@ public class UI {
             int alpha = (int)(80 + 175 * blink);
             g2.setColor(cachedColor(220, 210, 190, alpha));
             g2.setFont(cachedFont(Font.PLAIN, 18F));
-            String cont = "\u25BC ENTER";
+            String cont = "ENTER";
             int contW = cachedFM().stringWidth(cont);
             int contX = boxX + width - gp.tileSize - contW;
             int contY = boxY + height - 16;
+            // Real triangle, not a font glyph \u2014 Pixeloid Sans has no arrow characters at all.
+            g2.fillTriangle(gfx.GdxRenderer.TriangleDir.DOWN, contX - 16, contY - 10, 10, 10);
             g2.drawString(cont, contX, contY);
 
             if (npc.dialogueChoices != null && npc.dialogueChoices.length > 0) {
@@ -2478,7 +2528,7 @@ public class UI {
             // Highlight selected option
             if (i == npc.selectedChoice) {
                 g2.setColor(cachedColor(255, 215, 100));
-                g2.drawString("\u25B6 ", textX - 20, textY);
+                g2.fillTriangle(gfx.GdxRenderer.TriangleDir.RIGHT, textX - 18, textY - 10, 8, 12);
                 g2.drawString(option, textX, textY);
             } else {
                 g2.setColor(cachedColor(180, 175, 165));
@@ -2538,7 +2588,7 @@ public class UI {
 
             if (i == journalSelectedIndex) {
                 g2.setColor(cachedColor(255, 215, 100));
-                g2.drawString("\u25B6 ", listX - 16, listY);
+                g2.fillTriangle(gfx.GdxRenderer.TriangleDir.RIGHT, listX - 14, listY - 10, 8, 12);
             }
 
             if (f.collected) {
@@ -2976,80 +3026,87 @@ public class UI {
             }
         }
 
-        int cursorX = slotXstart + (slotSize * slotCol);
-        int cursorY = slotYstart + (slotSize * slotRow);
-        int cursorWidth = gp.tileSize;
-        int cursorHeight = gp.tileSize;
-        if (selectedSlotIcon != null) {
-            g2.drawImage(selectedSlotIcon, cursorX, cursorY, cursorWidth, cursorHeight);
-        } else {
-            g2.setColor(cachedColor(255, 255, 255, 40));
-            g2.fillRoundRect(cursorX, cursorY, cursorWidth, cursorHeight, 10, 10);
-            float rawStroke = 2f + 2f * fastPulse(counter, 2);
-            int strokeKey = Math.round(rawStroke * 2); // quantize to 0.5 steps
-            g2.setColor(Color.white);
-            g2.setStroke(cachedStroke(strokeKey * 0.5f));
-            g2.drawRoundRect(cursorX, cursorY, cursorWidth, cursorHeight, 10, 10);
-        }
-
-        int itemIndex = getItemIndexOnSlot();
-        String actionHint = "";
-        if (itemIndex < gp.player.inventory.size()) {
-            Entity itemForHint = gp.player.inventory.get(itemIndex);
-            if (itemForHint != null) {
-                if (itemForHint.type == Entity.TYPE_CONSUMABLE) actionHint = "Use (ENTER)";
-                else if (itemForHint.type == Entity.TYPE_SWORD || itemForHint.type == Entity.TYPE_SHIELD || itemForHint.type == Entity.TYPE_BOOK) actionHint = "Equip (ENTER)";
+        if (selectionVisible) {
+            int cursorX = slotXstart + (slotSize * slotCol);
+            int cursorY = slotYstart + (slotSize * slotRow);
+            int cursorWidth = gp.tileSize;
+            int cursorHeight = gp.tileSize;
+            if (selectedSlotIcon != null) {
+                g2.drawImage(selectedSlotIcon, cursorX, cursorY, cursorWidth, cursorHeight);
+            } else {
+                g2.setColor(cachedColor(255, 255, 255, 40));
+                g2.fillRoundRect(cursorX, cursorY, cursorWidth, cursorHeight, 10, 10);
+                float rawStroke = 2f + 2f * fastPulse(counter, 2);
+                int strokeKey = Math.round(rawStroke * 2); // quantize to 0.5 steps
+                g2.setColor(Color.white);
+                g2.setStroke(cachedStroke(strokeKey * 0.5f));
+                g2.drawRoundRect(cursorX, cursorY, cursorWidth, cursorHeight, 10, 10);
             }
         }
 
-        int hintAreaY = frameY + frameHeight; // directly below inventory frame
-        int hintAreaH = gp.tileSize - 8;
-        g2.setColor(cachedColor(20,20,20,140));
-        g2.fillRoundRect(frameX + 8, hintAreaY + 6, frameWidth - 16, hintAreaH, 12, 12);
-        g2.setFont(cachedFont(Font.PLAIN, 18F));
-        g2.setColor(cachedColor(200,200,200));
-        int hintTextY = hintAreaY + 6 + hintAreaH/2 + 6;
-        g2.drawString("Drop (BACKSPACE)", frameX + 20, hintTextY);
-        if (!actionHint.isEmpty()) {
-            int tailX = frameX + frameWidth - 20;
-            int ax = getXforAlignToRightText(actionHint, tailX);
-            g2.drawString(actionHint, ax, hintTextY);
-        }
-
-        int dFrameX = frameX;
-        int dFrameY = frameY + frameHeight + hintAreaH + 12; // shift down to make room for hint strip
-        int dFrameWidth = frameWidth;
-        int dFrameHeight = gp.tileSize * 3;
-
-        if (itemIndex < gp.player.inventory.size()) {
-            Entity item = gp.player.inventory.get(itemIndex);
-            if (item != null) {
-                drawSubWindow(dFrameX, dFrameY, dFrameWidth, dFrameHeight, THEME_INVENTORY);
-                int iconX = dFrameX + 20;
-                int iconY = dFrameY + 20;
-                g2.drawImage(item.down1, iconX, iconY, gp.tileSize, gp.tileSize);
-                g2.setFont(cachedFont(Font.PLAIN, 28F));
-                g2.setColor(Color.white);
-                g2.drawString(item.name, iconX + gp.tileSize + 10, iconY + gp.tileSize / 2 + 5);
-
-                int statY = iconY + gp.tileSize / 2 + 24;
-                g2.setFont(cachedFont(Font.PLAIN, 18F));
-                if (item.type == Entity.TYPE_SWORD && item.attackValue != 0) {
-                    int diff = item.attackValue - (gp.player.currentWeapon != null ? gp.player.currentWeapon.attackValue : 0);
-                    drawStatComparison(iconX + gp.tileSize + 10, statY, "ATK " + item.attackValue, diff, item == gp.player.currentWeapon);
-                } else if (item.type == Entity.TYPE_SHIELD && item.defenseValue != 0) {
-                    int diff = item.defenseValue - (gp.player.currentShield != null ? gp.player.currentShield.defenseValue : 0);
-                    drawStatComparison(iconX + gp.tileSize + 10, statY, "DEF " + item.defenseValue, diff, item == gp.player.currentShield);
+        // Action hint + item detail/description panel only make sense while a slot is actually
+        // selected (mouse over it, or keyboard/controller nav) — otherwise they'd show stale info
+        // for whatever slotCol/slotRow last pointed at (see selectionVisible).
+        if (selectionVisible) {
+            int itemIndex = getItemIndexOnSlot();
+            String actionHint = "";
+            if (itemIndex < gp.player.inventory.size()) {
+                Entity itemForHint = gp.player.inventory.get(itemIndex);
+                if (itemForHint != null) {
+                    if (itemForHint.type == Entity.TYPE_CONSUMABLE) actionHint = "Use (ENTER)";
+                    else if (itemForHint.type == Entity.TYPE_SWORD || itemForHint.type == Entity.TYPE_SHIELD || itemForHint.type == Entity.TYPE_BOOK) actionHint = "Equip (ENTER)";
                 }
+            }
 
-                int textX = dFrameX + 30;
-                int textY = iconY + gp.tileSize + 20;
-                g2.setFont(cachedFont(Font.PLAIN, 22F));
-                g2.setColor(cachedColor(200, 200, 200));
-                if (!item.description.isEmpty()) {
-                    for (String line : item.description.split("\n")) {
-                        g2.drawString(line, textX, textY);
-                        textY += 26;
+            int hintAreaY = frameY + frameHeight; // directly below inventory frame
+            int hintAreaH = gp.tileSize - 8;
+            g2.setColor(cachedColor(20,20,20,140));
+            g2.fillRoundRect(frameX + 8, hintAreaY + 6, frameWidth - 16, hintAreaH, 12, 12);
+            g2.setFont(cachedFont(Font.PLAIN, 18F));
+            g2.setColor(cachedColor(200,200,200));
+            int hintTextY = hintAreaY + 6 + hintAreaH/2 + 6;
+            g2.drawString("Drop (BACKSPACE)", frameX + 20, hintTextY);
+            if (!actionHint.isEmpty()) {
+                int tailX = frameX + frameWidth - 20;
+                int ax = getXforAlignToRightText(actionHint, tailX);
+                g2.drawString(actionHint, ax, hintTextY);
+            }
+
+            int dFrameX = frameX;
+            int dFrameY = frameY + frameHeight + hintAreaH + 12; // shift down to make room for hint strip
+            int dFrameWidth = frameWidth;
+            int dFrameHeight = gp.tileSize * 3;
+
+            if (itemIndex < gp.player.inventory.size()) {
+                Entity item = gp.player.inventory.get(itemIndex);
+                if (item != null) {
+                    drawSubWindow(dFrameX, dFrameY, dFrameWidth, dFrameHeight, THEME_INVENTORY);
+                    int iconX = dFrameX + 20;
+                    int iconY = dFrameY + 20;
+                    g2.drawImage(item.down1, iconX, iconY, gp.tileSize, gp.tileSize);
+                    g2.setFont(cachedFont(Font.PLAIN, 28F));
+                    g2.setColor(Color.white);
+                    g2.drawString(item.name, iconX + gp.tileSize + 10, iconY + gp.tileSize / 2 + 5);
+
+                    int statY = iconY + gp.tileSize / 2 + 24;
+                    g2.setFont(cachedFont(Font.PLAIN, 18F));
+                    if (item.type == Entity.TYPE_SWORD && item.attackValue != 0) {
+                        int diff = item.attackValue - (gp.player.currentWeapon != null ? gp.player.currentWeapon.attackValue : 0);
+                        drawStatComparison(iconX + gp.tileSize + 10, statY, "ATK " + item.attackValue, diff, item == gp.player.currentWeapon);
+                    } else if (item.type == Entity.TYPE_SHIELD && item.defenseValue != 0) {
+                        int diff = item.defenseValue - (gp.player.currentShield != null ? gp.player.currentShield.defenseValue : 0);
+                        drawStatComparison(iconX + gp.tileSize + 10, statY, "DEF " + item.defenseValue, diff, item == gp.player.currentShield);
+                    }
+
+                    int textX = dFrameX + 30;
+                    int textY = iconY + gp.tileSize + 20;
+                    g2.setFont(cachedFont(Font.PLAIN, 22F));
+                    g2.setColor(cachedColor(200, 200, 200));
+                    if (!item.description.isEmpty()) {
+                        for (String line : item.description.split("\n")) {
+                            g2.drawString(line, textX, textY);
+                            textY += 26;
+                        }
                     }
                 }
             }
@@ -3138,6 +3195,512 @@ public class UI {
         gp.config.saveConfig();
     }
 
+    // ═══════════════════════════════════════════════════════════════════════
+    //  SHOP SYSTEM
+    // ═══════════════════════════════════════════════════════════════════════
+
+    /** The vendor NPC whose shop is currently open (null unless prompting or gameState == shopState). */
+    public entity.NPC_Generic shopNpc = null;
+    /** false = buy tab (vendor's stock), true = sell tab (player's inventory). */
+    public boolean shopSellTab = false;
+    /** true while showing the attached "Enter Shop" prompt, before the full shop screen opens. */
+    private boolean shopPromptActive = false;
+    private Menu shopMenu;
+    private String shopStatusMessage = "";
+    private int shopStatusTimer = 0;
+    private int shopSelectedRow = 0;
+    /** One row per grid cell (buy: shopItems order; sell: inventory order), rebuilt with the grid. */
+    private final java.util.List<Runnable> shopRowActions = new java.util.ArrayList<>();
+    /** Icon cache so buy rows don't call ItemFactory.create() every frame. */
+    private final java.util.Map<String, gfx.Sprite> shopIconCache = new java.util.HashMap<>();
+    /** Buy/Sell tab geometry, recorded by drawShopScreen() each frame for click hit-testing. */
+    private int shopBuyTabX, shopSellTabX, shopTabY, shopTabW, shopTabH;
+    /** The NPC's greeting line, held on screen (dialogue box style) behind the Enter Shop button. */
+    private String shopGreeting = "";
+    /** Frames since the prompt opened — drives the button's fade-in (see FADE_IN_FRAMES). */
+    private int shopPromptFadeTimer = 0;
+    private static final int FADE_IN_FRAMES = 20; // ~0.33s at 60 UPS
+
+    /** Called from UI.updateDialogueState() once the NPC's greeting line finishes. */
+    public void openShopPrompt(entity.NPC_Generic npc, String greeting) {
+        shopNpc = npc;
+        shopGreeting = greeting != null ? greeting : "";
+        shopPromptActive = true;
+        shopPromptFadeTimer = 0;
+        gp.gameState = GamePanel.shopState;
+    }
+
+    private void enterShop() {
+        shopPromptActive = false;
+        shopSellTab = false;
+        shopSelectedRow = 0;
+        shopStatusMessage = "";
+        selectionVisible = false;
+        rebuildShopRows();
+    }
+
+    public void closeShop() {
+        // Ease the dialogue camera back to neutral now — this is the real "leaving the
+        // conversation" moment (see updateDialogueState's isShopNpc branch, which skips this
+        // on entry so the box doesn't visibly snap while the prompt/shop is still showing it).
+        gp.dlgZoomTarget = 1f;
+        gp.dlgPanTargetX = 0f;
+        gp.dlgPanTargetY = 0f;
+        gp.dlgBarsTarget = 0f;
+
+        gp.gameState = GamePanel.playState;
+        shopNpc = null;
+        shopPromptActive = false;
+        shopMenu = null;
+        commandNum = 0;
+    }
+
+    private gfx.Sprite iconFor(String itemId) {
+        return shopIconCache.computeIfAbsent(itemId, id -> {
+            entity.Entity item = data.ItemFactory.create(gp, id);
+            return item != null ? item.down1 : null;
+        });
+    }
+
+    /** Rebuilt every time the shop opens, the tab switches, or a transaction changes
+     *  gold/stock/inventory. shopMenu only tracks selection/enabled state here — the grid is
+     *  custom-drawn (see drawShopGrid) so item icons can be shown, Menu's own row layout can't. */
+    private void rebuildShopRows() {
+        shopMenu = Menu.of(shopSellTab ? "Sell" : "Buy", THEME_SHOP);
+        shopRowActions.clear();
+
+        if (!shopSellTab) {
+            for (ShopListing listing : shopNpc.shopItems) {
+                boolean enabled = gp.player.coin >= listing.price && listing.inStock();
+                shopMenu.item(MenuItem.button("", () -> buyItem(listing)).enabled(enabled));
+                shopRowActions.add(() -> buyItem(listing));
+            }
+        } else {
+            for (entity.Entity item : gp.player.inventory) {
+                if (item.itemId == null) continue; // items without a stable id can't be re-sold
+                int sellPrice = Math.round(listingPriceFor(item.itemId) * shopNpc.shopSellMultiplier);
+                if (sellPrice <= 0) continue; // vendor doesn't buy items it doesn't sell
+                shopMenu.item(MenuItem.button("", () -> sellItem(item)));
+                shopRowActions.add(() -> sellItem(item));
+            }
+        }
+        if (shopSelectedRow >= shopRowActions.size()) shopSelectedRow = Math.max(0, shopRowActions.size() - 1);
+    }
+
+    /** The price this vendor lists an item at, or 0 if it's not in their buy stock (nothing to
+     *  base a sell offer on — a vendor won't buy what they don't deal in). */
+    private int listingPriceFor(String itemId) {
+        for (ShopListing listing : shopNpc.shopItems) {
+            if (listing.itemId.equals(itemId)) return listing.price;
+        }
+        return 0;
+    }
+
+    private void buyItem(ShopListing listing) {
+        if (gp.player.coin < listing.price || !listing.inStock()) return;
+        entity.Entity item = data.ItemFactory.create(gp, listing.itemId);
+        if (item == null) return;
+        if (!gp.player.canObtainItem(item)) {
+            setShopStatus("Inventory full.");
+            return;
+        }
+        gp.player.coin -= listing.price;
+        if (!listing.infinite()) {
+            listing.stock--;
+            gp.shopStock.put(shopNpc.shopId + ":" + listing.itemId, listing.stock);
+        }
+        gp.playSE(audio.SFX.MENU_SELECT);
+        setShopStatus("Bought " + item.name + ".");
+        rebuildShopRows();
+    }
+
+    private void sellItem(entity.Entity item) {
+        int sellPrice = Math.round(listingPriceFor(item.itemId) * shopNpc.shopSellMultiplier);
+        if (sellPrice <= 0) return;
+        if (item.stackable && item.amount > 1) {
+            item.amount--;
+        } else {
+            gp.player.unequipIfCurrent(item);
+            gp.player.inventory.remove(item);
+        }
+        gp.player.coin += sellPrice;
+        gp.playSE(audio.SFX.MENU_SELECT);
+        setShopStatus("Sold " + item.name + ".");
+        rebuildShopRows();
+    }
+
+    private void setShopStatus(String msg) {
+        shopStatusMessage = msg;
+        shopStatusTimer = 90; // ~1.5s at 60 UPS
+    }
+
+    public Menu shopMenu() { return shopMenu; }
+    public boolean isShopPromptActive() { return shopPromptActive; }
+    public void setShopSelectedRow(int i) { if (i >= 0 && i < shopRowActions.size()) shopSelectedRow = i; }
+
+    // ── "Enter Shop" prompt, attached to the dialogue box ───────────────────
+    // Single button, always selected: MENU_CONFIRM/click it opens the shop, anything else
+    // (Escape, walking away, talking ends) just leaves — no separate "Leave" button needed.
+    public void confirmShopPrompt() {
+        enterShop();
+    }
+
+    /** Button geometry, recomputed identically by drawShopPrompt() and this hit-test so clicks
+     *  always land on what's drawn (same idiom as Menu's own recorded rects). */
+    private int shopPromptBtnX, shopPromptBtnY, shopPromptBtnW, shopPromptBtnH;
+
+    public boolean shopPromptButtonUnderMouse(int px, int py) {
+        return px >= shopPromptBtnX && px < shopPromptBtnX + shopPromptBtnW
+            && py >= shopPromptBtnY && py < shopPromptBtnY + shopPromptBtnH;
+    }
+
+    /** Redraws the same dialogue box drawDialogueScreen() drew (with the just-finished greeting
+     *  line held on screen, since dialogueState's own draw stops once gameState leaves it), then
+     *  fades in a single "Enter Shop" button in its bottom-left corner — inside the box itself,
+     *  not a separate window or a panel stacked below it. */
+    private void drawShopPrompt() {
+        if (shopPromptFadeTimer < FADE_IN_FRAMES) shopPromptFadeTimer++;
+
+        // Same chrome-drawing call drawDialogueScreen() makes — guarantees this box is
+        // pixel-identical to the one that was just showing, so there is nothing to blink.
+        DialogueBoxLayout l = drawDialogueBoxChrome(shopNpc != null ? shopNpc.name : null,
+                                                     shopNpc != null ? shopNpc.portraitPath : null);
+        int boxX = l.boxX, boxY = l.boxY, width = l.width, height = l.height;
+        int textX = l.textX;
+        int y = l.textY;
+        int portraitOffset = l.textX - (l.boxX + gp.tileSize);
+
+        Font dialogueFont = cachedFont(Font.PLAIN, 28F);
+        g2.setFont(dialogueFont);
+        int textMaxWidth = width - gp.tileSize * 2 - portraitOffset - 16;
+        java.util.List<String> wrappedLines = wrapTextCached(shopGreeting, dialogueFont, textMaxWidth);
+        for (String line : wrappedLines) {
+            g2.setColor(cachedColor(0, 0, 0, 100));
+            g2.drawString(line, textX + 2, y + 2);
+            g2.setColor(cachedColor(230, 225, 215));
+            g2.drawString(line, textX, y);
+            y += 40;
+        }
+
+        // Same "▼ ENTER" indicator drawDialogueScreen() shows once a line finishes — kept here
+        // (bottom-right, same spot) instead of dropped, so pressing Enter to continue reads as
+        // one continuous action ("Enter" = confirm the prompt) rather than the box's own cue
+        // vanishing the instant the Enter Shop button appears.
+        float blink = fastPulse(animTick, 2);
+        int contAlpha = (int)(80 + 175 * blink);
+        g2.setColor(cachedColor(220, 210, 190, contAlpha));
+        g2.setFont(cachedFont(Font.PLAIN, 18F));
+        String cont = "ENTER";
+        int contW = cachedFM().stringWidth(cont);
+        int contX = boxX + width - gp.tileSize - contW;
+        int contY = boxY + height - 16;
+        g2.fillTriangle(gfx.GdxRenderer.TriangleDir.DOWN, contX - 16, contY - 10, 10, 10);
+        g2.drawString(cont, contX, contY);
+
+        int btnW = 180, btnH = 40;
+        int btnX = boxX + 14;
+        int btnY = boxY + height - btnH - 14; // bottom-left, inside the box
+        shopPromptBtnX = btnX; shopPromptBtnY = btnY; shopPromptBtnW = btnW; shopPromptBtnH = btnH;
+
+        float fadeAlpha = shopPromptFadeTimer / (float) FADE_IN_FRAMES;
+        g2.setAlpha(fadeAlpha);
+        drawButton(btnX, btnY, btnW, btnH, THEME_SHOP, true);
+        drawCenteredLabel("Enter Shop", btnX, btnY, btnW, btnH, true);
+        g2.setAlpha(1f);
+
+        gp.keyH.enterPressed = false;
+    }
+
+    private void drawCenteredLabel(String label, int x, int y, int w, int h, boolean selected) {
+        g2.setFont(cachedFont(selected ? Font.BOLD : Font.PLAIN, 20F));
+        FontMetrics fm = g2.getFontMetrics();
+        int lx = x + w / 2 - fm.stringWidth(label) / 2;
+        int ly = y + h / 2 + fm.getAscent() / 2 - 2;
+        g2.setColor(cachedColor(0, 0, 0, 120));
+        g2.drawString(label, lx + 1, ly + 1);
+        g2.setColor(selected ? THEME_SHOP.highlight2() : cachedColor(210, 200, 180, 235));
+        g2.drawString(label, lx, ly);
+    }
+
+    // ── Full shop screen (icon grid) ────────────────────────────────────────
+    private static final int SHOP_COLS = 4;
+    private static final int SHOP_CELL = 84;
+    private static final int SHOP_ICON = 52;
+
+    public void drawShopScreen() {
+        if (shopPromptActive) { drawShopPrompt(); return; }
+
+        int frameWidth  = Math.min(600, (int)(gp.screenWidth * 0.5f));
+        int frameHeight = Math.min(560, (int)(gp.screenHeight * 0.8f));
+        int frameX = (gp.screenWidth  - frameWidth)  / 2;
+        int frameY = (gp.screenHeight - frameHeight) / 2;
+        drawSubWindow(frameX, frameY, frameWidth, frameHeight, THEME_SHOP);
+
+        if (shopMenu == null) rebuildShopRows();
+
+        // Title + tabs
+        g2.setFont(cachedFont(Font.BOLD, 30F));
+        String title = shopNpc != null ? shopNpc.name : "Shop";
+        FontMetrics tfm = g2.getFontMetrics();
+        g2.setColor(cachedColor(0, 0, 0, 150));
+        g2.drawString(title, frameX + frameWidth / 2 - tfm.stringWidth(title) / 2 + 2, frameY + 40 + 2);
+        g2.setColor(cachedColor(255, 220, 100, 235));
+        g2.drawString(title, frameX + frameWidth / 2 - tfm.stringWidth(title) / 2, frameY + 40);
+
+        int tabY = frameY + 56;
+        int tabW = 120, tabH = 32;
+        int tabsTotalW = tabW * 2 + 10;
+        int tabX = frameX + frameWidth / 2 - tabsTotalW / 2;
+        shopBuyTabX = tabX; shopSellTabX = tabX + tabW + 10; shopTabY = tabY; shopTabW = tabW; shopTabH = tabH;
+        drawButton(tabX, tabY, tabW, tabH, THEME_SHOP, !shopSellTab);
+        drawButton(tabX + tabW + 10, tabY, tabW, tabH, THEME_SHOP, shopSellTab);
+        drawCenteredLabel("Buy", tabX, tabY, tabW, tabH, !shopSellTab);
+        drawCenteredLabel("Sell", tabX + tabW + 10, tabY, tabW, tabH, shopSellTab);
+
+        int gridTop = tabY + tabH + 16;
+        int footerH = 60;
+        drawShopGrid(frameX, gridTop, frameWidth, frameY + frameHeight - footerH - gridTop);
+        drawShopTooltip(frameX, frameY, frameWidth, frameY + frameHeight - footerH);
+
+        // Footer: current gold + last transaction status + Leave hint.
+        g2.setFont(cachedFont(Font.BOLD, 22F));
+        String goldLine = "Gold: " + gp.player.coin + "g";
+        FontMetrics gfm = g2.getFontMetrics();
+        int gx = frameX + 24;
+        int gy = frameY + frameHeight - footerH + gfm.getAscent();
+        g2.setColor(cachedColor(0, 0, 0, 150));
+        g2.drawString(goldLine, gx + 1, gy + 1);
+        g2.setColor(cachedColor(255, 220, 100, 235));
+        g2.drawString(goldLine, gx, gy);
+
+        g2.setFont(cachedFont(Font.PLAIN, 16F));
+        String hint = "Esc: Leave";
+        FontMetrics hfm = g2.getFontMetrics();
+        g2.setColor(cachedColor(180, 175, 160, 200));
+        g2.drawString(hint, frameX + frameWidth - 24 - hfm.stringWidth(hint), gy);
+
+        if (shopStatusTimer > 0) {
+            shopStatusTimer--;
+            g2.setFont(cachedFont(Font.PLAIN, 18F));
+            FontMetrics sfm = g2.getFontMetrics();
+            int sx = frameX + frameWidth / 2 - sfm.stringWidth(shopStatusMessage) / 2;
+            int sy = gy;
+            g2.setColor(cachedColor(220, 220, 220, Math.min(235, shopStatusTimer * 6)));
+            g2.drawString(shopStatusMessage, sx, sy);
+        }
+
+        gp.keyH.enterPressed = false;
+    }
+
+    /** Icon-grid inventory-style layout — each cell shows the item icon, a gold price/stock tag,
+     *  and (buy tab) a greyed overlay when unaffordable/out of stock. Menu.beginRects/recordRect
+     *  keep mouse hit-testing in sync with this custom layout (see Menu's own doc for the idiom). */
+    // Selected cell's geometry + item id, captured by drawShopGrid() each frame so
+    // drawShopTooltip() can position itself without a second pass over the grid layout.
+    private int shopTooltipCellX, shopTooltipCellY, shopTooltipCellSize;
+    private String shopTooltipItemId;
+
+    private void drawShopGrid(int x, int y, int w, int h) {
+        int n = shopRowActions.size();
+        shopTooltipItemId = null;
+        shopMenu.beginRects();
+        if (n == 0) {
+            g2.setFont(cachedFont(Font.PLAIN, 18F));
+            String empty = shopSellTab ? "You have nothing this shop will buy." : "Sold out.";
+            FontMetrics efm = g2.getFontMetrics();
+            g2.setColor(cachedColor(190, 185, 170, 200));
+            g2.drawString(empty, x + w / 2 - efm.stringWidth(empty) / 2, y + 40);
+            return;
+        }
+
+        int gridW = SHOP_COLS * SHOP_CELL;
+        int startX = x + (w - gridW) / 2;
+        int startY = y;
+
+        for (int i = 0; i < n; i++) {
+            int col = i % SHOP_COLS, row = i / SHOP_COLS;
+            int cx = startX + col * SHOP_CELL;
+            int cy = startY + row * SHOP_CELL;
+            if (cy + SHOP_CELL > y + h) break; // overflow: rare with a handful of items per shop
+            shopMenu.recordRect(cx, cy, SHOP_CELL - 6, SHOP_CELL - 6);
+
+            String itemId, name;
+            int price; boolean enabled; String tag;
+            if (!shopSellTab) {
+                ShopListing listing = shopNpc.shopItems.get(i);
+                entity.Entity item = data.ItemFactory.create(gp, listing.itemId);
+                itemId = listing.itemId;
+                name = item != null ? item.name : listing.itemId;
+                price = listing.price;
+                enabled = gp.player.coin >= listing.price && listing.inStock();
+                tag = listing.infinite() ? (price + "g") : (price + "g x" + Math.max(0, listing.stock));
+            } else {
+                entity.Entity item = sellableInventoryItem(i);
+                itemId = item != null ? item.itemId : null;
+                name = item != null ? item.name : "";
+                price = itemId != null ? Math.round(listingPriceFor(itemId) * shopNpc.shopSellMultiplier) : 0;
+                enabled = true;
+                tag = price + "g";
+            }
+
+            boolean selected = selectionVisible && i == shopSelectedRow;
+            drawShopCell(cx, cy, SHOP_CELL - 6, itemId, name, tag, enabled, selected);
+            if (selected && itemId != null) {
+                shopTooltipCellX = cx; shopTooltipCellY = cy; shopTooltipCellSize = SHOP_CELL - 6;
+                shopTooltipItemId = itemId;
+            }
+        }
+    }
+
+    /** Name + description popup for the selected grid cell (see shopTooltipItemId, captured by
+     *  drawShopGrid). Only shows while selectionVisible — same rule as the inventory detail panel. */
+    private void drawShopTooltip(int panelX, int panelY, int panelRight, int panelBottom) {
+        if (!selectionVisible || shopTooltipItemId == null) return;
+        entity.Entity item = data.ItemFactory.create(gp, shopTooltipItemId);
+        if (item == null) return;
+
+        Font nameFont = cachedFont(Font.BOLD, 18F);
+        Font descFont = cachedFont(Font.PLAIN, 15F);
+        g2.setFont(descFont);
+        int maxTextW = 220;
+        java.util.List<String> descLines = item.description.isEmpty()
+                ? java.util.List.of() : wrapTextCached(item.description, descFont, maxTextW);
+
+        g2.setFont(nameFont);
+        int nameW = g2.getFontMetrics().stringWidth(item.name);
+        int boxW = Math.max(nameW, maxTextW) + 24;
+        int boxH = 30 + descLines.size() * 20 + 12;
+
+        // Prefer to the right of the cell; flip to the left if it would overflow the panel.
+        int bx = shopTooltipCellX + shopTooltipCellSize + 10;
+        if (bx + boxW > panelRight - 8) bx = shopTooltipCellX - boxW - 10;
+        int by = Math.max(panelY + 8, Math.min(shopTooltipCellY, panelBottom - boxH - 8));
+
+        drawSubWindow(bx, by, boxW, boxH, THEME_SHOP);
+
+        g2.setFont(nameFont);
+        g2.setColor(cachedColor(255, 220, 100, 235));
+        g2.drawString(item.name, bx + 12, by + 26);
+
+        g2.setFont(descFont);
+        g2.setColor(cachedColor(215, 210, 195, 230));
+        int ty = by + 48;
+        for (String line : descLines) {
+            g2.drawString(line, bx + 12, ty);
+            ty += 20;
+        }
+    }
+
+    /** i-th item in gp.player.inventory that this vendor buys (mirrors the filtering in
+     *  rebuildShopRows' sell branch, so grid index i lines up with shopRowActions[i]). */
+    private entity.Entity sellableInventoryItem(int i) {
+        int seen = 0;
+        for (entity.Entity item : gp.player.inventory) {
+            if (item.itemId == null) continue;
+            if (listingPriceFor(item.itemId) <= 0) continue;
+            if (seen == i) return item;
+            seen++;
+        }
+        return null;
+    }
+
+    private void drawShopCell(int x, int y, int size, String itemId, String name, String tag,
+                               boolean enabled, boolean selected) {
+        // Slot background: reuse the same Slots1.png the inventory screen uses, drawn at its own
+        // native size (not stretched to the cell) so it looks identical to the inventory screen —
+        // stretching a small pixel-art tile to an arbitrary cell size warped it visibly.
+        int slotSize = Math.min(size, gp.tileSize);
+        int slotX = x + (size - slotSize) / 2;
+        int slotY = y + (size - slotSize) / 2;
+        if (inventorySlotIcon != null) {
+            g2.drawImage(inventorySlotIcon, slotX, slotY, slotSize, slotSize);
+        } else {
+            g2.setColor(cachedColor(40, 34, 18, 160));
+            g2.fillRect(x, y, size, size);
+        }
+
+        gfx.Sprite icon = itemId != null ? iconFor(itemId) : null;
+        int iconX = x + (size - SHOP_ICON) / 2;
+        int iconY = y + 6;
+        if (icon != null) {
+            g2.drawImage(icon, iconX, iconY, SHOP_ICON, SHOP_ICON);
+        }
+        if (!enabled) {
+            // Flat overlay, no rounded corners — a rounded shape over square pixel-art slot edges
+            // is what was reading as stray "circles in the corners."
+            g2.setColor(cachedColor(0, 0, 0, 150));
+            g2.fillRect(slotX, slotY, slotSize, slotSize);
+        }
+
+        // Selection cursor: same selected.png overlay the inventory screen uses, at its native size.
+        if (selected && selectedSlotIcon != null) {
+            g2.drawImage(selectedSlotIcon, slotX, slotY, slotSize, slotSize);
+        }
+
+        g2.setFont(cachedFont(Font.PLAIN, 13F));
+        FontMetrics nfm = g2.getFontMetrics();
+        String shownName = nfm.stringWidth(name) > size - 6 ? truncateToWidth(name, size - 6, nfm) : name;
+        g2.setColor(cachedColor(0, 0, 0, 140));
+        g2.drawString(shownName, x + size / 2 - nfm.stringWidth(shownName) / 2 + 1, y + SHOP_ICON + 20 + 1);
+        g2.setColor(enabled ? cachedColor(225, 218, 200, 235) : cachedColor(140, 135, 120, 200));
+        g2.drawString(shownName, x + size / 2 - nfm.stringWidth(shownName) / 2, y + SHOP_ICON + 20);
+
+        g2.setFont(cachedFont(Font.BOLD, 13F));
+        FontMetrics pfm = g2.getFontMetrics();
+        g2.setColor(cachedColor(0, 0, 0, 140));
+        g2.drawString(tag, x + size / 2 - pfm.stringWidth(tag) / 2 + 1, y + SHOP_ICON + 36 + 1);
+        g2.setColor(enabled ? cachedColor(255, 220, 100, 235) : cachedColor(150, 130, 80, 200));
+        g2.drawString(tag, x + size / 2 - pfm.stringWidth(tag) / 2, y + SHOP_ICON + 36);
+    }
+
+    private String truncateToWidth(String s, int maxW, FontMetrics fm) {
+        if (fm.stringWidth(s) <= maxW) return s;
+        String ell = "…";
+        int lo = 0, hi = s.length();
+        while (lo < hi) {
+            int mid = (lo + hi + 1) / 2;
+            if (fm.stringWidth(s.substring(0, mid) + ell) <= maxW) lo = mid; else hi = mid - 1;
+        }
+        return s.substring(0, lo) + ell;
+    }
+
+    // ── Shop grid navigation (called by KeyHandler/MouseHandler) ────────────
+    public void moveShopSelection(int dCol, int dRow) {
+        int n = shopRowActions.size();
+        if (n == 0) return;
+        int col = shopSelectedRow % SHOP_COLS, row = shopSelectedRow / SHOP_COLS;
+        int maxRow = (n - 1) / SHOP_COLS;
+        col = Math.max(0, Math.min(SHOP_COLS - 1, col + dCol));
+        row = Math.max(0, Math.min(maxRow, row + dRow));
+        int idx = row * SHOP_COLS + col;
+        if (idx >= n) idx = n - 1;
+        shopSelectedRow = idx;
+        gp.playSE(audio.SFX.MENU_CURSOR);
+    }
+    public void activateShopSelection() {
+        if (shopSelectedRow >= 0 && shopSelectedRow < shopRowActions.size()) {
+            shopRowActions.get(shopSelectedRow).run();
+        }
+    }
+    public void switchShopTab() {
+        shopSellTab = !shopSellTab;
+        shopSelectedRow = 0;
+        rebuildShopRows();
+        gp.playSE(audio.SFX.MENU_SELECT);
+    }
+    public int shopGridItemUnderMouse(int px, int py) {
+        if (shopMenu == null) return -1;
+        return shopMenu.itemAt(px, py);
+    }
+
+    /** -1 = neither tab, 0 = Buy tab, 1 = Sell tab (see drawShopScreen, which records the rects). */
+    public int shopTabUnderMouse(int px, int py) {
+        if (py < shopTabY || py >= shopTabY + shopTabH) return -1;
+        if (px >= shopBuyTabX && px < shopBuyTabX + shopTabW) return 0;
+        if (px >= shopSellTabX && px < shopSellTabX + shopTabW) return 1;
+        return -1;
+    }
+
     public void options_top( int frameX, int frameY ) {
 
         int fw = Math.min(520, (int)(gp.screenWidth * 0.42f));
@@ -3216,12 +3779,11 @@ public class UI {
         }
     }
 
-    /** Small " > " arrow hint for sub-menu items. */
+    /** Small right-pointing arrow hint for sub-menu items. Real triangle, not a font glyph -
+     *  Pixeloid Sans has no arrow characters at all. */
     private void drawArrowHint(int x, int y) {
         g2.setColor(OPT_GOLD_DIM);
-        g2.setFont(cachedFont(Font.PLAIN, 20F));
-        g2.drawString("\u25B6", x, y);  // â–¶ unicode arrow
-        g2.setFont(cachedFont(Font.PLAIN, 26F));  // restore
+        g2.fillTriangle(gfx.GdxRenderer.TriangleDir.RIGHT, x, y - 12, 10, 14);
     }
     public void options_fullScreenNotification ( int frameX, int frameY ) {
 
@@ -3325,9 +3887,14 @@ public class UI {
         if (maxScroll > 0) {
             g2.setFont(cachedFont(Font.PLAIN, 13F));
             g2.setColor(cachedColor(120, 115, 105));
-            String hint = (controlScroll > 0 ? "▲ " : "  ") + "Scroll" + (controlScroll < maxScroll ? " ▼" : "");
+            String hint = "Scroll";
             int hw = cachedFM().stringWidth(hint);
-            g2.drawString(hint, frameX + fw / 2 - hw / 2, frameY + fh - backAreaH + 2);
+            int hintX = frameX + fw / 2 - hw / 2;
+            int hintY = frameY + fh - backAreaH + 2;
+            g2.drawString(hint, hintX, hintY);
+            // Real triangles, not font glyphs — Pixeloid Sans has no arrow characters at all.
+            if (controlScroll > 0) g2.fillTriangle(gfx.GdxRenderer.TriangleDir.UP, hintX - 14, hintY - 10, 8, 10);
+            if (controlScroll < maxScroll) g2.fillTriangle(gfx.GdxRenderer.TriangleDir.DOWN, hintX + hw + 6, hintY - 10, 8, 10);
         }
 
         // separator above Back button
@@ -3566,9 +4133,9 @@ public class UI {
             g2.drawString(options[i], optX + 50, oy + 30);
 
             if (selected) {
-                g2.setFont(cachedFont(Font.PLAIN, 12f));
                 g2.setColor(cachedColor(255, 210, 80, 180));
-                g2.drawString("\u25B6", optX + optW - 22, oy + 28);
+                // Real triangle, not a font glyph -- Pixeloid Sans has no arrow characters at all.
+                g2.fillTriangle(gfx.GdxRenderer.TriangleDir.RIGHT, optX + optW - 22, oy + 18, 8, 10);
             }
         }
 
@@ -4084,19 +4651,23 @@ public class UI {
         g2.drawRoundRect(x + 7, y + 7, width - 14, height - 14, 12, 12);
     }
 
-    /** Draw a stat value with colored delta indicator for inventory tooltips. */
+    /** Draw a stat value with colored delta indicator for inventory tooltips. Delta arrows are
+     *  real triangles, not font glyphs -- Pixeloid Sans has no arrow characters at all. */
     private void drawStatComparison(int x, int y, String label, int diff, boolean equipped) {
         g2.setColor(cachedColor(180, 180, 180));
         g2.drawString(label, x, y);
+        int textX = x + cachedFM().stringWidth(label);
         if (equipped) {
             g2.setColor(cachedColor(240, 190, 90));
-            g2.drawString(" (equipped)", x + cachedFM().stringWidth(label), y);
+            g2.drawString(" (equipped)", textX, y);
         } else if (diff > 0) {
             g2.setColor(cachedColor(80, 220, 80));
-            g2.drawString(" \u25B2+" + diff, x + cachedFM().stringWidth(label), y);
+            g2.fillTriangle(gfx.GdxRenderer.TriangleDir.UP, textX + 4, y - 10, 8, 10);
+            g2.drawString("+" + diff, textX + 16, y);
         } else if (diff < 0) {
             g2.setColor(cachedColor(220, 80, 80));
-            g2.drawString(" \u25BC" + diff, x + cachedFM().stringWidth(label), y);
+            g2.fillTriangle(gfx.GdxRenderer.TriangleDir.DOWN, textX + 4, y - 10, 8, 10);
+            g2.drawString("" + diff, textX + 16, y);
         }
     }
 

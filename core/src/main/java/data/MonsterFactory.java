@@ -134,6 +134,20 @@ public class MonsterFactory {
             m.projectile = new object.OBJ_Arrow(gp);
         }
 
+        // lightRadius / lightColor: make this monster emit a small light so it's visible (and
+        // telegraphed) in dark areas. Same convention as NPCFactory's identical fields — opt-in,
+        // unset by default (radius -1 sentinel = no light).
+        int monsterLightRadius = intVal(def, "lightRadius", -1);
+        if (monsterLightRadius > 0) {
+            m.lightSource = true;
+            m.lightRadius = monsterLightRadius;
+            String monsterLightColor = def.get("lightColor");
+            if (monsterLightColor != null && !monsterLightColor.isBlank()) {
+                try { m.lightColor = gfx.Color.decode(monsterLightColor.trim()); }
+                catch (NumberFormatException ignored) {}
+            }
+        }
+
         // New combat properties
         m.frontalArmor = boolVal(def, "frontalArmor", false);
         m.rootOnContactDuration = intVal(def, "rootDuration", 0);

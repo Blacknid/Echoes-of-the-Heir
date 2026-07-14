@@ -61,5 +61,5 @@ local.properties
 # Release signing key and credentials — never commit, losing these breaks Play Store updates.
 android/release.keystore
 android/keystore.properties
-*.dat
+activation.dat
 

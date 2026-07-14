@@ -616,7 +616,10 @@ public class QuestManager {
         int qy = contentTop + 10 - logScrollOffset;
 
         if (activeCount > 0) {
-            drawSectionHeader(g2, x, qy, W, PADDING, "\u25B6  ACTIVE QUESTS", SECTION_COLOR, 130);
+            // Leading arrow dropped: Pixeloid Sans (this project's pixel font) has no arrow glyph
+            // and drawString silently rendered it as an empty box. The colored underline already
+            // marks this as a section header.
+            drawSectionHeader(g2, x, qy, W, PADDING, "ACTIVE QUESTS", SECTION_COLOR, 130);
             qy += 34;
 
             for (int i = 0; i < quests.size(); i++) {
@@ -716,7 +719,9 @@ public class QuestManager {
 
         // ── COMPLETED section ──
         if (doneCount > 0) {
-            drawSectionHeader(g2, x, qy, W, PADDING, "\u2713  COMPLETED (" + doneCount + ")", COMPLETE, 150);
+            // Leading checkmark dropped: Pixeloid Sans has no glyph for it (same issue as
+            // the ACTIVE QUESTS header) and it silently rendered as an empty box.
+            drawSectionHeader(g2, x, qy, W, PADDING, "COMPLETED (" + doneCount + ")", COMPLETE, 150);
             qy += 30;
 
             for (int i = 0; i < quests.size(); i++) {

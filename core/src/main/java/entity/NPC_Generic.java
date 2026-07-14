@@ -302,6 +302,13 @@ public class NPC_Generic extends Entity {
             }
         }
 
+        if (shopItems != null && !shopItems.isEmpty()) {
+            // Play the NPC's greeting line first; UI.updateDialogueState() opens the
+            // Enter/Leave shop prompt once that dialogue finishes (see there for why).
+            startDialogue(this, 0);
+            return;
+        }
+
         if (giveItemId != null && !giveItemGiven) {
             Entity item = data.ItemFactory.create(gp, giveItemId);
             if (item != null) gp.player.canObtainItem(item);

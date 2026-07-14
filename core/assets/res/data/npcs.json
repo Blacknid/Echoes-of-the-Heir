@@ -377,6 +377,18 @@
     "idleAnimSpeed": 12,
     "interactRange": 64,
 
+    "shop": {
+      "sellMultiplier": 0.5,
+      "items": [
+        { "id": "wooden_sword", "price": 20, "stock": 1 },
+        { "id": "iron_sword", "price": 60, "stock": 1 },
+        { "id": "knight_blade", "price": 140, "stock": 1 },
+        { "id": "wooden_shield", "price": 15, "stock": 1 },
+        { "id": "iron_shield", "price": 50, "stock": 1 },
+        { "id": "bandage", "price": 8, "stock": 10 }
+      ]
+    },
+
     "dialogues": {
       "training": [
         "Welcome to the weapon shop!",
