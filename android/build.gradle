@@ -3,14 +3,6 @@
 // high-refresh-rate) — no low-end-device compromises needed.
 apply plugin: 'com.android.application'
 
-// Release signing credentials live outside version control (see .gitignore) in
-// android/keystore.properties, next to the keystore file it points at.
-def keystorePropsFile = file('keystore.properties')
-def keystoreProps = new Properties()
-if (keystorePropsFile.exists()) {
-    keystorePropsFile.withInputStream { keystoreProps.load(it) }
-}
-
 android {
     namespace 'com.michi.adventure'
     compileSdk 34
@@ -57,20 +49,8 @@ android {
         targetCompatibility JavaVersion.VERSION_17
     }
 
-    signingConfigs {
-        release {
-            if (keystorePropsFile.exists()) {
-                storeFile file(keystoreProps['storeFile'])
-                storePassword keystoreProps['storePassword']
-                keyAlias keystoreProps['keyAlias']
-                keyPassword keystoreProps['keyPassword']
-            }
-        }
-    }
-
     buildTypes {
         release {
-            signingConfig keystorePropsFile.exists() ? signingConfigs.release : null
             minifyEnabled false
         }
     }
