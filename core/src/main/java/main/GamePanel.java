@@ -205,6 +205,8 @@ public class GamePanel {
 
     public java.util.Set<String> openedGates = new java.util.HashSet<>();
     public java.util.Set<String> metNPCs      = new java.util.HashSet<>();
+    /** Remaining stock for shops with finite stock, keyed "shopId:itemId". Absent = full/infinite. */
+    public java.util.Map<String, Integer> shopStock = new java.util.HashMap<>();
 
     public MapManager mapManager;
 
@@ -312,6 +314,7 @@ public class GamePanel {
     public static final int skillTreeState = 10;
     public static final int multiplayerPlayState = 11;
     public static final int journalState = 12;
+    public static final int shopState = 13;
 
     public boolean teleportation = false;
     public boolean bootsUnlocked = false;
@@ -702,7 +705,7 @@ public class GamePanel {
         // frame while dialogue or the inventory/character screen has their input. Player uses its own
         // sprite/idle-clip system (spriteNum + idleClip), not the generic Entity.tickAnimations()
         // idleFrames path, so it needs its own tick method.
-        if (gameState == dialogueState || gameState == characterState) {
+        if (gameState == dialogueState || gameState == characterState || gameState == shopState) {
             player.tickIdleWhileMenuOpen();
         }
         if (gameState == dialogueState) {
@@ -731,7 +734,7 @@ public class GamePanel {
         // being shown off by BossIntroCutscene freezes itself into an idle pose (see the check at the
         // top of Boss.update()) so it doesn't wander off mid-shot while everything else keeps moving.
         if(gameState == playState || gameState == dialogueState || gameState == characterState
-                || gameState == cutsceneState) {
+                || gameState == cutsceneState || gameState == shopState) {
             vpCacheValid = false;
             updateViewportCache();
 

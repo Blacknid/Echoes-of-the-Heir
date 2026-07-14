@@ -911,6 +911,23 @@ public class GdxRenderer {
         shapes.setColor(gdxColor());
         shapes.ellipse(x, y, w, h);
     }
+
+    /** Directional arrow/triangle markers (▼▲◀▶), for UI cues where a font glyph would be used on
+     *  most fonts — this project's pixel font (Pixeloid Sans, 107 glyphs) doesn't contain them, so
+     *  they're drawn as real triangles instead of a missing-glyph box. */
+    public enum TriangleDir { UP, DOWN, LEFT, RIGHT }
+
+    /** Fills a small triangle pointing `dir`, inscribed in the box (x,y,w,h) — y-down screen space. */
+    public void fillTriangle(TriangleDir dir, int x, int y, int w, int h) {
+        useShape(ShapeRenderer.ShapeType.Filled);
+        shapes.setColor(gdxColor());
+        switch (dir) {
+            case UP    -> shapes.triangle(x, y + h, x + w, y + h, x + w / 2f, y);
+            case DOWN  -> shapes.triangle(x, y, x + w, y, x + w / 2f, y + h);
+            case LEFT  -> shapes.triangle(x + w, y, x + w, y + h, x, y + h / 2f);
+            case RIGHT -> shapes.triangle(x, y, x, y + h, x + w, y + h / 2f);
+        }
+    }
     /**
      * Blocky, pixel-art oval: stamped from coarse rect "pixels" (stepW x stepH logical px) instead of
      * a smooth ShapeRenderer ellipse, so it reads as hand-drawn pixel art like the rest of the game's

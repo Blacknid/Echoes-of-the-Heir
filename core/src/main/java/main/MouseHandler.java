@@ -110,6 +110,7 @@ public class MouseHandler implements InputProcessor {
             case GamePanel.optionsState   -> hoverOptions();
             case GamePanel.journalState   -> hoverJournal();
             case GamePanel.skillTreeState -> hoverSkillTree();
+            case GamePanel.shopState      -> hoverShop();
         }
     }
 
@@ -129,6 +130,7 @@ public class MouseHandler implements InputProcessor {
             case GamePanel.optionsState   -> clickOptions();
             case GamePanel.journalState   -> {} // hover selects; no confirm action
             case GamePanel.skillTreeState -> clickSkillTree();
+            case GamePanel.shopState      -> clickShop();
             case GamePanel.playState      -> clickWorld();
         }
     }
@@ -282,7 +284,12 @@ public class MouseHandler implements InputProcessor {
 
     private void hoverInventory() {
         int[] slot = inventorySlotUnderMouse();
-        if (slot != null) { gp.ui.slotCol = slot[0]; gp.ui.slotRow = slot[1]; }
+        if (slot != null) {
+            gp.ui.slotCol = slot[0]; gp.ui.slotRow = slot[1];
+            gp.ui.selectionVisible = true;
+        } else {
+            gp.ui.selectionVisible = false;
+        }
     }
 
     private void clickInventory() {
@@ -459,6 +466,40 @@ public class MouseHandler implements InputProcessor {
         int fh     = Math.min(660, (int)(gp.screenHeight * 0.92f));
         int backY  = frameY + fh - 68 + 46;
         return gameY >= backY - 28 && gameY < backY + 8;
+    }
+
+    private void hoverShop() {
+        if (gp.ui.isShopPromptActive()) return; // single button, click is enough
+        int i = gp.ui.shopGridItemUnderMouse(gameX, gameY);
+        if (i >= 0) {
+            gp.ui.setShopSelectedRow(i);
+            gp.ui.selectionVisible = true;
+        } else {
+            gp.ui.selectionVisible = false;
+        }
+    }
+
+    private void clickShop() {
+        if (gp.ui.isShopPromptActive()) {
+            // Click the button to enter; clicking anywhere else means "not interested" — leave,
+            // same as any non-confirm keypress (see KeyHandler.handleShopState).
+            if (gp.ui.shopPromptButtonUnderMouse(gameX, gameY)) {
+                gp.ui.confirmShopPrompt();
+            } else {
+                gp.ui.closeShop();
+                gp.playSE(audio.SFX.MENU_SELECT);
+            }
+            return;
+        }
+        int tab = gp.ui.shopTabUnderMouse(gameX, gameY);
+        if (tab >= 0) {
+            if ((tab == 1) != gp.ui.shopSellTab) gp.ui.switchShopTab();
+            return;
+        }
+        int i = gp.ui.shopGridItemUnderMouse(gameX, gameY);
+        if (i < 0) return;
+        gp.ui.setShopSelectedRow(i);
+        gp.ui.activateShopSelection();
     }
 
     private void hoverOptions() {

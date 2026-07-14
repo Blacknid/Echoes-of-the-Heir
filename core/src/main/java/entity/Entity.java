@@ -323,6 +323,11 @@ public class Entity {
     public int     giveItem2DialogueSet = -1;   // dialogue set played while giving item 2 (-1 = use walkToDialogueSet)
     public boolean giveItem2Given       = false; // true after item 2 was given
 
+    // ── SHOP SYSTEM ── (null shopItems = this NPC is not a vendor)
+    public java.util.List<ui.ShopListing> shopItems = null; // stock for sale, set by NPCFactory from npcs.json "shop.items"
+    public float   shopSellMultiplier   = 0.5f;  // fraction of listed price paid when the PLAYER sells TO this vendor
+    public String  shopId               = null;  // key used to persist remaining stock across saves (defaults to objectId)
+
     // ── MEMORY FRAGMENT SYSTEM ──
     public String   
     memoryFragmentId   = null;   // unique ID (e.g. "kings_face")

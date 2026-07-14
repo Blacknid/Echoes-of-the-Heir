@@ -146,6 +146,8 @@
     "preferredDist": 4,
     "fleeDist": 2,
     "phasingCycleDuration": 180,
+    "lightRadius": 3,
+    "lightColor": "#6688FF",
     "deathCoins": 1,
     "deathQuestKills": 1
   },

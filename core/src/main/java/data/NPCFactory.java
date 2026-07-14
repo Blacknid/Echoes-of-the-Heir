@@ -302,6 +302,22 @@ public class NPCFactory {
         String objId = def.props.get("objectId");
         npc.objectId = (objId != null && !objId.isBlank()) ? objId : id;
 
+        if (def.shop != null) {
+            npc.shopSellMultiplier = def.shop.sellMultiplier;
+            npc.shopId = npc.objectId;
+            // Rebuild fresh ShopListing instances per NPC spawn (defs are shared/cached) and
+            // restore any previously-purchased stock from gp.shopStock (see UI.buyItem/sellItem).
+            npc.shopItems = new ArrayList<>();
+            for (ui.ShopListing src : def.shop.items) {
+                ui.ShopListing listing = new ui.ShopListing(src.itemId, src.price, src.maxStock);
+                if (!listing.infinite()) {
+                    Integer saved = gp.shopStock.get(npc.shopId + ":" + listing.itemId);
+                    if (saved != null) listing.stock = saved;
+                }
+                npc.shopItems.add(listing);
+            }
+        }
+
         npc.syncQuestDrivenNpcState();
         return npc;
     }
@@ -311,6 +327,12 @@ public class NPCFactory {
         HashMap<String, ActivityDef> activities = new HashMap<>();
         LinkedHashMap<String, ArrayList<String>> dialogues = new LinkedHashMap<>();
         ArrayList<StateDef> states = new ArrayList<>();
+        ShopDef shop = null;
+    }
+
+    private static class ShopDef {
+        float sellMultiplier = 0.5f;
+        ArrayList<ui.ShopListing> items = new ArrayList<>();
     }
 
     private static class ActivityDef {
@@ -424,6 +446,19 @@ public class NPCFactory {
             }
         }
 
+        // Extract "shop": { "sellMultiplier": 0.5, "items": [ {...}, ... ] } block
+        int shopIdx = json.indexOf("\"shop\"");
+        if (shopIdx >= 0) {
+            int shopBrace = json.indexOf('{', shopIdx);
+            if (shopBrace >= 0) {
+                int shopEnd = findMatchingBrace(json, shopBrace);
+                if (shopEnd >= 0) {
+                    parseShop(json.substring(shopBrace + 1, shopEnd), def);
+                    json = json.substring(0, shopIdx) + json.substring(shopEnd + 1);
+                }
+            }
+        }
+
         // Extract "walkFramesPerRow"/"idleFramesPerRow": [n,n,n,n] arrays — flattened into a
         // comma-joined string in props (same idiom MonsterFactory uses for monsters.json's
         // "framesPerRow"), since the generic parseKeyValues below can't handle array values.
@@ -531,6 +566,53 @@ public class NPCFactory {
             }
             def.dialogues.put(setKey, lines);
             i = bracketEnd + 1;
+        }
+    }
+
+    private static void parseShop(String json, NPCDef def) {
+        // { "sellMultiplier": 0.5, "items": [ { "id": "iron_sword", "price": 75 }, ... ] }
+        ShopDef shop = new ShopDef();
+
+        int itemsIdx = json.indexOf("\"items\"");
+        if (itemsIdx >= 0) {
+            int bracketStart = json.indexOf('[', itemsIdx);
+            if (bracketStart >= 0) {
+                int bracketEnd = findMatchingBracket(json, bracketStart);
+                if (bracketEnd >= 0) {
+                    parseShopItems(json.substring(bracketStart + 1, bracketEnd), shop);
+                    json = json.substring(0, itemsIdx) + json.substring(bracketEnd + 1);
+                }
+            }
+        }
+
+        Map<String, String> shopProps = new HashMap<>();
+        parseKeyValues(json, shopProps);
+        shop.sellMultiplier = floatVal(shopProps, "sellMultiplier", 0.5f);
+
+        def.shop = shop;
+    }
+
+    private static void parseShopItems(String json, ShopDef shop) {
+        // Array of listing objects: { "id": "iron_sword", "price": 75, "stock": 5 }, ...
+        int i = 0;
+        while (i < json.length()) {
+            int braceStart = json.indexOf('{', i);
+            if (braceStart < 0) break;
+            int braceEnd = findMatchingBrace(json, braceStart);
+            if (braceEnd < 0) break;
+
+            Map<String, String> itemProps = new HashMap<>();
+            parseKeyValues(json.substring(braceStart + 1, braceEnd), itemProps);
+            String itemId = itemProps.get("id");
+            if (itemId != null && !itemId.isBlank()) {
+                int price = intVal(itemProps, "price", 0);
+                // Omitted "stock" = 1 (single purchase) — explicit opt-in for unlimited restock via
+                // "stock": "infinite" (or the literal -1, which intVal parses fine on its own).
+                String stockRaw = itemProps.get("stock");
+                int stock = "infinite".equalsIgnoreCase(stockRaw) ? -1 : intVal(itemProps, "stock", 1);
+                shop.items.add(new ui.ShopListing(itemId, price, stock));
+            }
+            i = braceEnd + 1;
         }
     }
 

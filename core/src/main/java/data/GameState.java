@@ -59,6 +59,9 @@ public class GameState implements Serializable {
     public ArrayList<String> metNPCs = new ArrayList<>();
     public ArrayList<String> completedSideQuests = new ArrayList<>();
 
+    /** Remaining shop stock, encoded as "shopId:itemId=count" (only finite-stock listings appear). */
+    public ArrayList<String> shopStock = new ArrayList<>();
+
     /** Unlocked skill tree node IDs — supersedes the individual boolean fields. */
     public ArrayList<String> unlockedSkillNodes = new ArrayList<>();
     public ArrayList<String> questIds = new ArrayList<>();

@@ -233,6 +233,11 @@ public class SaveLoad {
         gs.openedGates = new java.util.ArrayList<>(gp.openedGates);
         gs.metNPCs    = new java.util.ArrayList<>(gp.metNPCs);
 
+        gs.shopStock = new java.util.ArrayList<>();
+        for (var e : gp.shopStock.entrySet()) {
+            gs.shopStock.add(e.getKey() + "=" + e.getValue());
+        }
+
         gs.timestamp = System.currentTimeMillis();
         return gs;
     }
@@ -242,6 +247,7 @@ public class SaveLoad {
         try {
             StringBuilder sb = new StringBuilder();
 
+            sb.append("timestamp=").append(System.currentTimeMillis()).append('\n');
             sb.append("player.level=").append(gp.player.level).append('\n');
             sb.append("player.maxLife=").append(gp.player.maxLife).append('\n');
             sb.append("player.life=").append(gp.player.life).append('\n');
@@ -326,6 +332,16 @@ public class SaveLoad {
                 sb.append("metNPCs.").append(i).append('=').append(metList.get(i)).append('\n');
             }
 
+            // Remaining shop stock — only present for listings with a finite "stock" in npcs.json
+            // (see ui.ShopListing.infinite()); most shops never touch this.
+            java.util.List<String> stockKeys = new java.util.ArrayList<>(gp.shopStock.keySet());
+            sb.append("shopStock.size=").append(stockKeys.size()).append('\n');
+            for (int i = 0; i < stockKeys.size(); i++) {
+                sb.append("shopStock.").append(i).append(".key=").append(stockKeys.get(i)).append('\n');
+                sb.append("shopStock.").append(i).append(".val=").append(gp.shopStock.get(stockKeys.get(i))).append('\n');
+            }
+
+            sb.append("player.skillPoints=").append(gp.player.skillPoints).append('\n');
             main.SkillTree.SkillNode[] skillNodes = gp.player.skillTree.getNodes();
             int unlockedCount = 0;
             for (main.SkillTree.SkillNode n : skillNodes) { if (n.unlocked) unlockedCount++; }
@@ -354,6 +370,7 @@ public class SaveLoad {
      * Network half of a load: pull the cloud save and parse it, touching NO game state and NO GL
      * resource. Safe — and intended — to call off the render thread, since {@code download()} does a
      * real blocking round trip (pingPool + transfer) that would otherwise freeze the window.
+     * Reading the local timestamp is plain file I/O, so it belongs on this side of the split too.
      *
      * @return the parsed cloud state, or null to mean "use the local save instead".
      */
@@ -361,9 +378,15 @@ public class SaveLoad {
         try {
             CloudSaveService.DownloadResult result = cloudSaveService.download(Main.LICENSE_KEY);
             if (result.ok() && result.json() != null && !result.json().isBlank()) {
-                return parseGameStateJson(result.json());
+                GameState state = parseGameStateJson(result.json());
+                // Cloud is only authoritative if it's actually newer than what's on disk —
+                // otherwise a stale cloud save (e.g. from before this session's progress) would
+                // silently overwrite newer local progress with no error shown. Returning null
+                // hands applyFetched() back to the local save, which is exactly what we want.
+                if (state != null && state.timestamp >= localSaveTimestamp()) return state;
+            } else if (!result.ok()) {
+                System.out.println(result.message());
             }
-            if (!result.ok()) System.out.println(result.message());
         } catch (RuntimeException e) {
             System.out.println("Cloud load failed, falling back to local save: " + e.getMessage());
         }
@@ -382,6 +405,22 @@ public class SaveLoad {
             return;
         }
         loadFromDisk();
+    }
+
+    /** Timestamp of the local save.dat, or 0 if absent/unreadable — so a missing/corrupt local
+     *  file never blocks a valid cloud save from loading. */
+    private long localSaveTimestamp() {
+        if (!GameStorage.exists("save.dat")) return 0L;
+        try (InputStream fis = GameStorage.inputStream("save.dat")) {
+            String plaintext = decrypt(fis.readAllBytes());
+            for (String line : plaintext.split("\n")) {
+                if (line.startsWith("timestamp=")) {
+                    try { return Long.parseLong(line.substring("timestamp=".length()).trim()); }
+                    catch (NumberFormatException ignored) { return 0L; }
+                }
+            }
+        } catch (Exception ignored) { /* unreadable/legacy save — treat as oldest */ }
+        return 0L;
     }
 
     private void loadFromDisk() {
@@ -525,11 +564,30 @@ public class SaveLoad {
                 if (mid != null && !mid.isBlank()) gp.metNPCs.add(mid);
             }
 
+            int stockSize = Integer.parseInt(map.getOrDefault("shopStock.size", "0"));
+            gp.shopStock.clear();
+            for (int i = 0; i < stockSize; i++) {
+                String key = map.get("shopStock." + i + ".key");
+                String val = map.get("shopStock." + i + ".val");
+                if (key != null && !key.isBlank() && val != null) {
+                    try { gp.shopStock.put(key, Integer.parseInt(val)); } catch (NumberFormatException ignored) {}
+                }
+            }
+
             int stSize = Integer.parseInt(map.getOrDefault("skilltree.size", "0"));
             for (int i = 0; i < stSize; i++) {
                 String nid = map.get("skilltree." + i);
-                if (nid != null && !nid.isBlank()) gp.player.skillTree.markUnlocked(nid);
+                if (nid != null && !nid.isBlank()) {
+                    gp.player.skillTree.markUnlocked(nid);
+                    // markUnlocked() only flips the node's visual "unlocked" flag — it deliberately
+                    // skips applySkillNodeEffect() to avoid double-applying stat bonuses if called
+                    // mid-session. On a fresh load this is the ONLY place the node's actual gameplay
+                    // effect (dashUnlocked, shockwaveUnlocked, stat bonuses, ...) gets (re)applied —
+                    // skip it and e.g. WINDSTEP shows unlocked in the UI but dash still doesn't work.
+                    gp.player.applySkillNodeEffect(nid);
+                }
             }
+            gp.player.skillPoints = Integer.parseInt(map.getOrDefault("player.skillPoints", "0"));
 
         } catch (java.io.IOException | java.security.GeneralSecurityException | RuntimeException e) {
             System.out.println("Load from disk failed: " + e.getMessage());
@@ -692,6 +750,16 @@ public class SaveLoad {
                 if (fid != null && !fid.isBlank()) {
                     gp.memoryJournal.addById(fid);
                 }
+            }
+        }
+
+        gp.shopStock.clear();
+        if (state.shopStock != null) {
+            for (String entry : state.shopStock) {
+                int eq = entry.lastIndexOf('=');
+                if (eq <= 0) continue;
+                try { gp.shopStock.put(entry.substring(0, eq), Integer.parseInt(entry.substring(eq + 1))); }
+                catch (NumberFormatException ignored) {}
             }
         }
 
