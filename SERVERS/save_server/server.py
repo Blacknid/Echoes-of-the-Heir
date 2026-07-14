@@ -1099,7 +1099,12 @@ def handle_client(conn: socket.socket, addr: tuple[str, int],
                     logging.info("Activation refused from %s — itch user %s does not own the game",
                                  client_ip, who)
                     return
-                itch_user_id = int(who.rsplit("#", 1)[1])
+                # The owner-secret bypass has no real itch account behind it ("owner (secret
+                # bypass)" has no "#<id>") — leave itch_user_id as None, same as a pre-gate
+                # license or an unconfigured gate. Only a genuine itch identity (username#id)
+                # gets recorded against the one-license-per-itch-account unique index.
+                if "#" in who:
+                    itch_user_id = int(who.rsplit("#", 1)[1])
                 logging.info("itch.io purchase verified for %s (ip=%s)", who, client_ip)
             elif not cfg.get("dev_mode", False):
                 # Unconfigured in production = the old broken behaviour (free licenses for
