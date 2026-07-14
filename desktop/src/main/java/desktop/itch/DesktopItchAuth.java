@@ -39,10 +39,10 @@ public final class DesktopItchAuth implements ItchAuthProvider {
      * Public by design — a client id is not a secret. The API key that actually proves
      * ownership is a different value entirely and never leaves the server.
      *
-     * <p>TODO: fill this in once the OAuth app exists on itch. While it is blank the purchase
-     * check is skipped, which only works against a server with its itch gate switched off.
+     * <p>While it is blank the purchase check is skipped, which only works against a server
+     * with its itch gate switched off.
      */
-    private static final String ITCH_CLIENT_ID_BAKED = "";
+    private static final String ITCH_CLIENT_ID_BAKED = "00477f3fb217b3b7fc21fb520c5a65b3";
 
     /** Overridable with {@code -Dmichi.itch.clientId=...} for testing against a second app. */
     private static final String CLIENT_ID =
@@ -52,6 +52,13 @@ public final class DesktopItchAuth implements ItchAuthProvider {
     private static final String SCOPE = "profile:me";
 
     private static final int AUTH_TIMEOUT_SECONDS = 180;
+
+    /**
+     * itch.io validates redirect_uri with an exact string match — it does NOT accept a
+     * registered "http://127.0.0.1/" on an arbitrary port. Must match the redirect URI
+     * registered on the OAuth application exactly, port included.
+     */
+    private static final int REDIRECT_PORT = 34567;
 
     @Override
     public String authorize() {
@@ -67,10 +74,7 @@ public final class DesktopItchAuth implements ItchAuthProvider {
 
         HttpServer server = null;
         try {
-            // Port 0 = the OS picks a free one. Register "http://127.0.0.1/" as the redirect URI
-            // on the itch OAuth app; itch then accepts it on any port, which is what lets this
-            // listener be ephemeral rather than a fixed, permanently-open port.
-            server = HttpServer.create(new InetSocketAddress("127.0.0.1", 0), 0);
+            server = HttpServer.create(new InetSocketAddress("127.0.0.1", REDIRECT_PORT), 0);
             final int port = server.getAddress().getPort();
             final String redirectUri = "http://127.0.0.1:" + port + "/";
 

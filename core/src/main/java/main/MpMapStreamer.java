@@ -162,11 +162,11 @@ public class MpMapStreamer {
             // single-player /res/maps/ layout.
             gp.mapManager.registerMap(mapId, virtualPath);
 
-            // Run the map switch on the EDT-friendly path: GamePanel.update is
-            // single-threaded with the receive thread already, but to be safe
-            // we just call changeMap directly &mdash; the tile arrays it
-            // builds are populated with zeros (since the skeleton has empty
-            // CSV blocks) which matches our "nothing loaded yet" state.
+            // Caller (MultiplayerClient.handleWorldInfo) must invoke this via
+            // Gdx.app.postRunnable — changeMap() loads tileset textures, which are GL calls
+            // and illegal off the render thread. The tile arrays it builds are populated with
+            // zeros (since the skeleton has empty CSV blocks), matching our "nothing loaded yet"
+            // state until chunks start arriving.
             gp.mapManager.changeMap(mapId, spawnCol, spawnRow);
             // Snap player to TMX default spawn for now; finishWorldLoad() will
             // override with the per-player welcomeSpawn once all chunks arrive.
@@ -256,7 +256,11 @@ public class MpMapStreamer {
 
         int got = chunksReceived.incrementAndGet();
         if (got >= totalChunksExpected && totalChunksExpected > 0) {
-            finishWorldLoad();
+            // finishWorldLoad() resets player state (entity/projectile construction bakes GL
+            // textures, e.g. OBJ_Arrow's rotated pixmaps) and bakes the minimap terrain image —
+            // both illegal off the render thread. applyChunk() itself runs on MP-Receive for
+            // every packet, so only this tail call is deferred, not the whole hot path.
+            com.badlogic.gdx.Gdx.app.postRunnable(this::finishWorldLoad);
         }
     }
 
