@@ -128,6 +128,13 @@ DEFAULT_CONFIG = {
     # developer/admin never holds one for their own game, so without this the owner is
     # permanently locked out of their own gated build. Comma-separated if there's more than one.
     "itch_owner_user_ids": "",
+    # A secret the owner generates themselves (NOT an itch token) and passes as the
+    # "itch_token" field to activate without ever going through itch OAuth. Needed because
+    # itch only issues an OAuth access_token to accounts that BUY the game through the
+    # storefront — the developer's own account never gets one, so itch_owner_user_ids alone
+    # is unreachable for the owner (it's only checked after a token identifies a user_id).
+    # Leave empty to disable this path entirely.
+    "itch_owner_secret": "",
     "itch_api_timeout_seconds": 10,
     "rate_limit_per_ip_per_minute": 30,
     "max_concurrent_connections": 200,
@@ -181,6 +188,8 @@ def load_config() -> dict:
         cfg["itch_game_id"] = 0
     cfg["itch_owner_user_ids"] = (os.environ.get("MICHI_ITCH_OWNER_USER_IDS", "").strip()
                                   or cfg.get("itch_owner_user_ids", ""))
+    cfg["itch_owner_secret"] = (os.environ.get("MICHI_ITCH_OWNER_SECRET", "").strip()
+                               or cfg.get("itch_owner_secret", ""))
     return cfg
 
 
@@ -387,6 +396,15 @@ def itch_verify_purchase(cfg: dict, oauth_token: str) -> tuple[bool, str]:
     timeout = float(cfg.get("itch_api_timeout_seconds", 10))
     api_key = str(cfg.get("itch_api_key", ""))
     game_id = int(cfg.get("itch_game_id") or 0)
+
+    # Owner activation without itch OAuth at all. itch only hands out an access_token to
+    # accounts that bought the game through the storefront — the developer's own account
+    # never gets one, so the itch_owner_user_ids bypass below (which needs a token to
+    # resolve a user_id in the first place) is unreachable for the owner. This lets the
+    # owner activate with a secret they generate themselves instead of an itch token.
+    owner_secret = str(cfg.get("itch_owner_secret", ""))
+    if owner_secret and oauth_token == f"ownerkey:{owner_secret}":
+        return True, "owner (secret bypass)"
 
     if not oauth_token or not _ITCH_TOKEN_RE.match(oauth_token):
         return False, "malformed-token"

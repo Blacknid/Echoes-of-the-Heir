@@ -85,6 +85,20 @@ A client id is **not** a secret — it is meant to ship inside the game.
   `https://itch.io/api/1/key/me` (or the OAuth `/me` response) and put it in
   `MICHI_ITCH_OWNER_USER_IDS` (comma-separated if more than one admin/tester needs it).
 
+  **This alone is not enough for the owner to actually activate**, though: itch's OAuth
+  implicit-grant flow only issues an `access_token` to accounts that bought the game
+  through the storefront. The developer's own account never gets one, so the browser
+  flow in `DesktopItchAuth` has nothing to send — `ITCH_OWNER_USER_IDS` is checked only
+  *after* a token identifies a `user_id`, so it's unreachable for the owner on its own.
+
+  Instead, generate your own secret and set `MICHI_ITCH_OWNER_SECRET`:
+  ```bash
+  python -c "import secrets; print(secrets.token_urlsafe(24))"
+  ```
+  Then launch the game with `-Dmichi.itch.ownerSecret=<the same value>` — this activates
+  without ever going through itch OAuth. Keep this secret private; anyone who has it can
+  activate as the owner.
+
 ### 3. Fill in the server secrets
 
 On the VPS, in `SERVERS/`:
@@ -102,6 +116,7 @@ MICHI_INTERNAL_API_KEY=<paste the generated value>
 MICHI_ITCH_API_KEY=<your itch.io API key>
 MICHI_ITCH_GAME_ID=<your numeric game id>
 MICHI_ITCH_OWNER_USER_IDS=<your numeric itch user id, comma-separated if more than one>
+MICHI_ITCH_OWNER_SECRET=<a secret you generate — see above; lets you activate without itch OAuth>
 
 MICHI_ADMIN_PASSWORD=<a strong password, or leave empty to disable the dashboard>
 ```

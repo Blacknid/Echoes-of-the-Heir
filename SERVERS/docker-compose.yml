@@ -57,6 +57,8 @@ services:
       MICHI_ITCH_GAME_ID: "${MICHI_ITCH_GAME_ID:-}"
       # Owner/admin itch user id(s) that bypass the download-key check (comma-separated).
       MICHI_ITCH_OWNER_USER_IDS: "${MICHI_ITCH_OWNER_USER_IDS:-}"
+      # Owner-generated secret that activates without itch OAuth at all (see .env.example).
+      MICHI_ITCH_OWNER_SECRET: "${MICHI_ITCH_OWNER_SECRET:-}"
     ports:
       # Public: clients ACTIVATE/LOGIN and sync saves here.
       - "5005:5005"

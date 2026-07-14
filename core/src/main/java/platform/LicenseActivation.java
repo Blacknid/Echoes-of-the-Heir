@@ -131,10 +131,21 @@ public final class LicenseActivation implements LicenseCheck {
         // the license is ours, not itch's, and it keeps working offline forever.
         String itchToken = null;
         if (!isLogin) {
-            itchToken = ItchAuthProvider.tokenOrNull();
-            if (itchToken == null) {
-                System.out.println("[License] No itch.io proof of purchase obtained — the server "
-                        + "will refuse activation if its purchase gate is on.");
+            // Owner-only escape hatch: itch never issues an OAuth access_token to the
+            // developer's own account (only to accounts that bought the game through the
+            // storefront), so the normal browser flow can never activate the owner's install.
+            // Set -Dmichi.itch.ownerSecret=<value> (matching MICHI_ITCH_OWNER_SECRET on the
+            // server) to activate without itch OAuth at all.
+            String ownerSecret = System.getProperty("michi.itch.ownerSecret", "").trim();
+            if (!ownerSecret.isEmpty()) {
+                itchToken = "ownerkey:" + ownerSecret;
+                System.out.println("[License] Using owner secret bypass — skipping itch.io OAuth.");
+            } else {
+                itchToken = ItchAuthProvider.tokenOrNull();
+                if (itchToken == null) {
+                    System.out.println("[License] No itch.io proof of purchase obtained — the server "
+                            + "will refuse activation if its purchase gate is on.");
+                }
             }
         }
 
