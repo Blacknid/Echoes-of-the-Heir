@@ -91,13 +91,21 @@ A client id is **not** a secret — it is meant to ship inside the game.
   flow in `DesktopItchAuth` has nothing to send — `ITCH_OWNER_USER_IDS` is checked only
   *after* a token identifies a `user_id`, so it's unreachable for the owner on its own.
 
-  Instead, generate your own secret and set `MICHI_ITCH_OWNER_SECRET`:
+  Instead, generate your own secret, set `MICHI_ITCH_OWNER_SECRET` on the server, and drop
+  the *same* value into a file named `owner_secret.dat` next to the game's executable
+  (same folder as `activation.dat`/`save_servers.txt` — on Android, app-private storage):
   ```bash
   python -c "import secrets; print(secrets.token_urlsafe(24))"
   ```
-  Then launch the game with `-Dmichi.itch.ownerSecret=<the same value>` — this activates
-  without ever going through itch OAuth. Keep this secret private; anyone who has it can
-  activate as the owner.
+  ```
+  owner_secret.dat:
+  <the value you just generated>
+  ```
+  If that file is present, the game reads it and activates without ever going through itch
+  OAuth — no code, no system property, nothing hardcoded into the client. It's covered by
+  the repo's blanket `*.dat` gitignore rule, so it's never committed; back it up yourself
+  (it's just a one-line text file) since deleting it means re-activating some other way.
+  Keep it private — anyone who has it can activate as the owner.
 
 ### 3. Fill in the server secrets
 
