@@ -642,7 +642,10 @@ public class MultiplayerClient {
                 return;
             }
             info.skeletonXmlBytes = Base64.getDecoder().decode(skeletonB64);
-            mapStreamer.applyWorldInfo(info);
+            // applyWorldInfo() loads tileset textures (GL calls), which are only legal on the
+            // render thread — this handler runs on MP-Receive and would otherwise abort the JVM
+            // ("No context is current") the moment a map is streamed in.
+            com.badlogic.gdx.Gdx.app.postRunnable(() -> mapStreamer.applyWorldInfo(info));
         } catch (Exception e) {
             System.out.println("[MP Client] handleWorldInfo error: " + e.getMessage());
             e.printStackTrace(System.out);
