@@ -547,6 +547,14 @@ public class Entity {
     public boolean tryDodgeIncomingHit() { return false; }
     public boolean use(Entity entity) { return false; }
     public void startDialogue(Entity entity, int setNum) {
+        // Server-hosted NPC mid-interaction: its dialogue text lives on the server and hasn't
+        // arrived yet, so opening the box now would show an empty or stale set. Quest steps reach
+        // here via their no-named-dialogue fallback; let them fall through to the server's own
+        // choice of line instead. applyServerDialogue() calls this again once the lines land, by
+        // which point awaitingServerDialogue is false and this guard is out of the way.
+        if (entity instanceof NPC_Generic g && g.serverDriven && g.awaitingServerDialogue) {
+            return;
+        }
         gp.gameState = GamePanel.dialogueState;
         gp.ui.npc = entity;
         dialogueSet = setNum;
@@ -616,6 +624,13 @@ public class Entity {
 
     /** Start dialogue by named key. Resolves via dialogueNameMap, falls back to parseInt, then 0. */
     public void startNamedDialogue(Entity entity, String dialogueName) {
+        // Server-hosted NPC: we don't have the lines, the server does. Record which named set was
+        // asked for (NPC_Generic.speak sends it with npc_interact) instead of opening a box on
+        // dialogue text this process never received.
+        if (entity instanceof NPC_Generic g && g.serverDriven) {
+            g.serverDialogueRequest = dialogueName;
+            return;
+        }
         if (dialogueName == null) { startDialogue(entity, 0); return; }
         if (entity.dialogueNameMap != null) {
             Integer idx = entity.dialogueNameMap.get(dialogueName);

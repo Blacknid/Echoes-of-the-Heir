@@ -407,8 +407,11 @@ public class GamePanel {
     detectAndSetRefreshRate();
     setVSync(vSyncOn);
 
-    mapShader = new MapShaderManager(this);
-    mapShader.setup();
+    // Shaders, vignette bake, gradient textures — all GL, all purely visual. The server skips it.
+    if (!Headless.isEnabled()) {
+        mapShader = new MapShaderManager(this);
+        mapShader.setup();
+    }
 
     tileParticleEmitter = new environment.TileParticleEmitter(this);
 
@@ -417,8 +420,13 @@ public class GamePanel {
         15, 10
     );
 
-    minimap = new Minimap(this);
-    minimap.bakeTerrainImage();
+    // Purely visual: the minimap bakes a terrain texture, which is GPU work the simulation never
+    // consults. The authoritative server skips it (see main.Headless) and leaves the field null —
+    // safe because every caller already null-checks it (KeyHandler, RenderPipeline, reloadMap).
+    if (!Headless.isEnabled()) {
+        minimap = new Minimap(this);
+        minimap.bakeTerrainImage();
+    }
 
     questManager = new QuestManager(this);
 
@@ -445,7 +453,11 @@ public class GamePanel {
         new String[]{"Echo is one of the most feared Phantoms of this Realm," , "due to his teleportation moves and aggrive bites.", "He is the weakest brother.", "To this day, it's still unknown how many of his type are there.", "Also known as 'Echo, the Unseen'."},
         6, "Unknown", 5f);
 
-    renderPipeline = new RenderPipeline(this);
+    // Rendering only — the server never calls drawCurrentState(), so it never needs the pipeline
+    // (which builds shaders and framebuffers, i.e. GL objects it has no context for).
+    if (!Headless.isEnabled()) {
+        renderPipeline = new RenderPipeline(this);
+    }
     // GPU port: no Sprite back-buffer — MichiGame renders to the screen via GdxRenderer.
     }
 
@@ -839,19 +851,25 @@ public class GamePanel {
                     }
                 }
             }
-            eManager.update();
-            windField.update();
-            windPainter.update();
-            cloudLayer.update();
-            dustFogLayer.update();
-            fireflyLayer.update();
-            tensionBeats.update();
+            // Atmosphere: clouds, fog, fireflies, wind, music tension. None of it changes a
+            // gameplay outcome — it only decides what the frame looks and sounds like — and all of
+            // it lazily bakes GPU textures. The authoritative server has no frame and no GL, so it
+            // skips the lot; everything below this block (spawning, events, entities) it still runs.
+            if (!Headless.isEnabled()) {
+                eManager.update();
+                windField.update();
+                windPainter.update();
+                cloudLayer.update();
+                dustFogLayer.update();
+                fireflyLayer.update();
+                tensionBeats.update();
+            }
             mobSpawner.update();
             eHandler.updateSpawnZones();
             tileM.update();
             syncRemotePlayerEntities();
 
-            if (eManager.lightning != null) {
+            if (!Headless.isEnabled() && eManager.lightning != null) {
                 eManager.lightning.clearLights();
                 eManager.lightning.addLight(
                     player.worldX + tileSize / 2, player.worldY + tileSize / 2,

@@ -61,6 +61,7 @@ from cryptography.hazmat.primitives.asymmetric import padding as rsa_padding
 from cryptography.hazmat.primitives.ciphers.aead import AESGCM
 from cryptography.hazmat.primitives.kdf.hkdf import HKDF
 
+from npc import NpcCatalog, NpcWorld, PlayerProgress
 from world import MapCollection, TmxMap
 
 
@@ -377,6 +378,14 @@ class PlayerState:
     last_valid_y: int = 0
     vx: float = 0.0  # velocity in px/tick at last broadcast
     vy: float = 0.0
+    # Everything an NPC condition can ask about this player (level, quests, bosses,
+    # fragments, met-NPCs) plus their shop stock — held HERE so a client cannot claim
+    # progress it doesn't have. See npc.PlayerProgress.
+    progress: PlayerProgress = field(default_factory=PlayerProgress)
+    # Instance id of the NPC this player is currently talking to / shopping with, set by
+    # npc_interact. Buy/sell are only honoured against this NPC, so a client can't shop at
+    # a vendor it never walked up to.
+    active_npc_id: int = -1
 
     def to_dict(self) -> dict:
         return {
@@ -413,6 +422,15 @@ class PlayerState:
             "skillPoints":  self.skill_points,
         }
 
+    def progress_to_dict(self) -> dict:
+        return self.progress.to_dict()
+
+    def load_progress_from_dict(self, d: dict) -> None:
+        self.progress.load_from_dict(d)
+        # PlayerState.level is the authoritative one (it drives combat/XP); mirror it into
+        # progress so "requiredLevel" states read the same number rather than a stale copy.
+        self.progress.level = self.level
+
     def load_from_dict(self, d: dict) -> None:
         self.level         = clamp_int(d.get("level"),         1,    9999, DEFAULT_LEVEL)
         self.max_life      = clamp_int(d.get("maxLife"),       1,    9999, DEFAULT_MAX_LIFE)
@@ -425,6 +443,7 @@ class PlayerState:
         self.next_level_exp= clamp_int(d.get("nextLevelExp"),  1,    999999999, DEFAULT_NEXT_LVL)
         self.coin          = clamp_int(d.get("coin"),          0,    999999999, DEFAULT_COIN)
         self.skill_points  = clamp_int(d.get("skillPoints"),   0,    9999,      DEFAULT_SKILL_PTS)
+        self.progress.level = self.level
 
 
 @dataclass
@@ -574,6 +593,11 @@ class GameServer:
                 f"Active map '{active_map_id}' not found in maps_dir. "
                 f"Available: {maps.list_ids()}"
             )
+        # NPCs are hosted here, not on the client: definitions come from this server's own
+        # npcs.json and placements from the active map's "NPCs" objectgroup. The client is sent
+        # only what it needs to draw them (see NpcInstance.spawn_message).
+        self.npc_catalog = NpcCatalog()
+        self.npc_world = NpcWorld(self.npc_catalog, self.world)
         self.clients: dict[int, ClientConnection] = {}
         self._next_id = 1
         self._running = False
@@ -611,9 +635,13 @@ class GameServer:
         saved = self._player_data.get(player.license_key)
         if saved:
             player.load_from_dict(saved)
+            # load_from_dict first: it sets level, which load_progress_from_dict mirrors.
+            player.load_progress_from_dict(saved.get("progress", {}))
 
     async def _persist_stats(self, player: PlayerState) -> None:
-        self._player_data[player.license_key] = player.stats_to_dict()
+        record = player.stats_to_dict()
+        record["progress"] = player.progress_to_dict()
+        self._player_data[player.license_key] = record
         await self._save_player_data()
 
     def broadcast_json(self, obj: dict, exclude_id: int = -1) -> None:
@@ -936,6 +964,12 @@ class GameServer:
 
         client.send_json(self.world.info_message())
 
+        # NPCs are ours, not the client's. Send the presentation half of each placed NPC so
+        # the client can draw it; its dialogue, its shop and which state it's in stay here
+        # and are answered per-interaction (see _handle_npc_interact).
+        for spawn in self.npc_world.spawn_messages():
+            client.send_json(spawn)
+
         self.broadcast_json({
             "type": "player_join",
             "id": player.player_id,
@@ -991,6 +1025,21 @@ class GameServer:
 
                 elif t == "mob_death":
                     self._handle_mob_death(client, msg)
+
+                elif t == "progress_sync":
+                    self._handle_progress_sync(client, msg)
+
+                elif t == "npc_interact":
+                    self._handle_npc_interact(client, msg)
+
+                elif t == "npc_leave":
+                    player.active_npc_id = -1
+
+                elif t == "shop_buy":
+                    self._handle_shop_buy(client, msg)
+
+                elif t == "shop_sell":
+                    self._handle_shop_sell(client, msg)
 
                 else:
                     log.debug("Unknown msg type from pid=%s: %s",
@@ -1177,6 +1226,177 @@ class GameServer:
         })
 
         log.debug("Mob %d (%s) killed by player %d", mob_id, mob.mob_type, client.player.player_id)
+
+    # =====================================================================
+    #  SERVER-HOSTED NPCs
+    # =====================================================================
+
+    # An interaction is only honoured if the player is actually standing next to the NPC.
+    # The client asks "let me talk to NPC 7" and we check that for ourselves — otherwise a
+    # client could shop from across the map, or from a vendor it has never met.
+    NPC_INTERACT_RANGE_PX = 160
+
+    def _npc_in_reach(self, player: PlayerState, inst) -> bool:
+        dx = player.x - inst.world_x
+        dy = player.y - inst.world_y
+        return dx * dx + dy * dy <= self.NPC_INTERACT_RANGE_PX ** 2
+
+    def _handle_progress_sync(self, client: "ClientConnection", msg: dict) -> None:
+        """The client reporting its quest/boss/fragment progress, which NPC states gate on
+        (requiredQuestComplete, requiredBoss, requiredFragments, ...).
+
+        Be clear about what this is and isn't. XP, quests and boss kills are still simulated on
+        the client, so this is REPORTED progress, not verified progress: a modified client can
+        claim it finished a quest and unlock the dialogue behind it. What it CANNOT do is give
+        itself gold or items — coin balance and shop stock live on the server and are only ever
+        changed by _handle_shop_buy/_handle_shop_sell, which never read anything from here.
+
+        So the valuable half (economy) is authoritative today; closing the rest means moving
+        quests and XP server-side too, which is a much bigger change than hosting the NPCs.
+        """
+        progress = client.player.progress
+
+        quests = msg.get("quests")
+        if isinstance(quests, dict):
+            progress.quests = {str(k)[:64]: bool(v) for k, v in list(quests.items())[:256]}
+
+        bosses = msg.get("bossesDefeated")
+        if isinstance(bosses, list):
+            progress.bosses_defeated = {
+                b for b in (clamp_int(x, 0, 99, -1) for x in bosses[:32]) if b >= 0
+            }
+
+        fragments = msg.get("fragments")
+        if isinstance(fragments, list):
+            progress.fragments = {str(f)[:64] for f in fragments[:256]}
+
+        met = msg.get("metNPCs")
+        if isinstance(met, list):
+            progress.met_npcs = {str(n)[:64] for n in met[:256]}
+
+        progress.story_act = clamp_int(msg.get("storyAct"), 0, 99, progress.story_act)
+        # Level is the server's own number (it drives combat), not the client's claim.
+        progress.level = client.player.level
+
+    def _handle_npc_interact(self, client: "ClientConnection", msg: dict) -> None:
+        """The player walked up to an NPC and pressed talk. WE decide what it says: the
+        activity state is resolved against this player's server-held progress, and the
+        chosen dialogue lines are the only ones that ever go over the wire."""
+        player = client.player
+        npc_id = clamp_int(msg.get("npc_id"), 0, 99999, -1)
+        inst = self.npc_world.get(npc_id)
+        if inst is None:
+            return
+        if not self._npc_in_reach(player, inst):
+            log.debug("pid=%s tried to interact with NPC %s out of range",
+                      player.player_id, npc_id)
+            # Answer anyway, with no lines. The client blocks further interacts on this NPC
+            # until it hears back (NPC_Generic.awaitingServerDialogue), so staying silent here
+            # would leave a legitimately-out-of-range player permanently unable to talk to it.
+            client.send_json({"type": "npc_dialogue", "id": npc_id, "lines": []})
+            return
+
+        player.active_npc_id = npc_id
+        # Level lives on PlayerState (it drives combat and is persisted with the stats); mirror
+        # the current value in before resolving, so a "requiredLevel" state sees the real number
+        # rather than whatever it was at login.
+        player.progress.level = player.level
+        state, lines = self.npc_world.dialogue_for(inst, player.progress)
+
+        # A quest step on the client can ask for a specific named line ("thanks", "cave_done").
+        # Honour it only if THIS NPC actually defines that key — the client names a set, it never
+        # supplies text, so the worst a modified client can do is play one of this NPC's own
+        # lines out of order.
+        requested = str(msg.get("dialogue", ""))[:64]
+        if requested:
+            quest_lines = inst.definition.dialogue_lines(requested)
+            if quest_lines:
+                lines = quest_lines
+            else:
+                log.debug("pid=%s requested unknown dialogue %r on NPC %s",
+                          player.player_id, requested, inst.object_id)
+
+        if state is not None and state.marks_npc_met:
+            player.progress.met_npcs.add(inst.object_id)
+
+        out = {
+            "type": "npc_dialogue",
+            "id": npc_id,
+            "lines": lines,
+            "state": state.state_id if state is not None else "",
+            "animation": (state.animation if state is not None else None) or "",
+            "direction": state.direction if state is not None else -1,
+            "stationary": bool(state.stationary) if state is not None else False,
+        }
+        # Where the state wants this NPC to stand (a blacksmith steps to the anvil once the
+        # ore quest is done). Offsets are relative to the spawn tile, matching npcs.json.
+        if state is not None:
+            if state.pos_col >= 0 and state.pos_row >= 0:
+                out["pos_col"] = state.pos_col
+                out["pos_row"] = state.pos_row
+            elif state.offset_col or state.offset_row:
+                out["pos_col"] = inst.spawn_col + state.offset_col
+                out["pos_row"] = inst.spawn_row + state.offset_row
+        client.send_json(out)
+
+        shop = self.npc_world.shop_message(inst, player.progress)
+        if shop is not None:
+            client.send_json(shop)
+
+    def _active_shop_npc(self, client: "ClientConnection"):
+        """The NPC this player is currently shopping with, or None. Buy/sell are only valid
+        against the NPC the player opened via npc_interact and is still standing next to."""
+        player = client.player
+        if player.active_npc_id < 0:
+            return None
+        inst = self.npc_world.get(player.active_npc_id)
+        if inst is None or inst.definition.shop is None:
+            return None
+        if not self._npc_in_reach(player, inst):
+            return None
+        return inst
+
+    def _handle_shop_buy(self, client: "ClientConnection", msg: dict) -> None:
+        player = client.player
+        inst = self._active_shop_npc(client)
+        if inst is None:
+            client.send_json({"type": "shop_result", "ok": False,
+                              "msg": "You're not at a shop."})
+            return
+        item_id = str(msg.get("itemId", ""))[:64]
+        qty = clamp_int(msg.get("qty"), 1, 99, 1)
+
+        ok, message = self.npc_world.buy(inst, player.progress, player, item_id, qty)
+        client.send_json({"type": "shop_result", "ok": ok, "msg": message,
+                          "action": "buy", "itemId": item_id, "qty": qty if ok else 0})
+        if ok:
+            # Gold and stock both changed server-side — push the truth back rather than
+            # letting the client compute it. This is the whole point of the exercise.
+            client.send_json({"type": "player_stats", **player.stats_to_dict()})
+            shop = self.npc_world.shop_message(inst, player.progress)
+            if shop is not None:
+                client.send_json(shop)
+            log.info("[SHOP] %s bought %dx %s from %s (coin=%d)",
+                     player.name, qty, item_id, inst.object_id, player.coin)
+
+    def _handle_shop_sell(self, client: "ClientConnection", msg: dict) -> None:
+        player = client.player
+        inst = self._active_shop_npc(client)
+        if inst is None:
+            client.send_json({"type": "shop_result", "ok": False,
+                              "msg": "You're not at a shop."})
+            return
+        item_id = str(msg.get("itemId", ""))[:64]
+        qty = clamp_int(msg.get("qty"), 1, 99, 1)
+
+        ok, message, payout = self.npc_world.sell(inst, player.progress, player, item_id, qty)
+        client.send_json({"type": "shop_result", "ok": ok, "msg": message,
+                          "action": "sell", "itemId": item_id,
+                          "qty": qty if ok else 0, "payout": payout})
+        if ok:
+            client.send_json({"type": "player_stats", **player.stats_to_dict()})
+            log.info("[SHOP] %s sold %dx %s to %s for %d (coin=%d)",
+                     player.name, qty, item_id, inst.object_id, payout, player.coin)
 
     def _handle_chunk_request(self, client: "ClientConnection", msg: dict) -> None:
         layer_idx = clamp_int(msg.get("layer_idx"), 0, len(self.world.layers) - 1, -1)

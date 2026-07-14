@@ -92,6 +92,21 @@ else
     echo "  [✓] Found ${TMX_COUNT} map(s) in ${MAPS_DIR}"
 fi
 
+# ── 3.6 NPC definitions ──────────────────────────────────
+# NPCs are hosted by THIS server, not the client: it owns their dialogue, their activity
+# states and their shop stock (see npc.py). So it needs its own copy of npcs.json — the same
+# file that ships in the game's assets. Keep the two in sync when you change NPC content, or
+# players will see a world whose NPCs disagree with the sprites their client has.
+echo "[3.6/7] NPC definitions..."
+NPCS_FILE="${SCRIPT_DIR}/npcs.json"
+if [ ! -f "${NPCS_FILE}" ]; then
+    echo "  [!] No npcs.json in ${SCRIPT_DIR}"
+    echo "      The server will boot but host NO NPCs. Copy the game's"
+    echo "      core/assets/res/data/npcs.json next to server.py."
+else
+    echo "  [✓] Found npcs.json"
+fi
+
 # ── 4. Config file ───────────────────────────────────────
 echo "[4/7] Config file..."
 if [ ! -f "${CONFIG_FILE}" ]; then

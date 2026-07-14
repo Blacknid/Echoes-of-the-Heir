@@ -400,6 +400,12 @@ public class MapObjectLoader {
                         }
                         case "NPCs" -> {
                             if (!entities) continue;
+                            // Multiplayer: the server hosts the NPCs (it reads the same objectgroup
+                            // out of its own copy of the map) and pushes them to us as npc_spawn
+                            // packets. Spawning them here as well would double them up — and the
+                            // local copies would run their own dialogue/shop logic, which is exactly
+                            // the authority we moved to the server.
+                            if (gp.multiplayerMode) continue;
                             if (npcIdx >= gp.npc.length) {
                                 System.out.println("MapObjectLoader WARNING: npc[] full, skipping " + type);
                                 continue;

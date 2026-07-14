@@ -1,0 +1,990 @@
+{
+  "alucard": {
+    "name": "Alucard",
+    "sprite": "/res/npc/Alucard_walking-sheet",
+    "speed": 1,
+    "walkFrameCount": 6,
+
+    "dialogues": {
+      "0": [
+        "Hello, spirit !",
+        "I see, so you've come for the treasure?",
+        "You should start by doing some research.",
+        "I can help you find the first key.\nYou should go South."
+      ],
+      "1": [
+        "The Dark Heart is hidden deep\nwithin the castle.",
+        "Only those worthy can possess it.",
+        "Prove your worth by reaching\nLevel 3.",
+        "Good luck on your journey!"
+      ],
+      "2": [
+        "You have done well to reach Level 3.",
+        "You are now worthy to possess\nthe Dark Heart.",
+        "Take it and fulfill your destiny."
+      ],
+      "3": [
+        "I see you've defeated the castle's guardian\nand claimed the Dark Heart."
+      ]
+    },
+
+    "states": [
+      {
+        "id": "intro",
+        "dialogueSet": 0
+      },
+      {
+        "id": "worthy",
+        "dialogueSet": 1,
+        "requiredLevel": 3
+      },
+      {
+        "id": "claim",
+        "dialogueSet": 2,
+        "requiredLevel": 3,
+        "requiredBoss": 1
+      },
+      {
+        "id": "post_game",
+        "dialogueSet": 3,
+        "requiredQuestComplete": "claim_dark_heart"
+      }
+    ]
+  },
+
+  "cobold": {
+    "name": "Cobold",
+    "idleSprite": "/res/NPC/Cobold_on_shark",
+    "staticNPC": true,
+    "idleFramesPerRow": [3],
+    "interactRange": 96,
+    "idleAnimSpeed": 12,
+
+    "dialogues": {
+      "greeting": [
+        "Grr... See this shark? He was tough to defeat, but I did it! I'm the strongest cobold around here!",
+        "If you want to find strong monsters to fight, you should check out the Shattered Lake. It's full of them!",
+        "I bet you can't defeat the big one that lives there. He's way stronger than me!"
+      ],
+      "waiting": [
+        "Welcome back, weakling! What are waiting for? Go find that big monster in the lake!",
+        "I can't believe you haven't defeated it yet! It's not that hard, just go there and fight it!"
+      ],
+      "defeated": [
+        "What?! You defeated the big one in the lake? That's incredible! I can't believe it!",
+        "I guess you really are stronger than me. Maybe I should start training harder to keep up with you!"
+      ]
+    },
+    "states": [
+      {
+        "id": "default",
+        "dialogue": "greeting",
+        "stationary": true
+      },
+        {
+          "id": "waiting",
+          "dialogue": "waiting",
+          "stationary": true,
+          "requiredQuestActive": "explore_shattered_lake"
+        },
+      {
+        "id": "defeated",
+        "dialogue": "defeated",
+        "stationary": true,
+        "requiredQuestComplete": "defeat_hollow_king"
+      }
+    ]
+  },
+  
+  "blacksmith": {
+    "name": "Blacksmith",
+    "staticNPC": true,
+    "interactRange": 96,
+    "spriteScale": 2,
+    "idleAnimSpeed": 12,
+    "dialogueActivity": "idle",
+
+    "dialogues": {
+      "intro": [
+        "A new face huh? Welcome to my shop!",
+        "The elder should have told me about your visit ", 
+        "But I don't mind. It's nice to have some company around here.",
+        "If you find yourself lost, you can always bet on the Elder to point you in the right direction.",
+        "He's a good guy, even if he's a bit... out of it.",
+        "Anyway, if you need any weapons or armor, just let me know.",
+        "I can forge you something nice if you bring me the right materials."
+      ],
+      "greeting": [
+        "Welcome, wanderer.\nNeed a new weapon?",
+        "I can forge you something special if you bring me the right materials.",
+        "The Elder is a good guy, but he's not much help when it comes to finding materials.",
+        "You'll have to explore the world to find what you need."
+      ],
+      "waiting": [
+        "The blade can't be forged without the materials.",
+        "Check the cave rooms for iron ore and coal.",
+        "I can start forging once you bring them to me."
+      ]
+    },
+
+    "activities": {
+        "idle": {
+        "sprite": "/res/NPC/Main/Blacksmith_idle",
+        "frameCount": 6,
+        "frameWidth": 48,
+        "frameHeight": 48,
+        "speed": 12
+        },
+        "forge": {
+          "sprite": "/res/NPC/Main/Blacksmith_forging",
+          "frameCount": 6,
+          "frameWidth": 48,
+          "frameHeight": 48,
+          "speed": 12
+        }
+    },
+
+    "states": [
+      {
+        "id": "idle_shop",
+        "direction": 0,
+        "animation": "forge",
+        "dialogueSet": "greeting",
+        "stationary": true
+      },
+      {
+        "id": "forging_sword",
+        "animation": "forge",
+        "direction": 3,
+        "offset": [2, 0],
+        "dialogueSet": "forging",
+        "stationary": true,
+        "requiredQuestComplete": "gather_iron"
+      },
+      {
+        "id": "sword_ready",
+        "animation": "forge",
+        "direction": 3,
+        "offset": [2, 0],
+        "dialogueSet": "sword_ready",
+        "stationary": true,
+        "requiredQuestComplete": "forge_sword"
+      },
+      {
+        "id": "post_quest",
+        "animation": "forge",
+        "direction": 3,
+        "offset": [2, 0],
+        "dialogueSet": "post_quest",
+        "stationary": true,
+        "requiredQuestComplete": "deliver_sword"
+      }
+    ]
+  },
+
+  "sword_giver_npc": {
+    "name": "Soldier",
+    "sprite": "/res/NPC/Tutorial_idle",
+    "idleSprite": "/res/NPC/Tutorial_idle",
+    "walkFramesPerRow": [12, 12, 12, 12],
+    "idleFramesPerRow": [12, 12, 12, 12],
+    "staticNPC": true,
+    "idleDirection": 2,
+    "idleAnimSpeed": 12,
+    "interactRange": 64,
+    "portrait": "/res/NPC/portraits/soldier.png",
+
+    "dialogues": {
+      "intro": [
+        "...Hey. I was ambushed on the road.",
+        "My arm is useless, and I can't swing anymore.",
+        "Take this sword. Use it better than I can right now.",
+        "If you find a bandage, come back. I still need help."
+      ],
+      "waiting": [
+        "You're back... but I still need a bandage.",
+        "Check the cave rooms.",
+        "I'll hold on a little longer."
+      ],
+      "thanks": [
+        "You found one... good.",
+        "This should stop the bleeding.",
+        "Thank you. Here, take these 25 coins for the trouble."
+      ],
+      "done": [
+        "The bandage helped a lot.",
+        "Keep the sword. You earned it."
+      ]
+    },
+
+    "states": [
+      {
+        "id": "post_quest",
+        "dialogue": "done",
+        "stationary": true,
+        "requiredQuestComplete": "sword_giver_bandage"
+      }
+    ]
+  },
+  "fruit_trader": {
+    "name": "Fruit Trader",
+    "idleSprite": "/res/NPC/Fruit_Trader",
+    "idleFramesPerRow": [9],
+    "staticNPC": true,
+    "idleDirection": 1,
+    "spriteScale": 2,
+    "idleAnimSpeed": 12,
+    "interactRange": 250,
+    "depthSortYOffset": 128,
+
+    "dialogues": {
+      "intro": [
+        "Fresh fruits for sale!\nBest in the castle!",
+        "I have apples, oranges, and bananas.",
+        "Care for some?\nThey might help you on your journey."
+      ],
+      "waiting": [
+        "Welcome back, traveler!",
+        "I have more fruits if you need them.",
+        "Did you find any new ones?\nI love trying new fruits!"
+      ],
+      "thanks": [
+        "No way, you found a rare fruit!\nThat's amazing!",
+        "Here, take this as a reward for your find.",
+        "I hope it helps you on your adventure!"
+      ],
+      "done": [
+        "In need of more fruits?\nI have plenty to share!",
+        "Feel free to come back anytime.\nI love chatting about fruits!"
+      ]
+    },
+
+    "states": [
+      {
+        "id": "post_quest",
+        "dialogue": "done",
+        "stationary": true,
+        "requiredQuestComplete": "fruit_trader_quest"
+      }
+    ]
+  },
+
+  "drink_trader": {
+    "name": "Drink Trader",
+    "idleSprite": "/res/NPC/Drinks_Trader",
+    "idleFramesPerRow": [12],
+    "staticNPC": true,
+    "idleDirection": 1,
+    "idleAnimSpeed": 12,
+    "interactRange": 64,
+    "depthSortYOffset": 128,
+
+    "dialogues": {
+      "intro": [
+        "Wait..., I don't remember your face. Are you new here? I don't think I've seen you around before.",
+        "Well, welcome to the castle! I have the best drinks here, so if you need anything, just let me know!",
+        "Maybe you should talk to the Elder. He's been here for a long time and knows a lot about this place. He might be able to point you in the right direction if you're looking for something specific.",
+        "He usually stands in the center of the village, so you can't miss him!",
+        "Anyway, if you need any drinks, just let me know. I have a wide variety of them, so I'm sure I can find something that suits your taste!"
+      ],
+      "waiting": [
+        "Welcome back, traveler!",
+        "I have more drinks if you need them.",
+        "Did you find any new ones?\nI love trying new drinks!"
+      ],
+      "thanks": [
+        "No way, you found a rare drink!\nThat's amazing!",
+        "Here, take this as a reward for your find.",
+        "I hope it helps you on your adventure!"
+      ],
+      "done": [
+        "In need of more drinks?\nI have plenty to share!",
+        "Feel free to come back anytime.\nI love chatting about drinks!"
+      ]
+    },
+
+    "states": [
+      {
+        "id": "default",
+        "dialogue": "intro",
+        "stationary": true
+      },
+      {
+        "id": "post_quest",
+        "dialogue": "done",
+        "stationary": true,
+        "requiredQuestComplete": "drink_trader_quest"
+      },
+      {
+        "id": "waiting",
+        "dialogue": "waiting",
+        "stationary": true,
+        "requiredQuestActive": "drink_trader_quest"
+      },
+      {
+        "id": "intro",
+        "dialogue": "intro",
+        "stationary": true,
+        "npcNotMet": "drink_trader"
+      }
+    ]
+  },
+
+  "archer": {
+    "name": "Archer",
+    "idleSprite": "/res/NPC/Archer_idle",
+    "idleFramesPerRow": [6],
+    "staticNPC": true,
+    "idleAnimSpeed": 12,
+
+    "dialogues": {
+      "training": [
+        "Welcome to the archery range!",
+        "I can teach you how to shoot arrows.",
+        "Practice makes perfect, so keep trying!"
+      ],
+      "waiting": [
+        "Welcome back, traveler!",
+        "I have more arrows if you need them.",
+        "Did you find any new targets?\nI love trying new challenges!"
+      ],
+      "thanks": [
+        "No way, you hit the bullseye!\nThat's amazing!",
+        "Here, take this as a reward for your skill.",
+        "I hope it helps you on your adventure!"
+      ],
+      "done": [
+        "In need of more arrows?\nI have plenty to share!",
+        "Feel free to come back anytime.\nI love teaching archery!"
+      ]
+    },
+
+    "states": [
+      {
+        "id": "post_quest",
+        "dialogue": "done",
+        "stationary": true,
+        "requiredQuestComplete": "archer_quest"
+      }
+    ]
+  },
+  "weapon_trader": {
+    "name": "Weapon Trader",
+    "idleSprite": "/res/NPC/Weapon_Trader_idle",
+    "idleFramesPerRow": [8],
+    "staticNPC": true,
+    "spriteScale": 1.5,
+    "idleAnimSpeed": 12,
+    "interactRange": 64,
+
+    "shop": {
+      "sellMultiplier": 0.5,
+      "items": [
+        { "id": "wooden_sword", "price": 20, "stock": 1 },
+        { "id": "iron_sword", "price": 60, "stock": 1 },
+        { "id": "knight_blade", "price": 140, "stock": 1 },
+        { "id": "wooden_shield", "price": 15, "stock": 1 },
+        { "id": "iron_shield", "price": 50, "stock": 1 },
+        { "id": "bandage", "price": 8, "stock": 10 }
+      ]
+    },
+
+    "dialogues": {
+      "training": [
+        "Welcome to the weapon shop!",
+        "I can teach you how to use different weapons.",
+        "Practice makes perfect, so keep trying!"
+      ],
+      "waiting": [
+        "Welcome back, traveler!",
+        "I have more weapons if you need them.",
+        "Did you find any new challenges?\nI love trying new things!"
+      ],
+      "thanks": [
+        "No way, you mastered that weapon!\nThat's amazing!",
+        "Here, take this as a reward for your skill.",
+        "I hope it helps you on your adventure!"
+      ],
+      "done": [
+        "In need of more weapons?\nI have plenty to share!",
+        "Feel free to come back anytime.\nI love teaching weapon skills!"
+      ]
+    },
+
+    "states": [
+      {
+        "id": "post_quest",
+        "dialogue": "done",
+        "stationary": true,
+        "requiredQuestComplete": "weapon_trader_quest"
+      }
+    ]
+  },
+  "explorer": {
+    "name": "Explorer",
+    "idleSprite": "/res/NPC/Explorer",
+    "idleFramesPerRow": [12, 12, 12, 6],
+    "staticNPC": true,
+    "idleDirection": 2,
+    "interactRange": 96,
+    "spriteScale": 1.5,
+    "idleAnimSpeed": 12,
+
+    "dialogues": {
+      "intro": [
+        "Hello there, I see you've completed the dungeon,",
+        "My people used to call it 'The Dungeon of Souls' because of the power that is corrupting it.",
+        "My name is ..., i'am an explorer and i think you might want to look at the sword waiting for you at the top.",
+        "I have no interest in such things."
+      ],
+      "having_sword": [
+        "It suits you well, I hope you'll use it for good cases.",
+        "Hoping to see you again."
+      ],
+      "not_having_sword": [
+        "What are you waiting for?",
+        "There's a new sword waiting for you up there."
+      ]
+    }
+  },
+
+  "fighter": {
+    "name": "Fighter",
+    "sprite": "/res/NPC/Fighter_Training",
+    "idleSprite": "/res/NPC/Fighter_Training",
+    "walkFramesPerRow": [6, 6, 6, 6],
+    "idleFramesPerRow": [6, 6, 6, 6],
+    "staticNPC": true,
+    "spriteScale": 2,
+    "idleAnimSpeed": 10,
+    "idleDirection": 2,
+
+    "dialogues": {
+      "intro": [
+        "Don't interrupt me.\nI'm in the middle of training.",
+        "...Fine. What do you want?",
+        "If you're looking for a fight, come back when you're stronger."
+      ],
+      "ready": [
+        "You look like you've seen some battles.",
+        "Good. The weak don't last long out here.",
+        "Stay sharp."
+      ]
+    },
+
+    "states": [
+      {
+        "id": "default",
+        "dialogue": "intro",
+        "stationary": true
+      },
+      {
+        "id": "worthy",
+        "dialogue": "ready",
+        "stationary": true,
+        "requiredLevel": 10
+       }
+    ]
+  },
+  "bread_trader": {
+    "name": "bread_trader",
+    "idleSprite": "/res/NPC/Bread_Trader_idle",
+    "staticNPC": true,
+    "idleFramesPerRow": [12],
+    "idleDirection": 0,
+    "spriteScale": 1.5,
+    "interactRange": 64,
+    "idleAnimSpeed": 12,
+
+    "dialogues": {
+      "intro": [
+        "Hi there !\nCare for some bread?",
+        "I have fresh loaves, perfect for a traveler like you.",
+        "If you find some wheat, I can bake you a loaf!"
+       ],
+      "waiting": [
+        "Welcome back, traveler!",
+        "I have more bread if you need it.",
+        "Did you find any wheat?\nI love baking fresh bread!"
+        ],
+      "thanks": [
+        "No way, you found wheat!\nThat's amazing!",
+        "Here, take this as a reward for your find.",
+        "I hope it helps you on your adventure!"
+        ],
+      "done": [
+        "In need of more bread?\nI have plenty to share!",
+        "Feel free to come back anytime.\nI love baking for travelers!"
+        ]
+    },
+
+    "states": [
+      {
+        "id": "default",
+        "dialogue": "intro",
+        "stationary": true
+      }
+    ]
+  },
+
+  "fisher_trader": {
+    "name": "Fisher Trader",
+    "idleSprite": "/res/NPC/Fisher_Trader",
+    "idleFramesPerRow": [12],
+    "interactRange": 128,
+    "staticNPC": true,
+    "spriteScale": 1.5,
+    "idleAnimSpeed": 12,
+    "depthSortYOffset": 64,
+
+    "dialogues": {
+      "intro": [
+        "Hello there, traveler!\nCare for some fresh fish?",
+        "I have a variety of fish, perfect for cooking or eating raw.",
+        "If you find some bait, I can teach you how to fish!"
+       ],
+      "waiting": [
+        "Welcome back, traveler!",
+        "I have more fish if you need them.",
+        "Did you find any bait?\nI love fishing and sharing my catch!"
+        ],
+      "thanks": [
+        "No way, you found bait!\nThat's amazing!",
+        "Here, take this as a reward for your find.",
+        "I hope it helps you on your adventure!"
+        ],
+      "elder_request": [
+        "Oh... the Elder sent you? I see.",
+        "He comes here sometimes to buy fish. He's a nice guy, but he's been acting strange lately.",
+        "I've heard him muttering about a fight and losing something important. He seemed really upset about it.",
+        "Luckly for him, I has there to help him out. I found what he lost and I want you to give it back to him.", 
+        "I don't want to get involved in whatever drama he's going through, but I know he needs it.",
+        "It's a weight, I think. It looks like it might be important to him. Please give it back to him."
+      ],
+      "cave_request": [
+        "You returned the weight to the Elder. That's good of you.",
+        "I hope it helps him with whatever he's going through.",
+        "Also I have a request if you're interested.",
+        "I often feel something coming from the cave west from here,",
+        "I don't know what's causing all this, \nbut could you please take care of it?"
+      ],
+      "cave_waiting": [
+        "The cave is west from the Fishing Dock.",
+        "Please be careful in there — whatever it is, it doesn't feel right."
+      ],
+      "cave_done": [
+        "You found what was causing it? A Phantom... I knew something wasn't right.",
+        "Thank you for taking care of it. I can finally fish in peace again.",
+        "Here, take this as thanks for your help."
+      ],
+      "done": [
+        "In need of more fish?\nI have plenty to share!",
+        "Feel free to come back anytime.\nI love teaching fishing to travelers!"
+      ]
+    },
+
+    "states": [
+      {
+        "id": "default",
+        "dialogue": "intro",
+        "stationary": true
+      },
+      {
+        "id": "elder_request",
+        "dialogue": "elder_request",
+        "stationary": true,
+        "requiredQuestActive": "a_familiar_weight"
+      },
+      {
+        "id": "cave_request",
+        "dialogue": "cave_request",
+        "stationary": true,
+        "requiredQuestComplete": "a_familiar_weight",
+        "requiredQuestActive": "explore_the_cave"
+      },
+      {
+        "id": "cave_waiting",
+        "dialogue": "cave_waiting",
+        "stationary": true,
+        "requiredQuestActive": "explore_the_cave"
+      },
+      {
+        "id": "post_quest",
+        "dialogue": "done",
+        "stationary": true,
+        "requiredQuestComplete": "explore_the_cave"
+      }
+    ]
+  },
+  "drunk": {
+    "name": "Drunk",
+    "idleSprite": "/res/NPC/drunk",
+    "idleFramesPerRow": [4],
+    "interactRange": 96,
+    "staticNPC": true,
+    "spriteScale": 1.5,
+    "idleAnimSpeed": 24,
+    "depthSortYOffset": 128,
+
+    "dialogues": {
+      "intro": [
+        "I am! I'm listenin'! The charm... it was an accident. Don' tell the Boss.",
+        "Bhut... Where ham I? \nMy name is..., i don't even know."
+      ],
+      "sleeping": [
+        "Zzz..."
+      ]
+    },
+    "states": [
+      {
+        "id": "intro",
+        "dialogueSet": 1
+      },
+      {
+        "id": "sleeping",
+        "dialogueSet": 2
+      }
+    ]
+  },
+
+  "magic_trader": {
+    "name": "Magic Trader",
+    "idleSprite": "/res/NPC/Magic_Trader",
+    "idleFramesPerRow": [8],
+    "interactRange": 64,
+    "staticNPC": true,
+    "spriteScale": 2,
+    "idleAnimSpeed": 12,
+
+    "dialogues": {
+      "training": [
+        "Welcome to the potion shop!",
+        "I can teach you how to brew different potions.",
+        "But first, you need to gather some ingredients for me.",
+        "Check the cave rooms for herbs and mushrooms."
+      ],
+      "waiting": [
+        "Welcome back, traveler!",
+        "I have more potions if you need them.",
+        "Did you find the ingredients I asked for?\nI love brewing new potions!"
+      ],
+      "thanks": [
+        "No way, you brewed a great potion!\nThat's amazing!",
+        "Here, take this as a reward for your skill.",
+        "I hope it helps you on your adventure!"
+      ],
+      "done": [
+        "In need of more potions?\nI have plenty to share!",
+        "Feel free to come back anytime.\nI love teaching potion brewing!"
+      ]
+    },
+    "states": [
+      {
+        "id": "post_quest",
+        "dialogue": "done",
+        "stationary": true,
+        "requiredQuestComplete": "potion_brewer_quest"
+      },
+      {
+        "id": "waiting",
+        "dialogue": "waiting",
+        "stationary": true,
+        "requiredQuestActive": "potion_brewer_quest"
+       },
+      {
+        "id": "training",
+        "dialogue": "training",
+        "stationary": true
+      }
+    ]
+  },
+  "knight": {
+    "name": "Knight",
+    "idleSprite": "/res/NPC/Knight",
+    "idleFramesPerRow": [10],
+    "interactRange": 96,
+    "staticNPC": true,
+    "spriteScale": 1.5,
+    "idleAnimSpeed": 12,
+    "depthSortYOffset": 96,
+
+    "dialogues": {
+      "intro": [
+        "Greetings, traveler!",
+        "I am a knight of this realm, sworn to protect the innocent and uphold justice.",
+        "Looking for someone? I can help you with that.",
+        "In the center of the village, there is this elder. He's been here for as long as I can remember, and he's always been useful for finding things. He might have an answer for you if you're looking for one."
+      ],
+      "after_elder": [
+        "I see you spoke with the Elder. He's a good guy.",
+        "He thinks you are worthy of this quest, so I won't question it.",
+        "I have a training quest for you. If you complete it, I'll give you a reward that might help you on your journey.",
+        "The training is simple. Kill 5 of the weak monsters from the Lake. They won't put up much of a fight, but it's a good way to practice your combat skills.",
+        "Come back to me once you've completed the training, and I'll have your reward ready for you!"
+      ],
+      "waiting": [
+        "Welcome back, traveler!",
+        "Have you completed the quest I gave you?",
+        "I am eager to see your progress and help you grow stronger!"
+      ],
+      "thanks": [
+        "Didn't expect anything else, you completed the quest!\nThat's incredible!",
+        "Here, take this as a reward for your dedication.",
+        "I hope it helps you on your adventure!"
+      ],
+      "done": [
+        "In need of more training?\nI have plenty to share!",
+        "Feel free to come back anytime.\nI love helping travelers become stronger!"
+      ]
+    },
+
+    "states": [
+      {
+        "id": "intro",
+        "dialogue": "intro",
+        "stationary": true
+      },
+      {
+        "id": "after_elder",
+        "dialogue": "after_elder",
+        "stationary": true,
+        "requiredQuestComplete": "a_familiar_weight"
+      },
+      {
+        "id": "waiting",
+        "dialogue": "waiting",
+        "stationary": true,
+        "requiredQuestActive": "knight_training_quest"
+      },
+      {
+        "id": "post_quest",
+        "dialogue": "thanks",
+        "stationary": true,
+        "requiredQuestComplete": "knight_training_quest"
+      }
+    ]
+
+  },
+
+
+
+  "village_elder": {
+    "name": "Village Elder",
+    "idleSprite": "/res/NPC/Main/Elder",
+    "idleFramesPerRow": [7],
+    "idleDirection": 0,
+    "spriteScale": 2,
+    "staticNPC": true,
+    "interactRange": 64,
+    "idleAnimSpeed": 12,
+
+    "dialogues": {
+      "intro": [
+        "Ah... another lost soul finds his way here.",
+        "I don't remember much about who I was, but I know this place is not where we belong.",
+        "You have the look of someone who's been through something they can't explain.",
+        "There is a fisher's house at the edge of the village. I find myself drawn to it, but I cannot bring myself to go.",
+        "Would you go in my place? Perhaps you'll find something I cannot."
+      ],
+      "waiting_fisher": [
+        "The fisher's house is East from the village gate. I'll be here when you return."
+      ],
+      "waiting_shattered_lake": [
+        "East of the village gate. The lake — that's where your answers start.",
+        "I don't know how I know that. But I do."
+      ],
+      "waiting_hollow_king": [
+        "There is a presence at the heart of that lake. A hollow thing on a sunken throne.",
+        "Until it's gone, I can tell you nothing more."
+      ],
+      "waiting_fading_woods": [
+        "The woods are calling you. I can see it. Don't wait too long."
+      ],
+      "waiting_gilded_lie": [
+        "Something golden watches from those trees. Don't let it speak to you as if it has answers.",
+        "It doesn't. But it has memories that belong to you."
+      ],
+      "waiting_citadel": [
+        "North of the woods. The citadel. I dream of it sometimes — red carpets and wrong proportions.",
+        "You know where to go."
+      ],
+      "waiting_green_shade": [
+        "Whatever wears your face in that throne room... it is not you.",
+        "You'll have to prove it."
+      ],
+      "waiting_gallery": [
+        "The three trials. I don't know exactly what they test.",
+        "But I believe you are ready."
+      ],
+      "waiting_brushstroke": [
+        "This is as far as I can guide you.",
+        "Whatever made this world waits in that place. I'll be here when it's done."
+      ],
+      "after_fisher": [
+        "You found it. I thought I had lost it forever.",
+        "Thank you. I can feel a weight lifting off of me.",
+        "I don't know how to explain it, but I feel like I can remember something now.",
+        "The lake... I can see it in my mind, but it's still blurry.",
+        "I think... I think there was something in the lake. Something that shouldn't have been there.",
+        "I don't remember what it was, but I know it was important. I just hope you can find it and get rid of it."
+      ],
+      "post_boss3": [
+        "I dreamed of two boys last night. Playing in a courtyard I can almost picture.",
+        "One of them kept looking over his shoulder. As if he was waiting to be left behind.",
+        "I think... I knew them. I think I tried to warn someone. But I was too afraid.",
+        "There is a place called the Gallery. I don't know how I know that, but I do. Go there."
+      ],
+      "post_boss1": [
+        "I see you've defeated the Hollow King\nand claimed the royal scepter.",
+        "The Shattered Lake is now safe for everyone.",
+        "He was a menace to our village for so long.\nThank you for your bravery, hero."
+      ],
+      "post_boss2": [
+        "I see you've defeated the Gilded Lie\nand claimed the golden locket.",
+        "The Fading Woods is now safe for everyone.",
+        "He used to lure travelers into the woods and trap them there.\nThank you for your bravery, hero."
+      ],
+      "post_game": [
+        "You're back. And the air feels different — lighter.",
+        "I remember now. Not everything. But enough.",
+        "I served a king who loved both his sons. One by blood. One by choice. He never said one name more than the other — but a boy noticed anyway.",
+        "You stopped it. Not with a sword. You stopped it by refusing to let the truth stay buried.",
+        "I hope he finds peace. Wherever he is now."
+      ],
+      "after_3fragments": [
+        "You're starting to remember, aren't you? The more you find, the clearer it gets."
+        
+      ],
+      "after_7fragments": [
+        "I can see it too now. The memories. The truth. It's all coming back to me.",
+        "I remember who I was. I remember what happened.",
+        "I was the king's advisor. I was the one who warned him about his sons. I was the one who tried to stop him from making the choices he made.",
+        "But I was too afraid. I was too afraid to speak up. Too afraid to go against the king.",
+        "I thought if I just stayed silent, maybe things would turn out okay. Maybe the king would see reason. Maybe the"
+      ],
+      "after_12fragments": [
+        "I remember everything now. The good and the bad. The love and the pain.",
+        "The king loved both his sons. One by blood. One by choice. But he made a terrible mistake. He chose the one by choice as his heir.",
+        "The other son was heartbroken. He felt betrayed and abandoned. He became bitter and resentful.",
+        "The son by choice was confused and scared. He didn't understand why his father would choose someone else over him.",
+        "The king's decision tore the family apart. It led to jealousy, rivalry, and ultimately tragedy."
+      ],
+      "after_all_fragments": [
+        "The truth is painful. But it's also freeing. Now I can finally let go of the past and move on.",
+        "Thank you for helping me remember. Thank you for helping me find peace."
+      ]
+    },
+
+    "states": [
+      {
+        "id": "after_chapel",
+        "dialogue": "after_chapel",
+        "stationary": true,
+        "requiredQuestComplete": "a_familiar_weight"
+      },
+      {
+        "id": "after_3fragments",
+        "dialogue": "after_3fragments",
+        "stationary": true,
+        "requiredFragments": 3
+      },
+      {
+        "id": "after_7fragments",
+        "dialogue": "after_7fragments",
+        "stationary": true,
+        "requiredFragments": 7
+      },
+      {
+        "id": "after_12fragments",
+        "dialogue": "after_12fragments",
+        "stationary": true,
+        "rewardFragmentId": "The Advisor's Counsel",
+        "requiredFragments": 12
+      },
+      {
+        "id": "after_all_fragments",
+        "dialogue": "after_all_fragments",
+        "stationary": true,
+        "requiredFragments": 15
+      },
+      {
+        "id": "post_boss1",
+        "dialogue": "post_boss1",
+        "stationary": true,
+        "requiredQuestComplete": "defeat_hollow_king"
+      },
+      {
+        "id": "post_boss2",
+        "dialogue": "post_boss2",
+        "stationary": true,
+        "requiredQuestComplete": "defeat_gilded_lie"
+      },
+      {
+        "id": "post_boss3",
+        "dialogue": "post_boss3",
+        "stationary": true,
+        "requiredQuestComplete": "defeat_green_shade"
+      },
+      {
+        "id": "post_game",
+        "dialogue": "post_game",
+        "stationary": true,
+        "requiredQuestComplete": "face_the_truth"
+      },
+      {
+        "id": "waiting_a_familiar_weight",
+        "dialogue": "waiting_chapel",
+        "stationary": true,
+        "requiredQuestActive": "a_familiar_weight"
+      },
+      {
+        "id": "waiting_shattered_lake",
+        "dialogue": "waiting_shattered_lake",
+        "stationary": true,
+        "requiredQuestActive": "explore_shattered_lake"
+      },
+      {
+        "id": "waiting_hollow_king",
+        "dialogue": "waiting_hollow_king",
+        "stationary": true,
+        "requiredQuestActive": "defeat_hollow_king"
+      },
+      {
+        "id": "waiting_fading_woods",
+        "dialogue": "waiting_fading_woods",
+        "stationary": true,
+        "requiredQuestActive": "explore_fading_woods"
+      },
+      {
+        "id": "waiting_gilded_lie",
+        "dialogue": "waiting_gilded_lie",
+        "stationary": true,
+        "requiredQuestActive": "defeat_gilded_lie"
+      },
+      {
+        "id": "waiting_citadel",
+        "dialogue": "waiting_citadel",
+        "stationary": true,
+        "requiredQuestActive": "reclaim_the_citadel"
+      },
+      {
+        "id": "waiting_green_shade",
+        "dialogue": "waiting_green_shade",
+        "stationary": true,
+        "requiredQuestActive": "defeat_green_shade"
+      },
+      {
+        "id": "waiting_gallery",
+        "dialogue": "waiting_gallery",
+        "stationary": true,
+        "requiredQuestActive": "enter_the_gallery"
+      },
+      {
+        "id": "waiting_brushstroke",
+        "dialogue": "waiting_brushstroke",
+        "stationary": true,
+        "requiredQuestActive": "face_the_truth"
+      }
+    ]
+  }
+}

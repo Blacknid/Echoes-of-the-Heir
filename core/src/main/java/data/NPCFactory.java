@@ -138,6 +138,94 @@ public class NPCFactory {
         npc.spawnCol = col;
         npc.spawnRow = row;
 
+        applyPresentation(gp, npc, def);
+
+        // Dialogues — support both numeric ("0","1") and named ("intro","thanks") keys
+        {
+            int nextNamedIdx = 0;
+            // First pass: find max numeric index so named keys start after
+            for (String key : def.dialogues.keySet()) {
+                try { int n = Integer.parseInt(key); if (n >= nextNamedIdx) nextNamedIdx = n + 1; }
+                catch (NumberFormatException e) { /* named key */ }
+            }
+            for (Map.Entry<String, ArrayList<String>> entry : def.dialogues.entrySet()) {
+                String key = entry.getKey();
+                int setIdx;
+                try { setIdx = Integer.parseInt(key); }
+                catch (NumberFormatException e) { setIdx = nextNamedIdx++; }
+                if (npc.dialogueNameMap == null) npc.dialogueNameMap = new java.util.HashMap<>();
+                npc.dialogueNameMap.put(key, setIdx);
+                ArrayList<String> lines = entry.getValue();
+                String[][] dialogues = npc.ensureDialogues();
+                if (setIdx >= 0 && setIdx < dialogues.length) {
+                    for (int l = 0; l < lines.size() && l < dialogues[setIdx].length; l++) {
+                        dialogues[setIdx][l] = lines.get(l).replace("\\n", "\n");
+                    }
+                }
+            }
+        }
+
+        for (StateDef sd : def.states) {
+            NPC_Generic.NPCActivityState state = new NPC_Generic.NPCActivityState();
+            state.id = sd.id;
+            state.animationKey = sd.animation;
+            state.direction = sd.direction;
+            state.dialogueSet = sd.dialogueSet;
+            state.stationary = sd.stationary;
+            // Offset-based position: relative to spawn tile
+            if (sd.offsetCol != 0 || sd.offsetRow != 0) {
+                state.posCol = col + sd.offsetCol;
+                state.posRow = row + sd.offsetRow;
+            } else {
+                state.posCol = sd.posCol;
+                state.posRow = sd.posRow;
+            }
+            state.requiredQuestComplete = sd.requiredQuestComplete;
+            state.requiredQuestActive = sd.requiredQuestActive;
+            state.dialogueName = sd.dialogueName;
+            state.requiredFragments = sd.requiredFragments;
+            state.requiredBoss = sd.requiredBoss;
+            state.requiredStoryAct = sd.requiredStoryAct;
+            state.requiredLevel = sd.requiredLevel;
+            state.npcNotMet = sd.npcNotMet;
+            state.marksNpcMet = sd.marksNpcMet;
+            npc.activityStates.add(state);
+        }
+
+        // objectId for save state — default to npcId so Tiled 'id' property is not required
+        String objId = def.props.get("objectId");
+        npc.objectId = (objId != null && !objId.isBlank()) ? objId : id;
+
+        if (def.shop != null) {
+            npc.shopSellMultiplier = def.shop.sellMultiplier;
+            npc.shopId = npc.objectId;
+            // Rebuild fresh ShopListing instances per NPC spawn (defs are shared/cached) and
+            // restore any previously-purchased stock from gp.shopStock (see UI.buyItem/sellItem).
+            npc.shopItems = new ArrayList<>();
+            for (ui.ShopListing src : def.shop.items) {
+                ui.ShopListing listing = new ui.ShopListing(src.itemId, src.price, src.maxStock);
+                if (!listing.infinite()) {
+                    Integer saved = gp.shopStock.get(npc.shopId + ":" + listing.itemId);
+                    if (saved != null) listing.stock = saved;
+                }
+                npc.shopItems.add(listing);
+            }
+        }
+
+        npc.syncQuestDrivenNpcState();
+        return npc;
+    }
+
+    /**
+     * Apply every "how does this NPC look and move" property: name, speed, sprites, activity
+     * sheets, scale, light, portrait. Shared by the singleplayer path (createAt, reading
+     * npcs.json) and the multiplayer path (createFromServer, reading an npc_spawn packet) —
+     * both need exactly this, and only this, to put something on screen. Dialogues, states and
+     * the shop are deliberately NOT here: in multiplayer they belong to the server.
+     */
+    private static void applyPresentation(GamePanel gp, NPC_Generic npc, NPCDef def) {
+        String id = def.props.getOrDefault("id", def.props.getOrDefault("npcId", "?"));
+
         if (def.props.containsKey("name")) npc.name = def.props.get("name");
         if (def.props.containsKey("speed")) npc.speed = intVal(def.props, "speed", 1);
         if (def.props.containsKey("walkFrameCount")) npc.walkFrameCount = intVal(def.props, "walkFrameCount", 6);
@@ -151,10 +239,8 @@ public class NPCFactory {
         npc.idleFramesPerRow = intArrayVal(def.props, "idleFramesPerRow", new int[]{6, 6, 6, 6});
         float spriteScaleVal = floatVal(def.props, "spriteScale", 1.0f);
         if (spriteScaleVal > 0) npc.spriteScale = spriteScaleVal;
-        int interactRangeVal = intVal(def.props, "interactRange", 0);
-        npc.interactRange = interactRangeVal;
-        int depthSortYOffsetVal = intVal(def.props, "depthSortYOffset", 0);
-        npc.depthSortYOffset = depthSortYOffsetVal;
+        npc.interactRange = intVal(def.props, "interactRange", 0);
+        npc.depthSortYOffset = intVal(def.props, "depthSortYOffset", 0);
         // Activity key to switch to while this NPC is being talked to (e.g. blacksmith stops
         // forging and just idles mid-conversation), restored automatically when dialogue ends.
         String dialogueActivityVal = def.props.get("dialogueActivity");
@@ -179,6 +265,9 @@ public class NPCFactory {
 
         if (def.props.containsKey("sprite")) npc.spritePath = def.props.get("sprite");
         if (def.props.containsKey("idleSprite")) npc.idleSpritePath = def.props.get("idleSprite");
+
+        int idleAnimSpeed = intVal(def.props, "idleAnimSpeed", -1);
+        if (idleAnimSpeed > 0) npc.idleAnimationInterval = idleAnimSpeed;
 
         for (Map.Entry<String, ActivityDef> entry : def.activities.entrySet()) {
             String actName = entry.getKey();
@@ -236,90 +325,59 @@ public class NPCFactory {
                     npc.activityAnimSpeeds.put(actName, act.speed);
                 }
             } catch (Exception e) {
-                System.out.println("[NPCFactory] Failed to load activity '" + actName + "' sprite for NPC '" + id + "': " + e.getMessage());
+                System.out.println("[NPCFactory] Failed to load activity '" + actName
+                        + "' sprite for NPC '" + id + "': " + e.getMessage());
             }
         }
 
         // Load walk/idle sprites (after setting paths)
         npc.getImage();
+    }
 
-        // Dialogues — support both numeric ("0","1") and named ("intro","thanks") keys
-        {
-            int nextNamedIdx = 0;
-            // First pass: find max numeric index so named keys start after
-            for (String key : def.dialogues.keySet()) {
-                try { int n = Integer.parseInt(key); if (n >= nextNamedIdx) nextNamedIdx = n + 1; }
-                catch (NumberFormatException e) { /* named key */ }
-            }
-            for (Map.Entry<String, ArrayList<String>> entry : def.dialogues.entrySet()) {
-                String key = entry.getKey();
-                int setIdx;
-                try { setIdx = Integer.parseInt(key); }
-                catch (NumberFormatException e) { setIdx = nextNamedIdx++; }
-                if (npc.dialogueNameMap == null) npc.dialogueNameMap = new java.util.HashMap<>();
-                npc.dialogueNameMap.put(key, setIdx);
-                ArrayList<String> lines = entry.getValue();
-                String[][] dialogues = npc.ensureDialogues();
-                if (setIdx >= 0 && setIdx < dialogues.length) {
-                    for (int l = 0; l < lines.size() && l < dialogues[setIdx].length; l++) {
-                        dialogues[setIdx][l] = lines.get(l).replace("\\n", "\n");
-                    }
-                }
-            }
-        }
+    /**
+     * Multiplayer: build an NPC from a server npc_spawn packet.
+     *
+     * <p>The server hosts NPCs (SERVERS/multiplayer_server/npc.py) — it owns npcs.json, the
+     * activity-state machine and the shop. What it sends us is the presentation half only:
+     * sprite sheets, frame counts, scale, light, portrait. So this deliberately does NOT read
+     * the local npcs.json and does NOT populate dialogues, states or shopItems: those arrive
+     * per-interaction, decided by the server against progress this process doesn't hold.
+     *
+     * <p>The packet is a flat JSON object, so it goes through the same parser the file does.
+     * Must run on the render thread — sprite loading is GL work.
+     *
+     * @param spawnJson the raw npc_spawn message
+     * @return the NPC, or null if the packet had nothing drawable in it
+     */
+    public static NPC_Generic createFromServer(GamePanel gp, String spawnJson) {
+        NPCDef def = parseNPCDef(stripOuterBraces(spawnJson));
 
-        for (StateDef sd : def.states) {
-            NPC_Generic.NPCActivityState state = new NPC_Generic.NPCActivityState();
-            state.id = sd.id;
-            state.animationKey = sd.animation;
-            state.direction = sd.direction;
-            state.dialogueSet = sd.dialogueSet;
-            state.stationary = sd.stationary;
-            // Offset-based position: relative to spawn tile
-            if (sd.offsetCol != 0 || sd.offsetRow != 0) {
-                state.posCol = col + sd.offsetCol;
-                state.posRow = row + sd.offsetRow;
-            } else {
-                state.posCol = sd.posCol;
-                state.posRow = sd.posRow;
-            }
-            state.requiredQuestComplete = sd.requiredQuestComplete;
-            state.requiredQuestActive = sd.requiredQuestActive;
-            state.dialogueName = sd.dialogueName;
-            state.requiredFragments = sd.requiredFragments;
-            state.requiredBoss = sd.requiredBoss;
-            state.requiredStoryAct = sd.requiredStoryAct;
-            state.requiredLevel = sd.requiredLevel;
-            state.npcNotMet = sd.npcNotMet;
-            state.marksNpcMet = sd.marksNpcMet;
-            npc.activityStates.add(state);
-        }
+        int worldX = intVal(def.props, "x", 0);
+        int worldY = intVal(def.props, "y", 0);
+        // Server pixels are originalTileSize-based (32px); the client renders at gp.tileSize.
+        int coordScale = gp.tileSize / gp.originalTileSize;
+        worldX *= coordScale;
+        worldY *= coordScale;
 
-        int animSpeed = intVal(def.props, "idleAnimSpeed", -1);
-        if (animSpeed > 0) npc.idleAnimationInterval = animSpeed;
+        NPC_Generic npc = new NPC_Generic(gp);
+        npc.worldX = worldX;
+        npc.worldY = worldY;
+        npc.spawnCol = worldX / gp.tileSize;
+        npc.spawnRow = worldY / gp.tileSize;
 
-        // objectId for save state — default to npcId so Tiled 'id' property is not required
         String objId = def.props.get("objectId");
-        npc.objectId = (objId != null && !objId.isBlank()) ? objId : id;
+        npc.objectId = (objId != null && !objId.isBlank()) ? objId : def.props.get("npcId");
 
-        if (def.shop != null) {
-            npc.shopSellMultiplier = def.shop.sellMultiplier;
-            npc.shopId = npc.objectId;
-            // Rebuild fresh ShopListing instances per NPC spawn (defs are shared/cached) and
-            // restore any previously-purchased stock from gp.shopStock (see UI.buyItem/sellItem).
-            npc.shopItems = new ArrayList<>();
-            for (ui.ShopListing src : def.shop.items) {
-                ui.ShopListing listing = new ui.ShopListing(src.itemId, src.price, src.maxStock);
-                if (!listing.infinite()) {
-                    Integer saved = gp.shopStock.get(npc.shopId + ":" + listing.itemId);
-                    if (saved != null) listing.stock = saved;
-                }
-                npc.shopItems.add(listing);
-            }
-        }
-
-        npc.syncQuestDrivenNpcState();
+        applyPresentation(gp, npc, def);
         return npc;
+    }
+
+    /** Strip the outer {...} so a whole JSON object can be fed to parseNPCDef, which expects
+     *  the body of one. */
+    private static String stripOuterBraces(String json) {
+        String t = json.trim();
+        if (t.startsWith("{") && t.endsWith("}")) return t.substring(1, t.length() - 1);
+        return t;
     }
 
     private static class NPCDef {

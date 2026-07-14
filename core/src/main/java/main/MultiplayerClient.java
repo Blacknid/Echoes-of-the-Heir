@@ -201,6 +201,11 @@ public class MultiplayerClient {
         connected.set(false);
         connecting.set(false);
         remotePlayers.clear();
+        // Re-arm any NPC left mid-request: speak() blocks on awaitingServerDialogue until the
+        // reply lands, and a disconnect means that reply is never coming.
+        for (entity.NPC_Generic npc : serverNpcs.values()) npc.awaitingServerDialogue = false;
+        serverNpcs.clear();
+        lastProgressJson = null; // force a fresh progress_sync on the next connect
         localId = -1;
         connectionStatus = "";
         sessionKey = null;
@@ -223,6 +228,69 @@ public class MultiplayerClient {
         if (sendCounter >= SEND_INTERVAL) {
             sendCounter = 0;
             sendPlayerState();
+            sendProgressIfChanged();
+        }
+    }
+
+    /** Last progress payload sent, so we only re-send when something actually changed. */
+    private String lastProgressJson = null;
+
+    /**
+     * Tell the server which quests / bosses / fragments we have, because that's what the NPC
+     * states it evaluates for us are gated on (requiredQuestComplete, requiredBoss, ...).
+     *
+     * <p>Note what this is: REPORTED progress. Quests and XP are still simulated here, so this
+     * is the client asserting its own story state — the server takes it at face value. The
+     * things worth cheating (coins, shop stock) are NOT in here: those live on the server and
+     * are only changed by its own buy/sell handlers. Moving quests and XP server-side is the
+     * next step, and would make this packet unnecessary.
+     */
+    private void sendProgressIfChanged() {
+        try {
+            StringBuilder sb = new StringBuilder("{\"type\":\"progress_sync\",\"quests\":{");
+            if (gp.questManager != null) {
+                boolean first = true;
+                for (var e : gp.questManager.questCompletionMap().entrySet()) {
+                    if (!first) sb.append(',');
+                    first = false;
+                    sb.append('"').append(jsonEscape(e.getKey())).append("\":").append(e.getValue());
+                }
+            }
+            sb.append("},\"bossesDefeated\":[");
+            boolean firstBoss = true;
+            int[] bossFlags = { gp.boss1Defeated ? 1 : 0, gp.boss2Defeated ? 2 : 0,
+                                gp.boss3Defeated ? 3 : 0, gp.boss4Defeated ? 4 : 0 };
+            for (int b : bossFlags) {
+                if (b == 0) continue;
+                if (!firstBoss) sb.append(',');
+                firstBoss = false;
+                sb.append(b);
+            }
+            sb.append("],\"fragments\":[");
+            if (gp.memoryJournal != null) {
+                boolean firstFrag = true;
+                for (var frag : gp.memoryJournal.getAllSorted()) {
+                    if (!frag.collected) continue;
+                    if (!firstFrag) sb.append(',');
+                    firstFrag = false;
+                    sb.append('"').append(jsonEscape(frag.id)).append('"');
+                }
+            }
+            sb.append("],\"metNPCs\":[");
+            boolean firstMet = true;
+            for (String met : gp.metNPCs) {
+                if (!firstMet) sb.append(',');
+                firstMet = false;
+                sb.append('"').append(jsonEscape(met)).append('"');
+            }
+            sb.append("],\"storyAct\":").append(gp.storyAct).append('}');
+
+            String json = sb.toString();
+            if (json.equals(lastProgressJson)) return;
+            lastProgressJson = json;
+            sendEncrypted(json);
+        } catch (Exception e) {
+            System.out.println("[MP Client] Error sending progress_sync: " + e.getMessage());
         }
     }
 
@@ -615,6 +683,10 @@ public class MultiplayerClient {
             }
             case "mob_damage" -> handleMobDamage(json);
             case "mob_death" -> handleMobDeath(json);
+            case "npc_spawn" -> handleNpcSpawn(json);
+            case "npc_dialogue" -> handleNpcDialogue(json);
+            case "npc_shop" -> handleNpcShop(json);
+            case "shop_result" -> handleShopResult(json);
             default -> { /* ignore unknown */ }
         }
     }
@@ -1105,6 +1177,245 @@ public class MultiplayerClient {
         } catch (Exception e) {
             System.out.println("[MP Client] handleMobDeath error: " + e.getMessage());
         }
+    }
+
+    // =====================================================================
+    //  SERVER-HOSTED NPCs
+    // =====================================================================
+    //
+    //  In multiplayer the NPCs live on the server (SERVERS/multiplayer_server/npc.py): it owns
+    //  npcs.json, resolves each NPC's activity state against the player's SERVER-held progress,
+    //  and runs shop transactions against server-held gold and stock. The client is a renderer:
+    //  it spawns an NPC_Generic per npc_spawn packet (presentation only — sprites, frame counts,
+    //  scale, light), sends npc_interact / shop_buy / shop_sell as intents, and displays whatever
+    //  dialogue and stock the server hands back. It never decides what an NPC says or what a
+    //  purchase costs.
+
+    /** Server-hosted NPCs by their server instance id, so npc_dialogue/npc_shop can find them. */
+    public final ConcurrentHashMap<Integer, entity.NPC_Generic> serverNpcs = new ConcurrentHashMap<>();
+
+    /**
+     * "I want to talk to NPC n." The server range-checks it and replies with npc_dialogue.
+     *
+     * @param dialogueName a named dialogue set a quest step asked for (see NPC_Generic.speak), or
+     *                     null for ordinary conversation — in which case the server picks the line
+     *                     itself from the NPC's state machine.
+     */
+    public void sendNpcInteract(int npcId, String dialogueName) {
+        if (!connected.get() || npcId < 0) return;
+        try {
+            String dlg = (dialogueName == null || dialogueName.isBlank())
+                    ? "" : ",\"dialogue\":\"" + jsonEscape(dialogueName) + "\"";
+            sendEncrypted("{\"type\":\"npc_interact\",\"npc_id\":" + npcId + dlg + "}");
+        } catch (Exception e) {
+            System.out.println("[MP Client] Error sending npc_interact: " + e.getMessage());
+        }
+    }
+
+    /** Tell the server we walked away / closed the shop, so it drops our active-NPC binding. */
+    public void sendNpcLeave() {
+        if (!connected.get()) return;
+        try {
+            sendEncrypted("{\"type\":\"npc_leave\"}");
+        } catch (Exception e) {
+            System.out.println("[MP Client] Error sending npc_leave: " + e.getMessage());
+        }
+    }
+
+    /** "I would like to buy this." Price, stock and our gold are all checked server-side; the
+     *  reply is a shop_result plus an authoritative player_stats and a refreshed npc_shop. */
+    public void sendShopBuy(String itemId, int qty) {
+        if (!connected.get() || itemId == null) return;
+        try {
+            sendEncrypted("{\"type\":\"shop_buy\",\"itemId\":\"" + jsonEscape(itemId)
+                    + "\",\"qty\":" + Math.max(1, qty) + "}");
+        } catch (Exception e) {
+            System.out.println("[MP Client] Error sending shop_buy: " + e.getMessage());
+        }
+    }
+
+    /** "I would like to sell this." The payout is the server's number, not ours. */
+    public void sendShopSell(String itemId, int qty) {
+        if (!connected.get() || itemId == null) return;
+        try {
+            sendEncrypted("{\"type\":\"shop_sell\",\"itemId\":\"" + jsonEscape(itemId)
+                    + "\",\"qty\":" + Math.max(1, qty) + "}");
+        } catch (Exception e) {
+            System.out.println("[MP Client] Error sending shop_sell: " + e.getMessage());
+        }
+    }
+
+    /**
+     * Spawn one server-hosted NPC. The packet carries presentation only, so this is the exact
+     * subset of NPCFactory.createAt's work that produces something drawable — no dialogues, no
+     * states, no shop. Sprite loading is a GL operation, hence the postRunnable.
+     */
+    private void handleNpcSpawn(String json) {
+        try {
+            final int id = extractInt(json, "id", -1);
+            if (id < 0) return;
+            com.badlogic.gdx.Gdx.app.postRunnable(() -> {
+                try {
+                    entity.NPC_Generic npc = data.NPCFactory.createFromServer(gp, json);
+                    if (npc == null) return;
+                    npc.serverDriven = true;
+                    npc.serverNpcId  = id;
+                    serverNpcs.put(id, npc);
+                    for (int i = 0; i < gp.npc.length; i++) {
+                        if (gp.npc[i] == null) { gp.npc[i] = npc; return; }
+                    }
+                    System.out.println("[MP Client] npc[] full — dropped server NPC " + id);
+                } catch (Exception e) {
+                    System.out.println("[MP Client] npc_spawn apply error: " + e.getMessage());
+                }
+            });
+        } catch (Exception e) {
+            System.out.println("[MP Client] handleNpcSpawn error: " + e.getMessage());
+        }
+    }
+
+    /** The server decided what this NPC says to us. Show it. */
+    private void handleNpcDialogue(String json) {
+        try {
+            int id = extractInt(json, "id", -1);
+            entity.NPC_Generic npc = serverNpcs.get(id);
+            if (npc == null) return;
+
+            java.util.List<String> lines = extractStringArray(json, "lines");
+            String animation = stringOr(extractString(json, "animation"), "");
+            int direction    = extractInt(json, "direction", -1);
+            boolean stationary = extractBool(json, "stationary");
+            int posCol = extractInt(json, "pos_col", -1);
+            int posRow = extractInt(json, "pos_row", -1);
+
+            // startDialogue() flips gameState and touches the UI — render thread only.
+            com.badlogic.gdx.Gdx.app.postRunnable(() ->
+                    npc.applyServerDialogue(lines, animation, direction, stationary, posCol, posRow));
+        } catch (Exception e) {
+            System.out.println("[MP Client] handleNpcDialogue error: " + e.getMessage());
+        }
+    }
+
+    /** The vendor's live stock, as the server sees it for us. Render-only. */
+    private void handleNpcShop(String json) {
+        try {
+            int id = extractInt(json, "id", -1);
+            entity.NPC_Generic npc = serverNpcs.get(id);
+            if (npc == null) return;
+            float sellMul = (float) extractDouble(json, "sellMultiplier", 0.5);
+
+            java.util.List<ui.ShopListing> listings = new java.util.ArrayList<>();
+            for (String obj : extractObjectArray(json, "items")) {
+                String itemId = extractString(obj, "itemId");
+                if (itemId == null || itemId.isBlank()) continue;
+                int price = extractInt(obj, "price", 0);
+                // The server sends what's LEFT for us (-1 = infinite/restocking). We hand that to
+                // ShopListing as both max and current: the client only ever asks infinite()
+                // (maxStock < 0) and inStock() (stock > 0) of it, and the real ceiling is the
+                // server's business — it re-sends this list after every purchase.
+                int remaining = extractInt(obj, "stock", 0);
+                listings.add(new ui.ShopListing(itemId, price, remaining));
+            }
+            com.badlogic.gdx.Gdx.app.postRunnable(() -> {
+                npc.applyServerShop(sellMul, listings);
+                // If the shop screen is already open on this vendor, refresh its rows in place
+                // (a purchase just changed stock/gold).
+                if (gp.ui.shopNpc == npc) gp.ui.refreshShopRows();
+            });
+        } catch (Exception e) {
+            System.out.println("[MP Client] handleNpcShop error: " + e.getMessage());
+        }
+    }
+
+    /** Outcome of a buy/sell the server processed. On success it also grants/removes the item
+     *  locally — the server owns gold and stock, the client still owns the inventory. */
+    private void handleShopResult(String json) {
+        try {
+            boolean ok   = extractBool(json, "ok");
+            String msg   = stringOr(extractString(json, "msg"), "");
+            String action = stringOr(extractString(json, "action"), "");
+            String itemId = stringOr(extractString(json, "itemId"), "");
+            int qty = extractInt(json, "qty", 0);
+
+            com.badlogic.gdx.Gdx.app.postRunnable(() ->
+                    gp.ui.applyServerShopResult(ok, msg, action, itemId, qty));
+        } catch (Exception e) {
+            System.out.println("[MP Client] handleShopResult error: " + e.getMessage());
+        }
+    }
+
+    /** Parse a JSON array of strings, e.g. {@code "lines":["a","b"]}. */
+    private static java.util.List<String> extractStringArray(String json, String key) {
+        java.util.List<String> out = new java.util.ArrayList<>();
+        String search = "\"" + key + "\":";
+        int i = json.indexOf(search);
+        if (i < 0) return out;
+        int start = json.indexOf('[', i);
+        if (start < 0) return out;
+        int p = start + 1;
+        while (p < json.length()) {
+            char c = json.charAt(p);
+            if (c == ']') break;
+            if (c != '"') { p++; continue; }
+            StringBuilder sb = new StringBuilder();
+            boolean escape = false;
+            p++;
+            for (; p < json.length(); p++) {
+                char ch = json.charAt(p);
+                if (escape) {
+                    switch (ch) {
+                        case 'n' -> sb.append('\n');
+                        case 'r' -> sb.append('\r');
+                        case 't' -> sb.append('\t');
+                        case '"' -> sb.append('"');
+                        case '\\' -> sb.append('\\');
+                        default -> sb.append(ch);
+                    }
+                    escape = false;
+                } else if (ch == '\\') {
+                    escape = true;
+                } else if (ch == '"') {
+                    p++;
+                    break;
+                } else {
+                    sb.append(ch);
+                }
+            }
+            out.add(sb.toString());
+        }
+        return out;
+    }
+
+    /**
+     * Split a JSON array of flat objects into their raw substrings, e.g.
+     * {@code "items":[{...},{...}]} → ["{...}", "{...}"], so each can be fed back into the
+     * extractString/extractInt helpers. Only handles objects without nested braces, which is
+     * all the server sends.
+     */
+    private static java.util.List<String> extractObjectArray(String json, String key) {
+        java.util.List<String> out = new java.util.ArrayList<>();
+        String search = "\"" + key + "\":";
+        int i = json.indexOf(search);
+        if (i < 0) return out;
+        int start = json.indexOf('[', i);
+        if (start < 0) return out;
+        int depth = 0, objStart = -1;
+        for (int p = start + 1; p < json.length(); p++) {
+            char c = json.charAt(p);
+            if (c == '{') {
+                if (depth == 0) objStart = p;
+                depth++;
+            } else if (c == '}') {
+                depth--;
+                if (depth == 0 && objStart >= 0) {
+                    out.add(json.substring(objStart, p + 1));
+                    objStart = -1;
+                }
+            } else if (c == ']' && depth == 0) {
+                break;
+            }
+        }
+        return out;
     }
 
     /** Holds the state of a remote player for rendering. */
