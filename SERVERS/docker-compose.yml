@@ -55,6 +55,8 @@ services:
       # itch.io proof-of-purchase. If unset, the server issues free licenses to anyone.
       MICHI_ITCH_API_KEY: "${MICHI_ITCH_API_KEY:-}"
       MICHI_ITCH_GAME_ID: "${MICHI_ITCH_GAME_ID:-}"
+      # Owner/admin itch user id(s) that bypass the download-key check (comma-separated).
+      MICHI_ITCH_OWNER_USER_IDS: "${MICHI_ITCH_OWNER_USER_IDS:-}"
     ports:
       # Public: clients ACTIVATE/LOGIN and sync saves here.
       - "5005:5005"

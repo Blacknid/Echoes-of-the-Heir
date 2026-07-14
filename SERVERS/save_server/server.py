@@ -123,6 +123,11 @@ DEFAULT_CONFIG = {
     # server logs a loud warning at boot — that is the old, broken-by-design behaviour.
     "itch_api_key": "",
     "itch_game_id": 0,
+    # Numeric itch.io user id(s) that always pass the purchase gate without a download key.
+    # itch.io's download_keys API only returns claimed *purchase* keys — the game's own
+    # developer/admin never holds one for their own game, so without this the owner is
+    # permanently locked out of their own gated build. Comma-separated if there's more than one.
+    "itch_owner_user_ids": "",
     "itch_api_timeout_seconds": 10,
     "rate_limit_per_ip_per_minute": 30,
     "max_concurrent_connections": 200,
@@ -174,6 +179,8 @@ def load_config() -> dict:
     except ValueError:
         logging.error("MICHI_ITCH_GAME_ID is not a number — itch gate will stay INACTIVE.")
         cfg["itch_game_id"] = 0
+    cfg["itch_owner_user_ids"] = (os.environ.get("MICHI_ITCH_OWNER_USER_IDS", "").strip()
+                                  or cfg.get("itch_owner_user_ids", ""))
     return cfg
 
 
@@ -394,6 +401,13 @@ def itch_verify_purchase(cfg: dict, oauth_token: str) -> tuple[bool, str]:
     username = str(user.get("username", "?"))
     if not isinstance(user_id, int):
         return False, "no-user-id"
+
+    # The game's own developer/admin never holds a download key for their own game —
+    # itch's API only tracks claimed *purchase* keys, not dashboard/admin access. Without
+    # this, the owner is permanently locked out of their own gated build.
+    owner_ids = {s.strip() for s in str(cfg.get("itch_owner_user_ids", "")).split(",") if s.strip()}
+    if str(user_id) in owner_ids:
+        return True, f"{username}#{user_id} (owner bypass)"
 
     # 2. Ask itch — with OUR key — whether that user holds a download key for OUR game.
     url = (f"{ITCH_API_BASE}/{urllib.parse.quote(api_key)}/game/{game_id}"
