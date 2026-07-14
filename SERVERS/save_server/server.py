@@ -421,7 +421,7 @@ def itch_verify_purchase(cfg: dict, oauth_token: str) -> tuple[bool, str]:
     raise ItchError(f"unexpected download_keys response: status={status} body={body!r}")
 
 
-_ITCH_TOKEN_RE = re.compile(r"^[A-Za-z0-9_\-]{8,120}$")
+_ITCH_TOKEN_RE = re.compile(r"^[A-Za-z0-9_.\-]{8,255}$")
 
 _LICENSE_CHARSET = "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789"
 
