@@ -38,11 +38,8 @@ public final class DesktopItchAuth implements ItchAuthProvider {
      * Baked-in itch.io OAuth application client id (itch.io → Settings → OAuth applications).
      * Public by design — a client id is not a secret. The API key that actually proves
      * ownership is a different value entirely and never leaves the server.
-     *
-     * <p>TODO: fill this in once the OAuth app exists on itch. While it is blank the purchase
-     * check is skipped, which only works against a server with its itch gate switched off.
      */
-    private static final String ITCH_CLIENT_ID_BAKED = "";
+    private static final String ITCH_CLIENT_ID_BAKED = "00477f3fb217b3b7fc21fb520c5a65b3";
 
     /** Overridable with {@code -Dmichi.itch.clientId=...} for testing against a second app. */
     private static final String CLIENT_ID =

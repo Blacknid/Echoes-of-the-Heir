@@ -10,6 +10,26 @@
 
 import org.gradle.internal.os.OperatingSystem
 
+// Run a child tool to completion, echoing its output.
+//
+// Do NOT use ProcessBuilder.inheritIO() here. Under a non-interactive shell (CI, or any
+// backgrounded gradle invocation) the inherited console handles are never drained, so a
+// chatty child — ISCC especially — fills the pipe, blocks forever on its final writes, and
+// never exits. The parent then hangs in waitFor() while still holding the finished output
+// file open. Draining the stream ourselves is what guarantees the child can always finish.
+def runTool = { List<String> cmd, Logger log ->
+    // Build the List<String> overload explicitly: passing a Groovy list straight to the
+    // ProcessBuilder ctor resolves to the String... varargs form and dies in arraycopy.
+    def pb = new ProcessBuilder(cmd.collect { it.toString() } as List<String>)
+    pb.redirectErrorStream(true)          // one stream to drain, no second-pipe deadlock
+    def proc = pb.start()
+    proc.inputStream.withReader('UTF-8') { r ->
+        def line
+        while ((line = r.readLine()) != null) log.lifecycle(line)
+    }
+    return proc.waitFor()
+}
+
 def rootDir       = rootProject.projectDir
 def buildToolsDir = new File(rootDir, 'build_tools')
 def deployDir     = new File(rootDir, 'deploy')
@@ -55,7 +75,7 @@ tasks.register('jpackageImage') {
             java.nio.file.StandardCopyOption.REPLACE_EXISTING)
 
         // Gradle 9 removed Project.exec at execution time — use ProcessBuilder directly.
-        def pb = new ProcessBuilder(jpackage,
+        runTool([jpackage,
             '--input',       jpackageInput.absolutePath,
             '--name',        appName,
             '--main-jar',    jarName,
@@ -63,9 +83,7 @@ tasks.register('jpackageImage') {
             '--type',        'app-image',
             '--dest',        jpackageTmp.absolutePath,
             '--app-version', appVersion,
-            '--java-options', '-XX:+UseG1GC -XX:MaxGCPauseMillis=5')
-        pb.inheritIO()
-        pb.start().waitFor()
+            '--java-options', '-XX:+UseG1GC -XX:MaxGCPauseMillis=5'], logger)
 
         def exe = new File(jpackageTmp, "${appName}/${appName}.exe")
         if (exe.exists()) {
@@ -96,8 +114,7 @@ tasks.register('innoInstaller') {
             logger.warn('[packaging] Inno Setup (ISCC.exe) not found — skipping installer. Get it: https://jrsoftware.org/isdl.php')
             return
         }
-        def pb = new ProcessBuilder(iscc, iss.absolutePath); pb.inheritIO()
-        def exitCode = pb.start().waitFor()
+        def exitCode = runTool([iscc, iss.absolutePath], logger)
         if (exitCode != 0) {
             throw new GradleException("[packaging] ISCC failed with exit code ${exitCode} — see output above.")
         }
