@@ -121,6 +121,79 @@ public class UI {
         return platform.GameStorage.exists("save.dat");
     }
 
+    /** Set while CONTINUE is loading, so the title screen can say so and ignore a second press. */
+    public volatile boolean continueLoading = false;
+    public volatile String continueStatusMessage = "";
+
+    /**
+     * CONTINUE — load the save, then enter the game.
+     *
+     * <p>This used to be {@code gp.saveLoad.load(); gp.keyH.startGame();} inline on the render
+     * thread, which was wrong twice over:
+     *
+     * <ul>
+     *   <li><b>It raced license activation.</b> {@code SaveLoad.load()} asks the save server for the
+     *       cloud save, but {@code CloudSaveService.download()} refuses unless
+     *       {@code License.verifyCurrent()} is already true — and activation runs on a background
+     *       thread started in {@code MichiGame.create()}. Press CONTINUE before that lands (which is
+     *       most of the time: it's a multi-second network round trip and the title screen is up
+     *       immediately) and the download was silently skipped, quietly loading a STALE LOCAL save
+     *       instead of the real cloud one. Same button, different behaviour depending on how fast
+     *       you clicked. That is the "loading is buggy" bug.</li>
+     *   <li><b>It blocked the render thread.</b> download() does a real network round trip
+     *       (pingPool() + the transfer), so the window locked up mid-load.</li>
+     * </ul>
+     *
+     * Now: wait for activation to SETTLE (succeeded or failed — either is a real answer) on a worker
+     * thread, then do the load itself back ON the render thread via postRunnable. The split matters:
+     * the wait is pure blocking I/O and must not freeze the window, but the load is NOT thread-safe —
+     * it rebuilds entities and re-bakes the minimap, which create GPU Textures/Pixmaps, and libGDX
+     * requires a current GL context for those. Running the load on the worker would mean GL calls
+     * with no context.
+     */
+    private void continueGame() {
+        if (continueLoading) return;   // already in flight — ignore the double-press
+        continueLoading = true;
+        continueStatusMessage = "Loading…";
+
+        new Thread(() -> {
+            // Wait for the licence answer rather than racing it. Bounded, because an unreachable
+            // server must not strand the player on the title screen forever — on timeout we fall
+            // through and load whatever we have locally.
+            if (!platform.LicenseActivation.awaitSettled(15_000)) {
+                System.out.println("[Load] License activation still pending after 15s — "
+                        + "loading from local save only.");
+            }
+
+            // Network half off-thread (blocking round trip), state half back on the render thread.
+            data.GameState fetched = null;
+            try {
+                fetched = gp.saveLoad.fetch();
+            } catch (RuntimeException e) {
+                System.out.println("[Load] Cloud fetch failed, using local save: " + e);
+            }
+
+            final data.GameState state = fetched;
+            com.badlogic.gdx.Gdx.app.postRunnable(() -> {
+                try {
+                    // Start from a clean slate: applying a save layers it over whatever is already
+                    // in memory, so without this a CONTINUE after a previous run (or a multiplayer
+                    // session) inherits its leftover world/inventory/flags.
+                    gp.resetSession();
+                    gp.saveLoad.applyFetched(state);
+                    // Enter the game only once the save is actually applied.
+                    gp.keyH.startGame();
+                } catch (RuntimeException e) {
+                    System.out.println("[Load] Continue failed: " + e);
+                    continueStatusMessage = "Couldn't load your save.";
+                    gp.gameState = GamePanel.titleState;
+                } finally {
+                    continueLoading = false;
+                }
+            });
+        }, "ContinueLoad").start();
+    }
+
     /** Title screen main-menu labels, "CONTINUE" prepended only when a save file exists. */
     public String[] titleMenuItems() {
         return titleHasSave()
@@ -181,7 +254,7 @@ public class UI {
         if (titleMenu == null || hasSave != titleMenuHadSave || hasNfc != titleMenuHadNfc) {
             titleMenu = Menu.of(null, THEME_PAUSE).onNavigate(() -> gp.playSE(audio.SFX.MENU_SELECT));
             if (hasSave) {
-                titleMenu.button("CONTINUE", () -> { gp.saveLoad.load(); gp.keyH.startGame(); });
+                titleMenu.button("CONTINUE", this::continueGame);
             }
             titleMenu.button("NEW GAME",    () -> { titleScreenState = 1; commandNum = 0; });
             titleMenu.button("MULTIPLAYER", () -> {
@@ -285,8 +358,12 @@ public class UI {
                 pauseMenu.button(label, this::toggleBleHosting);
             }
             pauseMenu.button("QUIT TO TITLE", () -> {
-                if (gp.bleSession.isHosting()) { gp.bleSession.stopHosting(); restoreDefaultNfcPayload(); }
-                if (gp.bleSession.isActive()) gp.bleSession.leaveHost();
+                boolean wasHosting = gp.bleSession.isHosting();
+                // Wipe the run we're leaving — world, stats, inventory, story flags — and drop any
+                // live TCP/BLE session. Quitting used to leave all of it in memory, so the next
+                // singleplayer game started on top of the multiplayer world and character.
+                gp.resetSession();
+                if (wasHosting) restoreDefaultNfcPayload();
                 platform.NfcFriend.stopReading();
                 gp.gameState = GamePanel.titleState;
                 titleScreenState = 0;

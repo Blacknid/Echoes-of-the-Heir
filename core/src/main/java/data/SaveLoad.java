@@ -347,23 +347,40 @@ public class SaveLoad {
     }
 
     public void load() {
+        applyFetched(fetch());
+    }
 
+    /**
+     * Network half of a load: pull the cloud save and parse it, touching NO game state and NO GL
+     * resource. Safe — and intended — to call off the render thread, since {@code download()} does a
+     * real blocking round trip (pingPool + transfer) that would otherwise freeze the window.
+     *
+     * @return the parsed cloud state, or null to mean "use the local save instead".
+     */
+    public GameState fetch() {
         try {
             CloudSaveService.DownloadResult result = cloudSaveService.download(Main.LICENSE_KEY);
             if (result.ok() && result.json() != null && !result.json().isBlank()) {
-                GameState state = parseGameStateJson(result.json());
-                if (state != null) {
-                    applyGameState(state);
-                    saveToDisk();
-                    return;
-                }
-            } else if (!result.ok()) {
-                System.out.println(result.message());
+                return parseGameStateJson(result.json());
             }
+            if (!result.ok()) System.out.println(result.message());
         } catch (RuntimeException e) {
             System.out.println("Cloud load failed, falling back to local save: " + e.getMessage());
         }
+        return null;
+    }
 
+    /**
+     * State half of a load: apply what {@link #fetch()} returned, falling back to the local save if
+     * it returned null. MUST run on the render thread — it rebuilds entities and re-bakes the
+     * minimap, which construct GPU Textures/Pixmaps and need a current GL context.
+     */
+    public void applyFetched(GameState state) {
+        if (state != null) {
+            applyGameState(state);
+            saveToDisk();
+            return;
+        }
         loadFromDisk();
     }
 

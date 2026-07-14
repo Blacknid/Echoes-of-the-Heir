@@ -48,6 +48,10 @@ Wire format (newline-terminated):
     C -> { "cmd": "DOWNLOAD" }
     C -> { "cmd": "CLAIM_USERNAME", "username": "..." }
     C -> { "cmd": "CHECK_USERNAME", "username": "..." }
+    C -> { "cmd": "GET_MY_USERNAME" }
+      Returns { "status": "OK", "username": "..." } or { "status": "NO_USERNAME" }. The client
+      never persists the username it claimed — this is how a fresh install (or a restart) gets
+      it back, so the Friends screen can pre-fill it instead of asking the player to claim again.
     C -> { "cmd": "SEND_FRIEND_REQUEST", "username": "..." }
     C -> { "cmd": "LIST_FRIEND_REQUESTS" }
     C -> { "cmd": "RESPOND_FRIEND_REQUEST", "username": "...", "accept": true|false }
@@ -541,6 +545,17 @@ def username_for_license(con: sqlite3.Connection, license_key: str) -> Optional[
     return row[0] if row else None
 
 
+def my_username(license_key: str) -> Optional[str]:
+    """Standalone (own-connection) variant of username_for_license, for the session command."""
+    with _db_lock:
+        con = sqlite3.connect(str(DB_PATH))
+        con.execute("PRAGMA journal_mode=WAL")
+        try:
+            return username_for_license(con, license_key)
+        finally:
+            con.close()
+
+
 def friend_id_for_license(license_key: str) -> Optional[str]:
     with _db_lock:
         con = sqlite3.connect(str(DB_PATH))
@@ -1025,15 +1040,19 @@ def handle_client(conn: socket.socket, addr: tuple[str, int],
                 raise ValueError("missing ACTIVATE/LOGIN")
             auth_parts = auth.split(" ")
             if is_activate:
-                # Format: "ACTIVATE <enc_b64>" — no account exists yet, so the envelope
-                # carries ts/nonces plus the buyer's itch.io OAuth token ("itch_token").
-                # The token stays INSIDE the RSA envelope and never appears on the wire in
-                # the clear: it is a live credential for that player's itch account, and a
-                # passive eavesdropper who lifted it could impersonate them to itch.
-                if len(auth_parts) != 2:
+                # Format: "ACTIVATE <enc_b64> [<enc_itch_token_b64>]" — no account exists yet.
+                # The RSA envelope carries only ts/nonces; the buyer's itch.io OAuth token
+                # rides in a separate AES-GCM box (keyed off the two nonces, which both sides
+                # already share by now). It cannot go inside the envelope: RSA-2048 + OAEP-SHA256
+                # caps plaintext at 190 bytes and the nonces alone eat 117, so a real itch token
+                # overflowed it and the client's encrypt threw before ACTIVATE was ever sent.
+                # Either way the token never crosses the wire in the clear — it is a live
+                # credential for that player's itch account.
+                if len(auth_parts) not in (2, 3):
                     raise ValueError("bad ACTIVATE format")
                 activation_id = None
                 enc_blob_b64 = None
+                enc_itch_b64 = auth_parts[2] if len(auth_parts) == 3 else None
                 enc = base64.b64decode(auth_parts[1], validate=True)
             else:
                 # Format: "LOGIN <enc_b64> <activation_id> <enc_blob_b64>"
@@ -1041,6 +1060,7 @@ def handle_client(conn: socket.socket, addr: tuple[str, int],
                     raise ValueError("bad LOGIN format")
                 activation_id = auth_parts[2][:64]
                 enc_blob_b64 = auth_parts[3][:256]
+                enc_itch_b64 = None  # LOGIN carries no proof of purchase — the license IS the proof
                 enc = base64.b64decode(auth_parts[1], validate=True)
             plaintext = rsa_oaep_decrypt(enc)
             payload = json.loads(plaintext.decode("utf-8"))
@@ -1082,7 +1102,31 @@ def handle_client(conn: socket.socket, addr: tuple[str, int],
             # consulted again — the license is ours, itch is just the door.
             itch_user_id = None
             if itch_is_configured(cfg):
-                itch_token = str(payload.get("itch_token", ""))[:200]
+                # Preferred: the AES-GCM box alongside the envelope (no size cap). Fallback:
+                # the old in-envelope "itch_token" field, so builds shipped before the box
+                # existed keep activating — those only ever fit a short token anyway.
+                itch_token = str(payload.get("itch_token", ""))[:255]
+                if enc_itch_b64:
+                    try:
+                        itch_key = hkdf(
+                            secret=client_nonce + server_nonce,
+                            salt=server_nonce,
+                            info=b"michi-itchtoken-v2",
+                            length=32,
+                        )
+                        itch_token = aesgcm_decrypt(
+                            ciphertext=base64.b64decode(enc_itch_b64, validate=True),
+                            key=itch_key,
+                            nonce=client_nonce[:12],
+                            aad=b"MichiItchToken",
+                        ).decode("utf-8")[:255]
+                    except Exception as exc:
+                        # The box is bound to this handshake's nonces, so a failure here means a
+                        # corrupted/forged token — not something to fall through the gate on.
+                        send_line(conn, "AUTH_FAIL")
+                        status = f"ACTIVATE_ITCH_TOKEN_DECRYPT:{type(exc).__name__}"
+                        logging.warning("Undecryptable itch token box from %s: %s", client_ip, exc)
+                        return
                 try:
                     owns, who = itch_verify_purchase(cfg, itch_token)
                 except ItchError as exc:
@@ -1266,6 +1310,15 @@ def handle_client(conn: socket.socket, addr: tuple[str, int],
             result = check_username(uname, license_key)
             sess.send_json({"status": result})
             status = f"CHECK_USERNAME:{result}:{uname}"
+
+        elif cmd == "GET_MY_USERNAME":
+            uname = my_username(license_key)
+            if uname is None:
+                sess.send_json({"status": "NO_USERNAME"})
+                status = "GET_MY_USERNAME:NO_USERNAME"
+            else:
+                sess.send_json({"status": "OK", "username": uname})
+                status = f"GET_MY_USERNAME:OK:{uname}"
 
         elif cmd == "SEND_FRIEND_REQUEST":
             uname = str(req.get("username", ""))[:32]

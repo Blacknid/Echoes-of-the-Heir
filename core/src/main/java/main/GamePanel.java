@@ -452,6 +452,53 @@ public class GamePanel {
     public void changeMap(String mapIdOrPath, int spawnCol, int spawnRow) { mapManager.changeMap(mapIdOrPath, spawnCol, spawnRow); }
     public void resetGame(boolean restart) { mapManager.resetGame(restart); }
 
+    /**
+     * Tear down any live multiplayer session and wipe every trace of the run that just ended —
+     * world, player stats, inventory, skills, story flags, quests, journal.
+     *
+     * <p>Singleplayer and multiplayer share ONE {@link GamePanel}: the same {@code player}, the same
+     * {@code obj/npc/monster/iTile} arrays, the same story flags. Nothing about entering or leaving a
+     * session used to clear any of that, so state bled straight across the boundary — a multiplayer
+     * session inherited whatever singleplayer left in memory (inventory, level, opened chests, the
+     * streamed-over map), and quitting back to the title left the multiplayer world in place for the
+     * next singleplayer run to start on top of. Both directions have to start from a clean slate,
+     * which is why this is called on the way IN to a session and on the way OUT of one.
+     *
+     * <p>This is the same wipe {@code KeyHandler.startNewGame()} performs before the awakening
+     * cutscene — it is factored out here so the mode-change paths cannot drift from it.
+     */
+    public void resetSession() {
+        // Drop the network session first: a live mpClient/BLE peer would otherwise keep writing
+        // into the very entity arrays and player fields we are about to reset.
+        multiplayerMode = false;
+        if (mpClient != null) mpClient.disconnect();
+        if (bleSession != null) {
+            if (bleSession.isHosting()) bleSession.stopHosting();
+            if (bleSession.isActive()) bleSession.leaveHost();
+        }
+        remotePlayerEntities.clear();
+
+        // Story / progression flags.
+        mapManager.shownActTitles.clear();
+        openedGates.clear();
+        metNPCs.clear();
+        boss1Defeated = boss2Defeated = boss3Defeated = boss4Defeated = false;
+        storyAct = 0;
+        endingChosen = 0;
+        teleportation = false;
+        bootsUnlocked = false;
+
+        if (memoryJournal != null) memoryJournal.reset();
+        if (questManager != null) questManager.clearQuests();
+        if (eManager != null) eManager.reset();
+        ui.clearMessages();
+
+        // resetGame(true) rebuilds the world from the starting map and calls
+        // player.setDefaultValues(), which clears the inventory and restores level/life/mana/
+        // stats/skill unlocks — the "stats and inventory" half of the reset.
+        resetGame(true);
+    }
+
     public void setFullScreen() {
         applyFullScreenSetting(true);
     }

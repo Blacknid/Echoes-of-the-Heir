@@ -442,7 +442,11 @@ public class KeyHandler implements InputProcessor {
                     gp.playSE(SFX.MENU_SELECT);
                 } else if (menuIdx == 1 && !hasUsername) {
                     ui.friendsClaimMode = true;
-                    ui.friendsNewName = "";
+                    // Pre-fill with the name the server says this license already owns, if any.
+                    // Usually null here (the option is hidden once a username is known), but the
+                    // screen can be opened before the GET_MY_USERNAME fetch has landed.
+                    String claimed = gp.friendsListManager.getClaimedUsername();
+                    ui.friendsNewName = claimed != null ? claimed : "";
                     gp.playSE(SFX.MENU_SELECT);
                 } else {
                     platform.NfcFriend.stopReading();
@@ -504,20 +508,10 @@ public class KeyHandler implements InputProcessor {
     }
 
     public void startNewGame() {
-        // Wipe all leftover world / player / map state from any previous run.
-        // Without this, choosing NEW GAME after an End-Game-to-title (or after a
-        // LOAD) keeps the old inventory, opened chests, story flags, etc.
-        gp.mapManager.shownActTitles.clear();
-        gp.openedGates.clear();
-        gp.metNPCs.clear();
-        gp.boss1Defeated = gp.boss2Defeated = gp.boss3Defeated = gp.boss4Defeated = false;
-        gp.storyAct = 0;
-        gp.endingChosen = 0;
-        if (gp.memoryJournal != null) gp.memoryJournal.reset();
-        if (gp.questManager != null) gp.questManager.clearQuests();
-        if (gp.eManager != null) gp.eManager.reset();
-        gp.ui.clearMessages();
-        gp.resetGame(true);
+        // Wipe all leftover world / player / map state from any previous run. Without this,
+        // choosing NEW GAME after an End-Game-to-title (or after a LOAD, or after a multiplayer
+        // session) keeps the old inventory, opened chests, story flags, etc.
+        gp.resetSession();
         // Enter cutscene state — the Awakening scene handles the rest
         gp.gameState = GamePanel.cutsceneState;
         gp.csManager.sceneNum = gp.csManager.awakening;
@@ -679,6 +673,12 @@ public class KeyHandler implements InputProcessor {
             gp.mpClient.connectionStatus = "Invalid port number!";
             return;
         }
+        // Start from a clean slate. Singleplayer and multiplayer share one GamePanel, so without
+        // this the session inherits whatever the previous singleplayer run left in memory — its
+        // inventory, level, story flags and world — instead of a fresh character. resetSession()
+        // also tears down any session still live, so it must run BEFORE we connect the new one.
+        gp.resetSession();
+
         // Start connection attempt — use username from title screen, fall back to "Player"
         String username = (gp.ui.playerUsername != null && !gp.ui.playerUsername.isEmpty())
                 ? gp.ui.playerUsername : "Player";

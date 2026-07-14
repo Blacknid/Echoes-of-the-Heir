@@ -45,7 +45,19 @@ public class FriendsListManager {
 
     public FriendsListManager(CloudSaveService cloudSaveService) {
         this.cloudSaveService = cloudSaveService;
-        cloudSaveService.setOnReconnect(this::retryPendingAdds);
+        cloudSaveService.setOnReconnect(this::onServerReachable);
+    }
+
+    /**
+     * Runs on the CloudSaveService heartbeat thread whenever the server answers a PING. Both steps
+     * no-op cheaply when there's nothing to do, per setOnReconnect's contract. Fetching the
+     * username here (rather than at construction) is what makes it available game-wide without the
+     * player opening Friends first — and it naturally waits for the license, which
+     * MichiGame activates on its own background thread after this object already exists.
+     */
+    private void onServerReachable() {
+        if (!usernameChecked) fetchClaimedUsername();
+        retryPendingAdds();
     }
 
     public ArrayList<String> getFriends() {
@@ -70,10 +82,15 @@ public class FriendsListManager {
         return usernameChecked;
     }
 
-    /** Refreshes both friends and pending-request lists from the server. Safe to call from any thread. */
+    /**
+     * Refreshes the claimed username plus the friends and pending-request lists from the server.
+     * Safe to call from any thread.
+     */
     public void refresh() {
         String licenseKey = Main.LICENSE_KEY;
         if (licenseKey == null) return;
+
+        fetchClaimedUsername();
 
         CloudSaveService.FriendResult friendsResult = cloudSaveService.listFriends(licenseKey);
         if (friendsResult.ok()) {
@@ -93,6 +110,33 @@ public class FriendsListManager {
     }
 
     /**
+     * Asks the server which username this license already owns and caches it, so a restart or a
+     * fresh install shows (and can pre-fill) the name the player picked instead of prompting them
+     * to claim one again — the username is only ever stored server-side, keyed by license_key.
+     *
+     * <p>A definitive answer ("OK" or "NO_USERNAME") sets {@link #isUsernameChecked()}; an
+     * unreachable server leaves it false so the UI can tell "no username" apart from "don't know
+     * yet" and the next {@link #refresh()} retries.
+     *
+     * @return the claimed username, or null if none/unknown.
+     */
+    public String fetchClaimedUsername() {
+        String licenseKey = Main.LICENSE_KEY;
+        if (licenseKey == null) return claimedUsername;
+
+        CloudSaveService.FriendIdResult result = cloudSaveService.getMyUsername(licenseKey);
+        if (result.ok()) {
+            claimedUsername = result.value();
+            usernameChecked = true;
+        } else if ("NO_USERNAME".equals(result.status())) {
+            claimedUsername = null;
+            usernameChecked = true;
+        }
+        // NO_SERVER/ERROR: keep whatever we last knew, and stay "not checked" so we try again.
+        return claimedUsername;
+    }
+
+    /**
      * Attempts to claim {@code username} for this license on the friends server.
      * @return server status: "CLAIMED", "TAKEN", "INVALID", "NO_SERVER", "NO_LICENSE", or "ERROR".
      */
@@ -100,10 +144,13 @@ public class FriendsListManager {
         String licenseKey = Main.LICENSE_KEY;
         if (licenseKey == null) return "NO_LICENSE";
         CloudSaveService.FriendResult result = cloudSaveService.claimUsername(licenseKey, username);
-        usernameChecked = true;
         if ("CLAIMED".equals(result.status())) {
             claimedUsername = username.trim();
+            usernameChecked = true;
         }
+        // A failed claim (TAKEN/INVALID/NO_SERVER/ERROR) must NOT mark the username as checked:
+        // that flag gates the startup fetch, and setting it here would leave a player who already
+        // owns a name — but whose claim attempt happened to fail — looking like they own none.
         return result.status();
     }
 

@@ -62,4 +62,5 @@ local.properties
 android/release.keystore
 android/keystore.properties
 *.dat
+owner_launch.bat
 

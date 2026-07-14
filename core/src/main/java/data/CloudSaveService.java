@@ -513,6 +513,26 @@ public class CloudSaveService {
                 "{\"cmd\":\"CHECK_USERNAME\",\"username\":" + quote(username) + "}");
     }
 
+    /**
+     * The username this license already claimed, per the server. The client never persists the
+     * username it typed, so this is the only way a reinstall/restart learns it.
+     * @return status "OK" with the username, or a failed result whose status is "NO_USERNAME"
+     * (none claimed yet), "NO_SERVER", "NO_LICENSE" or "ERROR".
+     */
+    public FriendIdResult getMyUsername(String licenseKey) {
+        if (licenseKey == null) return FriendIdResult.fail("NO_LICENSE");
+        try (Session sess = openSession(licenseKey)) {
+            if (sess == null) return FriendIdResult.fail("NO_SERVER");
+            sess.sendJson("{\"cmd\":\"GET_MY_USERNAME\"}");
+            String response = sess.recvJson();
+            String status = extractJsonString(response, "status");
+            if (!"OK".equals(status)) return FriendIdResult.fail(status != null ? status : "ERROR");
+            return FriendIdResult.of("OK", extractJsonString(response, "username"));
+        } catch (Exception e) {
+            return FriendIdResult.fail("ERROR");
+        }
+    }
+
     public FriendResult sendFriendRequest(String licenseKey, String username) {
         return simpleCommand(licenseKey,
                 "{\"cmd\":\"SEND_FRIEND_REQUEST\",\"username\":" + quote(username) + "}");
