@@ -55,6 +55,15 @@ public final class LicenseActivation implements LicenseCheck {
     public static final LicenseActivation INSTANCE = new LicenseActivation();
 
     private static final String ACTIVATION_FILE = "activation.dat";
+    /**
+     * Owner-only escape hatch, read from disk next to the game — NEVER hardcoded, never shipped.
+     * itch never issues an OAuth access_token to the developer's own account (only to accounts
+     * that bought the game through the storefront), so the normal browser flow can never
+     * activate the owner's install. If this file exists, its contents (trimmed) are sent as the
+     * itch_token instead, and a server with a matching MICHI_ITCH_OWNER_SECRET accepts it without
+     * ever calling itch. Gitignored via the blanket *.dat rule; back it up like any other secret.
+     */
+    private static final String OWNER_SECRET_FILE = "owner_secret.dat";
     private static final int DEFAULT_PORT = 5005;
     // Public hosts first: the 192.168.* entries are LAN-only and unreachable from a player's machine,
     // so a shipped build that falls back to them can never activate. Kept after the public hosts as a
@@ -131,10 +140,16 @@ public final class LicenseActivation implements LicenseCheck {
         // the license is ours, not itch's, and it keeps working offline forever.
         String itchToken = null;
         if (!isLogin) {
-            itchToken = ItchAuthProvider.tokenOrNull();
-            if (itchToken == null) {
-                System.out.println("[License] No itch.io proof of purchase obtained — the server "
-                        + "will refuse activation if its purchase gate is on.");
+            String ownerSecret = readOwnerSecret();
+            if (ownerSecret != null) {
+                itchToken = "ownerkey:" + ownerSecret;
+                System.out.println("[License] Using owner secret bypass — skipping itch.io OAuth.");
+            } else {
+                itchToken = ItchAuthProvider.tokenOrNull();
+                if (itchToken == null) {
+                    System.out.println("[License] No itch.io proof of purchase obtained — the server "
+                            + "will refuse activation if its purchase gate is on.");
+                }
             }
         }
 
@@ -276,6 +291,19 @@ public final class LicenseActivation implements LicenseCheck {
             p.load(in);
             return p;
         } catch (IOException e) {
+            return null;
+        }
+    }
+
+    /** The owner's secret from {@link #OWNER_SECRET_FILE}, trimmed, or null if absent/empty. */
+    private static String readOwnerSecret() {
+        if (!GameStorage.exists(OWNER_SECRET_FILE)) return null;
+        try (BufferedReader br = GameStorage.bufferedReader(OWNER_SECRET_FILE)) {
+            String secret = br.readLine();
+            secret = secret == null ? "" : secret.trim();
+            return secret.isEmpty() ? null : secret;
+        } catch (IOException e) {
+            System.out.println("[License] Failed to read " + OWNER_SECRET_FILE + ": " + e.getMessage());
             return null;
         }
     }

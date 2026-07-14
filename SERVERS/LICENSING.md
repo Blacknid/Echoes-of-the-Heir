@@ -62,8 +62,11 @@ that only the save server can decrypt (it alone holds `enc_key`). That's what `a
 
 itch.io → **Settings → OAuth applications → Create new**
 
-- **Redirect URI:** `http://127.0.0.1/`
-  (this is what lets the game use a throwaway local port; itch accepts any port on that host)
+- **Redirect URI:** `http://127.0.0.1:34567/`
+  (itch validates redirect_uri with an *exact* string match, port included — it does NOT
+  accept an arbitrary port when only `http://127.0.0.1/` is registered. The game's local
+  OAuth listener binds this same fixed port; see `REDIRECT_PORT` in
+  [`DesktopItchAuth.java`](../desktop/src/main/java/desktop/itch/DesktopItchAuth.java))
 - Copy the **client id**.
 
 Put that client id in `ITCH_CLIENT_ID_BAKED` in
@@ -75,6 +78,34 @@ A client id is **not** a secret — it is meant to ship inside the game.
 - **API key:** itch.io → Settings → **API keys** → *Generate new key*.
   This one **is** a secret. It is what proves ownership on the server. It never ships to clients.
 - **Game id:** the number in `https://itch.io/game/edit/<NUMBER>`.
+- **Your own user id (optional but recommended):** itch's purchase check
+  (`GET /api/1/<key>/game/<id>/download_keys`) only returns a result for a **claimed
+  purchase key** — the game's developer/admin never holds one for their own game, so
+  without this you'd be locked out of your own gated build. Grab your numeric id from
+  `https://itch.io/api/1/key/me` (or the OAuth `/me` response) and put it in
+  `MICHI_ITCH_OWNER_USER_IDS` (comma-separated if more than one admin/tester needs it).
+
+  **This alone is not enough for the owner to actually activate**, though: itch's OAuth
+  implicit-grant flow only issues an `access_token` to accounts that bought the game
+  through the storefront. The developer's own account never gets one, so the browser
+  flow in `DesktopItchAuth` has nothing to send — `ITCH_OWNER_USER_IDS` is checked only
+  *after* a token identifies a `user_id`, so it's unreachable for the owner on its own.
+
+  Instead, generate your own secret, set `MICHI_ITCH_OWNER_SECRET` on the server, and drop
+  the *same* value into a file named `owner_secret.dat` next to the game's executable
+  (same folder as `activation.dat`/`save_servers.txt` — on Android, app-private storage):
+  ```bash
+  python -c "import secrets; print(secrets.token_urlsafe(24))"
+  ```
+  ```
+  owner_secret.dat:
+  <the value you just generated>
+  ```
+  If that file is present, the game reads it and activates without ever going through itch
+  OAuth — no code, no system property, nothing hardcoded into the client. It's covered by
+  the repo's blanket `*.dat` gitignore rule, so it's never committed; back it up yourself
+  (it's just a one-line text file) since deleting it means re-activating some other way.
+  Keep it private — anyone who has it can activate as the owner.
 
 ### 3. Fill in the server secrets
 
@@ -92,6 +123,8 @@ MICHI_INTERNAL_API_KEY=<paste the generated value>
 
 MICHI_ITCH_API_KEY=<your itch.io API key>
 MICHI_ITCH_GAME_ID=<your numeric game id>
+MICHI_ITCH_OWNER_USER_IDS=<your numeric itch user id, comma-separated if more than one>
+MICHI_ITCH_OWNER_SECRET=<a secret you generate — see above; lets you activate without itch OAuth>
 
 MICHI_ADMIN_PASSWORD=<a strong password, or leave empty to disable the dashboard>
 ```

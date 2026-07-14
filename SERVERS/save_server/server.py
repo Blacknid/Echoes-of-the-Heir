@@ -123,6 +123,18 @@ DEFAULT_CONFIG = {
     # server logs a loud warning at boot — that is the old, broken-by-design behaviour.
     "itch_api_key": "",
     "itch_game_id": 0,
+    # Numeric itch.io user id(s) that always pass the purchase gate without a download key.
+    # itch.io's download_keys API only returns claimed *purchase* keys — the game's own
+    # developer/admin never holds one for their own game, so without this the owner is
+    # permanently locked out of their own gated build. Comma-separated if there's more than one.
+    "itch_owner_user_ids": "",
+    # A secret the owner generates themselves (NOT an itch token) and passes as the
+    # "itch_token" field to activate without ever going through itch OAuth. Needed because
+    # itch only issues an OAuth access_token to accounts that BUY the game through the
+    # storefront — the developer's own account never gets one, so itch_owner_user_ids alone
+    # is unreachable for the owner (it's only checked after a token identifies a user_id).
+    # Leave empty to disable this path entirely.
+    "itch_owner_secret": "",
     "itch_api_timeout_seconds": 10,
     "rate_limit_per_ip_per_minute": 30,
     "max_concurrent_connections": 200,
@@ -174,6 +186,10 @@ def load_config() -> dict:
     except ValueError:
         logging.error("MICHI_ITCH_GAME_ID is not a number — itch gate will stay INACTIVE.")
         cfg["itch_game_id"] = 0
+    cfg["itch_owner_user_ids"] = (os.environ.get("MICHI_ITCH_OWNER_USER_IDS", "").strip()
+                                  or cfg.get("itch_owner_user_ids", ""))
+    cfg["itch_owner_secret"] = (os.environ.get("MICHI_ITCH_OWNER_SECRET", "").strip()
+                               or cfg.get("itch_owner_secret", ""))
     return cfg
 
 
@@ -381,6 +397,15 @@ def itch_verify_purchase(cfg: dict, oauth_token: str) -> tuple[bool, str]:
     api_key = str(cfg.get("itch_api_key", ""))
     game_id = int(cfg.get("itch_game_id") or 0)
 
+    # Owner activation without itch OAuth at all. itch only hands out an access_token to
+    # accounts that bought the game through the storefront — the developer's own account
+    # never gets one, so the itch_owner_user_ids bypass below (which needs a token to
+    # resolve a user_id in the first place) is unreachable for the owner. This lets the
+    # owner activate with a secret they generate themselves instead of an itch token.
+    owner_secret = str(cfg.get("itch_owner_secret", ""))
+    if owner_secret and oauth_token == f"ownerkey:{owner_secret}":
+        return True, "owner (secret bypass)"
+
     if not oauth_token or not _ITCH_TOKEN_RE.match(oauth_token):
         return False, "malformed-token"
 
@@ -395,6 +420,13 @@ def itch_verify_purchase(cfg: dict, oauth_token: str) -> tuple[bool, str]:
     if not isinstance(user_id, int):
         return False, "no-user-id"
 
+    # The game's own developer/admin never holds a download key for their own game —
+    # itch's API only tracks claimed *purchase* keys, not dashboard/admin access. Without
+    # this, the owner is permanently locked out of their own gated build.
+    owner_ids = {s.strip() for s in str(cfg.get("itch_owner_user_ids", "")).split(",") if s.strip()}
+    if str(user_id) in owner_ids:
+        return True, f"{username}#{user_id} (owner bypass)"
+
     # 2. Ask itch — with OUR key — whether that user holds a download key for OUR game.
     url = (f"{ITCH_API_BASE}/{urllib.parse.quote(api_key)}/game/{game_id}"
            f"/download_keys?user_id={user_id}")
@@ -407,7 +439,7 @@ def itch_verify_purchase(cfg: dict, oauth_token: str) -> tuple[bool, str]:
     raise ItchError(f"unexpected download_keys response: status={status} body={body!r}")
 
 
-_ITCH_TOKEN_RE = re.compile(r"^[A-Za-z0-9_\-]{8,120}$")
+_ITCH_TOKEN_RE = re.compile(r"^[A-Za-z0-9_.\-]{8,255}$")
 
 _LICENSE_CHARSET = "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789"
 
@@ -1067,7 +1099,12 @@ def handle_client(conn: socket.socket, addr: tuple[str, int],
                     logging.info("Activation refused from %s — itch user %s does not own the game",
                                  client_ip, who)
                     return
-                itch_user_id = int(who.rsplit("#", 1)[1])
+                # The owner-secret bypass has no real itch account behind it ("owner (secret
+                # bypass)" has no "#<id>") — leave itch_user_id as None, same as a pre-gate
+                # license or an unconfigured gate. Only a genuine itch identity (username#id)
+                # gets recorded against the one-license-per-itch-account unique index.
+                if "#" in who:
+                    itch_user_id = int(who.rsplit("#", 1)[1])
                 logging.info("itch.io purchase verified for %s (ip=%s)", who, client_ip)
             elif not cfg.get("dev_mode", False):
                 # Unconfigured in production = the old broken behaviour (free licenses for
