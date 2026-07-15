@@ -1015,7 +1015,18 @@ public class KeyHandler implements InputProcessor {
         }
 
         if (gp.actions.consumePressed(InputBindings.MENU_CONFIRM)) {
-            if (!gp.player.skillTree.unlockSelected(gp.player)) {
+            if (gp.multiplayerMode && gp.mpClient != null && gp.mpClient.isConnected()) {
+                // In multiplayer the server owns the skill points and the unlocked set: send the
+                // intent and let it decide. The node is only marked unlocked and its effect applied
+                // when the server replies skill_result ok (see MultiplayerClient.handleSkillResult),
+                // so a client can't grant itself a skill it can't afford. No local save here — the
+                // server persists the unlock for us.
+                SkillTree st = gp.player.skillTree;
+                int idx = st.selectedIndex;
+                if (idx >= 0 && idx < st.getNodes().length) {
+                    gp.mpClient.sendSkillUnlock(st.getNodes()[idx].id);
+                }
+            } else if (!gp.player.skillTree.unlockSelected(gp.player)) {
                 gp.playSE(SFX.PLAYER_HIT);
             } else {
                 gp.ui.invalidateSkillTreeConnectorCache();
@@ -1150,6 +1161,9 @@ public class KeyHandler implements InputProcessor {
         // flag — otherwise it stays pending after returning to playState, and the next
         // pollGameplayActions() tick would fire a spurious extra interact/attack.
         if (gp.actions.consumePressed(InputBindings.MENU_CONFIRM)) {
+            // applyLevelUpChoice is multiplayer-aware: offline it applies the +1 locally; online it
+            // sends the pick to the server (which owns the stats) instead. Both keyboard and mouse
+            // confirm funnel through it, so the authority check lives in one place.
             gp.player.applyLevelUpChoice();
             gp.gameState = GamePanel.playState;
         }

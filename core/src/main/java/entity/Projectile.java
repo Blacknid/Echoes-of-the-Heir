@@ -127,6 +127,14 @@ public class Projectile extends Entity implements Poolable {
      */
     public static Sprite rotateImage(Sprite img, double degrees) {
         Texture src = img.texture();
+        // Headless (server): nothing to rotate and nothing to rotate it with. Return a sprite of
+        // the rotated SIZE so any dimension math downstream still agrees with the client's.
+        if (src == null) {
+            int deg0 = ((int) Math.round(degrees) % 360 + 360) % 360;
+            boolean swap = (deg0 == 90 || deg0 == 270);
+            return Sprite.headless(swap ? img.getHeight() : img.getWidth(),
+                                   swap ? img.getWidth()  : img.getHeight());
+        }
         TextureData td = src.getTextureData();
         if (!td.isPrepared()) td.prepare();
         Pixmap in = td.consumePixmap();

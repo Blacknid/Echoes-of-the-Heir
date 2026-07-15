@@ -74,6 +74,10 @@ public final class ResourceCache {
     private static void ensureSpriteAtlasLoaded() {
         if (spriteAtlasLoadAttempted) return;
         spriteAtlasLoadAttempted = true;
+        // The atlas is a packed GPU texture — there is nothing to pack it into without GL. Leaving
+        // it null makes loadImageIfPresent fall through to the loose-file path, which in headless
+        // mode reads dimensions from the PNG header (see textureFrom).
+        if (headless) return;
         FileHandle fh = Gdx.files.internal("res/atlas/sprites.atlas");
         if (!fh.exists()) fh = Gdx.files.classpath("/res/atlas/sprites.atlas");
         if (!fh.exists()) return;
@@ -177,7 +181,33 @@ public final class ResourceCache {
     }
 
     /** Create a nearest-filtered GPU texture sprite from a file handle (crisp pixel art). */
+    /**
+     * Headless mode: no GL context, so no textures. Set by the authoritative game server
+     * (see main.HeadlessGame) before any asset is touched.
+     *
+     * <p>This is the ONE place the renderless build diverges from the client, because
+     * {@link #textureFrom} is the only spot in the codebase that constructs a {@link Texture}.
+     * Everything above it — sheet slicing, frame-count math, entity construction — is pure
+     * arithmetic on sprite dimensions and runs identically either way.
+     */
+    private static boolean headless = false;
+
+    /** Switch to dimension-only image loading (no GPU). Call once, before loading any asset. */
+    public static synchronized void setHeadless(boolean value) {
+        headless = value;
+        if (value) System.out.println("[ResourceCache] Headless mode — images load as dimensions only");
+    }
+
+    public static synchronized boolean isHeadless() { return headless; }
+
     private static Sprite textureFrom(FileHandle fh) {
+        if (headless) {
+            int[] size = pngSize(fh);
+            // A sprite the simulation can measure but not draw. If the header is unreadable we
+            // still hand back a 1x1 rather than null: null means "missing asset" to every caller,
+            // and a server that can't parse a PNG header hasn't lost anything it actually needs.
+            return size != null ? Sprite.headless(size[0], size[1]) : Sprite.headless(1, 1);
+        }
         try {
             Texture tex = new Texture(fh, false);
             tex.setFilter(Texture.TextureFilter.Nearest, Texture.TextureFilter.Nearest);
@@ -186,6 +216,36 @@ public final class ResourceCache {
             System.out.println("[ResourceCache] Texture load failed: " + fh + " (" + e.getMessage() + ")");
             return null;
         }
+    }
+
+    /**
+     * Read a PNG's pixel dimensions straight out of its IHDR chunk — the first 24 bytes — without
+     * decoding the image. That is all the simulation ever wants from a sprite sheet: width and
+     * height, to divide into frames.
+     *
+     * @return {width, height}, or null if this isn't a readable PNG
+     */
+    private static int[] pngSize(FileHandle fh) {
+        try (java.io.InputStream in = fh.read()) {
+            byte[] head = in.readNBytes(24);
+            if (head.length < 24) return null;
+            // 8-byte signature, then the IHDR chunk: 4-byte length, 4-byte type, then W and H as
+            // big-endian 32-bit ints at offsets 16 and 20.
+            if ((head[0] & 0xFF) != 0x89 || head[1] != 'P' || head[2] != 'N' || head[3] != 'G') {
+                return null;
+            }
+            int w = readBE32(head, 16);
+            int h = readBE32(head, 20);
+            if (w <= 0 || h <= 0) return null;
+            return new int[]{ w, h };
+        } catch (Exception e) {
+            return null;
+        }
+    }
+
+    private static int readBE32(byte[] b, int off) {
+        return ((b[off] & 0xFF) << 24) | ((b[off + 1] & 0xFF) << 16)
+             | ((b[off + 2] & 0xFF) << 8) | (b[off + 3] & 0xFF);
     }
 
     public static synchronized Sprite loadScaledImage(String path, int width, int height) throws IOException {

@@ -16,7 +16,7 @@ public class AssetValidator {
         "/res/player/Player_walking-sheet.png",
         "/res/player/Player_idle-sheet.png",
         "/res/maps/Canvas_Village.tmx",
-        "/res/sound/Michiduta Theme.wav",
+        "/res/sound/Michi Theme.wav",
         "/res/sound/GameOver.wav",
         "/res/weapons/Wooden Sword.png",
         "/res/shields/Wooden Shield.png",

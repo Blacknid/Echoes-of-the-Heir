@@ -3325,6 +3325,10 @@ public class UI {
         gp.dlgPanTargetY = 0f;
         gp.dlgBarsTarget = 0f;
 
+        // Server-hosted shop: drop the server's active-NPC binding too, so a later buy/sell
+        // can't be aimed at a vendor we've already walked away from.
+        if (serverShop()) gp.mpClient.sendNpcLeave();
+
         gp.gameState = GamePanel.playState;
         shopNpc = null;
         shopPromptActive = false;
@@ -3373,7 +3377,21 @@ public class UI {
         return 0;
     }
 
+    /** True when this shop is hosted by the multiplayer server: gold, price and stock all live
+     *  there, so a transaction is a request, not something we perform locally. */
+    private boolean serverShop() {
+        return shopNpc != null && shopNpc.serverDriven
+                && gp.mpClient != null && gp.mpClient.isConnected();
+    }
+
     private void buyItem(ShopListing listing) {
+        if (serverShop()) {
+            // Ask; don't act. The server checks price, stock and our real coin balance, then
+            // sends back shop_result (→ applyServerShopResult, which grants the item), a fresh
+            // player_stats with the true gold, and a refreshed npc_shop with the true stock.
+            gp.mpClient.sendShopBuy(listing.itemId, 1);
+            return;
+        }
         if (gp.player.coin < listing.price || !listing.inStock()) return;
         entity.Entity item = data.ItemFactory.create(gp, listing.itemId);
         if (item == null) return;
@@ -3392,6 +3410,12 @@ public class UI {
     }
 
     private void sellItem(entity.Entity item) {
+        if (serverShop()) {
+            // The payout is the server's to decide. We hand over the item only once it
+            // confirms (applyServerShopResult), so a failed sale doesn't cost us the item.
+            gp.mpClient.sendShopSell(item.itemId, 1);
+            return;
+        }
         int sellPrice = Math.round(listingPriceFor(item.itemId) * shopNpc.shopSellMultiplier);
         if (sellPrice <= 0) return;
         if (item.stackable && item.amount > 1) {
@@ -3403,6 +3427,55 @@ public class UI {
         gp.player.coin += sellPrice;
         gp.playSE(audio.SFX.MENU_SELECT);
         setShopStatus("Sold " + item.name + ".");
+        rebuildShopRows();
+    }
+
+    /** Rebuild the shop grid from outside (MultiplayerClient, when the server pushes new stock). */
+    public void refreshShopRows() {
+        if (shopNpc != null) rebuildShopRows();
+    }
+
+    /**
+     * Outcome of a buy/sell the multiplayer server processed. Gold was already applied by the
+     * player_stats packet that follows; what's left is the inventory half, which still lives on
+     * the client — so we add the bought item / remove the sold one only now, on confirmation.
+     */
+    public void applyServerShopResult(boolean ok, String msg, String action,
+                                      String itemId, int qty) {
+        if (!ok) {
+            setShopStatus(msg != null && !msg.isBlank() ? msg : "Transaction failed.");
+            return;
+        }
+
+        if ("buy".equals(action)) {
+            for (int i = 0; i < Math.max(1, qty); i++) {
+                entity.Entity item = data.ItemFactory.create(gp, itemId);
+                if (item == null) break;
+                if (!gp.player.canObtainItem(item)) {
+                    // Paid for, but nowhere to put it. Say so plainly rather than silently
+                    // vanishing the purchase.
+                    setShopStatus("Inventory full — item not received!");
+                    break;
+                }
+            }
+        } else if ("sell".equals(action)) {
+            for (int i = 0; i < Math.max(1, qty); i++) {
+                entity.Entity held = null;
+                for (entity.Entity inv : gp.player.inventory) {
+                    if (itemId.equals(inv.itemId)) { held = inv; break; }
+                }
+                if (held == null) break;
+                if (held.stackable && held.amount > 1) {
+                    held.amount--;
+                } else {
+                    gp.player.unequipIfCurrent(held);
+                    gp.player.inventory.remove(held);
+                }
+            }
+        }
+
+        gp.playSE(audio.SFX.MENU_SELECT);
+        setShopStatus(msg != null && !msg.isBlank() ? msg : "Done.");
         rebuildShopRows();
     }
 

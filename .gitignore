@@ -64,3 +64,7 @@ android/keystore.properties
 *.dat
 owner_launch.bat
 
+# Built by `./gradlew :core:engineJar` — the authoritative gameplay engine the MP server
+# launches. A ~100 MB build artifact (bundles assets + natives), not source; regenerate it.
+SERVERS/multiplayer_server/engine.jar
+

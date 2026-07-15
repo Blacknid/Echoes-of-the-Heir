@@ -115,6 +115,20 @@ public class MapManager {
                 }
             }
 
+            // Classpath fallback. Gdx.files.internal() resolves against the working directory, which
+            // finds nothing when the assets are only on the classpath — the case for any process
+            // launched outside the packaged layout, notably the headless authoritative server
+            // (main.HeadlessGame). ResourceCache.resolve() already falls back this way for single
+            // files; discovery needs the same, but a classpath FileHandle cannot be list()ed, so
+            // enumerate through the classloader, which works for both a jar and an exploded dir.
+            if (mapRegistry.isEmpty()) {
+                for (String name : listClasspathDir(mapsDir)) {
+                    if (!name.toLowerCase().endsWith(".tmx")) continue;
+                    String tmxPath = mapsDir + name;
+                    mapRegistry.put(deriveMapId(name, tmxPath), tmxPath);
+                }
+            }
+
             if (mapRegistry.isEmpty()) {
                 System.out.println("MapManager WARNING: No .tmx files discovered in " + mapsDir);
             } else {
@@ -127,6 +141,54 @@ public class MapManager {
             System.out.println("MapManager: Failed to discover maps from " + mapsDir);
             e.printStackTrace(System.out);
         }
+    }
+
+    /**
+     * List the file names in a classpath directory (e.g. "/res/maps/"), working whether that
+     * directory lives in a jar or in an exploded build output.
+     *
+     * <p>Needed because a classpath {@code FileHandle} cannot be {@code list()}ed and
+     * {@code Gdx.files.internal()} only searches the working directory — so a process whose assets
+     * come from the classpath rather than a packaged asset folder (the headless server) would
+     * otherwise discover no maps at all.
+     *
+     * @return the file names found, or an empty list if the directory isn't on the classpath
+     */
+    private static java.util.List<String> listClasspathDir(String dirPath) {
+        java.util.List<String> names = new java.util.ArrayList<>();
+        String rel = dirPath.startsWith("/") ? dirPath.substring(1) : dirPath;
+        try {
+            java.net.URL url = MapManager.class.getClassLoader().getResource(rel);
+            if (url == null) return names;
+
+            if ("file".equals(url.getProtocol())) {
+                java.io.File dir = new java.io.File(url.toURI());
+                java.io.File[] files = dir.listFiles();
+                if (files != null) {
+                    for (java.io.File f : files) {
+                        if (f.isFile()) names.add(f.getName());
+                    }
+                }
+            } else if ("jar".equals(url.getProtocol())) {
+                String spec = url.getPath();                       // file:/x/y.jar!/res/maps/
+                String jarPath = spec.substring(5, spec.indexOf("!"));
+                try (java.util.jar.JarFile jar =
+                             new java.util.jar.JarFile(java.net.URLDecoder.decode(
+                                     jarPath, java.nio.charset.StandardCharsets.UTF_8))) {
+                    java.util.Enumeration<java.util.jar.JarEntry> entries = jar.entries();
+                    while (entries.hasMoreElements()) {
+                        String name = entries.nextElement().getName();
+                        if (!name.startsWith(rel) || name.endsWith("/")) continue;
+                        String leaf = name.substring(rel.length());
+                        if (!leaf.isEmpty() && leaf.indexOf('/') < 0) names.add(leaf);
+                    }
+                }
+            }
+        } catch (Exception e) {
+            System.out.println("MapManager: classpath map scan failed for " + dirPath
+                    + " (" + e.getMessage() + ")");
+        }
+        return names;
     }
 
     /**

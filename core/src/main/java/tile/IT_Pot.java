@@ -45,6 +45,10 @@ public class IT_Pot extends interactiveTile {
      * ellipses via Pixmap primitives — visually identical at tile scale.
      */
     private Sprite generatePotSprite(int size) {
+        // Headless (server): the pot's appearance is irrelevant to the simulation — only its size
+        // is, and that's the argument. Skip the Pixmap work entirely; there's no GL to upload to.
+        if (util.ResourceCache.isHeadless()) return Sprite.headless(size, size);
+
         Pixmap pm = new Pixmap(size, size, Pixmap.Format.RGBA8888);
         pm.setBlending(Pixmap.Blending.SourceOver);
         int s = size;

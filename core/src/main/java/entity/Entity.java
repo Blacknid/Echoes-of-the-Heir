@@ -547,6 +547,14 @@ public class Entity {
     public boolean tryDodgeIncomingHit() { return false; }
     public boolean use(Entity entity) { return false; }
     public void startDialogue(Entity entity, int setNum) {
+        // Server-hosted NPC mid-interaction: its dialogue text lives on the server and hasn't
+        // arrived yet, so opening the box now would show an empty or stale set. Quest steps reach
+        // here via their no-named-dialogue fallback; let them fall through to the server's own
+        // choice of line instead. applyServerDialogue() calls this again once the lines land, by
+        // which point awaitingServerDialogue is false and this guard is out of the way.
+        if (entity instanceof NPC_Generic g && g.serverDriven && g.awaitingServerDialogue) {
+            return;
+        }
         gp.gameState = GamePanel.dialogueState;
         gp.ui.npc = entity;
         dialogueSet = setNum;
@@ -616,6 +624,13 @@ public class Entity {
 
     /** Start dialogue by named key. Resolves via dialogueNameMap, falls back to parseInt, then 0. */
     public void startNamedDialogue(Entity entity, String dialogueName) {
+        // Server-hosted NPC: we don't have the lines, the server does. Record which named set was
+        // asked for (NPC_Generic.speak sends it with npc_interact) instead of opening a box on
+        // dialogue text this process never received.
+        if (entity instanceof NPC_Generic g && g.serverDriven) {
+            g.serverDialogueRequest = dialogueName;
+            return;
+        }
         if (dialogueName == null) { startDialogue(entity, 0); return; }
         if (entity.dialogueNameMap != null) {
             Integer idx = entity.dialogueNameMap.get(dialogueName);
@@ -1336,13 +1351,22 @@ public class Entity {
             if (name != null) {
                 gp.ui.addMessage("Killed the " + name + "!", Color.WHITE);
             }
-            if (deathRewardExp > 0) {
-                gp.player.exp += deathRewardExp;
-                gp.player.checkLevelUp();
-            }
-            if (deathRewardCoins > 0) {
-                gp.player.coin += deathRewardCoins;
-                gp.ui.addMessage("+" + deathRewardCoins + " coins", COIN_MSG_COLOR);
+            // In multiplayer, XP, coins and the level-up are the server's to grant: it credits
+            // them on the authoritative kill and pushes back player_stats (with leveledUp when a
+            // level was gained). Awarding them here too would let a client mint its own XP/gold,
+            // which is exactly what we're closing — so skip the local award and let the server's
+            // player_stats be the only thing that changes these.
+            boolean serverOwnsRewards = gp.multiplayerMode
+                    && gp.mpClient != null && gp.mpClient.isConnected();
+            if (!serverOwnsRewards) {
+                if (deathRewardExp > 0) {
+                    gp.player.exp += deathRewardExp;
+                    gp.player.checkLevelUp();
+                }
+                if (deathRewardCoins > 0) {
+                    gp.player.coin += deathRewardCoins;
+                    gp.ui.addMessage("+" + deathRewardCoins + " coins", COIN_MSG_COLOR);
+                }
             }
         }
     }
