@@ -90,11 +90,16 @@ public class GdxRenderer {
         applyTransform();
     }
 
+    // Reused transform matrix — applyTransform() runs on every translate()/setWorldZoom(), i.e. once
+    // per camera-shake offset, per dialogue-pan, and per debug-hitbox translate. Rebuilt in place each
+    // call (idt()) so it never accumulates, avoiding a Matrix4 allocation on each of those calls.
+    private final Matrix4 xformScratch = new Matrix4();
+
     private void applyTransform() {
         // Translate is applied as a transform matrix on top of the camera projection.
         // When zoomed, a scale-about-pivot is composed inside the translate so the world
         // magnifies around the pivot point (screen center for the dialogue camera).
-        Matrix4 t = new Matrix4().translate(tx, ty, 0);
+        Matrix4 t = xformScratch.idt().translate(tx, ty, 0);
         if (zoom != 1f) {
             t.translate(pivotX, pivotY, 0).scale(zoom, zoom, 1f).translate(-pivotX, -pivotY, 0);
         }
@@ -134,8 +139,15 @@ public class GdxRenderer {
         mode = Mode.NONE;
     }
 
+    // Reused scratch color for shape fills/lines. ShapeRenderer.setColor(Color) copies the channel
+    // values into its own field, so handing it the same instance every call is safe — this avoids a
+    // fresh com.badlogic.gdx.graphics.Color allocation on EVERY fillRect/fillOval/drawLine/etc. At
+    // dozens-to-hundreds of shape draws per frame (HUD bars, debug overlays, weather splashes) that
+    // was the single largest source of per-frame garbage in the renderer.
+    private final com.badlogic.gdx.graphics.Color scratchColor = new com.badlogic.gdx.graphics.Color();
+
     private com.badlogic.gdx.graphics.Color gdxColor() {
-        return new com.badlogic.gdx.graphics.Color(
+        return scratchColor.set(
             color.getRed() / 255f, color.getGreen() / 255f, color.getBlue() / 255f,
             (color.getAlpha() / 255f) * alpha);
     }
@@ -217,6 +229,13 @@ public class GdxRenderer {
     }
     public int getBlendMode() { return blendMode; }
 
+    // Shared scratch region for flip/mirror draws (drawTileFlipped, drawImageRotated with flip). Set
+    // from the source region and flipped in place each call, so the cached per-sprite region keeps its
+    // own flip state and no TextureRegion is allocated per flipped/mirrored draw. Safe because
+    // batch.draw() reads the region's vertices synchronously before the next caller reuses it.
+    private final com.badlogic.gdx.graphics.g2d.TextureRegion flipScratch =
+        new com.badlogic.gdx.graphics.g2d.TextureRegion();
+
     // ── Image drawing (SpriteBatch) ───────────────────────────────────────────
     public void drawImage(Sprite img, int x, int y) {
         if (img == null) return;
@@ -267,6 +286,26 @@ public class GdxRenderer {
      * panel fade-ins keep working. The texture is expected to be already recolored (see
      * {@link #bakePaletteSwap}); this method is palette-agnostic.
      */
+    // Cache of the 9 sliced sub-sprites per source texture. The slices depend only on the source
+    // Sprite (its region + native size), not on the destination rect, so they're identical every
+    // frame — computing them here once instead of allocating 9 Sprites (each wrapping a new
+    // TextureRegion) on every drawNineSlice call removes ~9 allocations per panel per frame. Keyed by
+    // source Sprite identity; the game holds a small fixed set of baked, themed panel textures.
+    private final java.util.IdentityHashMap<Sprite, Sprite[]> nineSliceCache =
+        new java.util.IdentityHashMap<>();
+
+    private Sprite[] nineSliceOf(Sprite tex, int s) {
+        Sprite[] slices = nineSliceCache.get(tex);
+        if (slices != null) return slices;
+        slices = new Sprite[]{
+            tex.getSubimage(0, 0, s, s),         tex.getSubimage(s, 0, s, s),     tex.getSubimage(2 * s, 0, s, s),
+            tex.getSubimage(0, s, s, s),         tex.getSubimage(s, s, s, s),     tex.getSubimage(2 * s, s, s, s),
+            tex.getSubimage(0, 2 * s, s, s),     tex.getSubimage(s, 2 * s, s, s), tex.getSubimage(2 * s, 2 * s, s, s),
+        };
+        nineSliceCache.put(tex, slices);
+        return slices;
+    }
+
     public void drawNineSlice(Sprite tex, int x, int y, int w, int h) {
         if (tex == null) return;
         int s = tex.nativeWidth() / 3;
@@ -277,16 +316,11 @@ public class GdxRenderer {
         int midW = w - 2 * sw;       // stretched horizontal span
         int midH = h - 2 * sh;       // stretched vertical span
 
-        // Native (top-left) source cells of the 3x3 grid.
-        Sprite tl = tex.getSubimage(0, 0, s, s);
-        Sprite tc = tex.getSubimage(s, 0, s, s);
-        Sprite tr = tex.getSubimage(2 * s, 0, s, s);
-        Sprite ml = tex.getSubimage(0, s, s, s);
-        Sprite mc = tex.getSubimage(s, s, s, s);
-        Sprite mr = tex.getSubimage(2 * s, s, s, s);
-        Sprite bl = tex.getSubimage(0, 2 * s, s, s);
-        Sprite bc = tex.getSubimage(s, 2 * s, s, s);
-        Sprite br = tex.getSubimage(2 * s, 2 * s, s, s);
+        // Native (top-left) source cells of the 3x3 grid — cached per source texture (see nineSliceOf).
+        Sprite[] c = nineSliceOf(tex, s);
+        Sprite tl = c[0], tc = c[1], tr = c[2];
+        Sprite ml = c[3], mc = c[4], mr = c[5];
+        Sprite bl = c[6], bc = c[7], br = c[8];
 
         int xL = x, xC = x + sw, xR = x + sw + midW;
         int yT = y, yC = y + sh, yB = y + sh + midH;
@@ -399,7 +433,8 @@ public class GdxRenderer {
         batch.setColor(1f, 1f, 1f, alpha);
         com.badlogic.gdx.graphics.g2d.TextureRegion r = img.region();
         if (flipX || flipY) {
-            r = new com.badlogic.gdx.graphics.g2d.TextureRegion(r);
+            r = flipScratch;
+            r.setRegion(img.region());
             r.flip(flipX, flipY);
         }
         // libGDX rotates CCW; y-down camera makes positive degrees clockwise on screen, matching AWT.
@@ -417,9 +452,13 @@ public class GdxRenderer {
         useBatch();
         batch.setColor(1f, 1f, 1f, alpha);
         com.badlogic.gdx.graphics.g2d.TextureRegion r0 = img.region();
-        // Work on a copy so we don't mutate the cached region's flip state.
-        com.badlogic.gdx.graphics.g2d.TextureRegion r =
-            new com.badlogic.gdx.graphics.g2d.TextureRegion(r0);
+        // Reuse one scratch region (set from the source each call) instead of allocating a fresh
+        // TextureRegion per flipped tile — flipped tiles are extremely common (every mirrored
+        // wall/floor GID in a map draws through here every frame). batch.draw() consumes the region's
+        // vertices synchronously, so a single reused instance is safe; we still never mutate the
+        // cached region's flip state (we copy into scratch and flip that).
+        com.badlogic.gdx.graphics.g2d.TextureRegion r = flipScratch;
+        r.setRegion(r0);
         // Diagonal flip = transpose; expressed as H-flip + 90° rotation in the combinations below.
         float rot = 0f;       // degrees, clockwise on the y-down screen
         boolean flipX = fH, flipY = fV;
