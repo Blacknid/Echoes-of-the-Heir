@@ -28,10 +28,52 @@ sourceSets {
 dependencies {
     api "com.badlogicgames.gdx:gdx:$gdxVersion"
     api "com.badlogicgames.gdx:gdx-freetype:$gdxVersion"   // .ttf fonts (Pixeloid Sans, m5x7)
+    // Headless backend: supplies Gdx.files/Gdx.app with no window and no GL context, so the
+    // authoritative game server can run the SAME simulation classes as the client rather than a
+    // separate port of them. See main.HeadlessGame / main.Headless.
+    api "com.badlogicgames.gdx:gdx-backend-headless:$gdxVersion"
+
+    // libGDX's native library, needed at RUNTIME by the headless backend (and by the server that
+    // will host the simulation). Deliberately runtimeOnly rather than api: it is a desktop-only
+    // binary, and core must stay buildable for Android, which brings its own natives.
+    runtimeOnly "com.badlogicgames.gdx:gdx-platform:$gdxVersion:natives-desktop"
     // Gamepad/controller support — platform artifact added per-launcher module (desktop/android).
     api "com.badlogicgames.gdx-controllers:gdx-controllers-core:$gdxControllersVersion"
 }
 
 // Sprite atlas packing (desktop build-time tool only, not a runtime/Android dependency).
 apply from: rootProject.file('gradle/assets.gradle')
+
+// Boot the simulation with no window and no GL — proves the game logic the authoritative server
+// will run is genuinely renderless. Usage: ./gradlew :core:runHeadless [--args="<ticks>"]
+tasks.register('runHeadless', JavaExec) {
+    group = 'verification'
+    description = 'Boot and tick the game simulation headlessly (no window, no GPU).'
+    mainClass = 'main.HeadlessGame'
+    classpath = sourceSets.main.runtimeClasspath
+}
+
+// ── Authoritative gameplay engine as a single runnable jar. ──
+// This is the "gameplay" server the Python multiplayer server launches as a child process and
+// talks to over stdin/stdout (see server.EngineServer and SERVERS/multiplayer_server/game_engine.py).
+// It bundles core's classes, its assets (res/**), the headless libGDX backend and the desktop
+// natives, so it runs anywhere a JRE does with no Gradle and no game install:
+//     java -jar engine.jar
+// Output goes to SERVERS/multiplayer_server/engine.jar so the Python side can find it by default.
+tasks.register('engineJar', Jar) {
+    group = 'build'
+    description = 'Bundle the authoritative gameplay engine into a single runnable jar.'
+    archiveBaseName = 'engine'
+    archiveVersion = ''
+    destinationDirectory = rootProject.file('SERVERS/multiplayer_server')
+    duplicatesStrategy = DuplicatesStrategy.EXCLUDE
+
+    from sourceSets.main.output          // core's compiled classes + res/** resources
+    dependsOn configurations.runtimeClasspath
+    from { configurations.runtimeClasspath.collect { it.isDirectory() ? it : zipTree(it) } }
+
+    manifest { attributes 'Main-Class': 'server.EngineServer' }
+    // Signatures from signed dependency jars don't survive being merged into a fat jar.
+    exclude 'META-INF/*.SF', 'META-INF/*.DSA', 'META-INF/*.RSA'
+}
 

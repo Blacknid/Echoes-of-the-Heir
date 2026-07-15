@@ -296,6 +296,17 @@ public class QuestManager {
         return false;
     }
 
+    /** Every tracked quest as {id -> complete?}. Used by MultiplayerClient's progress_sync to
+     *  tell the server which quests we hold, since NPC states there gate on them. */
+    public java.util.Map<String, Boolean> questCompletionMap() {
+        java.util.Map<String, Boolean> out = new java.util.LinkedHashMap<>();
+        for (int i = 0, n = quests.size(); i < n; i++) {
+            Quest q = quests.get(i);
+            out.put(q.id, q.isComplete());
+        }
+        return out;
+    }
+
     /** Check if a quest is complete. Returns false if quest doesn't exist. */
     public boolean isComplete(String id) {
         for (int i = 0, n = quests.size(); i < n; i++) {

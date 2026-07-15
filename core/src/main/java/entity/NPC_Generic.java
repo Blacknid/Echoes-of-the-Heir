@@ -62,6 +62,35 @@ public class NPC_Generic extends Entity {
     /** Pozitia tile de spawn (pozitia implicita inainte de orice suprascrie de stare). */
     public int spawnCol = -1, spawnRow = -1;
 
+    /**
+     * Multiplayer: this NPC is hosted by the server (see SERVERS/multiplayer_server/npc.py).
+     * Its dialogue lines, activity state and shop stock are NOT in this process — the client
+     * holds only the sprites needed to draw it. speak() therefore sends an npc_interact intent
+     * and waits; the server replies with the lines this player is allowed to see, which
+     * MultiplayerClient feeds back via {@link #applyServerDialogue}.
+     *
+     * <p>Singleplayer NPCs leave this false and keep running everything locally.
+     */
+    public boolean serverDriven = false;
+    /** Server-side instance id, used to address this NPC in npc_interact / shop_buy. */
+    public int serverNpcId = -1;
+    /**
+     * True from the moment we send npc_interact until the server's npc_dialogue comes back.
+     *
+     * <p>Needed because the state flip into dialogueState is what normally stops Player.update()
+     * from calling speak() again — and for a server-driven NPC that flip is a network round-trip
+     * away. Without this, every frame the player holds Enter fires another npc_interact, so a
+     * single conversation floods the server and re-opens the box on each reply.
+     */
+    public boolean awaitingServerDialogue = false;
+    /**
+     * Named dialogue key a quest step asked for on this interaction, captured instead of played
+     * (a server-driven NPC has no dialogue text locally — see speak()). Sent with npc_interact so
+     * the server, which does hold the lines, resolves it. Null = ordinary conversation, server
+     * picks the line from the NPC's state machine.
+     */
+    public String serverDialogueRequest = null;
+
     /** Calea sprite-ului setata de MapObjectLoader; incarcata lazy in getImage(). */
     public String spritePath = null;
     /** Calea foii de sprite inactiv; incarcata lazy in getImage(). */
@@ -175,6 +204,10 @@ public class NPC_Generic extends Entity {
      * calea catre pozitie, suprascrie directia si setul de dialog.
      */
     public void evaluateActivityState() {
+        // Server-hosted NPC: the state machine runs on the server against progress WE don't
+        // hold (see npc.py NpcWorld.resolve_state). There is nothing to evaluate here — the
+        // server pushes the resolved state with each npc_dialogue reply.
+        if (serverDriven) return;
         if (activityStates.isEmpty()) return;
         if (gp == null) return;
 
@@ -291,6 +324,29 @@ public class NPC_Generic extends Entity {
     @Override
     public void speak() {
         facePlayer();
+
+        // Server-hosted NPC: we don't know what it says — ask. The server checks we're actually
+        // standing next to it, resolves its state against OUR server-held progress, and replies
+        // with npc_dialogue (+ npc_shop if it's a vendor). applyServerDialogue() opens the box.
+        if (serverDriven) {
+            if (!awaitingServerDialogue
+                    && gp.mpClient != null && gp.mpClient.isConnected()) {
+                awaitingServerDialogue = true;
+                // Quests still run on the client, and talking to an NPC is how a "talk" step
+                // advances: QuestManager hands over the step's item and names the line to play.
+                // We can't play that line ourselves — a server-driven NPC holds no dialogue text
+                // — so we run the step for its effects, capture the name it asked for, and let
+                // the server look it up. requestedDialogue stays null for ordinary conversation,
+                // in which case the server picks the line from the NPC's own state machine.
+                serverDialogueRequest = null;
+                if (gp.questManager != null && objectId != null) {
+                    gp.questManager.executeStepForNpc(objectId, this);
+                }
+                gp.mpClient.sendNpcInteract(serverNpcId, serverDialogueRequest);
+            }
+            return;
+        }
+
         syncQuestDrivenNpcState();
 
         // Re-evalueaza in caz ca starea quest-ului s-a schimbat de la ultimul tick
@@ -366,6 +422,61 @@ public class NPC_Generic extends Entity {
             dialogueSet = 0; // reincepe de la inceput
         }
         startDialogue(this, dialogueSet);
+    }
+
+    // ── Server-hosted NPC: applying what the server decided ─────────────────
+
+    /**
+     * Apply an npc_dialogue reply: the server resolved this NPC's activity state against our
+     * server-held progress and sent back the lines we're allowed to see. We copy them into
+     * dialogue set 0 (the whole set the server sent — there is no other set on the client for
+     * a server-driven NPC) and open the box.
+     *
+     * <p>Must run on the render thread: startDialogue() flips gameState and touches the UI.
+     */
+    public void applyServerDialogue(java.util.List<String> lines, String animation,
+                                    int stateDirection, boolean stationary,
+                                    int posCol, int posRow) {
+        // Clear first, and unconditionally: an empty/rejected reply must still re-arm speak(),
+        // or a single out-of-range interact would leave this NPC permanently unable to talk.
+        awaitingServerDialogue = false;
+        if (lines == null || lines.isEmpty()) return;
+
+        String[][] d = ensureDialogues();
+        java.util.Arrays.fill(d[0], null);
+        for (int i = 0; i < lines.size() && i < d[0].length; i++) {
+            d[0][i] = lines.get(i).replace("\\n", "\n");
+        }
+
+        currentActivity = (animation != null && !animation.isBlank()) ? animation : null;
+        activitySpriteNum = 1;
+        activitySpriteCounter = 0;
+        if (stationary) staticNPC = true;
+        if (stateDirection >= 0) {
+            direction = stateDirection;
+            if (idleDirection < 0) idleDirection = stateDirection;
+        }
+        if (posCol >= 0 && posRow >= 0) {
+            walkToCol = posCol;
+            walkToRow = posRow;
+            onPath = true;
+            guardMode = false; // temporarily unlock movement so pathfinding can run
+        }
+
+        // A vendor greets first; UI.updateDialogueState() opens the Enter Shop prompt once the
+        // greeting finishes, exactly as it does for a local shop NPC.
+        startDialogue(this, 0);
+    }
+
+    /**
+     * Apply an npc_shop reply: the vendor's live stock as the SERVER sees it for this player.
+     * Prices and remaining units are the server's numbers — we only render them. Buying and
+     * selling go back over the wire (see UI.buyItem/sellItem) rather than mutating anything here.
+     */
+    public void applyServerShop(float sellMultiplier, java.util.List<ui.ShopListing> listings) {
+        this.shopSellMultiplier = sellMultiplier;
+        this.shopItems = listings;
+        if (this.shopId == null) this.shopId = objectId;
     }
 
     /** Obtine fragmentul de memorie purtat de acest NPC si declanseaza flashback-ul. */

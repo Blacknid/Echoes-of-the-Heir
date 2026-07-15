@@ -63,7 +63,7 @@ public class Sound {
         soundPath[7]  = "res/sound/GotGem.wav";
         soundPath[8]  = "res/sound/Victory.wav";
         soundPath[9]  = "res/sound/Selections.wav";
-        soundPath[10] = "res/sound/Michiduta Receive Hit.wav";
+        soundPath[10] = "res/sound/Michi Receive Hit.wav";
         soundPath[11] = "res/sound/Monster Hit.wav";
         soundPath[12] = "res/sound/Weapon Swing.wav";
         soundPath[13] = "res/sound/Level Up.wav";

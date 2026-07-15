@@ -41,9 +41,36 @@ public class Sprite {
              r.getRegionWidth(), r.getRegionHeight());
     }
 
+    /**
+     * Headless sprite: dimensions only, no GPU texture.
+     *
+     * <p>The authoritative game server runs the same simulation classes as the client but has no
+     * GL context, so it cannot create a {@link Texture}. It doesn't need one — the simulation never
+     * reads pixels; the only thing it asks of a sprite is its size, because sprite-sheet slicing
+     * (Entity.loadSheetVariable and friends) divides sheet width/height to work out frame counts and
+     * cell sizes. Those numbers come from {@code logicalW/logicalH}, which this constructor sets
+     * from the PNG header alone (see ResourceCache.loadImage in headless mode).
+     *
+     * <p>Every GPU-bound method ({@link #region()}, {@link #texture()}, {@link #getRGB},
+     * {@link #croppedBottomAligned}) is null-safe and inert on such a sprite — the server never
+     * calls them, and if a future change does, it fails visibly rather than corrupting state.
+     */
+    public static Sprite headless(int width, int height) {
+        return new Sprite(null, 0, 0, width, height, width, height);
+    }
+
+    /** True if this sprite carries no GPU texture (server-side, see {@link #headless}). */
+    public boolean isHeadless() { return region == null; }
+
     private Sprite(Texture tex, int rx, int ry, int rw, int rh, int logicalW, int logicalH) {
         this.rx = rx; this.ry = ry; this.rw = rw; this.rh = rh;
         this.logicalW = logicalW; this.logicalH = logicalH;
+        if (tex == null) {
+            // Headless: no texture, hence no region. Slicing still works — it only needs rx/ry/rw/rh
+            // and the logical size, all of which are set above.
+            this.region = null;
+            return;
+        }
         // V-flip for display: with the yDown OrthographicCamera, SpriteBatch would otherwise render
         // this region upside-down. rx/ry/rw/rh stay native (top-left) so CPU slicing is unaffected.
         this.region = new TextureRegion(tex, rx, ry, rw, rh);
@@ -53,11 +80,11 @@ public class Sprite {
     /** Returns a view of this sprite that reports/draws at the given logical size. */
     public Sprite withLogicalSize(int w, int h) {
         if (w == logicalW && h == logicalH) return this;
-        return new Sprite(region.getTexture(), rx, ry, rw, rh, w, h);
+        return new Sprite(texture(), rx, ry, rw, rh, w, h);
     }
 
     public TextureRegion region() { return region; }
-    public Texture texture()      { return region.getTexture(); }
+    public Texture texture()      { return region == null ? null : region.getTexture(); }
 
     public int getWidth()  { return logicalW; }
     public int getHeight() { return logicalH; }
@@ -70,12 +97,14 @@ public class Sprite {
      * extraction. Coordinates are relative to this sprite's top-left.
      */
     public Sprite getSubimage(int x, int y, int w, int h) {
-        return new Sprite(region.getTexture(), rx + x, ry + y, w, h, w, h);
+        // texture() is null when headless — the private constructor handles that, so sheet slicing
+        // keeps producing correctly-sized frames on the server with no GPU behind them.
+        return new Sprite(texture(), rx + x, ry + y, w, h, w, h);
     }
 
     /** True if this sprite is horizontally flipped (used by some animation code). */
-    public boolean isFlipX() { return region.isFlipX(); }
-    public boolean isFlipY() { return region.isFlipY(); }
+    public boolean isFlipX() { return region != null && region.isFlipX(); }
+    public boolean isFlipY() { return region != null && region.isFlipY(); }
 
     // ── Decoded-pixmap batch cache ──
     // getRGB() / croppedBottomAligned() need CPU pixels, obtained via TextureData.consumePixmap(),
@@ -107,7 +136,8 @@ public class Sprite {
      * and cached; otherwise the caller owns it (see {@code ownsResult}) and must dispose it.
      */
     private com.badlogic.gdx.graphics.Pixmap acquirePixmap(boolean[] ownsResult) {
-        Texture tex = region.getTexture();
+        Texture tex = texture();
+        if (tex == null) return null;  // headless: no pixels to decode (see Sprite.headless)
         if (pixelBatchOpen) {
             com.badlogic.gdx.graphics.Pixmap cached = pixmapBatch.get(tex);
             if (cached == null) {
@@ -177,6 +207,9 @@ public class Sprite {
                                     int dw, int dh, int cellW, int cellH, int oy) {
         boolean[] owns = {false};
         com.badlogic.gdx.graphics.Pixmap src = acquirePixmap(owns);
+        // Headless (server): there are no pixels to composite and nothing to draw them with. Hand
+        // back a correctly-sized sprite so callers' frame arrays still line up.
+        if (src == null) return Sprite.headless(cellW, cellH);
         com.badlogic.gdx.graphics.Pixmap cell =
             new com.badlogic.gdx.graphics.Pixmap(cellW, cellH, com.badlogic.gdx.graphics.Pixmap.Format.RGBA8888);
         cell.setBlending(com.badlogic.gdx.graphics.Pixmap.Blending.None);

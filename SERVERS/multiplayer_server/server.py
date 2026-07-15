@@ -61,6 +61,9 @@ from cryptography.hazmat.primitives.asymmetric import padding as rsa_padding
 from cryptography.hazmat.primitives.ciphers.aead import AESGCM
 from cryptography.hazmat.primitives.kdf.hkdf import HKDF
 
+from game_engine import GameEngine
+from npc import NpcCatalog, NpcWorld, PlayerProgress
+from skilltree import SkillCatalog
 from world import MapCollection, TmxMap
 
 
@@ -377,6 +380,18 @@ class PlayerState:
     last_valid_y: int = 0
     vx: float = 0.0  # velocity in px/tick at last broadcast
     vy: float = 0.0
+    # Everything an NPC condition can ask about this player (level, quests, bosses,
+    # fragments, met-NPCs) plus their shop stock — held HERE so a client cannot claim
+    # progress it doesn't have. See npc.PlayerProgress.
+    progress: PlayerProgress = field(default_factory=PlayerProgress)
+    # Instance id of the NPC this player is currently talking to / shopping with, set by
+    # npc_interact. Buy/sell are only honoured against this NPC, so a client can't shop at
+    # a vendor it never walked up to.
+    active_npc_id: int = -1
+    # Unspent level-up stat picks. The server grants one per level gained (see level_up); the
+    # client's level-up screen turns each into a level_choice request, which the server only
+    # honours while this is > 0. Persisted, so a level-up survives a disconnect before the pick.
+    pending_level_choices: int = 0
 
     def to_dict(self) -> dict:
         return {
@@ -411,7 +426,17 @@ class PlayerState:
             "nextLevelExp": self.next_level_exp,
             "coin":         self.coin,
             "skillPoints":  self.skill_points,
+            "pendingLevelChoices": self.pending_level_choices,
         }
+
+    def progress_to_dict(self) -> dict:
+        return self.progress.to_dict()
+
+    def load_progress_from_dict(self, d: dict) -> None:
+        self.progress.load_from_dict(d)
+        # PlayerState.level is the authoritative one (it drives combat/XP); mirror it into
+        # progress so "requiredLevel" states read the same number rather than a stale copy.
+        self.progress.level = self.level
 
     def load_from_dict(self, d: dict) -> None:
         self.level         = clamp_int(d.get("level"),         1,    9999, DEFAULT_LEVEL)
@@ -425,6 +450,61 @@ class PlayerState:
         self.next_level_exp= clamp_int(d.get("nextLevelExp"),  1,    999999999, DEFAULT_NEXT_LVL)
         self.coin          = clamp_int(d.get("coin"),          0,    999999999, DEFAULT_COIN)
         self.skill_points  = clamp_int(d.get("skillPoints"),   0,    9999,      DEFAULT_SKILL_PTS)
+        self.pending_level_choices = clamp_int(d.get("pendingLevelChoices"), 0, 9999, 0)
+        self.progress.level = self.level
+
+    # ── authoritative economy/progression ────────────────────────────────────
+    # XP, coins, level and skill points change HERE and nowhere else. The client is told the
+    # result via player_stats; it never gets to set these itself. A client that fakes any of them
+    # only fakes its own screen — the next player_stats overwrites the lie with the server's truth.
+
+    def credit_kill(self, exp_reward: int, coin_reward: int) -> bool:
+        """Award the XP and coins for a kill, then run the level-up loop. Returns True if the
+        player leveled up (so the caller can tell the client to open its stat-pick screen)."""
+        self.exp = min(999999999, self.exp + max(0, exp_reward))
+        self.coin = min(999999999, self.coin + max(0, coin_reward))
+        return self._apply_level_ups()
+
+    def _apply_level_ups(self) -> bool:
+        """The exact rule Player.checkLevelUp runs on the client — replicated here so the server,
+        not the client, owns level, skill points and the heal. Each level gained banks one stat
+        pick (pending_level_choices), which a level_choice request later spends."""
+        leveled = False
+        while self.exp >= self.next_level_exp:
+            self.exp -= self.next_level_exp
+            self.level += 1
+            self.next_level_exp = 4 + self.level * 3   # matches Player.java: 7, 10, 13, ...
+            self.skill_points += 1
+            self.life = min(self.life + 2, self.max_life)
+            self.pending_level_choices += 1
+            leveled = True
+        if leveled:
+            self.progress.level = self.level
+        return leveled
+
+    def apply_level_choice(self, stat: str) -> bool:
+        """Spend one banked level-up pick on a +1 stat, mirroring Player.applyLevelUpChoice.
+        Returns False (and changes nothing) if there's no pending choice or the stat is unknown —
+        so a client can't mint stats by sending level_choice it didn't earn."""
+        if self.pending_level_choices <= 0:
+            return False
+        if stat == "maxLife":
+            self.max_life += 1
+            self.life = self.max_life
+        elif stat == "strength":     # client key is "strenght"; normalised by the handler
+            self.strength += 1
+        elif stat == "dexterity":
+            self.dexterity += 1
+        elif stat == "maxMana":
+            self.max_mana += 1
+            self.mana = self.max_mana
+        else:
+            # Only the four stats the server actually tracks are grantable. "speed" isn't among
+            # them (it has no server-side representation), so it's deliberately not offered in
+            # multiplayer — see the level-up choice pool on the client.
+            return False
+        self.pending_level_choices -= 1
+        return True
 
 
 @dataclass
@@ -552,8 +632,13 @@ class GameServer:
     def __init__(self, host: str, port: int, max_players: int,
                  private_key, nonce_cache: NonceCache,
                  rate_limiter: IpRateLimiter, cfg: dict,
-                 maps: MapCollection, active_map_id: str):
+                 maps: MapCollection, active_map_id: str,
+                 engine: "Optional[GameEngine]" = None):
         self.host = host
+        # The authoritative gameplay engine (Java jar), or a no-op stand-in if it isn't running.
+        # Its calls return None when unavailable, and every caller treats None as "no ruling,
+        # fall back", so the server works with or without it. See game_engine.GameEngine.
+        self.engine = engine or GameEngine(BASE_DIR / "engine.jar")
         self.port = port
         self.max_players = max_players
         self.private_key = private_key
@@ -574,6 +659,15 @@ class GameServer:
                 f"Active map '{active_map_id}' not found in maps_dir. "
                 f"Available: {maps.list_ids()}"
             )
+        # NPCs are hosted here, not on the client: definitions come from this server's own
+        # npcs.json and placements from the active map's "NPCs" objectgroup. The client is sent
+        # only what it needs to draw them (see NpcInstance.spawn_message).
+        self.npc_catalog = NpcCatalog()
+        self.npc_world = NpcWorld(self.npc_catalog, self.world)
+        # Skill-tree purchases are authorised here too: the catalog holds each node's cost and
+        # prerequisite, and a player's unlocked set + point balance live server-side, so a client
+        # can only ask to unlock a skill — never grant itself one. See _handle_skill_unlock.
+        self.skill_catalog = SkillCatalog()
         self.clients: dict[int, ClientConnection] = {}
         self._next_id = 1
         self._running = False
@@ -611,9 +705,13 @@ class GameServer:
         saved = self._player_data.get(player.license_key)
         if saved:
             player.load_from_dict(saved)
+            # load_from_dict first: it sets level, which load_progress_from_dict mirrors.
+            player.load_progress_from_dict(saved.get("progress", {}))
 
     async def _persist_stats(self, player: PlayerState) -> None:
-        self._player_data[player.license_key] = player.stats_to_dict()
+        record = player.stats_to_dict()
+        record["progress"] = player.progress_to_dict()
+        self._player_data[player.license_key] = record
         await self._save_player_data()
 
     def broadcast_json(self, obj: dict, exclude_id: int = -1) -> None:
@@ -934,7 +1032,21 @@ class GameServer:
         # Server is authoritative on stats — client must use these, not its singleplayer values.
         client.send_json({"type": "player_stats", **player.stats_to_dict()})
 
+        # Which skills this player has unlocked is the server's record (it authorises every
+        # purchase), so hand the client the authoritative set on join — after a reconnect its own
+        # save may disagree, and ours is the one that counts.
+        client.send_json({
+            "type": "skills_state",
+            "unlocked": sorted(player.progress.unlocked_skills),
+        })
+
         client.send_json(self.world.info_message())
+
+        # NPCs are ours, not the client's. Send the presentation half of each placed NPC so
+        # the client can draw it; its dialogue, its shop and which state it's in stay here
+        # and are answered per-interaction (see _handle_npc_interact).
+        for spawn in self.npc_world.spawn_messages():
+            client.send_json(spawn)
 
         self.broadcast_json({
             "type": "player_join",
@@ -987,10 +1099,31 @@ class GameServer:
                     client.send_json({"type": "pong"})
 
                 elif t == "mob_damage":
-                    self._handle_mob_damage(client, msg)
+                    await self._handle_mob_damage(client, msg)
 
                 elif t == "mob_death":
-                    self._handle_mob_death(client, msg)
+                    await self._handle_mob_death(client, msg)
+
+                elif t == "progress_sync":
+                    self._handle_progress_sync(client, msg)
+
+                elif t == "npc_interact":
+                    self._handle_npc_interact(client, msg)
+
+                elif t == "npc_leave":
+                    player.active_npc_id = -1
+
+                elif t == "shop_buy":
+                    self._handle_shop_buy(client, msg)
+
+                elif t == "shop_sell":
+                    self._handle_shop_sell(client, msg)
+
+                elif t == "skill_unlock":
+                    self._handle_skill_unlock(client, msg)
+
+                elif t == "level_choice":
+                    self._handle_level_choice(client, msg)
 
                 else:
                     log.debug("Unknown msg type from pid=%s: %s",
@@ -1124,7 +1257,7 @@ class GameServer:
         log.info("Player %d hit cross-map trigger -> %s",
                  client.player.player_id, new_world.map_id)
 
-    def _handle_mob_damage(self, client: "ClientConnection", msg: dict) -> None:
+    async def _handle_mob_damage(self, client: "ClientConnection", msg: dict) -> None:
         mob_id = clamp_int(msg.get("mob_id"), 0, 999, -1)
         damage = clamp_int(msg.get("damage"), 0, 9999, 0)
         life = clamp_int(msg.get("life"), 0, 9999, 0)
@@ -1139,7 +1272,18 @@ class GameServer:
             mob = MobState(mob_id=mob_id, mob_type=mob_type, life=max_life, max_life=max_life)
             self.mobs[mob_id] = mob
 
+        # Let the authoritative Java engine rule on the hit if it's running: it owns the mob's
+        # real life pool (from the shared monster definitions) and decides how much damage a
+        # claim actually does, so a modified client can't just declare a mob near-dead. If the
+        # engine isn't available, fall back to trusting the client's reported life, exactly as
+        # this server did before the engine existed.
+        ruling = await self.engine.mob_hit(mob_id, mob_type, damage, client.player.player_id)
+        if ruling is not None and "life" in ruling:
+            life = clamp_int(ruling.get("life"), 0, 9999, life)
+            max_life = clamp_int(ruling.get("maxLife"), 1, 9999, max_life)
+
         mob.life = life
+        mob.max_life = max_life
         mob.last_attacker_pid = client.player.player_id
 
         self.broadcast_json({
@@ -1152,7 +1296,13 @@ class GameServer:
             "mob_type": mob.mob_type,
         }, exclude_id=client.player.player_id)
 
-    def _handle_mob_death(self, client: "ClientConnection", msg: dict) -> None:
+        # If the engine says this hit killed the mob, drive the death here rather than waiting for
+        # the client to claim it — the whole point is that the server, not the client, decides a
+        # kill (and, later, awards the XP the ruling carries).
+        if ruling is not None and ruling.get("killed"):
+            await self._finish_mob_death(client, mob, ruling)
+
+    async def _handle_mob_death(self, client: "ClientConnection", msg: dict) -> None:
         mob_id = clamp_int(msg.get("mob_id"), 0, 999, -1)
         mob_type = str(msg.get("mob_type", "unknown"))[:32]
 
@@ -1164,6 +1314,22 @@ class GameServer:
             mob = MobState(mob_id=mob_id, mob_type=mob_type, life=0, max_life=1)
             self.mobs[mob_id] = mob
 
+        # If the engine is authoritative, a client-claimed death is only honoured when the engine
+        # agrees the mob is actually dead — otherwise a client can't announce a kill it didn't
+        # earn. With no engine, the claim is trusted as before.
+        if self.engine.available and mob.alive:
+            log.debug("Ignoring unverified mob_death claim for mob %d from player %d",
+                      mob_id, client.player.player_id)
+            return
+
+        await self._finish_mob_death(client, mob, None)
+
+    async def _finish_mob_death(self, client: "ClientConnection", mob: "MobState",
+                                ruling: "Optional[dict]") -> None:
+        """Mark a mob dead once and tell everyone. Idempotent: a mob already broadcast as dead
+        won't be announced twice (so the engine's kill and a client's later claim don't double up)."""
+        if mob.dying and not mob.alive:
+            return
         mob.alive = False
         mob.dying = True
         mob.life = 0
@@ -1171,12 +1337,263 @@ class GameServer:
 
         self.broadcast_json({
             "type": "mob_death",
-            "mob_id": mob_id,
+            "mob_id": mob.mob_id,
             "killer_pid": client.player.player_id,
             "mob_type": mob.mob_type,
         })
 
-        log.debug("Mob %d (%s) killed by player %d", mob_id, mob.mob_type, client.player.player_id)
+        # Credit the kill's XP and coins to the killer's SERVER-held totals, from the engine's
+        # ruling (which read the reward from the shared monster definitions). Coins mirror the
+        # client's old drop of max(1, exp//2). The server then runs the level-up loop itself, so
+        # level, skill points, the heal and the banked stat-pick all originate here — the client
+        # never awards itself XP, coins, a level or a skill point; it's only told the result.
+        exp = clamp_int(ruling.get("exp"), 0, 999999, 0) if ruling else 0
+        player = client.player
+        if exp > 0:
+            coins = max(1, exp // 2)
+            leveled = player.credit_kill(exp, coins)
+            stats = player.stats_to_dict()
+            if leveled:
+                stats["leveledUp"] = True   # cue the client to open its stat-pick screen
+            client.send_json({"type": "player_stats", **stats})
+        log.debug("Mob %d (%s) killed by player %d%s", mob.mob_id, mob.mob_type,
+                  client.player.player_id,
+                  f" (+{exp} xp, +{max(1, exp // 2)} coins, engine-ruled)" if exp else "")
+
+    # =====================================================================
+    #  SERVER-HOSTED NPCs
+    # =====================================================================
+
+    # An interaction is only honoured if the player is actually standing next to the NPC.
+    # The client asks "let me talk to NPC 7" and we check that for ourselves — otherwise a
+    # client could shop from across the map, or from a vendor it has never met.
+    NPC_INTERACT_RANGE_PX = 160
+
+    def _npc_in_reach(self, player: PlayerState, inst) -> bool:
+        dx = player.x - inst.world_x
+        dy = player.y - inst.world_y
+        return dx * dx + dy * dy <= self.NPC_INTERACT_RANGE_PX ** 2
+
+    def _handle_progress_sync(self, client: "ClientConnection", msg: dict) -> None:
+        """The client reporting its quest/boss/fragment progress, which NPC states gate on
+        (requiredQuestComplete, requiredBoss, requiredFragments, ...).
+
+        Be clear about what this is and isn't. XP, quests and boss kills are still simulated on
+        the client, so this is REPORTED progress, not verified progress: a modified client can
+        claim it finished a quest and unlock the dialogue behind it. What it CANNOT do is give
+        itself gold or items — coin balance and shop stock live on the server and are only ever
+        changed by _handle_shop_buy/_handle_shop_sell, which never read anything from here.
+
+        So the valuable half (economy) is authoritative today; closing the rest means moving
+        quests and XP server-side too, which is a much bigger change than hosting the NPCs.
+        """
+        progress = client.player.progress
+
+        quests = msg.get("quests")
+        if isinstance(quests, dict):
+            progress.quests = {str(k)[:64]: bool(v) for k, v in list(quests.items())[:256]}
+
+        bosses = msg.get("bossesDefeated")
+        if isinstance(bosses, list):
+            progress.bosses_defeated = {
+                b for b in (clamp_int(x, 0, 99, -1) for x in bosses[:32]) if b >= 0
+            }
+
+        fragments = msg.get("fragments")
+        if isinstance(fragments, list):
+            progress.fragments = {str(f)[:64] for f in fragments[:256]}
+
+        met = msg.get("metNPCs")
+        if isinstance(met, list):
+            progress.met_npcs = {str(n)[:64] for n in met[:256]}
+
+        progress.story_act = clamp_int(msg.get("storyAct"), 0, 99, progress.story_act)
+        # Level is the server's own number (it drives combat), not the client's claim.
+        progress.level = client.player.level
+
+    def _handle_npc_interact(self, client: "ClientConnection", msg: dict) -> None:
+        """The player walked up to an NPC and pressed talk. WE decide what it says: the
+        activity state is resolved against this player's server-held progress, and the
+        chosen dialogue lines are the only ones that ever go over the wire."""
+        player = client.player
+        npc_id = clamp_int(msg.get("npc_id"), 0, 99999, -1)
+        inst = self.npc_world.get(npc_id)
+        if inst is None:
+            return
+        if not self._npc_in_reach(player, inst):
+            log.debug("pid=%s tried to interact with NPC %s out of range",
+                      player.player_id, npc_id)
+            # Answer anyway, with no lines. The client blocks further interacts on this NPC
+            # until it hears back (NPC_Generic.awaitingServerDialogue), so staying silent here
+            # would leave a legitimately-out-of-range player permanently unable to talk to it.
+            client.send_json({"type": "npc_dialogue", "id": npc_id, "lines": []})
+            return
+
+        player.active_npc_id = npc_id
+        # Level lives on PlayerState (it drives combat and is persisted with the stats); mirror
+        # the current value in before resolving, so a "requiredLevel" state sees the real number
+        # rather than whatever it was at login.
+        player.progress.level = player.level
+        state, lines = self.npc_world.dialogue_for(inst, player.progress)
+
+        # A quest step on the client can ask for a specific named line ("thanks", "cave_done").
+        # Honour it only if THIS NPC actually defines that key — the client names a set, it never
+        # supplies text, so the worst a modified client can do is play one of this NPC's own
+        # lines out of order.
+        requested = str(msg.get("dialogue", ""))[:64]
+        if requested:
+            quest_lines = inst.definition.dialogue_lines(requested)
+            if quest_lines:
+                lines = quest_lines
+            else:
+                log.debug("pid=%s requested unknown dialogue %r on NPC %s",
+                          player.player_id, requested, inst.object_id)
+
+        if state is not None and state.marks_npc_met:
+            player.progress.met_npcs.add(inst.object_id)
+
+        out = {
+            "type": "npc_dialogue",
+            "id": npc_id,
+            "lines": lines,
+            "state": state.state_id if state is not None else "",
+            "animation": (state.animation if state is not None else None) or "",
+            "direction": state.direction if state is not None else -1,
+            "stationary": bool(state.stationary) if state is not None else False,
+        }
+        # Where the state wants this NPC to stand (a blacksmith steps to the anvil once the
+        # ore quest is done). Offsets are relative to the spawn tile, matching npcs.json.
+        if state is not None:
+            if state.pos_col >= 0 and state.pos_row >= 0:
+                out["pos_col"] = state.pos_col
+                out["pos_row"] = state.pos_row
+            elif state.offset_col or state.offset_row:
+                out["pos_col"] = inst.spawn_col + state.offset_col
+                out["pos_row"] = inst.spawn_row + state.offset_row
+        client.send_json(out)
+
+        shop = self.npc_world.shop_message(inst, player.progress)
+        if shop is not None:
+            client.send_json(shop)
+
+    def _active_shop_npc(self, client: "ClientConnection"):
+        """The NPC this player is currently shopping with, or None. Buy/sell are only valid
+        against the NPC the player opened via npc_interact and is still standing next to."""
+        player = client.player
+        if player.active_npc_id < 0:
+            return None
+        inst = self.npc_world.get(player.active_npc_id)
+        if inst is None or inst.definition.shop is None:
+            return None
+        if not self._npc_in_reach(player, inst):
+            return None
+        return inst
+
+    def _handle_shop_buy(self, client: "ClientConnection", msg: dict) -> None:
+        player = client.player
+        inst = self._active_shop_npc(client)
+        if inst is None:
+            client.send_json({"type": "shop_result", "ok": False,
+                              "msg": "You're not at a shop."})
+            return
+        item_id = str(msg.get("itemId", ""))[:64]
+        qty = clamp_int(msg.get("qty"), 1, 99, 1)
+
+        ok, message = self.npc_world.buy(inst, player.progress, player, item_id, qty)
+        client.send_json({"type": "shop_result", "ok": ok, "msg": message,
+                          "action": "buy", "itemId": item_id, "qty": qty if ok else 0})
+        if ok:
+            # Gold and stock both changed server-side — push the truth back rather than
+            # letting the client compute it. This is the whole point of the exercise.
+            client.send_json({"type": "player_stats", **player.stats_to_dict()})
+            shop = self.npc_world.shop_message(inst, player.progress)
+            if shop is not None:
+                client.send_json(shop)
+            log.info("[SHOP] %s bought %dx %s from %s (coin=%d)",
+                     player.name, qty, item_id, inst.object_id, player.coin)
+
+    def _handle_shop_sell(self, client: "ClientConnection", msg: dict) -> None:
+        player = client.player
+        inst = self._active_shop_npc(client)
+        if inst is None:
+            client.send_json({"type": "shop_result", "ok": False,
+                              "msg": "You're not at a shop."})
+            return
+        item_id = str(msg.get("itemId", ""))[:64]
+        qty = clamp_int(msg.get("qty"), 1, 99, 1)
+
+        ok, message, payout = self.npc_world.sell(inst, player.progress, player, item_id, qty)
+        client.send_json({"type": "shop_result", "ok": ok, "msg": message,
+                          "action": "sell", "itemId": item_id,
+                          "qty": qty if ok else 0, "payout": payout})
+        if ok:
+            client.send_json({"type": "player_stats", **player.stats_to_dict()})
+            log.info("[SHOP] %s sold %dx %s to %s for %d (coin=%d)",
+                     player.name, qty, item_id, inst.object_id, payout, player.coin)
+
+    # =====================================================================
+    #  SERVER-AUTHORITATIVE SKILL TREE
+    # =====================================================================
+
+    def _handle_skill_unlock(self, client: "ClientConnection", msg: dict) -> None:
+        """The player asked to unlock a skill node. WE decide: the node's cost and prerequisite
+        come from skilltree.json, and the player's point balance and unlocked set are server-held,
+        so a modified client can only ever *ask* — it can't grant itself a skill or points.
+
+        On success we debit the points, record the unlock, and push back both the new stats (so
+        the client's point total is the server's, not its own guess) and a skill_result naming the
+        node to apply the gameplay effect for. On failure we say why and change nothing."""
+        player = client.player
+        node_id = str(msg.get("nodeId", ""))[:64]
+
+        ok, reason = self.skill_catalog.can_unlock(
+            node_id, player.progress.unlocked_skills, player.skill_points
+        )
+        if not ok:
+            client.send_json({"type": "skill_result", "ok": False,
+                              "nodeId": node_id, "msg": reason})
+            return
+
+        node = self.skill_catalog.get(node_id)
+        player.skill_points -= node.cost
+        player.progress.unlocked_skills.add(node_id)
+
+        client.send_json({"type": "skill_result", "ok": True, "nodeId": node_id,
+                          "msg": "Unlocked."})
+        # The point balance changed server-side — push the truth back so the client renders our
+        # number rather than computing its own.
+        client.send_json({"type": "player_stats", **player.stats_to_dict()})
+        log.info("[SKILL] %s unlocked %s (cost %d, skillPoints=%d)",
+                 player.name, node_id, node.cost, player.skill_points)
+
+    # =====================================================================
+    #  SERVER-AUTHORITATIVE LEVEL-UP STAT PICK
+    # =====================================================================
+
+    # The client's level-up key ("strenght") vs the server stat name ("strength"). The client
+    # can send either spelling; normalise before applying.
+    _LEVEL_STAT_ALIASES = {"strenght": "strength"}
+
+    def _handle_level_choice(self, client: "ClientConnection", msg: dict) -> None:
+        """The player picked a +1 stat on their level-up screen. The level itself was already
+        granted server-side on the kill; here we spend one banked pick. The server only applies
+        it if the player actually has an unspent level-up, so a client can't hand itself stats by
+        sending this out of nowhere."""
+        player = client.player
+        stat = str(msg.get("stat", ""))[:16]
+        stat = self._LEVEL_STAT_ALIASES.get(stat, stat)
+
+        ok = player.apply_level_choice(stat)
+        if ok:
+            client.send_json({"type": "player_stats", **player.stats_to_dict()})
+            log.info("[LEVEL] %s spent a level-up pick on +1 %s (pending=%d)",
+                     player.name, stat, player.pending_level_choices)
+        else:
+            # No banked pick, or an unknown/ungrantable stat. Push current stats back so the
+            # client re-syncs to the truth rather than keeping a change it made locally.
+            client.send_json({"type": "player_stats", **player.stats_to_dict()})
+            log.debug("Rejected level_choice %r from %s (pending=%d)",
+                      stat, player.name, player.pending_level_choices)
 
     def _handle_chunk_request(self, client: "ClientConnection", msg: dict) -> None:
         layer_idx = clamp_int(msg.get("layer_idx"), 0, len(self.world.layers) - 1, -1)
@@ -1227,6 +1644,8 @@ class GameServer:
         self.clients.clear()
         if self._server:
             self._server.close()
+        if self.engine is not None:
+            await self.engine.shutdown()
 
 
 def prompt_bind_address(default_host: str, default_port: int) -> tuple[str, int]:
@@ -1341,11 +1760,21 @@ async def amain(host: str, port: int, max_players: int, private_key, cfg: dict) 
                     cfg.get("save_server_host"), cfg.get("save_server_port"), exc,
                 )
 
+    # Launch the authoritative Java gameplay engine (engine.jar). This never raises: if the jar
+    # is missing or Java isn't installed, `launch` logs a warning and returns an unavailable
+    # handle, and the server runs with client-reported gameplay exactly as it did before.
+    engine_jar = cfg.get("engine_jar")
+    engine = await GameEngine.launch(
+        jar_path=Path(engine_jar) if engine_jar else None,
+        java_bin=cfg.get("java_bin"),
+    )
+
     server = GameServer(
         host=host, port=port, max_players=max_players,
         private_key=private_key, nonce_cache=nonce_cache,
         rate_limiter=rate_limiter, cfg=cfg,
         maps=map_collection, active_map_id=active_map_id,
+        engine=engine,
     )
 
     def shutdown_handler():
