@@ -27,7 +27,7 @@ fi
 REAL_USER="${SUDO_USER:-$(logname 2>/dev/null || echo root)}"
 
 # ── 1. Install system packages ───────────────────────────
-echo "[1/7] Installing packages..."
+echo "[1/8] Installing packages..."
 apt-get update -qq
 apt-get install -y python3 python3-pip python3-cryptography ufw
 
@@ -39,12 +39,12 @@ fi
 echo "  [✓] cryptography OK"
 
 # ── 2. Make server executable ────────────────────────────
-echo "[2/7] Permissions..."
+echo "[2/8] Permissions..."
 chmod +x "${SERVER_SCRIPT}"
 echo "  [✓] server.py is executable."
 
 # ── 3. RSA private key ───────────────────────────────────
-echo "[3/7] RSA key pair..."
+echo "[3/8] RSA key pair..."
 if [ ! -f "${KEY_FILE}" ]; then
     SAVE_KEY="${SCRIPT_DIR}/../save_server/server_private_key.pem"
     if [ -f "${SAVE_KEY}" ]; then
@@ -78,7 +78,7 @@ else
 fi
 
 # ── 3.5 Maps directory ───────────────────────────────────
-echo "[3.5/7] Maps directory..."
+echo "[3.5/8] Maps directory..."
 MAPS_DIR="${SCRIPT_DIR}/maps"
 mkdir -p "${MAPS_DIR}"
 chown "${REAL_USER}":"${REAL_USER}" "${MAPS_DIR}"
@@ -97,7 +97,7 @@ fi
 # states and their shop stock (see npc.py). So it needs its own copy of npcs.json — the same
 # file that ships in the game's assets. Keep the two in sync when you change NPC content, or
 # players will see a world whose NPCs disagree with the sprites their client has.
-echo "[3.6/7] NPC definitions..."
+echo "[3.6/8] NPC definitions..."
 NPCS_FILE="${SCRIPT_DIR}/npcs.json"
 if [ ! -f "${NPCS_FILE}" ]; then
     echo "  [!] No npcs.json in ${SCRIPT_DIR}"
@@ -107,8 +107,32 @@ else
     echo "  [✓] Found npcs.json"
 fi
 
+# ── 3.7 Authoritative gameplay engine ────────────────────
+# Combat outcomes, XP (and in time drops/quests) are decided by the Java gameplay engine
+# (engine.jar), which runs the game's own simulation classes so the server and client can never
+# disagree about a result. The Python server launches it automatically if it's present. Without
+# it the server still runs, but it falls back to trusting the client's reported gameplay — build
+# and copy the jar over to close that hole. See game_engine.py / server.EngineServer.
+echo "[3.7/8] Gameplay engine (optional but recommended)..."
+ENGINE_JAR="${SCRIPT_DIR}/engine.jar"
+if [ ! -f "${ENGINE_JAR}" ]; then
+    echo "  [i] No engine.jar in ${SCRIPT_DIR}"
+    echo "      The server will run WITHOUT server-side gameplay authority (client-reported"
+    echo "      combat, as before). To enable it, on a machine with the game source run:"
+    echo "        ./gradlew :core:engineJar"
+    echo "      which writes engine.jar here, then copy it to this server and install a JRE"
+    echo "      (apt-get install -y default-jre-headless)."
+else
+    if command -v java >/dev/null 2>&1; then
+        echo "  [✓] Found engine.jar and a Java runtime — server-side gameplay authority enabled."
+    else
+        echo "  [!] Found engine.jar but no 'java' on PATH. Install a JRE"
+        echo "      (apt-get install -y default-jre-headless) or the engine can't launch."
+    fi
+fi
+
 # ── 4. Config file ───────────────────────────────────────
-echo "[4/7] Config file..."
+echo "[4/8] Config file..."
 if [ ! -f "${CONFIG_FILE}" ]; then
     cp "${SCRIPT_DIR}/mp_config.example.json" "${CONFIG_FILE}"
     chown "${REAL_USER}":"${REAL_USER}" "${CONFIG_FILE}"
@@ -119,7 +143,7 @@ else
 fi
 
 # ── 5. Bind address / port ───────────────────────────────
-echo "[5/7] Bind address..."
+echo "[5/8] Bind address..."
 CONFIG_HOST=$(python3 -c "import json; c=json.load(open('${CONFIG_FILE}')); print(c.get('host') or '0.0.0.0')" 2>/dev/null || echo "0.0.0.0")
 CONFIG_PORT=$(python3 -c "import json; c=json.load(open('${CONFIG_FILE}')); print(c.get('port') or 7777)"     2>/dev/null || echo 7777)
 
@@ -139,13 +163,13 @@ chown "${REAL_USER}":"${REAL_USER}" "${CONFIG_FILE}"
 echo "  [✓] Config updated: ${BIND_HOST}:${BIND_PORT}"
 
 # ── 6. Firewall ──────────────────────────────────────────
-echo "[6/7] Configuring firewall..."
+echo "[6/8] Configuring firewall..."
 ufw allow "${BIND_PORT}"/tcp comment "Michi Multiplayer"
 ufw --force enable
 echo "  [✓] Port ${BIND_PORT}/tcp open."
 
 # ── 7. systemd service ───────────────────────────────────
-echo "[7/7] Installing systemd service: ${SERVICE_NAME}"
+echo "[7/8] Installing systemd service: ${SERVICE_NAME}"
 tee "${SERVICE_FILE}" > /dev/null <<EOF
 [Unit]
 Description=Michi's Adventure Multiplayer Server v2

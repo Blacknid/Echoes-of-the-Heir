@@ -61,6 +61,7 @@ from cryptography.hazmat.primitives.asymmetric import padding as rsa_padding
 from cryptography.hazmat.primitives.ciphers.aead import AESGCM
 from cryptography.hazmat.primitives.kdf.hkdf import HKDF
 
+from game_engine import GameEngine
 from npc import NpcCatalog, NpcWorld, PlayerProgress
 from world import MapCollection, TmxMap
 
@@ -571,8 +572,13 @@ class GameServer:
     def __init__(self, host: str, port: int, max_players: int,
                  private_key, nonce_cache: NonceCache,
                  rate_limiter: IpRateLimiter, cfg: dict,
-                 maps: MapCollection, active_map_id: str):
+                 maps: MapCollection, active_map_id: str,
+                 engine: "Optional[GameEngine]" = None):
         self.host = host
+        # The authoritative gameplay engine (Java jar), or a no-op stand-in if it isn't running.
+        # Its calls return None when unavailable, and every caller treats None as "no ruling,
+        # fall back", so the server works with or without it. See game_engine.GameEngine.
+        self.engine = engine or GameEngine(BASE_DIR / "engine.jar")
         self.port = port
         self.max_players = max_players
         self.private_key = private_key
@@ -1021,10 +1027,10 @@ class GameServer:
                     client.send_json({"type": "pong"})
 
                 elif t == "mob_damage":
-                    self._handle_mob_damage(client, msg)
+                    await self._handle_mob_damage(client, msg)
 
                 elif t == "mob_death":
-                    self._handle_mob_death(client, msg)
+                    await self._handle_mob_death(client, msg)
 
                 elif t == "progress_sync":
                     self._handle_progress_sync(client, msg)
@@ -1173,7 +1179,7 @@ class GameServer:
         log.info("Player %d hit cross-map trigger -> %s",
                  client.player.player_id, new_world.map_id)
 
-    def _handle_mob_damage(self, client: "ClientConnection", msg: dict) -> None:
+    async def _handle_mob_damage(self, client: "ClientConnection", msg: dict) -> None:
         mob_id = clamp_int(msg.get("mob_id"), 0, 999, -1)
         damage = clamp_int(msg.get("damage"), 0, 9999, 0)
         life = clamp_int(msg.get("life"), 0, 9999, 0)
@@ -1188,7 +1194,18 @@ class GameServer:
             mob = MobState(mob_id=mob_id, mob_type=mob_type, life=max_life, max_life=max_life)
             self.mobs[mob_id] = mob
 
+        # Let the authoritative Java engine rule on the hit if it's running: it owns the mob's
+        # real life pool (from the shared monster definitions) and decides how much damage a
+        # claim actually does, so a modified client can't just declare a mob near-dead. If the
+        # engine isn't available, fall back to trusting the client's reported life, exactly as
+        # this server did before the engine existed.
+        ruling = await self.engine.mob_hit(mob_id, mob_type, damage, client.player.player_id)
+        if ruling is not None and "life" in ruling:
+            life = clamp_int(ruling.get("life"), 0, 9999, life)
+            max_life = clamp_int(ruling.get("maxLife"), 1, 9999, max_life)
+
         mob.life = life
+        mob.max_life = max_life
         mob.last_attacker_pid = client.player.player_id
 
         self.broadcast_json({
@@ -1201,7 +1218,13 @@ class GameServer:
             "mob_type": mob.mob_type,
         }, exclude_id=client.player.player_id)
 
-    def _handle_mob_death(self, client: "ClientConnection", msg: dict) -> None:
+        # If the engine says this hit killed the mob, drive the death here rather than waiting for
+        # the client to claim it — the whole point is that the server, not the client, decides a
+        # kill (and, later, awards the XP the ruling carries).
+        if ruling is not None and ruling.get("killed"):
+            await self._finish_mob_death(client, mob, ruling)
+
+    async def _handle_mob_death(self, client: "ClientConnection", msg: dict) -> None:
         mob_id = clamp_int(msg.get("mob_id"), 0, 999, -1)
         mob_type = str(msg.get("mob_type", "unknown"))[:32]
 
@@ -1213,6 +1236,22 @@ class GameServer:
             mob = MobState(mob_id=mob_id, mob_type=mob_type, life=0, max_life=1)
             self.mobs[mob_id] = mob
 
+        # If the engine is authoritative, a client-claimed death is only honoured when the engine
+        # agrees the mob is actually dead — otherwise a client can't announce a kill it didn't
+        # earn. With no engine, the claim is trusted as before.
+        if self.engine.available and mob.alive:
+            log.debug("Ignoring unverified mob_death claim for mob %d from player %d",
+                      mob_id, client.player.player_id)
+            return
+
+        await self._finish_mob_death(client, mob, None)
+
+    async def _finish_mob_death(self, client: "ClientConnection", mob: "MobState",
+                                ruling: "Optional[dict]") -> None:
+        """Mark a mob dead once and tell everyone. Idempotent: a mob already broadcast as dead
+        won't be announced twice (so the engine's kill and a client's later claim don't double up)."""
+        if mob.dying and not mob.alive:
+            return
         mob.alive = False
         mob.dying = True
         mob.life = 0
@@ -1220,12 +1259,15 @@ class GameServer:
 
         self.broadcast_json({
             "type": "mob_death",
-            "mob_id": mob_id,
+            "mob_id": mob.mob_id,
             "killer_pid": client.player.player_id,
             "mob_type": mob.mob_type,
         })
 
-        log.debug("Mob %d (%s) killed by player %d", mob_id, mob.mob_type, client.player.player_id)
+        exp = ruling.get("exp") if ruling else None
+        log.debug("Mob %d (%s) killed by player %d%s", mob.mob_id, mob.mob_type,
+                  client.player.player_id,
+                  f" (+{exp} xp, engine-ruled)" if exp else "")
 
     # =====================================================================
     #  SERVER-HOSTED NPCs
@@ -1447,6 +1489,8 @@ class GameServer:
         self.clients.clear()
         if self._server:
             self._server.close()
+        if self.engine is not None:
+            await self.engine.shutdown()
 
 
 def prompt_bind_address(default_host: str, default_port: int) -> tuple[str, int]:
@@ -1561,11 +1605,21 @@ async def amain(host: str, port: int, max_players: int, private_key, cfg: dict) 
                     cfg.get("save_server_host"), cfg.get("save_server_port"), exc,
                 )
 
+    # Launch the authoritative Java gameplay engine (engine.jar). This never raises: if the jar
+    # is missing or Java isn't installed, `launch` logs a warning and returns an unavailable
+    # handle, and the server runs with client-reported gameplay exactly as it did before.
+    engine_jar = cfg.get("engine_jar")
+    engine = await GameEngine.launch(
+        jar_path=Path(engine_jar) if engine_jar else None,
+        java_bin=cfg.get("java_bin"),
+    )
+
     server = GameServer(
         host=host, port=port, max_players=max_players,
         private_key=private_key, nonce_cache=nonce_cache,
         rate_limiter=rate_limiter, cfg=cfg,
         maps=map_collection, active_map_id=active_map_id,
+        engine=engine,
     )
 
     def shutdown_handler():

@@ -53,3 +53,27 @@ tasks.register('runHeadless', JavaExec) {
     classpath = sourceSets.main.runtimeClasspath
 }
 
+// ── Authoritative gameplay engine as a single runnable jar. ──
+// This is the "gameplay" server the Python multiplayer server launches as a child process and
+// talks to over stdin/stdout (see server.EngineServer and SERVERS/multiplayer_server/game_engine.py).
+// It bundles core's classes, its assets (res/**), the headless libGDX backend and the desktop
+// natives, so it runs anywhere a JRE does with no Gradle and no game install:
+//     java -jar engine.jar
+// Output goes to SERVERS/multiplayer_server/engine.jar so the Python side can find it by default.
+tasks.register('engineJar', Jar) {
+    group = 'build'
+    description = 'Bundle the authoritative gameplay engine into a single runnable jar.'
+    archiveBaseName = 'engine'
+    archiveVersion = ''
+    destinationDirectory = rootProject.file('SERVERS/multiplayer_server')
+    duplicatesStrategy = DuplicatesStrategy.EXCLUDE
+
+    from sourceSets.main.output          // core's compiled classes + res/** resources
+    dependsOn configurations.runtimeClasspath
+    from { configurations.runtimeClasspath.collect { it.isDirectory() ? it : zipTree(it) } }
+
+    manifest { attributes 'Main-Class': 'server.EngineServer' }
+    // Signatures from signed dependency jars don't survive being merged into a fat jar.
+    exclude 'META-INF/*.SF', 'META-INF/*.DSA', 'META-INF/*.RSA'
+}
+

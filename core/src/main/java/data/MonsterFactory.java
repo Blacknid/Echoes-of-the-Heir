@@ -54,6 +54,35 @@ public class MonsterFactory {
         return null;
     }
 
+    /**
+     * Read a single integer field of a monster definition without building an {@link Entity}.
+     *
+     * <p>The authoritative server uses this to know a monster's real {@code maxLife},
+     * {@code defense} and {@code exp} reward straight from the shared JSON, so it can validate a
+     * damage claim and award XP from the rulebook rather than trusting whatever number a client
+     * sends. Building a full monster would need sprites (a GL path); this deliberately does not.
+     *
+     * @return the field value, or {@code fallback} if the monster id or field is unknown
+     */
+    public static int defStat(String id, String field, int fallback) {
+        if (!loaded) loadDefinitions();
+        for (Map<String, String> def : monsterDefs) {
+            if (id.equals(def.get("id"))) {
+                return intVal(def, field, fallback);
+            }
+        }
+        return fallback;
+    }
+
+    /** True once a monster with this id is defined in monsters.json. */
+    public static boolean isKnown(String id) {
+        if (!loaded) loadDefinitions();
+        for (Map<String, String> def : monsterDefs) {
+            if (id.equals(def.get("id"))) return true;
+        }
+        return false;
+    }
+
     /** Get all registered monster definition IDs. */
     public static ArrayList<String> getRegisteredIds() {
         if (!loaded) loadDefinitions();
