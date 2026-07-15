@@ -19,6 +19,8 @@ import java.util.ArrayList;
 import java.util.Base64;
 import java.util.List;
 import java.util.Properties;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.TimeUnit;
 
 import javax.crypto.Cipher;
 import javax.crypto.Mac;
@@ -76,6 +78,8 @@ public final class LicenseActivation implements LicenseCheck {
     private static final int SOCKET_TIMEOUT_MS = 8000;
     private static final byte[] ISSUANCE_INFO = "michi-issuance-v2".getBytes(StandardCharsets.UTF_8);
     private static final byte[] ISSUED_LICENSE_AAD = "MichiIssuedLicense".getBytes(StandardCharsets.UTF_8);
+    private static final byte[] ITCH_TOKEN_INFO = "michi-itchtoken-v2".getBytes(StandardCharsets.UTF_8);
+    private static final byte[] ITCH_TOKEN_AAD = "MichiItchToken".getBytes(StandardCharsets.UTF_8);
 
     // Server's transport RSA public key — same keypair CloudSaveService/MultiplayerClient use
     // to encrypt the ACTIVATE/LOGIN envelope. Not a "license signing" key: it never authenticates
@@ -99,7 +103,36 @@ public final class LicenseActivation implements LicenseCheck {
     /** Player-facing reason the last activation attempt failed; null when it succeeded. */
     private volatile String lastError;
 
+    /**
+     * Trips when {@link #ensureActivated()} has finished — succeeded OR failed. It does NOT mean
+     * "licensed"; ask {@link #verifyCurrent()} for that. It only means the answer is in.
+     *
+     * <p>Activation runs on a background thread (MichiGame.create() starts it, so the window doesn't
+     * freeze on a multi-second network round trip), but the cloud-save load is gated on
+     * {@code License.verifyCurrent()}. Anything that loads a save therefore has to WAIT for this
+     * instead of reading a half-initialized answer: pressing CONTINUE before activation landed used
+     * to see verifyCurrent()==false, silently skip the cloud download, and load a stale local save
+     * instead — a pure race, so the same button did different things depending on click speed.
+     */
+    private static final CountDownLatch SETTLED = new CountDownLatch(1);
+
     private LicenseActivation() {}
+
+    /**
+     * Block until activation has settled (succeeded or failed), or {@code timeoutMs} elapses.
+     * Returns true if it settled in time. Never call from the render thread without a timeout.
+     */
+    public static boolean awaitSettled(long timeoutMs) {
+        try {
+            return SETTLED.await(timeoutMs, TimeUnit.MILLISECONDS);
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            return false;
+        }
+    }
+
+    /** True once {@link #ensureActivated()} has run to completion this launch, licensed or not. */
+    public static boolean hasSettled() { return SETTLED.getCount() == 0; }
 
     /**
      * True once the save server has confirmed this install's license this run.
@@ -127,6 +160,16 @@ public final class LicenseActivation implements LicenseCheck {
      *         running license-less and retry next launch).
      */
     public static String ensureActivated() {
+        try {
+            return activate();
+        } finally {
+            // In a finally so that NO exit path — early return, thrown exception — can leave a
+            // caller blocked in awaitSettled() forever waiting for an answer that already came.
+            SETTLED.countDown();
+        }
+    }
+
+    private static String activate() {
         LicenseActivation m = INSTANCE;
         Properties existing = readLocal();
         String existingId = existing == null ? "" : existing.getProperty("activation_id", "").trim();
@@ -175,8 +218,13 @@ public final class LicenseActivation implements LicenseCheck {
                 License.set(m);
                 System.out.println(isLogin ? "[License] Logged in." : "[License] Activated online — license issued.");
                 return r.licenseKey;
-            } catch (Exception ignored) {
-                // try next endpoint
+            } catch (java.io.IOException netFailure) {
+                // Endpoint unreachable or the connection dropped — worth trying the next one.
+            } catch (Exception bug) {
+                // A crypto/parse failure is OUR bug, not an outage, and it will fail identically
+                // against every endpoint. Swallowing it silently is what let the oversized-RSA
+                // -envelope bug masquerade as "couldn't reach the license server" for every buyer.
+                System.out.println("[License] Handshake failed against " + ep.host + ": " + bug);
             }
         }
         if (m.lastError == null) {
@@ -209,18 +257,10 @@ public final class LicenseActivation implements LicenseCheck {
             byte[] serverNonce = Base64.getDecoder().decode(okLine.substring(3));
             if (serverNonce.length != 16) return null;
 
-            // The itch token rides INSIDE the RSA envelope, never on the wire in the clear:
-            // it is a live credential for the player's itch account, and anyone who sniffed it
-            // could impersonate them to itch. Only sent on ACTIVATE — LOGIN needs no proof of
-            // purchase, because holding a license already is the proof.
-            String itchField = (!isLogin && itchToken != null && !itchToken.isBlank())
-                    ? ",\"itch_token\":\"" + jsonEscape(itchToken) + "\""
-                    : "";
             String handshakeJson = "{"
                     + "\"ts\":" + (System.currentTimeMillis() / 1000L) + ","
                     + "\"client_nonce\":\"" + toHex(clientNonce) + "\","
                     + "\"server_nonce\":\"" + toHex(serverNonce) + "\""
-                    + itchField
                     + "}";
             byte[] enc = rsaOaepEncrypt(handshakeJson.getBytes(StandardCharsets.UTF_8));
             String encB64 = Base64.getEncoder().encodeToString(enc);
@@ -228,7 +268,22 @@ public final class LicenseActivation implements LicenseCheck {
             if (isLogin) {
                 writeLine(w, "LOGIN " + encB64 + " " + activationId + " " + encBlobB64);
             } else {
-                writeLine(w, "ACTIVATE " + encB64);
+                // The itch token travels in its own AES-GCM box, NOT inside the RSA envelope:
+                // it is a live credential for the player's itch account, so it must never cross
+                // the wire in the clear — but RSA-2048 with OAEP-SHA256 can only carry 190 bytes
+                // of plaintext, and the nonces alone already spend 117 of them. A real itch token
+                // pushed the envelope past the limit, rsaOaepEncrypt() threw, and the buyer's
+                // ACTIVATE was never even sent. The box is keyed off the two nonces, which both
+                // sides already share here, so it costs no extra round trip and has no size cap.
+                String itchField = "";
+                if (itchToken != null && !itchToken.isBlank()) {
+                    byte[] itchKey = hkdf(concat(clientNonce, serverNonce), serverNonce,
+                            ITCH_TOKEN_INFO, 32);
+                    byte[] box = aesGcmEncrypt(itchToken.getBytes(StandardCharsets.UTF_8), itchKey,
+                            java.util.Arrays.copyOfRange(clientNonce, 0, 12), ITCH_TOKEN_AAD);
+                    itchField = " " + Base64.getEncoder().encodeToString(box);
+                }
+                writeLine(w, "ACTIVATE " + encB64 + itchField);
             }
 
             String authLine = r.readLine();
@@ -373,6 +428,14 @@ public final class LicenseActivation implements LicenseCheck {
         return c.doFinal(plain);
     }
 
+    private static byte[] aesGcmEncrypt(byte[] plain, byte[] key, byte[] nonce, byte[] aad)
+            throws GeneralSecurityException {
+        Cipher c = Cipher.getInstance("AES/GCM/NoPadding");
+        c.init(Cipher.ENCRYPT_MODE, new SecretKeySpec(key, "AES"), new GCMParameterSpec(128, nonce));
+        if (aad != null) c.updateAAD(aad);
+        return c.doFinal(plain);
+    }
+
     private static byte[] aesGcmDecrypt(byte[] ct, byte[] key, byte[] nonce, byte[] aad)
             throws GeneralSecurityException {
         Cipher c = Cipher.getInstance("AES/GCM/NoPadding");
@@ -419,23 +482,4 @@ public final class LicenseActivation implements LicenseCheck {
         return sb.toString();
     }
 
-    /** Escape a value for the hand-built handshake JSON. */
-    private static String jsonEscape(String s) {
-        StringBuilder sb = new StringBuilder(s.length() + 8);
-        for (int i = 0; i < s.length(); i++) {
-            char c = s.charAt(i);
-            switch (c) {
-                case '"'  -> sb.append("\\\"");
-                case '\\' -> sb.append("\\\\");
-                case '\n' -> sb.append("\\n");
-                case '\r' -> sb.append("\\r");
-                case '\t' -> sb.append("\\t");
-                default -> {
-                    if (c < 0x20) sb.append(String.format("\\u%04x", (int) c));
-                    else sb.append(c);
-                }
-            }
-        }
-        return sb.toString();
-    }
 }

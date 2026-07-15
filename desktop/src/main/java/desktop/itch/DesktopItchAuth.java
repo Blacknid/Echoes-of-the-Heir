@@ -67,10 +67,6 @@ public final class DesktopItchAuth implements ItchAuthProvider {
                     + "or bake one into DesktopItchAuth) — skipping the purchase check.");
             return null;
         }
-        if (!browserAvailable()) {
-            System.out.println("[Itch] No browser available on this system — cannot verify purchase.");
-            return null;
-        }
 
         HttpServer server = null;
         try {
@@ -111,8 +107,14 @@ public final class DesktopItchAuth implements ItchAuthProvider {
                     + "&response_type=token"
                     + "&redirect_uri=" + enc(redirectUri);
 
+            // Try to open the default browser automatically. If that fails (no default browser,
+            // headless AWT on a stripped runtime, a locked-down machine, etc.) the buyer is
+            // running the GUI .exe with NO console, so a System.out message would be invisible and
+            // activation would appear to "do nothing". Fall back to a visible Swing dialog that
+            // shows the URL and lets them copy it, so the flow is never silent.
             if (!openBrowser(authUrl)) {
-                System.out.println("[Itch] Could not open a browser. Open this URL manually:\n" + authUrl);
+                System.out.println("[Itch] Could not open a browser automatically. Showing manual URL dialog.");
+                showManualAuthDialog(authUrl);
             }
 
             String token = result.poll(AUTH_TIMEOUT_SECONDS, TimeUnit.SECONDS);
@@ -135,17 +137,72 @@ public final class DesktopItchAuth implements ItchAuthProvider {
         }
     }
 
-    private static boolean browserAvailable() {
-        return Desktop.isDesktopSupported()
-                && Desktop.getDesktop().isSupported(Desktop.Action.BROWSE);
+    /**
+     * Open the player's default browser at {@code url}. Tries {@code java.awt.Desktop} first,
+     * then falls back to the Windows shell ({@code rundll32 url.dll,FileProtocolHandler}), which
+     * works even when AWT reports BROWSE unsupported. Returns false only if every route failed —
+     * the caller then shows the URL in a visible dialog rather than failing silently.
+     */
+    private static boolean openBrowser(String url) {
+        if (Desktop.isDesktopSupported()
+                && Desktop.getDesktop().isSupported(Desktop.Action.BROWSE)) {
+            try {
+                Desktop.getDesktop().browse(URI.create(url));
+                return true;
+            } catch (IOException | UnsupportedOperationException | IllegalArgumentException e) {
+                System.out.println("[Itch] Desktop.browse failed (" + e + ") — trying shell fallback.");
+            }
+        }
+        // Shell fallback: works on stripped runtimes / locked-down machines where AWT BROWSE is
+        // unavailable but a default browser is still registered.
+        try {
+            new ProcessBuilder("rundll32", "url.dll,FileProtocolHandler", url).start();
+            return true;
+        } catch (IOException e) {
+            System.out.println("[Itch] Shell browser fallback failed: " + e);
+            return false;
+        }
     }
 
-    private static boolean openBrowser(String url) {
+    /**
+     * Last-resort visible prompt when no browser could be launched automatically. A buyer running
+     * the packaged .exe has no console, so a printed URL would be invisible; this Swing dialog puts
+     * the auth URL in front of them (pre-selected for copy) and keeps the loopback listener alive
+     * while they open it by hand. Swing lives in the bundled {@code java.desktop} runtime module.
+     */
+    private static void showManualAuthDialog(String authUrl) {
         try {
-            Desktop.getDesktop().browse(URI.create(url));
-            return true;
-        } catch (IOException | UnsupportedOperationException | IllegalArgumentException e) {
-            return false;
+            javax.swing.JTextArea area = new javax.swing.JTextArea(authUrl);
+            area.setEditable(false);
+            area.setLineWrap(true);
+            area.setWrapStyleWord(false);
+            area.setCaretPosition(0);
+            area.selectAll();
+            javax.swing.JScrollPane scroll = new javax.swing.JScrollPane(area);
+            scroll.setPreferredSize(new java.awt.Dimension(460, 90));
+
+            javax.swing.JPanel panel = new javax.swing.JPanel(new java.awt.BorderLayout(0, 8));
+            panel.add(new javax.swing.JLabel(
+                    "<html>We couldn't open your browser automatically.<br>"
+                  + "Copy this link into a browser to verify your itch.io purchase, "
+                  + "then return to the game:</html>"), java.awt.BorderLayout.NORTH);
+            panel.add(scroll, java.awt.BorderLayout.CENTER);
+
+            // Show on the EDT and don't block this (background) thread past the dialog; the caller
+            // keeps waiting on the loopback listener afterwards regardless.
+            javax.swing.SwingUtilities.invokeAndWait(() -> {
+                // Copy to clipboard so "paste" just works even if they don't hand-select.
+                try {
+                    java.awt.Toolkit.getDefaultToolkit().getSystemClipboard()
+                            .setContents(new java.awt.datatransfer.StringSelection(authUrl), null);
+                } catch (RuntimeException ignored) { /* headless / no clipboard — dialog still shows */ }
+                javax.swing.JOptionPane.showMessageDialog(null, panel,
+                        "Michi's Adventure — verify your purchase",
+                        javax.swing.JOptionPane.INFORMATION_MESSAGE);
+            });
+        } catch (Exception e) {
+            // If even Swing is unavailable, we've done all we can — the URL is still in the log.
+            System.out.println("[Itch] Could not show manual-auth dialog (" + e + "). URL:\n" + authUrl);
         }
     }
 

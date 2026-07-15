@@ -363,26 +363,47 @@ public class SaveLoad {
     }
 
     public void load() {
+        applyFetched(fetch());
+    }
 
+    /**
+     * Network half of a load: pull the cloud save and parse it, touching NO game state and NO GL
+     * resource. Safe — and intended — to call off the render thread, since {@code download()} does a
+     * real blocking round trip (pingPool + transfer) that would otherwise freeze the window.
+     * Reading the local timestamp is plain file I/O, so it belongs on this side of the split too.
+     *
+     * @return the parsed cloud state, or null to mean "use the local save instead".
+     */
+    public GameState fetch() {
         try {
             CloudSaveService.DownloadResult result = cloudSaveService.download(Main.LICENSE_KEY);
             if (result.ok() && result.json() != null && !result.json().isBlank()) {
                 GameState state = parseGameStateJson(result.json());
                 // Cloud is only authoritative if it's actually newer than what's on disk —
                 // otherwise a stale cloud save (e.g. from before this session's progress) would
-                // silently overwrite newer local progress with no error shown.
-                if (state != null && state.timestamp >= localSaveTimestamp()) {
-                    applyGameState(state);
-                    saveToDisk();
-                    return;
-                }
+                // silently overwrite newer local progress with no error shown. Returning null
+                // hands applyFetched() back to the local save, which is exactly what we want.
+                if (state != null && state.timestamp >= localSaveTimestamp()) return state;
             } else if (!result.ok()) {
                 System.out.println(result.message());
             }
         } catch (RuntimeException e) {
             System.out.println("Cloud load failed, falling back to local save: " + e.getMessage());
         }
+        return null;
+    }
 
+    /**
+     * State half of a load: apply what {@link #fetch()} returned, falling back to the local save if
+     * it returned null. MUST run on the render thread — it rebuilds entities and re-bakes the
+     * minimap, which construct GPU Textures/Pixmaps and need a current GL context.
+     */
+    public void applyFetched(GameState state) {
+        if (state != null) {
+            applyGameState(state);
+            saveToDisk();
+            return;
+        }
         loadFromDisk();
     }
 
