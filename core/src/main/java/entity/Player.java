@@ -2461,29 +2461,49 @@ public class Player extends Entity {
 
     /** Build 3 random stat upgrade options for the level-up choice screen. */
     private void generateLevelUpChoices() {
-        // Pool of possible stat upgrades
-        String[][] pool = {
-            {"maxLife",   "+1 Max HP",       "1"},
-            {"strenght",  "+1 Strength",      "1"},
-            {"dexterity", "+1 Dexterity",     "1"},
-            {"speed",     "+1 Speed",         "1"},
-            {"maxMana",   "+1 Max Mana",      "1"},
-        };
+        generateLevelUpChoices(false);
+    }
 
-        // Shuffle and pick 3 distinct options
-        java.util.List<String[]> options = new java.util.ArrayList<>(java.util.Arrays.asList(pool));
-        java.util.Collections.shuffle(options);
+    /**
+     * Build the level-up options. In multiplayer the pick is authorised server-side, and the
+     * server only grants the four stats it tracks — "speed" has no server representation, so it is
+     * excluded from the offered pool rather than offered and silently dropped.
+     */
+    private void generateLevelUpChoices(boolean multiplayer) {
+        java.util.List<String[]> pool = new java.util.ArrayList<>(java.util.Arrays.asList(
+            new String[]{"maxLife",   "+1 Max HP",    "1"},
+            new String[]{"strenght",  "+1 Strength",  "1"},
+            new String[]{"dexterity", "+1 Dexterity", "1"},
+            new String[]{"maxMana",   "+1 Max Mana",  "1"}
+        ));
+        if (!multiplayer) {
+            pool.add(new String[]{"speed", "+1 Speed", "1"});
+        }
+
+        java.util.Collections.shuffle(pool);
 
         levelUpOptions = new String[3];
         levelUpValues = new int[3];
         levelUpStatKeys = new String[3];
 
         for (int i = 0; i < 3; i++) {
-            levelUpStatKeys[i] = options.get(i)[0];
-            levelUpOptions[i] = options.get(i)[1];
-            levelUpValues[i] = Integer.parseInt(options.get(i)[2]);
+            levelUpStatKeys[i] = pool.get(i)[0];
+            levelUpOptions[i] = pool.get(i)[1];
+            levelUpValues[i] = Integer.parseInt(pool.get(i)[2]);
         }
         levelUpChoice = 0;
+    }
+
+    /**
+     * Open the level-up stat-pick screen for a level the SERVER already granted (multiplayer).
+     * The client does not touch level, XP or skill points here — those arrived via player_stats;
+     * this only presents the four server-grantable stats, and the pick becomes a level_choice
+     * request (see KeyHandler.handleLevelUpState).
+     */
+    public void beginServerLevelUpChoice() {
+        triggerLevelUpEffects();
+        generateLevelUpChoices(true);
+        gp.gameState = GamePanel.levelUpState;
     }
 
     private void triggerLevelUpEffects() {
@@ -2641,17 +2661,29 @@ public class Player extends Entity {
     // Stored stat keys for level-up application
     private String[] levelUpStatKeys;
 
-    /** Apply the selected level-up stat boost. Called from KeyHandler. */
+    /** Apply the selected level-up stat boost. Called from KeyHandler / MouseHandler. */
     public void applyLevelUpChoice() {
         if (levelUpStatKeys == null) return;
         String key = levelUpStatKeys[levelUpChoice];
         int val = levelUpValues[levelUpChoice];
-        switch (key) {
-            case "maxLife" -> { maxLife += val; life = maxLife; }
-            case "strenght" -> { strenght += val; attack = getAttack(); }
-            case "dexterity" -> { dexterity += val; defense = getDefense(); }
-            case "speed" -> { defaultSpeed += val; speed = defaultSpeed; }
-            case "maxMana" -> { maxMana += val; mana = maxMana; }
+
+        // In multiplayer the level was granted by the server and the pick is authorised there too:
+        // send it and let the server's player_stats be the only thing that changes our stats. We
+        // deliberately do NOT apply the +1 locally — a client mutating its own stats is exactly
+        // what this closes. Both input paths (keyboard and mouse) funnel through here, so this one
+        // guard covers them. The feedback (particles/shake) below still plays.
+        boolean serverOwns = gp.multiplayerMode
+                && gp.mpClient != null && gp.mpClient.isConnected();
+        if (serverOwns) {
+            gp.mpClient.sendLevelChoice(key);
+        } else {
+            switch (key) {
+                case "maxLife" -> { maxLife += val; life = maxLife; }
+                case "strenght" -> { strenght += val; attack = getAttack(); }
+                case "dexterity" -> { dexterity += val; defense = getDefense(); }
+                case "speed" -> { defaultSpeed += val; speed = defaultSpeed; }
+                case "maxMana" -> { maxMana += val; mana = maxMana; }
+            }
         }
         // Particle burst on stat gain
         for (int i = 0; i < 8; i++) {

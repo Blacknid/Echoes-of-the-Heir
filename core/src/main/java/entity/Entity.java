@@ -1348,13 +1348,22 @@ public class Entity {
             if (name != null) {
                 gp.ui.addMessage("Killed the " + name + "!", Color.WHITE);
             }
-            if (deathRewardExp > 0) {
-                gp.player.exp += deathRewardExp;
-                gp.player.checkLevelUp();
-            }
-            if (deathRewardCoins > 0) {
-                gp.player.coin += deathRewardCoins;
-                gp.ui.addMessage("+" + deathRewardCoins + " coins", COIN_MSG_COLOR);
+            // In multiplayer, XP, coins and the level-up are the server's to grant: it credits
+            // them on the authoritative kill and pushes back player_stats (with leveledUp when a
+            // level was gained). Awarding them here too would let a client mint its own XP/gold,
+            // which is exactly what we're closing — so skip the local award and let the server's
+            // player_stats be the only thing that changes these.
+            boolean serverOwnsRewards = gp.multiplayerMode
+                    && gp.mpClient != null && gp.mpClient.isConnected();
+            if (!serverOwnsRewards) {
+                if (deathRewardExp > 0) {
+                    gp.player.exp += deathRewardExp;
+                    gp.player.checkLevelUp();
+                }
+                if (deathRewardCoins > 0) {
+                    gp.player.coin += deathRewardCoins;
+                    gp.ui.addMessage("+" + deathRewardCoins + " coins", COIN_MSG_COLOR);
+                }
             }
         }
     }

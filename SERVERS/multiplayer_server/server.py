@@ -388,6 +388,10 @@ class PlayerState:
     # npc_interact. Buy/sell are only honoured against this NPC, so a client can't shop at
     # a vendor it never walked up to.
     active_npc_id: int = -1
+    # Unspent level-up stat picks. The server grants one per level gained (see level_up); the
+    # client's level-up screen turns each into a level_choice request, which the server only
+    # honours while this is > 0. Persisted, so a level-up survives a disconnect before the pick.
+    pending_level_choices: int = 0
 
     def to_dict(self) -> dict:
         return {
@@ -422,6 +426,7 @@ class PlayerState:
             "nextLevelExp": self.next_level_exp,
             "coin":         self.coin,
             "skillPoints":  self.skill_points,
+            "pendingLevelChoices": self.pending_level_choices,
         }
 
     def progress_to_dict(self) -> dict:
@@ -445,7 +450,61 @@ class PlayerState:
         self.next_level_exp= clamp_int(d.get("nextLevelExp"),  1,    999999999, DEFAULT_NEXT_LVL)
         self.coin          = clamp_int(d.get("coin"),          0,    999999999, DEFAULT_COIN)
         self.skill_points  = clamp_int(d.get("skillPoints"),   0,    9999,      DEFAULT_SKILL_PTS)
+        self.pending_level_choices = clamp_int(d.get("pendingLevelChoices"), 0, 9999, 0)
         self.progress.level = self.level
+
+    # ── authoritative economy/progression ────────────────────────────────────
+    # XP, coins, level and skill points change HERE and nowhere else. The client is told the
+    # result via player_stats; it never gets to set these itself. A client that fakes any of them
+    # only fakes its own screen — the next player_stats overwrites the lie with the server's truth.
+
+    def credit_kill(self, exp_reward: int, coin_reward: int) -> bool:
+        """Award the XP and coins for a kill, then run the level-up loop. Returns True if the
+        player leveled up (so the caller can tell the client to open its stat-pick screen)."""
+        self.exp = min(999999999, self.exp + max(0, exp_reward))
+        self.coin = min(999999999, self.coin + max(0, coin_reward))
+        return self._apply_level_ups()
+
+    def _apply_level_ups(self) -> bool:
+        """The exact rule Player.checkLevelUp runs on the client — replicated here so the server,
+        not the client, owns level, skill points and the heal. Each level gained banks one stat
+        pick (pending_level_choices), which a level_choice request later spends."""
+        leveled = False
+        while self.exp >= self.next_level_exp:
+            self.exp -= self.next_level_exp
+            self.level += 1
+            self.next_level_exp = 4 + self.level * 3   # matches Player.java: 7, 10, 13, ...
+            self.skill_points += 1
+            self.life = min(self.life + 2, self.max_life)
+            self.pending_level_choices += 1
+            leveled = True
+        if leveled:
+            self.progress.level = self.level
+        return leveled
+
+    def apply_level_choice(self, stat: str) -> bool:
+        """Spend one banked level-up pick on a +1 stat, mirroring Player.applyLevelUpChoice.
+        Returns False (and changes nothing) if there's no pending choice or the stat is unknown —
+        so a client can't mint stats by sending level_choice it didn't earn."""
+        if self.pending_level_choices <= 0:
+            return False
+        if stat == "maxLife":
+            self.max_life += 1
+            self.life = self.max_life
+        elif stat == "strength":     # client key is "strenght"; normalised by the handler
+            self.strength += 1
+        elif stat == "dexterity":
+            self.dexterity += 1
+        elif stat == "maxMana":
+            self.max_mana += 1
+            self.mana = self.max_mana
+        else:
+            # Only the four stats the server actually tracks are grantable. "speed" isn't among
+            # them (it has no server-side representation), so it's deliberately not offered in
+            # multiplayer — see the level-up choice pool on the client.
+            return False
+        self.pending_level_choices -= 1
+        return True
 
 
 @dataclass
@@ -1063,6 +1122,9 @@ class GameServer:
                 elif t == "skill_unlock":
                     self._handle_skill_unlock(client, msg)
 
+                elif t == "level_choice":
+                    self._handle_level_choice(client, msg)
+
                 else:
                     log.debug("Unknown msg type from pid=%s: %s",
                               player.player_id, t)
@@ -1280,18 +1342,23 @@ class GameServer:
             "mob_type": mob.mob_type,
         })
 
-        # Credit the kill's XP to the killer's SERVER-held total, from the engine's ruling (which
-        # read the reward from the shared monster definitions). The client no longer decides how
-        # much XP a kill is worth; it's told the new total via player_stats. Level-up math still
-        # runs client-side for now, so this is XP authority, not yet level authority.
+        # Credit the kill's XP and coins to the killer's SERVER-held totals, from the engine's
+        # ruling (which read the reward from the shared monster definitions). Coins mirror the
+        # client's old drop of max(1, exp//2). The server then runs the level-up loop itself, so
+        # level, skill points, the heal and the banked stat-pick all originate here — the client
+        # never awards itself XP, coins, a level or a skill point; it's only told the result.
         exp = clamp_int(ruling.get("exp"), 0, 999999, 0) if ruling else 0
+        player = client.player
         if exp > 0:
-            player = client.player
-            player.exp = min(999999999, player.exp + exp)
-            client.send_json({"type": "player_stats", **player.stats_to_dict()})
+            coins = max(1, exp // 2)
+            leveled = player.credit_kill(exp, coins)
+            stats = player.stats_to_dict()
+            if leveled:
+                stats["leveledUp"] = True   # cue the client to open its stat-pick screen
+            client.send_json({"type": "player_stats", **stats})
         log.debug("Mob %d (%s) killed by player %d%s", mob.mob_id, mob.mob_type,
                   client.player.player_id,
-                  f" (+{exp} xp, engine-ruled)" if exp else "")
+                  f" (+{exp} xp, +{max(1, exp // 2)} coins, engine-ruled)" if exp else "")
 
     # =====================================================================
     #  SERVER-HOSTED NPCs
@@ -1498,6 +1565,35 @@ class GameServer:
         client.send_json({"type": "player_stats", **player.stats_to_dict()})
         log.info("[SKILL] %s unlocked %s (cost %d, skillPoints=%d)",
                  player.name, node_id, node.cost, player.skill_points)
+
+    # =====================================================================
+    #  SERVER-AUTHORITATIVE LEVEL-UP STAT PICK
+    # =====================================================================
+
+    # The client's level-up key ("strenght") vs the server stat name ("strength"). The client
+    # can send either spelling; normalise before applying.
+    _LEVEL_STAT_ALIASES = {"strenght": "strength"}
+
+    def _handle_level_choice(self, client: "ClientConnection", msg: dict) -> None:
+        """The player picked a +1 stat on their level-up screen. The level itself was already
+        granted server-side on the kill; here we spend one banked pick. The server only applies
+        it if the player actually has an unspent level-up, so a client can't hand itself stats by
+        sending this out of nowhere."""
+        player = client.player
+        stat = str(msg.get("stat", ""))[:16]
+        stat = self._LEVEL_STAT_ALIASES.get(stat, stat)
+
+        ok = player.apply_level_choice(stat)
+        if ok:
+            client.send_json({"type": "player_stats", **player.stats_to_dict()})
+            log.info("[LEVEL] %s spent a level-up pick on +1 %s (pending=%d)",
+                     player.name, stat, player.pending_level_choices)
+        else:
+            # No banked pick, or an unknown/ungrantable stat. Push current stats back so the
+            # client re-syncs to the truth rather than keeping a change it made locally.
+            client.send_json({"type": "player_stats", **player.stats_to_dict()})
+            log.debug("Rejected level_choice %r from %s (pending=%d)",
+                      stat, player.name, player.pending_level_choices)
 
     def _handle_chunk_request(self, client: "ClientConnection", msg: dict) -> None:
         layer_idx = clamp_int(msg.get("layer_idx"), 0, len(self.world.layers) - 1, -1)

@@ -680,6 +680,14 @@ public class MultiplayerClient {
                 p.defense       = p.getDefense();
                 System.out.println("[MP Client] Server stats applied: level=" + p.level
                         + " life=" + p.life + "/" + p.maxLife);
+
+                // The server banks one stat pick per level it granted us. If any are unspent and
+                // we're not already picking, open the level-up screen — the pick becomes a
+                // level_choice request the server authorises (see KeyHandler.handleLevelUpState).
+                int pendingChoices = extractInt(json, "pendingLevelChoices", 0);
+                if (pendingChoices > 0 && gp.gameState != GamePanel.levelUpState) {
+                    com.badlogic.gdx.Gdx.app.postRunnable(p::beginServerLevelUpChoice);
+                }
             }
             case "mob_damage" -> handleMobDamage(json);
             case "mob_death" -> handleMobDeath(json);
@@ -1343,6 +1351,17 @@ public class MultiplayerClient {
                     gp.ui.applyServerShopResult(ok, msg, action, itemId, qty));
         } catch (Exception e) {
             System.out.println("[MP Client] handleShopResult error: " + e.getMessage());
+        }
+    }
+
+    /** Tell the server which +1 stat we picked on a level-up it already granted. The server spends
+     *  one banked pick and pushes the real stats back; we don't apply the stat ourselves. */
+    public void sendLevelChoice(String statKey) {
+        if (!connected.get()) return;
+        try {
+            sendEncrypted("{\"type\":\"level_choice\",\"stat\":\"" + jsonEscape(statKey) + "\"}");
+        } catch (Exception e) {
+            System.out.println("[MP Client] Error sending level_choice: " + e.getMessage());
         }
     }
 
