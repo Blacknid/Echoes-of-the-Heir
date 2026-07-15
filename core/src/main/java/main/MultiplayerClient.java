@@ -687,6 +687,8 @@ public class MultiplayerClient {
             case "npc_dialogue" -> handleNpcDialogue(json);
             case "npc_shop" -> handleNpcShop(json);
             case "shop_result" -> handleShopResult(json);
+            case "skill_result" -> handleSkillResult(json);
+            case "skills_state" -> handleSkillsState(json);
             default -> { /* ignore unknown */ }
         }
     }
@@ -1341,6 +1343,62 @@ public class MultiplayerClient {
                     gp.ui.applyServerShopResult(ok, msg, action, itemId, qty));
         } catch (Exception e) {
             System.out.println("[MP Client] handleShopResult error: " + e.getMessage());
+        }
+    }
+
+    /** Ask the server to unlock a skill node. The server checks our server-held skill points and
+     *  the node's cost/prerequisite and replies with skill_result; only then does the node get
+     *  unlocked locally. We never spend points ourselves in multiplayer. */
+    public void sendSkillUnlock(String nodeId) {
+        if (!connected.get()) return;
+        try {
+            sendEncrypted("{\"type\":\"skill_unlock\",\"nodeId\":\"" + jsonEscape(nodeId) + "\"}");
+        } catch (Exception e) {
+            System.out.println("[MP Client] Error sending skill_unlock: " + e.getMessage());
+        }
+    }
+
+    /** Outcome of a skill unlock the server authorised. On success we mark the node unlocked and
+     *  apply its gameplay effect locally; the new point balance arrives via the player_stats that
+     *  the server sends right after. On failure we leave the tree untouched and buzz. */
+    private void handleSkillResult(String json) {
+        try {
+            boolean ok = extractBool(json, "ok");
+            String nodeId = stringOr(extractString(json, "nodeId"), "");
+            String msg = stringOr(extractString(json, "msg"), "");
+            com.badlogic.gdx.Gdx.app.postRunnable(() -> {
+                if (ok && !nodeId.isEmpty()) {
+                    gp.player.skillTree.markUnlocked(nodeId);
+                    gp.player.applySkillNodeEffect(nodeId);
+                    gp.ui.invalidateSkillTreeConnectorCache();
+                    gp.playSE(audio.SFX.MENU_SELECT);
+                } else {
+                    gp.playSE(audio.SFX.PLAYER_HIT);
+                    if (!msg.isEmpty()) gp.ui.addMessage(msg, new gfx.Color(255, 180, 120));
+                }
+            });
+        } catch (Exception e) {
+            System.out.println("[MP Client] handleSkillResult error: " + e.getMessage());
+        }
+    }
+
+    /** The server's authoritative set of unlocked skills, sent on join. Ours may disagree after a
+     *  reconnect (the server's is the record of what was actually paid for), so mark exactly this
+     *  set unlocked and apply each effect. */
+    private void handleSkillsState(String json) {
+        try {
+            java.util.List<String> unlocked = extractStringArray(json, "unlocked");
+            com.badlogic.gdx.Gdx.app.postRunnable(() -> {
+                for (String nodeId : unlocked) {
+                    if (nodeId == null || nodeId.isEmpty()) continue;
+                    if (gp.player.skillTree.findIndexById(nodeId) < 0) continue;
+                    gp.player.skillTree.markUnlocked(nodeId);
+                    gp.player.applySkillNodeEffect(nodeId);
+                }
+                gp.ui.invalidateSkillTreeConnectorCache();
+            });
+        } catch (Exception e) {
+            System.out.println("[MP Client] handleSkillsState error: " + e.getMessage());
         }
     }
 

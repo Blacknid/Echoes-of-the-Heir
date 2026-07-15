@@ -107,6 +107,22 @@ else
     echo "  [✓] Found npcs.json"
 fi
 
+# ── 3.65 Skill tree definitions ──────────────────────────
+# Skill unlocks are authorised by THIS server: it holds each player's skill points and unlocked
+# set, and checks a purchase against the node's cost and prerequisite (see skilltree.py). So it
+# needs its own copy of skilltree.json — the same file the game ships. Without it, the server
+# boots but rejects every skill unlock. Keep it in sync with the client's copy when you change
+# the tree, or players will be denied skills their client thinks it can buy.
+echo "[3.65/8] Skill tree definitions..."
+SKILLTREE_FILE="${SCRIPT_DIR}/skilltree.json"
+if [ ! -f "${SKILLTREE_FILE}" ]; then
+    echo "  [!] No skilltree.json in ${SCRIPT_DIR}"
+    echo "      The server will boot but REJECT every skill unlock. Copy the game's"
+    echo "      core/assets/res/data/skilltree.json next to server.py."
+else
+    echo "  [✓] Found skilltree.json"
+fi
+
 # ── 3.7 Authoritative gameplay engine ────────────────────
 # Combat outcomes, XP (and in time drops/quests) are decided by the Java gameplay engine
 # (engine.jar), which runs the game's own simulation classes so the server and client can never

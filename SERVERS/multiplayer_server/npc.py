@@ -537,6 +537,10 @@ class PlayerProgress:
         self.quests: dict[str, bool] = {}
         # "objectId:itemId" -> units remaining (finite-stock listings only)
         self.shop_stock: dict[str, int] = {}
+        # Skill-tree nodes this player has unlocked. Server-held so a client can't grant itself a
+        # skill it never paid for; the point balance lives on PlayerState.skill_points. See
+        # skilltree.SkillCatalog and server._handle_skill_unlock.
+        self.unlocked_skills: set[str] = set()
 
     def has_quest(self, quest_id: str) -> bool:
         return quest_id in self.quests
@@ -570,6 +574,7 @@ class PlayerProgress:
             "metNPCs": sorted(self.met_npcs),
             "quests": dict(self.quests),
             "shopStock": dict(self.shop_stock),
+            "unlockedSkills": sorted(self.unlocked_skills),
         }
 
     def load_from_dict(self, d: dict) -> None:
@@ -587,3 +592,6 @@ class PlayerProgress:
         stock = d.get("shopStock", {}) or {}
         if isinstance(stock, dict):
             self.shop_stock = {str(k): _as_int(v, 0) for k, v in stock.items()}
+        skills = d.get("unlockedSkills", []) or []
+        if isinstance(skills, list):
+            self.unlocked_skills = {str(s) for s in skills}

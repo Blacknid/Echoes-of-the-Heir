@@ -63,6 +63,7 @@ from cryptography.hazmat.primitives.kdf.hkdf import HKDF
 
 from game_engine import GameEngine
 from npc import NpcCatalog, NpcWorld, PlayerProgress
+from skilltree import SkillCatalog
 from world import MapCollection, TmxMap
 
 
@@ -604,6 +605,10 @@ class GameServer:
         # only what it needs to draw them (see NpcInstance.spawn_message).
         self.npc_catalog = NpcCatalog()
         self.npc_world = NpcWorld(self.npc_catalog, self.world)
+        # Skill-tree purchases are authorised here too: the catalog holds each node's cost and
+        # prerequisite, and a player's unlocked set + point balance live server-side, so a client
+        # can only ask to unlock a skill — never grant itself one. See _handle_skill_unlock.
+        self.skill_catalog = SkillCatalog()
         self.clients: dict[int, ClientConnection] = {}
         self._next_id = 1
         self._running = False
@@ -968,6 +973,14 @@ class GameServer:
         # Server is authoritative on stats — client must use these, not its singleplayer values.
         client.send_json({"type": "player_stats", **player.stats_to_dict()})
 
+        # Which skills this player has unlocked is the server's record (it authorises every
+        # purchase), so hand the client the authoritative set on join — after a reconnect its own
+        # save may disagree, and ours is the one that counts.
+        client.send_json({
+            "type": "skills_state",
+            "unlocked": sorted(player.progress.unlocked_skills),
+        })
+
         client.send_json(self.world.info_message())
 
         # NPCs are ours, not the client's. Send the presentation half of each placed NPC so
@@ -1046,6 +1059,9 @@ class GameServer:
 
                 elif t == "shop_sell":
                     self._handle_shop_sell(client, msg)
+
+                elif t == "skill_unlock":
+                    self._handle_skill_unlock(client, msg)
 
                 else:
                     log.debug("Unknown msg type from pid=%s: %s",
@@ -1264,7 +1280,15 @@ class GameServer:
             "mob_type": mob.mob_type,
         })
 
-        exp = ruling.get("exp") if ruling else None
+        # Credit the kill's XP to the killer's SERVER-held total, from the engine's ruling (which
+        # read the reward from the shared monster definitions). The client no longer decides how
+        # much XP a kill is worth; it's told the new total via player_stats. Level-up math still
+        # runs client-side for now, so this is XP authority, not yet level authority.
+        exp = clamp_int(ruling.get("exp"), 0, 999999, 0) if ruling else 0
+        if exp > 0:
+            player = client.player
+            player.exp = min(999999999, player.exp + exp)
+            client.send_json({"type": "player_stats", **player.stats_to_dict()})
         log.debug("Mob %d (%s) killed by player %d%s", mob.mob_id, mob.mob_type,
                   client.player.player_id,
                   f" (+{exp} xp, engine-ruled)" if exp else "")
@@ -1439,6 +1463,41 @@ class GameServer:
             client.send_json({"type": "player_stats", **player.stats_to_dict()})
             log.info("[SHOP] %s sold %dx %s to %s for %d (coin=%d)",
                      player.name, qty, item_id, inst.object_id, payout, player.coin)
+
+    # =====================================================================
+    #  SERVER-AUTHORITATIVE SKILL TREE
+    # =====================================================================
+
+    def _handle_skill_unlock(self, client: "ClientConnection", msg: dict) -> None:
+        """The player asked to unlock a skill node. WE decide: the node's cost and prerequisite
+        come from skilltree.json, and the player's point balance and unlocked set are server-held,
+        so a modified client can only ever *ask* — it can't grant itself a skill or points.
+
+        On success we debit the points, record the unlock, and push back both the new stats (so
+        the client's point total is the server's, not its own guess) and a skill_result naming the
+        node to apply the gameplay effect for. On failure we say why and change nothing."""
+        player = client.player
+        node_id = str(msg.get("nodeId", ""))[:64]
+
+        ok, reason = self.skill_catalog.can_unlock(
+            node_id, player.progress.unlocked_skills, player.skill_points
+        )
+        if not ok:
+            client.send_json({"type": "skill_result", "ok": False,
+                              "nodeId": node_id, "msg": reason})
+            return
+
+        node = self.skill_catalog.get(node_id)
+        player.skill_points -= node.cost
+        player.progress.unlocked_skills.add(node_id)
+
+        client.send_json({"type": "skill_result", "ok": True, "nodeId": node_id,
+                          "msg": "Unlocked."})
+        # The point balance changed server-side — push the truth back so the client renders our
+        # number rather than computing its own.
+        client.send_json({"type": "player_stats", **player.stats_to_dict()})
+        log.info("[SKILL] %s unlocked %s (cost %d, skillPoints=%d)",
+                 player.name, node_id, node.cost, player.skill_points)
 
     def _handle_chunk_request(self, client: "ClientConnection", msg: dict) -> None:
         layer_idx = clamp_int(msg.get("layer_idx"), 0, len(self.world.layers) - 1, -1)
