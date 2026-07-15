@@ -869,7 +869,7 @@ public class GamePanel {
             tileM.update();
             syncRemotePlayerEntities();
 
-            if (!Headless.isEnabled() && eManager.lightning != null) {
+            if (eManager.lightning != null) {
                 eManager.lightning.clearLights();
                 eManager.lightning.addLight(
                     player.worldX + tileSize / 2, player.worldY + tileSize / 2,
