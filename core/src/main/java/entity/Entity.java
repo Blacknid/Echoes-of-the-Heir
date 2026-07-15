@@ -958,6 +958,16 @@ public class Entity {
 
             currentSprite = resolveCurrentSprite();
 
+            // Preserve the sprite's own aspect ratio instead of always stretching it into a square
+            // tileSize x tileSize box. A source frame taller than wide (e.g. a standing NPC's 32x48
+            // idle frame) was previously squashed vertically to fit that square — visibly "pressed
+            // down" relative to the actual sheet. Keep width at the normal tileSize*spriteScale and
+            // scale height to match the sprite's real proportions instead.
+            if (currentSprite != null && currentSprite.getWidth() > 0) {
+                float aspect = currentSprite.getHeight() / (float) currentSprite.getWidth();
+                drawH = Math.round(drawW * aspect);
+            }
+
             // Monster HP Bar — never draw once the monster is dying/dead, even if hpBarOn was still
             // set from the killing hit (a lingering bar with residual HP looks like a bug).
             if (type == TYPE_MONSTER && hpBarOn && !dying && alive) {
@@ -1095,6 +1105,11 @@ public class Entity {
         int screenY = worldY - gp.getCamWorldY() + gp.player.screenY;
         int drawW = (int)(gp.tileSize * spriteScale);
         int drawH = (int)(gp.tileSize * spriteScale);
+        // Match draw()'s aspect-preserving size exactly, so the occluder silhouette lines up with
+        // the visible sprite instead of a squashed-to-square version of it.
+        if (s.getWidth() > 0) {
+            drawH = Math.round(drawW * (s.getHeight() / (float) s.getWidth()));
+        }
         int drawX = screenX - (drawW - gp.tileSize) / 2;
         int drawY = screenY - (drawH - gp.tileSize);
         // Solid black tint at full alpha: the sprite's own alpha carves the silhouette into the mask.
@@ -1615,18 +1630,27 @@ public class Entity {
             // Determine if the sheet is arranged in multiple rows as requested,
             // otherwise treat it as a single-row strip and duplicate that row
             // across the expected directions.
+            //
+            // Cell width and height are derived INDEPENDENTLY from the sheet's width/height —
+            // NOT assumed square. A sheet whose frames are e.g. 32x48 (taller than wide, like a
+            // standing-character idle sheet) previously had its cell width wrongly derived from
+            // cellHeight (48), computing only sheet.getWidth()/48 = 4 columns instead of the real
+            // 6, which sliced two real frames' worth of pixels into one wrong, overlapping crop —
+            // exactly the "bugged sprite" look. Width must come from the sheet's own width divided
+            // by how many columns are actually expected.
             int rowsActual;
-            int cellSize;
+            int cellHeight;
             if (sheet.getHeight() % rowsWanted == 0 && sheet.getHeight() / rowsWanted > 0) {
                 rowsActual = rowsWanted;
-                cellSize = sheet.getHeight() / rowsWanted;
+                cellHeight = sheet.getHeight() / rowsWanted;
             } else {
                 // Fallback: single-row strip
                 rowsActual = 1;
-                cellSize = sheet.getHeight();
+                cellHeight = sheet.getHeight();
             }
 
-            int colsActual = Math.max(1, sheet.getWidth() / cellSize);
+            int cellWidth = Math.max(1, sheet.getWidth() / Math.max(1, maxColsWanted));
+            int colsActual = Math.max(1, sheet.getWidth() / cellWidth);
 
             Sprite[][] frames = new Sprite[rowsWanted][];
 
@@ -1643,14 +1667,21 @@ public class Entity {
 
                 for (int x = 0; x < available; x++) {
                     int srcRow = (rowsActual == rowsWanted) ? y : 0;
-                    int sx = x * cellSize;
-                    int sy = srcRow * cellSize;
-                    int sw = Math.min(cellSize, sheet.getWidth() - sx);
-                    int sh = Math.min(cellSize, sheet.getHeight() - sy);
+                    int sx = x * cellWidth;
+                    int sy = srcRow * cellHeight;
+                    int sw = Math.min(cellWidth, sheet.getWidth() - sx);
+                    int sh = Math.min(cellHeight, sheet.getHeight() - sy);
 
                     // Zero-copy sub-region (no padding buffer needed on the GPU); report tileSize logical.
+                    // Scale to tileSize WIDTH but preserve the crop's own aspect ratio for height,
+                    // instead of forcing a square — a non-square source frame (e.g. 32x48, taller
+                    // than wide) previously got squashed to fit tileSize x tileSize here, then drawn
+                    // at that squashed shape forever after. Entity.draw() reads this sprite's actual
+                    // width/height back out to size the on-screen draw, so the real proportions need
+                    // to survive this step.
                     Sprite crop = sheet.getSubimage(sx, sy, sw, sh);
-                    temp[x] = util.UtilityTool.scaleImage(crop, gp.tileSize, gp.tileSize);
+                    int outH = Math.max(1, Math.round(gp.tileSize * (sh / (float) sw)));
+                    temp[x] = util.UtilityTool.scaleImage(crop, gp.tileSize, outH);
                 }
 
                 // Fill expected count, pad by duplicating last available frame if needed

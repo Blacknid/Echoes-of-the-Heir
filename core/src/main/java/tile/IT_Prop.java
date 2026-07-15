@@ -139,11 +139,17 @@ public class IT_Prop extends interactiveTile {
 
     private final PropAssets assets;
     private final Variant variant;
+    private final String variantId;
+
+    private static final int MAX_FRUITS_PER_TREE = 4;
+    private static final int MIN_FRUITS_PER_TREE = 3;
+    private final int maxFruits;
+    private int fruitsDropped = 0;
 
     // Per-instance random starting point in the sway cycle (seeded from tile position — see ctor).
     private final float phaseSeed;
     // Radians/second, NOT radians/tick: the sway is driven by wall-clock time at draw time (see
-    // drawPhase()) instead of the fixed 60Hz update() tick, so it stays perfectly smooth even when
+    // drawPhase()) instead of the fixed 60Hz update() tick, so it stays perfectly smooth even when65
     // the monitor refresh rate isn't a clean multiple of 60 — a fixed-tick phase only changes 60
     // times/sec, which on a 75/144/165Hz display redraws the same position for several frames in a
     // row before jumping, reading as stepped motion no matter how smooth the easing curve is.
@@ -155,12 +161,13 @@ public class IT_Prop extends interactiveTile {
         this(gp, col, row, DEFAULT_VARIANT);
     }
 
-    public IT_Prop(GamePanel gp, int col, int row, String variantId) {
+    public IT_Prop(GamePanel gp, int col, int row, String variantIdArg) {
         super(gp, col, row);
         collision = true; // Coliziune
 
-        String id = (variantId == null || variantId.isBlank() || !VARIANTS.containsKey(variantId))
-                ? DEFAULT_VARIANT : variantId;
+        String id = (variantIdArg == null || variantIdArg.isBlank() || !VARIANTS.containsKey(variantIdArg))
+                ? DEFAULT_VARIANT : variantIdArg;
+        variantId = id;
         variant = VARIANTS.get(id);
         int drawSize = gp.tileSize * variant.sizeInTiles();
         assets = ASSET_CACHE.computeIfAbsent(id, key -> new PropAssets(variant.sheetPath(), variant.cellCount(), drawSize));
@@ -185,6 +192,9 @@ public class IT_Prop extends interactiveTile {
         float swayPixelsNative = variant.swayPixels() + ((hash >>> 16) % 21 - 10) * 0.02f; // +/- 0.2px
         swayPixels = (float) (swayPixelsNative * gp.scale);
         swayParityFlip = (hash & 1) == 0 ? 1f : -1f;
+
+        int fruitRange = MAX_FRUITS_PER_TREE - MIN_FRUITS_PER_TREE + 1;
+        maxFruits = MIN_FRUITS_PER_TREE + ((hash >>> 24) % fruitRange);
     }
 
     // Matches GamePanel.TARGET_UPS (the fixed simulation rate the old per-tick swaySpeed was tuned
@@ -349,5 +359,48 @@ public class IT_Prop extends interactiveTile {
     @Override
     public boolean isCorrectItem(Entity entity) {
         return false;
+    }
+
+    /** Fruit-variant trees pop a fruit loose on each hit, up to a per-tree cap, without being
+     *  destroyed (destructible stays false — see class doc for why props never break). Reuses
+     *  interactiveTile's invincible/invincibleCounter as a simple per-swing cooldown. */
+    @Override
+    public void onAttackHit(Entity player) {
+        if (!"Fruit".equals(variantId) || invincible || fruitsDropped >= maxFruits) return;
+        invincible = true;
+        invincibleCounter = 0;
+        fruitsDropped++;
+
+        // Canopy occupies roughly the top portion of the tree's full draw height, trunk/base the
+        // bottom ~1 tile — so the fall should visually start about (sizeInTiles - 1) tiles above the
+        // landing spot, putting its origin up in the leaves rather than at the trunk.
+        float canopyFallHeight = Math.max(1f, variant.sizeInTiles() - 1);
+
+        // Fixed left / middle / right pattern (cycling if a tree drops more than 3), so each hit
+        // visibly comes from a different part of the canopy instead of clustering together. The
+        // launch origin (where the fall starts, up in the leaves) and the landing spot (beside the
+        // trunk once it's down) both use the same side, so the whole fall reads as one path.
+        int patternIdx = (fruitsDropped - 1) % 3; // 0 = left, 1 = middle, 2 = right
+        float canopyHalfWidth = Math.max(0.5f, (variant.sizeInTiles() - 1) / 2f);
+        float[] launchSideMul = { -1f, 0f, 1f };
+        float launchOriginXTiles = launchSideMul[patternIdx] * canopyHalfWidth * 0.7f;
+
+        // The trunk hitbox spans roughly -0.25..1.25 tiles from worldX (1.5-tile-wide, centered).
+        // Left/right land clearly beside it with margin; middle lands just past its bottom edge
+        // (still centered) rather than on the trunk art itself.
+        float[] landOffsetX = { -1.1f, 0f, 1.6f };
+        float[] landOffsetY = { 0.15f, 0.4f, 0.15f };
+
+        for (int i = 0; i < gp.obj.length; i++) {
+            if (gp.obj[i] == null) {
+                object.OBJ_Fruit fruit = new object.OBJ_Fruit(gp, canopyFallHeight, launchOriginXTiles);
+                fruit.worldX = worldX + gp.tileSize / 2 - fruit.solidArea.width / 2 - fruit.solidArea.x
+                        + Math.round(landOffsetX[patternIdx] * gp.tileSize);
+                fruit.worldY = worldY + gp.tileSize + Math.round(landOffsetY[patternIdx] * gp.tileSize)
+                        - fruit.solidArea.height - fruit.solidArea.y;
+                gp.obj[i] = fruit;
+                break;
+            }
+        }
     }
 }

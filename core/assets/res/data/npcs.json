@@ -241,16 +241,17 @@
       "intro": [
         "Fresh fruits for sale!\nBest in the castle!",
         "I have apples, oranges, and bananas.",
-        "Care for some?\nThey might help you on your journey."
+        "Trouble is, my stall's looking bare these days. The trees around the village still have plenty on them, though.",
+        "Knock a few loose and bring them back, and I'll make it worth your while."
       ],
       "waiting": [
         "Welcome back, traveler!",
-        "I have more fruits if you need them.",
-        "Did you find any new ones?\nI love trying new fruits!"
+        "Still short on fruit for the stall. The trees won't shake themselves.",
+        "Bring back a few whenever you get the chance."
       ],
       "thanks": [
-        "No way, you found a rare fruit!\nThat's amazing!",
-        "Here, take this as a reward for your find.",
+        "Now that's what I call a haul!\nThe stall's looking full again.",
+        "Here, take this as thanks for the trouble.",
         "I hope it helps you on your adventure!"
       ],
       "done": [
@@ -261,10 +262,21 @@
 
     "states": [
       {
+        "id": "default",
+        "dialogue": "intro",
+        "stationary": true
+      },
+      {
         "id": "post_quest",
         "dialogue": "done",
         "stationary": true,
         "requiredQuestComplete": "fruit_trader_quest"
+      },
+      {
+        "id": "waiting",
+        "dialogue": "waiting",
+        "stationary": true,
+        "requiredQuestActive": "fruit_trader_quest"
       }
     ]
   },
@@ -523,6 +535,18 @@
         "id": "default",
         "dialogue": "intro",
         "stationary": true
+      },
+      {
+        "id": "post_quest",
+        "dialogue": "done",
+        "stationary": true,
+        "requiredQuestComplete": "bread_trader_quest"
+      },
+      {
+        "id": "waiting",
+        "dialogue": "waiting",
+        "stationary": true,
+        "requiredQuestActive": "bread_trader_quest"
       }
     ]
   },
@@ -643,6 +667,260 @@
       {
         "id": "sleeping",
         "dialogueSet": 1
+      }
+    ]
+  },
+
+  "musician": {
+    "name": "Musician",
+    "idleSprite": "/res/NPC/Main/Musician",
+    "idleFramesPerRow": [6],
+    "interactRange": 96,
+    "staticNPC": true,
+    "spriteScale": 1.5,
+    "idleAnimSpeed": 14,
+
+    "dialogues": {
+      "intro": [
+        "Oh -- a visitor. Come, come, I don't bite. Just don't ask me to stop playing, I don't think I can.",
+        "I used to play for the castle, back when it still had a court to play for.",
+        "These days I just... play. Bits and pieces. None of it whole.",
+        "My sheets scattered when I crossed the woods -- half the pages just gone. I've been guessing at the rest ever since.",
+        "If you ever find loose sheet music lying about, I'd take it off your hands. Gladly."
+      ],
+      "waiting": [
+        "Still playing the same broken pieces, I'm afraid.",
+        "The cave rooms sometimes have things travelers leave behind. Worth a look, if you've got the time."
+      ],
+      "thanks": [
+        "You found some! Let me see...",
+        "...",
+        "Oh. Oh, I remember this part now.",
+        "Play it with me a moment -- there, hear that? That's how it's meant to sound."
+      ],
+      "song_intro": [
+        "Now that I've got the real pages, one line keeps catching on something in my chest.",
+        "I know I used to play it for someone. I just can't remember who anymore.",
+        "It's foolish, isn't it? Holding the whole song and losing the one it was for.",
+        "There's a flutist who passes through -- she's got an ear for old things. Hum it for her, if you cross paths."
+      ],
+      "song_done": [
+        "She wrote this? Let me see...",
+        "...",
+        "Of course. Of course it was a duet. That's why it always sounded unfinished on its own.",
+        "Play it with me a moment -- there. Hear that? It was never missing a piece. It was missing her.",
+        "I don't need the rest of the story. Just knowing it was meant to be played with someone, not for them, is enough.",
+        "Here -- take this. It's not much, but it kept my feet moving on longer roads than this one."
+      ],
+      "post_quest": [
+        "Play requests? For you, always.",
+        "This village doesn't have much of a court left, but it's got you, and that'll do."
+      ]
+    },
+    "states": [
+      {
+        "id": "default",
+        "dialogue": "intro",
+        "stationary": true
+      },
+      {
+        "id": "sheets_waiting",
+        "dialogue": "waiting",
+        "stationary": true,
+        "requiredQuestActive": "musicians_scattered_sheets"
+      },
+      {
+        "id": "song_active",
+        "dialogue": "song_intro",
+        "stationary": true,
+        "requiredQuestComplete": "musicians_scattered_sheets",
+        "requiredQuestActive": "the_forgotten_tune"
+      },
+      {
+        "id": "post_quest",
+        "dialogue": "post_quest",
+        "stationary": true,
+        "requiredQuestComplete": "the_forgotten_tune"
+      }
+    ]
+  },
+
+  "flutist": {
+    "name": "Flutist",
+    "idleSprite": "/res/NPC/Main/Flutist",
+    "idleFramesPerRow": [6],
+    "interactRange": 96,
+    "staticNPC": true,
+    "spriteScale": 1.5,
+    "idleAnimSpeed": 14,
+
+    "dialogues": {
+      "intro": [
+        "You can sit and listen, if you like. I don't mind an audience.",
+        "I don't play for anyone in particular. Never have, as far as I remember."
+      ],
+      "recognizes_tune": [
+        "Hum that again?",
+        "...",
+        "I know this. I don't know how, but my fingers know it before I do.",
+        "This isn't a solo piece. There's a second part missing -- it was never meant to be played alone.",
+        "Give me a moment. Let me write out what I remember of it.",
+        "...",
+        "There. Take this to whoever's been playing the other half. They'll know what to do with it."
+      ],
+      "after_duet": [
+        "Did he play it? I'd have liked to hear it, but I suppose it wasn't written for me to hear.",
+        "It matters that it got played. That's enough for me."
+      ]
+    },
+    "states": [
+      {
+        "id": "default",
+        "dialogue": "intro",
+        "stationary": true
+      },
+      {
+        "id": "after_duet",
+        "dialogue": "after_duet",
+        "stationary": true,
+        "requiredQuestComplete": "the_forgotten_tune"
+      }
+    ]
+  },
+
+  "eater": {
+    "name": "Eater",
+    "idleSprite": "/res/NPC/Eater",
+    "idleFramesPerRow": [10],
+    "interactRange": 96,
+    "staticNPC": true,
+    "spriteScale": 1.5,
+    "idleAnimSpeed": 12,
+
+    "dialogues": {
+      "0": [
+        "Mmph -- gimme a second. Mmph. Okay. Okay, I'm listening now.",
+        "You wouldn't believe the bread they make at the corner stall. Life-changing. Truly."
+      ],
+      "1": [
+        "You ever eat something so good you forget what you were doing right before?",
+        "Happens to me constantly. I've forgotten entire conversations mid-bite."
+      ],
+      "2": [
+        "The fruit trader keeps giving me discounts just so I'll stop taste-testing her whole stock.",
+        "I consider it a professional relationship."
+      ],
+      "3": [
+        "Someone told me the fisher's catch was best fried fresh. I have not left the dock since."
+      ]
+    }
+  },
+
+  "dancer": {
+    "name": "Dancer",
+    "idleSprite": "/res/NPC/Dancer_Tavern",
+    "idleFramesPerRow": [6],
+    "interactRange": 96,
+    "staticNPC": true,
+    "spriteScale": 2,
+    "idleAnimSpeed": 14,
+
+    "dialogues": {
+      "intro": [
+        "YOHUUUUU, I'm the happiest cobolt in this town! Watch this!",
+        "*spins on the table* Hello little one, live life as much as you can, and explore as much as you can.",
+        "This continent has lots to offer.",
+        "Say -- the Host keeps threatening to bar me for dancing on his tables. Chased me off twice this week alone.",
+        "If you ever talk him into giving me one real night instead of chasing me off, come find me. I'll show you a real dance."
+      ],
+      "waiting": [
+        "Still no luck with the Host, huh? Stubborn old barkeep.",
+        "Doesn't matter. I'll keep dancing up here whether he likes it or not. Wouldn't be the first time he's yelled at me."
+      ],
+      "cleared": [
+        "Wait -- he actually said yes?! To ME?!",
+        "Alright, alright, everybody CLEAR OUT, the cobolt's got the floor -- er, the table!",
+        "..."
+      ],
+      "post_quest": [
+        "Best dance I've thrown in years. You should've seen the Host's face.",
+        "Come back anytime you want a show. I never get tired of an audience."
+      ]
+    },
+    "states": [
+      {
+        "id": "default",
+        "dialogue": "intro",
+        "stationary": true
+      },
+      {
+        "id": "waiting",
+        "dialogue": "waiting",
+        "stationary": true,
+        "requiredQuestActive": "a_floor_to_dance_on"
+      },
+      {
+        "id": "post_quest",
+        "dialogue": "post_quest",
+        "stationary": true,
+        "requiredQuestComplete": "a_floor_to_dance_on"
+      }
+    ]
+  },
+
+  "host": {
+    "name": "Host",
+    "idleSprite": "/res/NPC/Host_Tavern",
+    "idleFramesPerRow": [6],
+    "interactRange": 96,
+    "staticNPC": true,
+    "spriteScale": 2,
+    "idleAnimSpeed": 24,
+
+    "dialogues": {
+      "intro": [
+        "Welcome, welcome. Mind the drunk by the door, he's harmless.",
+        "Kitchen's running low, if I'm honest. Can't keep a tavern running on ale alone.",
+        "There's cave mushrooms growing wild on the walls near the entrance, low to the rock. Bring me a few and I'll make it worth your trip."
+      ],
+      "waiting": [
+        "Find any of those mushrooms yet? The stew's getting thinner by the day.",
+        "No rush. Just don't expect much of a meal if you stick around."
+      ],
+      "thanks": [
+        "Now that's a proper haul. The stew tonight might actually taste like something.",
+        "Here, for your trouble.",
+        "You've got the look of someone who fixes problems. I might have another one, if you're willing."
+      ],
+      "dancer_ask": [
+        "The cobolt? I chase him off my tables at least twice a week. Boots on the wood, drinks flying everywhere.",
+        "I run a respectable tavern. Last time he 'danced' he put a boot straight through one.",
+        "But... business has been better since you started fixing things around here.",
+        "Fine. Tell him he's got ONE night, official. Same table-hopping madness, but I'll clear a path instead of throwing him out."
+      ],
+      "after_show": [
+        "I'll admit it -- best night this tavern's had in a long while.",
+        "Still replacing that one chair, though.",
+        "Come back whenever. There's always a seat for you here."
+      ]
+    },
+    "states": [
+      {
+        "id": "default",
+        "dialogue": "intro",
+        "stationary": true
+      },
+      {
+        "id": "waiting",
+        "dialogue": "waiting",
+        "stationary": true,
+        "requiredQuestActive": "tavern_supplies"
+      },
+      {
+        "id": "after_show",
+        "dialogue": "after_show",
+        "stationary": true,
+        "requiredQuestComplete": "a_floor_to_dance_on"
       }
     ]
   },
@@ -788,6 +1066,11 @@
       ],
       "waiting_fisher": [
         "The fisher's house is East from the village gate. I'll be here when you return."
+      ],
+      "drink_trader_intro": [
+        "The drink trader sent you? That one always did worry too much about strangers.",
+        "There's not much to tell. I watch. I remember what I can. I wait for the rest to come back to me.",
+        "Tell them I said hello, if you like. It's been a while since anyone bothered."
       ],
       "waiting_shattered_lake": [
         "East of the village gate. The lake — that's where your answers start.",

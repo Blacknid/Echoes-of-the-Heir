@@ -331,6 +331,139 @@
     "steps": [
       { "action": "defeat", "enemy": "brushstroke", "description": "Defeat the Brushstroke." }
     ]
+  },
+  {
+    "id": "musicians_scattered_sheets",
+    "name": "Scattered Sheets",
+    "description": "The musician's sheet music scattered somewhere in the cave. He's been guessing at half his songs ever since.",
+    "target": 1,
+    "autoStart": false,
+    "rewardCoins": 20,
+    "rewardItemId": "",
+    "rewardFragmentId": "",
+    "chainQuestId": "the_forgotten_tune",
+    "steps": [
+      { "action": "talk", "npc": "musician", "dialogue": "intro",
+        "description": "Talk to the musician." },
+      { "action": "go", "map": "awakening_cave",
+        "description": "Check the cave rooms for his scattered sheet music." },
+      { "action": "deliver", "npc": "musician", "item": "sheet_music", "consume": true,
+        "dialogue": "thanks", "failDialogue": "waiting",
+        "description": "Bring the sheet music back to the musician." }
+    ]
+  },
+  {
+    "id": "the_forgotten_tune",
+    "name": "The Forgotten Tune",
+    "description": "The musician remembers a song, but not who it was for. A traveling flutist might know more than she lets on.",
+    "target": 1,
+    "autoStart": false,
+    "rewardCoins": 30,
+    "rewardItemId": "compas",
+    "rewardFragmentId": "",
+    "chainQuestId": "",
+    "steps": [
+      { "action": "talk", "npc": "musician", "dialogue": "song_intro",
+        "description": "Talk to the musician about his song." },
+      { "action": "talk", "npc": "flutist", "dialogue": "recognizes_tune", "give": "flutist_notation",
+        "description": "Hum the tune for the flutist." },
+      { "action": "deliver", "npc": "musician", "item": "flutist_notation", "consume": true,
+        "dialogue": "song_done", "failDialogue": "song_intro",
+        "description": "Bring her written notes to the musician." }
+    ]
+  },
+  {
+    "id": "tavern_supplies",
+    "name": "Thin Stew",
+    "description": "The tavern host is running low on ingredients. A trip to the cave might fix that.",
+    "target": 3,
+    "autoStart": false,
+    "rewardCoins": 40,
+    "rewardItemId": "bandage",
+    "rewardFragmentId": "",
+    "chainQuestId": "a_floor_to_dance_on",
+    "steps": [
+      { "action": "talk", "npc": "host", "dialogue": "intro",
+        "description": "Talk to the tavern host." },
+      { "action": "deliver", "npc": "host", "item": "mushroom_bundle", "consume": true, "count": 3,
+        "dialogue": "thanks", "failDialogue": "waiting",
+        "description": "Pick 3 cave mushrooms off the walls -- they grow low, near the damp rock -- then bring them to the host." }
+    ]
+  },
+  {
+    "id": "a_floor_to_dance_on",
+    "name": "A Floor to Dance On",
+    "description": "The dancer wants the tavern floor for a night. The host takes some convincing.",
+    "target": 1,
+    "autoStart": false,
+    "rewardCoins": 25,
+    "rewardItemId": "",
+    "rewardFragmentId": "",
+    "chainQuestId": "",
+    "steps": [
+      { "action": "talk", "npc": "dancer", "dialogue": "intro",
+        "description": "Talk to the dancer about the floor." },
+      { "action": "talk", "npc": "host", "dialogue": "dancer_ask",
+        "description": "Ask the host to let the dancer perform." },
+      { "action": "talk", "npc": "dancer", "dialogue": "cleared",
+        "description": "Tell the dancer he's got the floor." },
+      { "action": "talk", "npc": "host", "dialogue": "after_show",
+        "description": "Check in with the host after the show." }
+    ]
+  },
+  {
+    "id": "bread_trader_quest",
+    "name": "Fresh Loaves",
+    "description": "The bread trader is out of wheat. A trip to the cave should turn some up.",
+    "target": 3,
+    "autoStart": false,
+    "rewardCoins": 30,
+    "rewardItemId": "bandage",
+    "rewardFragmentId": "",
+    "chainQuestId": "",
+    "steps": [
+      { "action": "talk", "npc": "bread_trader", "dialogue": "intro",
+        "description": "Talk to the bread trader." },
+      { "action": "deliver", "npc": "bread_trader", "item": "wheat", "consume": true, "count": 3,
+        "dialogue": "thanks", "failDialogue": "waiting",
+        "description": "Find 3 bundles of wheat and bring them back." }
+    ]
+  },
+  {
+    "id": "fruit_trader_quest",
+    "name": "A Basket for the Stall",
+    "description": "The fruit trader's stall is looking bare. The trees around the village still have plenty to give, if you're willing to knock a few loose.",
+    "target": 4,
+    "autoStart": false,
+    "rewardCoins": 35,
+    "rewardItemId": "",
+    "rewardFragmentId": "",
+    "chainQuestId": "",
+    "steps": [
+      { "action": "talk", "npc": "fruit_trader", "dialogue": "intro",
+        "description": "Talk to the fruit trader." },
+      { "action": "deliver", "npc": "fruit_trader", "item": "Fruit", "consume": true, "count": 4,
+        "dialogue": "thanks", "failDialogue": "waiting",
+        "description": "Hit a few fruit trees around the village and bring back 4 fruit." }
+    ]
+  },
+  {
+    "id": "drink_trader_quest",
+    "name": "A Familiar Face",
+    "description": "The drink trader keeps mentioning the Elder. Might be worth introducing yourself.",
+    "target": 1,
+    "autoStart": false,
+    "rewardCoins": 20,
+    "rewardItemId": "",
+    "rewardFragmentId": "",
+    "chainQuestId": "",
+    "steps": [
+      { "action": "talk", "npc": "drink_trader", "dialogue": "intro",
+        "description": "Talk to the drink trader." },
+      { "action": "talk", "npc": "village_elder", "dialogue": "drink_trader_intro",
+        "description": "Go introduce yourself to the Elder in the village center." },
+      { "action": "talk", "npc": "drink_trader", "dialogue": "thanks",
+        "description": "Let the drink trader know you spoke with him." }
+    ]
   }
-
 ]

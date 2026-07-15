@@ -139,11 +139,36 @@
   },
   {
     "id": "mushroom_bundle",
-    "name": "Mushroom Bundle",
+    "name": "Cave Mushroom",
     "type": "quest",
     "stackable": true,
-    "description": "A bundle of cave mushrooms.\nUsed in potion brewing.",
-    "sprite": "/res/consumables/Potion",
+    "description": "A pale mushroom, freshly picked.\nStill damp from the cave air.",
+    "sprite": "/res/Interactive/Muchroom",
+    "solidArea": { "x": 18, "y": 18, "w": 28, "h": 28 }
+  },
+  {
+    "id": "sheet_music",
+    "name": "Sheet Music",
+    "type": "quest",
+    "description": "A few loose pages of sheet music.\nSomeone's been missing these.",
+    "sprite": "/res/quest_items/sheet_music",
+    "solidArea": { "x": 18, "y": 18, "w": 28, "h": 28 }
+  },
+  {
+    "id": "flutist_notation",
+    "name": "Written Notes",
+    "type": "quest",
+    "description": "The flutist's half of the tune, written out by hand.\nMeant for the musician.",
+    "sprite": "/res/quest_items/sheet_music",
+    "solidArea": { "x": 18, "y": 18, "w": 28, "h": 28 }
+  },
+  {
+    "id": "wheat",
+    "name": "Wheat",
+    "type": "quest",
+    "stackable": true,
+    "description": "A dry bundle of wheat stalks.\nGood for baking, if you know how.",
+    "sprite": "/res/quest_items/Bandage",
     "solidArea": { "x": 18, "y": 18, "w": 28, "h": 28 }
   }
 ]
