@@ -858,14 +858,14 @@ public class Entity {
     // ── Animation advance helpers (libGDX-backed, fixed 60-UPS step) ──
     // Each rebuilds its SpriteAnimation lazily if the backing frame array changed, advances a float
     // stateTime, and writes the resulting 1-based index back into the *SpriteNum field the draw code
-    // reads. PlayMode.LOOP_PINGPONG reproduces the old 1..N..1 bounce.
+    // reads.
 
-    private gfx.SpriteAnimation animFor(Sprite[] frames, gfx.SpriteAnimation cached, float durationSec) {
+    private gfx.SpriteAnimation animFor(Sprite[] frames, gfx.SpriteAnimation cached, float durationSec,
+                                         com.badlogic.gdx.graphics.g2d.Animation.PlayMode mode) {
         if (frames == null || frames.length == 0) return null;
         // Rebuild if missing or frame array identity/length changed.
         if (cached == null || cached.frameCount() != frames.length) {
-            return new gfx.SpriteAnimation(frames, durationSec,
-                com.badlogic.gdx.graphics.g2d.Animation.PlayMode.LOOP_PINGPONG);
+            return new gfx.SpriteAnimation(frames, durationSec, mode);
         }
         cached.setFrameDuration(durationSec);
         return cached;
@@ -883,7 +883,8 @@ public class Entity {
         if (walkAnim == null || walkAnim.length != walkFrames.length) walkAnim = new gfx.SpriteAnimation[walkFrames.length];
         int ticksPerFrame = Math.max(2, (int) (48 / Math.max(1, speed) / Math.max(0.01f, animSpeedMultiplier)));
         float dur = gfx.SpriteAnimation.durationForTicks(ticksPerFrame);
-        walkAnim[dir] = animFor(frames, walkAnim[dir], dur);
+        walkAnim[dir] = animFor(frames, walkAnim[dir], dur,
+                com.badlogic.gdx.graphics.g2d.Animation.PlayMode.LOOP);
         walkStateTime += DT;
         if (walkAnim[dir] != null) spriteNum = walkAnim[dir].getFrameIndex(walkStateTime) + 1;
     }
@@ -911,7 +912,8 @@ public class Entity {
         Sprite[] frames = (dir >= 0 && dir < idleFrames.length) ? idleFrames[dir] : null;
         if (frames == null || frames.length == 0) return;
         if (idleAnim == null || idleAnim.length != idleFrames.length) idleAnim = new gfx.SpriteAnimation[idleFrames.length];
-        idleAnim[dir] = animFor(frames, idleAnim[dir], gfx.SpriteAnimation.durationForTicks(idleAnimationInterval));
+        idleAnim[dir] = animFor(frames, idleAnim[dir], gfx.SpriteAnimation.durationForTicks(idleAnimationInterval),
+                com.badlogic.gdx.graphics.g2d.Animation.PlayMode.LOOP);
         idleStateTime += DT;
         if (idleAnim[dir] != null) idleSpriteNum = idleAnim[dir].getFrameIndex(idleStateTime) + 1;
     }
@@ -933,7 +935,8 @@ public class Entity {
             anims = new gfx.SpriteAnimation[actFrames.length];
             activityAnim.put(currentActivity, anims);
         }
-        anims[dir] = animFor(frames, anims[dir], gfx.SpriteAnimation.durationForTicks(interval));
+        anims[dir] = animFor(frames, anims[dir], gfx.SpriteAnimation.durationForTicks(interval),
+                com.badlogic.gdx.graphics.g2d.Animation.PlayMode.LOOP);
         activityStateTime += DT;
         if (anims[dir] != null) activitySpriteNum = anims[dir].getFrameIndex(activityStateTime) + 1;
     }

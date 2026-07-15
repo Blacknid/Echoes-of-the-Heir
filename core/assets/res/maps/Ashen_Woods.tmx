@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<map version="1.10" tiledversion="1.12.1" orientation="orthogonal" renderorder="right-down" width="100" height="100" tilewidth="32" tileheight="32" infinite="0" nextlayerid="20" nextobjectid="40">
+<map version="1.10" tiledversion="1.12.1" orientation="orthogonal" renderorder="right-down" width="100" height="100" tilewidth="32" tileheight="32" infinite="0" nextlayerid="20" nextobjectid="42">
  <properties>
   <property name="actTitle" value="Ashen Woods"/>
   <property name="ambientLight" type="float" value="0.6"/>
@@ -664,6 +664,9 @@
     <property name="sortYOffset" type="int" value="-96"/>
    </properties>
   </tile>
+ </tileset>
+ <tileset firstgid="8364" name="Objects" tilewidth="32" tileheight="32" tilecount="2142" columns="42">
+  <image source="../tiles/CAVE/Objects.png" width="1344" height="1632"/>
  </tileset>
  <layer id="2" name="Water" width="100" height="100">
   <data encoding="csv">
@@ -2140,8 +2143,20 @@
    </properties>
    <point/>
   </object>
+  <object id="40" name="Going to Cave" type="MapTransition" x="992" y="672" width="96" height="32">
+   <properties>
+    <property name="spawnId" value="coming_from_ashen"/>
+    <property name="targetMap" value="cave"/>
+   </properties>
+  </object>
+  <object id="41" name="Coming from Canvas" type="SpawnPoint" x="1024" y="736">
+   <properties>
+    <property name="id" value="coming_from_cave"/>
+   </properties>
+   <point/>
+  </object>
  </objectgroup>
- <objectgroup id="13" name="Collision">
+ <objectgroup id="13" name="Collision" visible="0">
   <object id="9" x="3200" y="1344">
    <polyline points="-2080,-1344 -2080,-1280 -2048,-1280 -2048,-1152 -2144,-1152 -2144,-1184 -2400,-1184 -2400,-1216 -2784,-1216 -2784,-1184 -2880,-1184 -2880,-1152 -2976,-1152 -2976,-1120 -3008,-1120 -3008,-1088 -3040,-1088 -3040,-736 -3008,-736 -3008,-544 -2976,-544 -2976,-288 -3008,-288 -3008,-224 -3040,-224 -3040,160 -3008,160 -3008,192 -2976,192 -2976,224 -2944,224 -2944,288 -2912,288 -2912,512 -2944,512 -2944,608 -2976,608 -2976,672 -3008,672 -3008,768 -3040,768 -3040,1152 -3008,1152 -3008,1408 -3040,1408 -3040,1504 -3008,1504 -3008,1536 -2976,1536 -2976,1568 -2944,1568 -2944,1600 -2912,1600 -2912,1664 -2816,1664 -2816,1696 -2592,1696 -2592,1728 -2432,1728 -2432,1696 -2240,1696 -2240,1792 -2304,1792 -2304,1856 -1280,1856 -1280,1792 -1248,1792 -1248,1760 -1216,1760 -1216,1728 -1120,1728 -1120,1696 -800,1696 -800,1728 -480,1728 -480,1696 -368,1695.67 -368,1676.42 -303.667,1676.42 -303.917,1641.67 -266.917,1642 -267.167,1607 -236.5,1607 -236,1408 -207.818,1407.82 -207.818,1215.82 -238.485,1215.7 -238.485,351.697 -224,352 -224,320 -192,320 -192,288 -173.94,288.025 -174.04,260.272 32.0307,259.818 32,0 -192,0 -206.271,-0.09375 -206.302,-306.109 -187.997,-305.983 -188.063,-820.063 -156.063,-820.063 -156,-1024 -174.031,-1024.02 -174.031,-1088.02 -800,-1088 -814.25,-1088 -814.25,-1152 -928,-1152 -928,-1280 -960,-1280"/>
   </object>
@@ -2164,7 +2179,7 @@
    <polygon points="0,0 32,0 32,32 64,32 64,64 96,64 96,96 128,96 128,160 96,160 96,224 64,224 64,256 0,256 0,288 -32,288 -64,288 -64,320 -96,320 -96,352 0,352 0,320 96,320 96,288 128,288 128,224 160,224 160,64 128,64 128,32 96,32 96,0 64,0 64,-32 0,-32"/>
   </object>
  </objectgroup>
- <objectgroup id="10" name="InteractiveTiles">
+ <objectgroup id="10" name="InteractiveTiles" visible="0">
   <object id="1" name="Tree" type="IT_Prop" x="2528" y="736">
    <properties>
     <property name="variant" value="Pin"/>

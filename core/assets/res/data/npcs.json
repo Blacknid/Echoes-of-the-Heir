@@ -638,11 +638,11 @@
     "states": [
       {
         "id": "intro",
-        "dialogueSet": 1
+        "dialogueSet": 0
       },
       {
         "id": "sleeping",
-        "dialogueSet": 2
+        "dialogueSet": 1
       }
     ]
   },
