@@ -57,7 +57,7 @@ public final class ShakeLightTest {
                 if (gp != null && gp.eManager != null) {
                     gp.eManager.pinnedFilterAlpha = 0.88f;
                 }
-                // Keep a HEAVY shake alive every frame so the camera transform is always offset — this is
+                // Keep a HEAVY shake alive every frame so the camera transform is always offset, this is
                 // the state under which the bug manifested. Re-trigger before it decays.
                 if (gp != null && gp.screenShake != null) {
                     gp.screenShake.shakeHeavy();

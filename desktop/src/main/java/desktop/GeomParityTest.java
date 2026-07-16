@@ -28,7 +28,7 @@ public class GeomParityTest {
             double w = 8 + rng.nextDouble() * 120, h = 8 + rng.nextDouble() * 120;
             double rot = (kind == 3) ? rng.nextDouble() * 360 : 0;
             // The game's axis-aligned Rect is integer-based (entity hitboxes/unrotated collision),
-            // so test it at integer coords — rounding is then a no-op and parity is exact.
+            // so test it at integer coords, rounding is then a no-op and parity is exact.
             if (kind == 0) { x = Math.floor(x); y = Math.floor(y); w = Math.floor(w); h = Math.floor(h); }
 
             java.awt.Shape awt;

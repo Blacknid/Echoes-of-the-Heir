@@ -19,7 +19,7 @@ public class CutsceneManager {
     private Font pixelFont;
     private final java.util.HashMap<Float, Font> fontCache = new java.util.HashMap<>();
 
-    // Cached cutscene fonts — one per distinct pixel size used in scenes.
+    // Cached cutscene fonts, one per distinct pixel size used in scenes.
     private final java.util.HashMap<Integer, Font> cutsceneFontCache = new java.util.HashMap<>();
     private Font getCutsceneFont(int size) {
         return cutsceneFontCache.computeIfAbsent(size, s -> pixelFont.deriveFont(Font.ITALIC, s));
@@ -117,7 +117,7 @@ public class CutsceneManager {
     // camera pans to player → player appears → play state
     public void scene_awakening() {
 
-        // Phase 0: INIT — hide player, lock camera, stop music
+        // Phase 0: INIT, hide player, lock camera, stop music
         if (scenePhase == 0) {
             gp.stopMusic();
             gp.player.invisible = true;
@@ -188,7 +188,7 @@ public class CutsceneManager {
             }
         }
 
-        // Phase 5: SHOW "ACT I: The Awakening" — larger, centred
+        // Phase 5: SHOW "ACT I: The Awakening", larger, centred
         if (scenePhase == 5) {
             drawDarkBackground(1f);
             String text = "ACT I: The Awakening";
@@ -204,7 +204,7 @@ public class CutsceneManager {
             }
         }
 
-        // Phase 6: DARK FADES OUT — reveal game world + start music
+        // Phase 6: DARK FADES OUT, reveal game world + start music
         if (scenePhase == 6) {
             alpha -= 0.010f;
             if (alpha <= 0f) {
@@ -238,7 +238,7 @@ public class CutsceneManager {
             }
         }
 
-        // Phase 8: PLAYER FADES IN — show player, brief pause
+        // Phase 8: PLAYER FADES IN, show player, brief pause
         if (scenePhase == 8) {
             gp.player.invisible = false;
             if (counterReached(5)) {
@@ -262,7 +262,7 @@ public class CutsceneManager {
             }
         }*/
 
-        // Phase 10: CLEANUP — unlock camera, return to play state
+        // Phase 10: CLEANUP, unlock camera, return to play state
         if (scenePhase == 10) {
             gp.unlockCamera();
             gp.player.invisible = false;
@@ -325,7 +325,7 @@ public class CutsceneManager {
 
     private void drawWhiteBackground(float a) {
         float clamped = Math.max(0f, Math.min(1f, a));
-        // At full alpha this opaque fill completely replaces whatever is beneath —
+        // At full alpha this opaque fill completely replaces whatever is beneath
         // prevents game-world lights/glows from bleeding through the cutscene overlay.
         g2.setAlpha(clamped);
         g2.setColor(Color.white);
@@ -333,7 +333,7 @@ public class CutsceneManager {
         g2.setAlpha(1f);
     }
 
-    // Deep dark warm background — like waking in near-darkness
+    // Deep dark warm background, like waking in near-darkness
     private static final Color DARK_BG = new Color(8, 5, 12);
 
     private void drawDarkBackground(float a) {

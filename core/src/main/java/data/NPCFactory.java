@@ -140,7 +140,7 @@ public class NPCFactory {
 
         applyPresentation(gp, npc, def);
 
-        // Dialogues — support both numeric ("0","1") and named ("intro","thanks") keys
+        // Dialogues, support both numeric ("0","1") and named ("intro","thanks") keys
         {
             int nextNamedIdx = 0;
             // First pass: find max numeric index so named keys start after
@@ -192,7 +192,7 @@ public class NPCFactory {
             npc.activityStates.add(state);
         }
 
-        // objectId for save state — default to npcId so Tiled 'id' property is not required
+        // objectId for save state, default to npcId so Tiled 'id' property is not required
         String objId = def.props.get("objectId");
         npc.objectId = (objId != null && !objId.isBlank()) ? objId : id;
 
@@ -219,7 +219,7 @@ public class NPCFactory {
     /**
      * Apply every "how does this NPC look and move" property: name, speed, sprites, activity
      * sheets, scale, light, portrait. Shared by the singleplayer path (createAt, reading
-     * npcs.json) and the multiplayer path (createFromServer, reading an npc_spawn packet) —
+ * npcs.json) and the multiplayer path (createFromServer, reading an npc_spawn packet)
      * both need exactly this, and only this, to put something on screen. Dialogues, states and
      * the shop are deliberately NOT here: in multiplayer they belong to the server.
      */
@@ -244,7 +244,7 @@ public class NPCFactory {
         // centered but bottom-anchored (feet stay at the tile's bottom edge), so a bigger
         // spriteScale should widen/heighten the hitbox around that same base, not just leave a
         // tiny fixed box under a now much bigger sprite. Keeps the modest "near the feet"
-        // proportions the box already has at scale 1.0 — not a full head-to-toe hitbox.
+        // proportions the box already has at scale 1.0, not a full head-to-toe hitbox.
         if (spriteScaleVal != 1.0f) {
             int baseW = npc.solidArea.width, baseH = npc.solidArea.height;
             int scaledW = Math.round(baseW * spriteScaleVal);
@@ -304,7 +304,7 @@ public class NPCFactory {
                 Sprite[][] mapped = new Sprite[4][];
                 int cellW, cellH;
                 if (act.frameWidth > 0 && act.frameHeight > 0) {
-                    // Explicit pixel size (e.g. "frameWidth": 48, "frameHeight": 48) — simplest,
+                    // Explicit pixel size (e.g. "frameWidth": 48, "frameHeight": 48), simplest,
                     // least error-prone option: no aspect-ratio math, just the exact cell size.
                     cellW = act.frameWidth;
                     cellH = act.frameHeight;
@@ -320,7 +320,7 @@ public class NPCFactory {
                 }
                 Sprite[][] matrix = npc.loadSpriteMatrix(act.sprite, cellW, cellH);
                 // Scale each frame to tileSize*spriteScale (matches the eventual on-screen draw
-                // size — see drawW/drawH in Entity.draw/drawOccluder) instead of always a flat
+                // size, see drawW/drawH in Entity.draw/drawOccluder) instead of always a flat
                 // tileSize, so a bigger spriteScale gets a sharper source crop instead of the same
                 // small frame stretched further at draw time.
                 int ts = Math.round(gp.tileSize * spriteScaleVal);
@@ -364,14 +364,14 @@ public class NPCFactory {
     /**
      * Multiplayer: build an NPC from a server npc_spawn packet.
      *
-     * <p>The server hosts NPCs (SERVERS/multiplayer_server/npc.py) — it owns npcs.json, the
+ * <p>The server hosts NPCs (SERVERS/multiplayer_server/npc.py), it owns npcs.json, the
      * activity-state machine and the shop. What it sends us is the presentation half only:
      * sprite sheets, frame counts, scale, light, portrait. So this deliberately does NOT read
      * the local npcs.json and does NOT populate dialogues, states or shopItems: those arrive
      * per-interaction, decided by the server against progress this process doesn't hold.
      *
      * <p>The packet is a flat JSON object, so it goes through the same parser the file does.
-     * Must run on the render thread — sprite loading is GL work.
+ * Must run on the render thread, sprite loading is GL work.
      *
      * @param spawnJson the raw npc_spawn message
      * @return the NPC, or null if the packet had nothing drawable in it
@@ -544,7 +544,7 @@ public class NPCFactory {
             }
         }
 
-        // Extract "walkFramesPerRow"/"idleFramesPerRow": [n,n,n,n] arrays — flattened into a
+        // Extract "walkFramesPerRow"/"idleFramesPerRow": [n,n,n,n] arrays, flattened into a
         // comma-joined string in props (same idiom MonsterFactory uses for monsters.json's
         // "framesPerRow"), since the generic parseKeyValues below can't handle array values.
         json = extractIntArrayProp(json, "walkFramesPerRow", def.props);
@@ -601,7 +601,7 @@ public class NPCFactory {
                 try { act.aspect = Math.max(0.1f, Float.parseFloat(actProps.get("aspect"))); }
                 catch (NumberFormatException e) { /* keep default */ }
             }
-            // Simpler alternative to "frames": [n,n,n,n] — one number, same frame count on every
+            // Simpler alternative to "frames": [n,n,n,n], one number, same frame count on every
             // direction row. Wins over "frames" if both are present (rare; last one wins by intent).
             if (actProps.containsKey("frameCount")) {
                 try {
@@ -691,7 +691,7 @@ public class NPCFactory {
             String itemId = itemProps.get("id");
             if (itemId != null && !itemId.isBlank()) {
                 int price = intVal(itemProps, "price", 0);
-                // Omitted "stock" = 1 (single purchase) — explicit opt-in for unlimited restock via
+                // Omitted "stock" = 1 (single purchase), explicit opt-in for unlimited restock via
                 // "stock": "infinite" (or the literal -1, which intVal parses fine on its own).
                 String stockRaw = itemProps.get("stock");
                 int stock = "infinite".equalsIgnoreCase(stockRaw) ? -1 : intVal(itemProps, "stock", 1);

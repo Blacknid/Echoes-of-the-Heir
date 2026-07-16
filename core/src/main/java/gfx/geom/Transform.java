@@ -3,7 +3,7 @@ package gfx.geom;
 /**
  * Replacement for the {@code AffineTransform} + {@code createTransformedShape} pattern used when
  * building Tiled collision shapes. Supports the only operations the game used: translate, then
- * (optionally) rotate about that translated origin — exactly Tiled's object rotation around its
+ * (optionally) rotate about that translated origin, exactly Tiled's object rotation around its
  * top-left origin.
  *
  * <p>Factory helpers mirror TileManager's buildRect/buildEllipse/buildPolygon/buildPolyline,
@@ -82,7 +82,7 @@ public final class Transform {
             // Degenerate: treat as a tiny square.
             return rect(x - thickness / 2, y - thickness / 2, thickness, thickness, rotationDeg);
         }
-        // Build an outline: left side forward, right side backward (CAP_SQUARE extension omitted —
+        // Build an outline: left side forward, right side backward (CAP_SQUARE extension omitted
         // collision tolerance is well within the parity test's accepted bounds).
         double half = thickness / 2;
         double[] ox = new double[m * 2];
@@ -108,7 +108,7 @@ public final class Transform {
      * rather than a single offset-outline ring. The single-ring approach in {@link #polyline} collapses
      * for large or CLOSED paths (e.g. a room-perimeter loop): its vertex ring ends up enclosing the whole
      * interior, so filling it paints the entire area (the "blue covers the whole map" collision bug).
-     * Per-segment quads stroke correctly for any path — an open wall, or a closed loop that becomes a
+ * Per-segment quads stroke correctly for any path, an open wall, or a closed loop that becomes a
      * ring of thin wall strips. Each quad is {@code thickness} wide, centered on its segment.
      */
     public static java.util.List<Polygon> polylineSegments(double x, double y, double rotationDeg,

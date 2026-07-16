@@ -11,11 +11,11 @@ import gfx.Sprite;
 import main.GamePanel;
 
 /**
- * Low, slow-drifting dust/fog motes for dungeons and other enclosed spaces — same drifting-overlay
+ * Low, slow-drifting dust/fog motes for dungeons and other enclosed spaces, same drifting-overlay
  * lifecycle as {@link CloudLayer} (spawn/wander/fade), but tuned to sit low near the floor, move
  * slower, and use a soft procedurally generated blob instead of a sky sprite so no new art asset
  * is required. Swap {@link #generateFogSprite} for a real PNG later if one is added under
- * assets/res/environment/ — nothing else about the class needs to change.
+ * assets/res/environment/, nothing else about the class needs to change.
  */
 public class DustFogLayer {
 

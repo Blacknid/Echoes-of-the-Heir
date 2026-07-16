@@ -16,7 +16,7 @@ import main.MichiGame;
  * every N frames, screenshotting after each move. If the shader lighting is camera-locked correctly,
  * the player's own light pool should stay centered on the player (screen-fixed) in every shot, and a
  * fixed torch/occluder should slide by the SAME amount the world scrolls. If lights "dance", the pool
- * will drift off the player between shots — captured here for diff.
+ * will drift off the player between shots, captured here for diff.
  *
  * Run: ./gradlew :desktop:run -PmainClass=desktop.MoveLightTest
  * Output: build/move_0.png, build/move_1.png, build/move_2.png

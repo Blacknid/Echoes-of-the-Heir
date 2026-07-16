@@ -144,10 +144,10 @@ public class Minimap {
 
     /** Map a GID to a minimap colour by sampling the actual tile image center pixel. */
     private Color gidToColor(int gid, int col, int row) {
-        // Sample actual tile art center pixel — works across all maps without heuristics
+        // Sample actual tile art center pixel, works across all maps without heuristics
         Color sampled = gp.tileM.sampleTileColor(gid);
         if (sampled != null) return sampled;
-        // Transparent or missing tile — draw nothing
+        // Transparent or missing tile, draw nothing
         return null;
     }
 
@@ -202,7 +202,7 @@ public class Minimap {
 
         // Terrain: drawn as a square. GL scissor can't do a circular clip, so instead the
         // baked radial vignette below (opaque black at the rim) plus the ring border mask the
-        // square corners — visually equivalent to the old Ellipse2D clip.
+        // square corners, visually equivalent to the old Ellipse2D clip.
         g2.drawImage(terrainImage, cx - radius, cy - radius, radius * 2, radius * 2);
 
         float scaleX = (float)(radius * 2) / gp.tileM.currentMapCols;

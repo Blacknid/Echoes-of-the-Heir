@@ -65,7 +65,7 @@ public class MpMapStreamer {
     public volatile int spawnRow;
 
     // Per-player authoritative spawn from the welcome packet.
-    // -1 means no override — fall back to the TMX default spawn.
+    // -1 means no override, fall back to the TMX default spawn.
     public volatile int welcomeSpawnX = -1;
     public volatile int welcomeSpawnY = -1;
 
@@ -116,9 +116,7 @@ public class MpMapStreamer {
         welcomeSpawnY = -1;
     }
 
-    // =====================================================================
-    //  world_info handler
-    // =====================================================================
+    // World_info handler
 
     /**
      * Apply the server's world_info packet. Must be called once per session,
@@ -163,7 +161,7 @@ public class MpMapStreamer {
             gp.mapManager.registerMap(mapId, virtualPath);
 
             // Caller (MultiplayerClient.handleWorldInfo) must invoke this via
-            // Gdx.app.postRunnable — changeMap() loads tileset textures, which are GL calls
+            // Gdx.app.postRunnable, changeMap() loads tileset textures, which are GL calls
             // and illegal off the render thread. The tile arrays it builds are populated with
             // zeros (since the skeleton has empty CSV blocks), matching our "nothing loaded yet"
             // state until chunks start arriving.
@@ -191,9 +189,7 @@ public class MpMapStreamer {
         }
     }
 
-    // =====================================================================
-    //  chunk handler
-    // =====================================================================
+    // Chunk handler
 
     /**
      * Apply a server chunk packet. The chunk's GIDs are written directly into
@@ -257,7 +253,7 @@ public class MpMapStreamer {
         int got = chunksReceived.incrementAndGet();
         if (got >= totalChunksExpected && totalChunksExpected > 0) {
             // finishWorldLoad() resets player state (entity/projectile construction bakes GL
-            // textures, e.g. OBJ_Arrow's rotated pixmaps) and bakes the minimap terrain image —
+            // textures, e.g. OBJ_Arrow's rotated pixmaps) and bakes the minimap terrain image
             // both illegal off the render thread. applyChunk() itself runs on MP-Receive for
             // every packet, so only this tail call is deferred, not the whole hot path.
             com.badlogic.gdx.Gdx.app.postRunnable(this::finishWorldLoad);
@@ -295,9 +291,7 @@ public class MpMapStreamer {
         }
     }
 
-    // =====================================================================
-    //  Chunk-request scheduling
-    // =====================================================================
+    // Chunk-request scheduling
 
     /**
      * Request every chunk in the world, ordered by Chebyshev distance from
@@ -329,9 +323,7 @@ public class MpMapStreamer {
         }
     }
 
-    // =====================================================================
-    //  Trigger / position-correction handlers (forwarded from MultiplayerClient)
-    // =====================================================================
+    // Trigger / position-correction handlers (forwarded from MultiplayerClient)
 
     public void applyPositionCorrection(int x, int y, String reason) {
         gp.player.worldX = x;
@@ -349,9 +341,7 @@ public class MpMapStreamer {
         System.out.println("[MP trigger] " + label + " @ (" + t.x + "," + t.y + ")");
     }
 
-    // =====================================================================
-    //  Decoding / utilities
-    // =====================================================================
+    // Decoding / utilities
 
     private static long[] decodeRawGids(String b64, int count) throws Exception {
         byte[] gz = Base64.getDecoder().decode(b64);
@@ -388,9 +378,7 @@ public class MpMapStreamer {
              |  ((long) cy       & 0xFFFFF);
     }
 
-    // =====================================================================
-    //  DTOs (parsed by MultiplayerClient from the server's JSON envelopes)
-    // =====================================================================
+    // DTOs (parsed by MultiplayerClient from the server's JSON envelopes)
 
     public static class WorldInfo {
         public String mapId;

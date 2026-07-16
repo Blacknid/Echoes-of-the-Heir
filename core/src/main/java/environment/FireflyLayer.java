@@ -11,13 +11,13 @@ import gfx.Sprite;
 import main.GamePanel;
 
 /**
- * Small drifting fireflies for a "glowing night" ambience — same pooled spawn/wander/fade
+ * Small drifting fireflies for a "glowing night" ambience, same pooled spawn/wander/fade
  * lifecycle as {@link DustFogLayer}, but each firefly also pulses its own brightness and
  * registers a tiny real light with {@link Lightning} so it actually lights up the ground
  * around it, not just an additive sprite.
  *
  * <p>To use on another map, just set the {@code fireflies="true"} bool property on that map
- * in Tiled — no code changes needed. All tuning knobs are the public constants below.
+ * in Tiled, no code changes needed. All tuning knobs are the public constants below.
  */
 public class FireflyLayer {
 
@@ -35,7 +35,7 @@ public class FireflyLayer {
     public static final float BOB_SPEED_MAX = 0.05f;
     public static final float BOB_HEIGHT_PX = 3f;
 
-    /** Body size in pixels — deliberately visible, not a single-pixel speck. */
+    /** Body size in pixels, deliberately visible, not a single-pixel speck. */
     public static final float MIN_SCALE_PX = 7f;
     public static final float MAX_SCALE_PX = 10f;
     public static final float MAX_ALPHA = 0.9f;
@@ -45,7 +45,7 @@ public class FireflyLayer {
     public static final float PULSE_SPEED_MAX = 0.06f;
     public static final float PULSE_MIN_ALPHA = 0.25f;
 
-    /** Real light cast on the world — small and soft, just enough to glow, not illuminate the area. */
+    /** Real light cast on the world, small and soft, just enough to glow, not illuminate the area. */
     public static final int LIGHT_RADIUS_PX = 26;
     public static final float LIGHT_INTENSITY = 0.35f;
 
@@ -54,7 +54,7 @@ public class FireflyLayer {
     public static final float MIN_SPACING_PX = 60f;
 
     private static final Color GLOW_COLOR = new Color(210, 255, 130);
-    // Tiny native pixel grid, upscaled with Nearest filtering — keeps the firefly a crisp blocky
+    // Tiny native pixel grid, upscaled with Nearest filtering, keeps the firefly a crisp blocky
     // dot instead of a smooth airbrushed circle, matching the game's pixel-art look.
     private static final int SPRITE_PIXELS = 5;
 
@@ -195,7 +195,7 @@ public class FireflyLayer {
     }
 
     /**
-     * Tiny blocky pixel-art dot — a bright core pixel with dimmer pixels stepped out around it
+ * Tiny blocky pixel-art dot, a bright core pixel with dimmer pixels stepped out around it
      * (chunky rings, not a smooth gradient), drawn at native size and scaled up with Nearest
      * filtering so each "pixel" stays a crisp square instead of blurring into a soft blob.
      */
@@ -210,7 +210,7 @@ public class FireflyLayer {
                 float a;
                 if (dist < 0.6f) a = 1f;        // bright core pixel
                 else if (dist < 1.6f) a = 0.55f; // one dim ring around it
-                else continue;                   // nothing beyond — keeps the sprite small and crisp
+                else continue;                   // nothing beyond, keeps the sprite small and crisp
                 pm.setColor(1f, 1f, 1f, a);
                 pm.drawPixel(x, y);
             }

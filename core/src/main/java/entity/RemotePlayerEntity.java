@@ -4,10 +4,10 @@ import main.GamePanel;
 import main.MultiplayerClient.RemotePlayerState;
 
 /**
- * A live puppet {@link Entity} mirroring one remote player — either a TCP {@link main.MultiplayerClient}
+ * A live puppet {@link Entity} mirroring one remote player, either a TCP {@link main.MultiplayerClient}
  * peer or a BLE {@link main.BleMultiplayerSession} guest/host. GamePanel rebuilds these every tick from
  * the underlying {@link RemotePlayerState} maps (see GamePanel#syncRemotePlayerEntities) so remote
- * players are "real" entities to any system that scans gp.remotePlayerEntities — right now that's just
+ * players are "real" entities to any system that scans gp.remotePlayerEntities, right now that's just
  * environment.Lightning's light gather, which is the whole point: giving a puppet lightSource/lightRadius
  * makes it glow exactly like the local player's torch, with zero special-casing in the lighting code.
  *
@@ -17,8 +17,8 @@ import main.MultiplayerClient.RemotePlayerState;
  */
 public class RemotePlayerEntity extends Entity {
 
-    /** Warm player-glow tint — matches Lightning.PLAYER_LIGHT_COLOR so guests read as "another player",
-     *  not a torch/prop. */
+    /** Warm player-glow tint, matches Lightning.PLAYER_LIGHT_COLOR so guests read as "another player",
+ * not a torch/prop. */
     private static final gfx.Color REMOTE_PLAYER_LIGHT_COLOR = new gfx.Color(255, 224, 170);
 
     public RemotePlayerEntity(GamePanel gp) {

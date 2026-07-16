@@ -18,7 +18,7 @@ import platform.NfcFriendService;
  * tags via {@link NfcAdapter#enableReaderMode}, and keeps this device's own emulated payload
  * current so it can be read the same way (including while backgrounded, per HCE AID routing).
  *
- * <p>Reader mode only runs while the activity is in the foreground — that's an Android platform
+ * <p>Reader mode only runs while the activity is in the foreground, that's an Android platform
  * limit, not a choice made here (see platform.NfcFriendService's class doc). Registered once from
  * {@link androidlauncher.AndroidLauncher#onCreate}.
  */
@@ -47,7 +47,7 @@ public class NfcFriendServiceImpl implements NfcFriendService {
         }
         NfcAdapter.ReaderCallback callback = tag -> {
             String payload = readPayload(tag);
-            // Gdx.app.postRunnable (not runOnUiThread — Android's UI thread and libGDX's GL/render
+            // Gdx.app.postRunnable (not runOnUiThread, Android's UI thread and libGDX's GL/render
             // thread are different threads) so onResult's downstream game-state mutation (e.g.
             // BleMultiplayerSession.joinHost's map load, gameState transition) runs on the same
             // thread the render loop reads that state from. See BleGuestServiceImpl.connect's
@@ -58,17 +58,17 @@ public class NfcFriendServiceImpl implements NfcFriendService {
         // FriendHceService is always AID-routed). On-device logs (Galaxy S23, 2026-07-10) showed
         // the platform resolving that poll+listen collision by tearing our reader mode back to
         // flags:0 the instant the tag was discovered, handing the RF event to the default NDEF
-        // tag dispatcher — which then failed ("rw_t4t_sm_detect_ndef: NLEN...", "Check NDEF Failed
+        // tag dispatcher, which then failed ("rw_t4t_sm_detect_ndef: NLEN...", "Check NDEF Failed
         // status=3") because our HCE peer is a custom-APDU service, not a Type-4 NDEF tag. Our own
         // readPayload()/IsoDep.transceive never got to run, so the invite was never read and JOIN
         // GAME reported "couldn't connect" without ever starting the BLE scan.
         //
         // FLAG_READER_SKIP_NDEF_CHECK alone wasn't enough: the extra fixes below keep our reader
         // session owning the RF link long enough to do the custom SELECT:
-        //  • NFC_B in addition to NFC_A — some Samsung HCE peers present as ISO-DEP over NFC-B; a
+        // • NFC_B in addition to NFC_A, some Samsung HCE peers present as ISO-DEP over NFC-B; a
         //    reader polling only NFC-A can miss them and fall through to default dispatch.
-        //  • NO_PLATFORM_SOUNDS — suppresses the system tag chime whose handling races our reader.
-        //  • EXTRA_READER_PRESENCE_CHECK_DELAY (large) — the default aggressive presence check can
+        // • NO_PLATFORM_SOUNDS, suppresses the system tag chime whose handling races our reader.
+        // • EXTRA_READER_PRESENCE_CHECK_DELAY (large), the default aggressive presence check can
         //    declare the tag "gone" and drop the session mid-exchange between two hand-held phones;
         //    a long delay keeps the reader engaged through the transceive round trip.
         int flags = NfcAdapter.FLAG_READER_NFC_A
@@ -95,7 +95,7 @@ public class NfcFriendServiceImpl implements NfcFriendService {
         FriendHceService.currentPayload = payload != null ? FriendHceService.encode(payload) : null;
     }
 
-    /** Runs on the NFC reader thread (not the UI thread) — returns null on any I/O failure. */
+    /** Runs on the NFC reader thread (not the UI thread), returns null on any I/O failure. */
     private static String readPayload(Tag tag) {
         IsoDep isoDep = IsoDep.get(tag);
         if (isoDep == null) return null;

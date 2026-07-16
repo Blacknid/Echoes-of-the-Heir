@@ -41,7 +41,7 @@ public class Config {
         return "v" + gameVersion + "." + buildNumber;
     }
 
-    // UI reference resolution — every pixel offset in the HUD is authored at 1280x768.
+    // UI reference resolution, every pixel offset in the HUD is authored at 1280x768.
     // uiSf() / uiSfH() in GamePanel produce the scale factor when the internal resolution changes.
     public static final int UI_BASE_W = 1280;
     public static final int UI_BASE_H = 720;
@@ -53,7 +53,7 @@ public class Config {
     public static double scale = 2.0;
     public static int tileSize = (int)(originalTileSize * scale);
     /** When true: stretch the fixed 1280×720 back-buffer to fill the window.
-     *  When false (default): dynamic viewport — bigger window = more world tiles visible, 1:1 pixels. */
+ * When false (default): dynamic viewport, bigger window = more world tiles visible, 1:1 pixels. */
     public static boolean stretchToFill = false;
 
     /** Set the scale multiplier and update derived values. */
@@ -74,7 +74,7 @@ public class Config {
         this.gp = gp;
     }
 
-    // Last known windowed position — persisted so the window reopens where the player left it.
+    // Last known windowed position, persisted so the window reopens where the player left it.
     public int windowX = -1;
     public int windowY = -1;
 

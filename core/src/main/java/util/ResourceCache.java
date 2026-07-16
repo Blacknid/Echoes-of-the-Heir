@@ -74,7 +74,7 @@ public final class ResourceCache {
     private static void ensureSpriteAtlasLoaded() {
         if (spriteAtlasLoadAttempted) return;
         spriteAtlasLoadAttempted = true;
-        // The atlas is a packed GPU texture — there is nothing to pack it into without GL. Leaving
+        // The atlas is a packed GPU texture, there is nothing to pack it into without GL. Leaving
         // it null makes loadImageIfPresent fall through to the loose-file path, which in headless
         // mode reads dimensions from the PNG header (see textureFrom).
         if (headless) return;
@@ -187,7 +187,7 @@ public final class ResourceCache {
      *
      * <p>This is the ONE place the renderless build diverges from the client, because
      * {@link #textureFrom} is the only spot in the codebase that constructs a {@link Texture}.
-     * Everything above it — sheet slicing, frame-count math, entity construction — is pure
+ * Everything above it, sheet slicing, frame-count math, entity construction, is pure
      * arithmetic on sprite dimensions and runs identically either way.
      */
     private static boolean headless = false;
@@ -219,7 +219,7 @@ public final class ResourceCache {
     }
 
     /**
-     * Read a PNG's pixel dimensions straight out of its IHDR chunk — the first 24 bytes — without
+ * Read a PNG's pixel dimensions straight out of its IHDR chunk, the first 24 bytes, without
      * decoding the image. That is all the simulation ever wants from a sprite sheet: width and
      * height, to divide into frames.
      *
@@ -284,7 +284,7 @@ public final class ResourceCache {
         }
 
         // Dev mode: read directly from the source folder so edits saved in
-        // Tiled are visible immediately when R is pressed — no sync needed.
+        // Tiled are visible immediately when R is pressed, no sync needed.
         if (devSourceDir != null) {
             java.io.File devFile = new java.io.File(devSourceDir, path);
             if (devFile.exists()) {
@@ -319,7 +319,7 @@ public final class ResourceCache {
     /**
      * Opens a classpath-style resource path (e.g. {@code "/res/data/items.json"}) as a stream.
      * On the desktop backend the assets are on the JVM classpath, so {@code Class.getResourceAsStream}
-     * works; on Android they are packaged as APK assets instead, which are NOT on the classpath —
+ * works; on Android they are packaged as APK assets instead, which are NOT on the classpath
      * {@link com.badlogic.gdx.files.FileHandle} (via {@code Gdx.files.internal}) is the one loading
      * path that works identically on both backends, so every classpath-style resource load in the
      * game (factories, quest/skill data, fonts, XML/TMX parsing) should route through this method
@@ -346,7 +346,7 @@ public final class ResourceCache {
      * TileManager / MapObjectLoader pipeline picks it up via
      * {@link #loadXml(String)} as if the TMX had been loaded from the JAR.
      *
-     * <p>Subsequent calls overwrite any previous entry for the same path —
+ * <p>Subsequent calls overwrite any previous entry for the same path
      * this is what allows the same map id to be re-streamed when the
      * multiplayer server changes worlds.
      */
@@ -372,7 +372,7 @@ public final class ResourceCache {
 
     /**
      * Drops every cached {@link Sprite}/{@link TextureAtlas} entry without disposing the GL
-     * textures they wrap. Must run at the very start of each {@code MichiGame.create()} — these
+ * textures they wrap. Must run at the very start of each {@code MichiGame.create()}, these
      * maps are static, so on Android (singleTask launch mode) they survive a "restart" that
      * reuses the process, while the old GL context and its {@code Texture} objects are gone.
      * Handing out a {@link Sprite} built against a dead context makes the GPU sample whatever

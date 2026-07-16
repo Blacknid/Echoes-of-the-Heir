@@ -12,7 +12,7 @@ import java.util.Map;
  * {@link #consumePressed} (one-shot, auto-clearing).
  *
  * An action can be bound to several physical tokens at once (e.g. move_up = W or UP), so held
- * state is a ref-count, not a boolean — releasing one of two held keys must not clear the
+ * state is a ref-count, not a boolean, releasing one of two held keys must not clear the
  * action while the other is still down.
  */
 public final class InputActions {
@@ -51,12 +51,12 @@ public final class InputActions {
         return true;
     }
 
-    /** Clears every one-shot pending-press flag (held-state is left alone — a key physically
-     *  still down should stay "down"). Call this on every game-state transition: a key press
-     *  that triggered the transition (e.g. E closing the inventory) may have been read via a
-     *  raw key check rather than consumePressed(), leaving its action's pending-press flag
-     *  stale — left unconsumed, the next isDown/consumePressed poll in the new state would
-     *  fire on it as if it were a fresh press, e.g. instantly reopening the screen just closed. */
+    /** Clears every one-shot pending-press flag (held-state is left alone, a key physically
+ * still down should stay "down"). Call this on every game-state transition: a key press
+ * that triggered the transition (e.g. E closing the inventory) may have been read via a
+ * raw key check rather than consumePressed(), leaving its action's pending-press flag
+ * stale, left unconsumed, the next isDown/consumePressed poll in the new state would
+ * fire on it as if it were a fresh press, e.g. instantly reopening the screen just closed. */
     public void clearAllPending() {
         pendingPress.clear();
     }

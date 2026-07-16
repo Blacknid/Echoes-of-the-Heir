@@ -113,7 +113,7 @@ public class CollisionChecker {
 
     /**
      * Fill an existing list with axis-aligned light occluder rectangles that intersect r.
-     * Uses tileM.lightOccluderRects — a subset of collision shapes that are guaranteed to be
+ * Uses tileM.lightOccluderRects, a subset of collision shapes that are guaranteed to be
      * non-rotated rectangles, so their shape exactly matches their bounding box.
      * Only these are safe to use as shadow casters; polygon/ellipse/rotated bounding boxes
      * are too large and cause false shadow projections.
@@ -136,7 +136,7 @@ public class CollisionChecker {
      * O(n²) when many shapes span the query region.
      */
     public void getCollisionBoundsInRect(Rect r, java.util.ArrayList<Rect> out) {
-        // Bump generation — every shapeIdx with seenGen[idx] != gen is "unseen"
+        // Bump generation, every shapeIdx with seenGen[idx] != gen is "unseen"
         int gen = ++currentGen;
         // Handle overflow (wraps back to 0 and re-clears the array)
         if (gen == 0) {
@@ -171,7 +171,7 @@ public class CollisionChecker {
             java.util.ArrayList<Rect> rects = gp.tileM.collisionBounds;
             for (int i = 0, n = rects.size(); i < n; i++) {
                 Rect br = rects.get(i);
-                if (br.intersects(r)) out.add(br); // no dedup needed — linear scan visits each once
+                if (br.intersects(r)) out.add(br); // no dedup needed, linear scan visits each once
             }
         }
     }
@@ -213,7 +213,7 @@ public class CollisionChecker {
             }
         }
 
-        // --- Shape collision (from Tiled objectgroup layers — rects, rotated rects, polygons, ellipses) ---
+        // --- Shape collision (from Tiled objectgroup layers, rects, rotated rects, polygons, ellipses) ---
         if (!entity.collisionOn) {
             if (spatialGrid != null && gridCols > 0) {
                 int minCX = Math.max(0, tempRect.x / GRID_CELL_SIZE);
@@ -312,7 +312,7 @@ public class CollisionChecker {
      * Would {@code entity}'s solidArea, placed at the explicit position (nextX, nextY), overlap any
      * solid (collision == true) obj/iTile/npc/monster? Unlike checkObject/checkEntity (which predict
      * one step of the entity's own speed in its current facing direction), this takes an arbitrary
-     * target position — needed for the attack lunge (applyAttackKick), which pushes the player by a
+ * target position, needed for the attack lunge (applyAttackKick), which pushes the player by a
      * variable, eased distance each frame rather than a fixed per-tick speed. Without this, the lunge
      * only checked static tile collision (checkTileNext) and could push the player straight through a
      * solid interactive tile/object (a chest, a pot, an unbroken destructible) it was attacking.
@@ -425,7 +425,7 @@ public class CollisionChecker {
                     case Entity.DIR_RIGHT -> entityX += entity.speed;
                 }
 
-                // Check intersection — use hurtPolygon on the target if present, else fall back to AABB
+                // Check intersection, use hurtPolygon on the target if present, else fall back to AABB
                 boolean hit;
                 if (target[i].hurtPolygon != null) {
                     // Translate the local-space polygon to world space for this check
@@ -511,7 +511,7 @@ public class CollisionChecker {
 
     /**
      * Same hit test as {@link #checkEntityCone}, but collects every matching index instead of
-     * stopping at the first — used for the melee attack cone so a single swing can hit all
+ * stopping at the first, used for the melee attack cone so a single swing can hit all
      * monsters caught in it, not just the nearest one in array order.
      */
     public java.util.List<Integer> checkEntityConeAll(gfx.geom.Cone cone, Entity[] target) {
@@ -559,12 +559,12 @@ public class CollisionChecker {
     }
 
     /**
-     * Where (if anywhere) does the attack cone touch a solid, non-monster collision — a Tiled
+ * Where (if anywhere) does the attack cone touch a solid, non-monster collision, a Tiled
      * collision shape/blocking tile, or a solid obj/iTile/npc? Monsters are deliberately excluded:
      * they already get their own knockback from a hit (see Player.damageMonster), this is only for
      * the "swing into a wall/object and bounce off it" case. Returns the cone's apex (attacker
      * position) if nothing hit, so callers should check the boolean return, not just the point.
-     * Deliberately approximate (bounding-box tests, not exact polygon overlap) — this only drives a
+ * Deliberately approximate (bounding-box tests, not exact polygon overlap), this only drives a
      * cosmetic push-back + impact VFX, not real physics, so precision isn't worth the complexity.
      */
     public boolean checkAttackEnvironmentHit(gfx.geom.Cone cone, gfx.geom.Rect outContactPoint) {
@@ -596,7 +596,7 @@ public class CollisionChecker {
             }
         }
 
-        // Solid obj/iTile/npc (monsters excluded on purpose — see method doc).
+        // Solid obj/iTile/npc (monsters excluded on purpose, see method doc).
         if (coneHitsSolidArray(cone, gp.obj, outContactPoint)) return true;
         if (coneHitsSolidArray(cone, gp.iTile, outContactPoint)) return true;
         if (coneHitsSolidArray(cone, gp.npc, outContactPoint)) return true;

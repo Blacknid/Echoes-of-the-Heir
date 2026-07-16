@@ -12,7 +12,7 @@ import main.GamePanel;
 /**
  * In-game wind-map editor.
  *
- * <p>Authoring workflow (this is the "paint over the live map" tool you asked for — no separate
+ * <p>Authoring workflow (this is the "paint over the live map" tool you asked for, no separate
  * app, the actual map renders behind your strokes):
  * <ol>
  *   <li>Enter the game (play state) and enable debug mode (<b>Ctrl+D</b>).</li>
@@ -174,7 +174,7 @@ public class WindPainter {
             gp.windField.paint(col, row, brushRadiusTiles, brushStrength, dir, paintRainChannel);
         } else if (right && !wasRightDown) {
             // Right-click LOWERS the wind by rightClickLevels discrete levels (direction ignored).
-            // Fires ONCE per press (rising edge) — holding the button does not keep decreasing.
+            // Fires ONCE per press (rising edge), holding the button does not keep decreasing.
             // The decrease magnitude is capped at the maximum wind level (1.0) so a single press
             // can never subtract more than the full range.
             float decrease = Math.min(1f, rightClickLevels * LEVEL_STEP);

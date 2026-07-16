@@ -4,13 +4,13 @@ package server;
  * A deliberately tiny JSON helper for the engine↔parent protocol.
  *
  * <p>The protocol messages are flat objects of a handful of known keys (see {@link EngineServer}),
- * so this does not need — and does not want — a full JSON library on the server classpath. It
+ * so this does not need, and does not want, a full JSON library on the server classpath. It
  * reads one field at a time by name and escapes strings on the way out. It is not a general
  * parser: it assumes well-formed input produced by the two ends of this private link, and reads
  * only top-level scalar fields.
  *
  * <p>Keys are matched on the literal {@code "key":} token so a key is never confused with another
- * that merely ends in the same letters — the same substring-collision trap the client's JSON
+ * that merely ends in the same letters, the same substring-collision trap the client's JSON
  * reader has (which is why the wire protocol uses unambiguous camelCase ids like {@code mobId}).
  */
 final class Json {

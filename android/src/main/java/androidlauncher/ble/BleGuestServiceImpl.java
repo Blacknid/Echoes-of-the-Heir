@@ -27,10 +27,10 @@ import platform.BleGuestService;
 
 /**
  * Android implementation of {@link BleGuestService}: finds the host via a BLE scan filtered to
- * {@link BleProtocol#SERVICE_UUID} and connects to the first match — see the interface's class doc
+ * {@link BleProtocol#SERVICE_UUID} and connects to the first match, see the interface's class doc
  * for why this replaced connecting to a MAC address handed off via NFC (Android blocks apps from
  * reading their own/other devices' real Bluetooth address; the "MAC" in an NFC payload was always
- * garbage). The filtered scan is invisible to the player — no list, no picker — and normally
+ * garbage). The filtered scan is invisible to the player, no list, no picker, and normally
  * resolves in well under a second since only devices advertising our exact service UUID match.
  * Subscribes to the host's notify characteristic and writes the join handshake + subsequent lines
  * to the guest-write characteristic. See BleProtocol for UUIDs and main.BleMultiplayerSession for
@@ -68,7 +68,7 @@ public class BleGuestServiceImpl implements BleGuestService {
     @Override
     public void connect(Consumer<Boolean> onResult, Consumer<String> onMessage) {
         // Every GATT/scan callback below arrives on Android's Binder callback thread, not
-        // libGDX's GL/render thread — but onResult/onMessage flow straight into game state
+        // libGDX's GL/render thread, but onResult/onMessage flow straight into game state
         // (map load, gameState transitions, remotePlayers mutation) that the render thread reads
         // every frame with no synchronization. Wrapping once here, at the one place a caller
         // hands us these consumers, means every downstream call site is automatically safe
@@ -129,7 +129,7 @@ public class BleGuestServiceImpl implements BleGuestService {
     }
 
     private void onScanTimeout() {
-        if (gatt != null) return; // already found/connecting — timeout raced a real match, ignore
+        if (gatt != null) return; // already found/connecting, timeout raced a real match, ignore
         System.out.println("[BleGuest] scan TIMEOUT — no host advertiser found");
         stopScan();
         if (onResult != null) onResult.accept(false);
@@ -198,7 +198,7 @@ public class BleGuestServiceImpl implements BleGuestService {
                 // Ask for a larger ATT MTU so a full protocol line (up to BleProtocol.MAX_LINE_BYTES)
                 // fits in one notify without relying on undocumented auto-fragmentation of the
                 // default ~20-byte payload; onMtuChanged (whatever it negotiates to) proceeds to
-                // service discovery either way — reassembly in onCharacteristicChanged handles
+                // service discovery either way, reassembly in onCharacteristicChanged handles
                 // however many fragments an unaccommodating negotiation still leaves.
                 try { g.requestMtu(BleProtocol.MAX_LINE_BYTES + 3); }
                 catch (SecurityException e) { try { g.discoverServices(); } catch (SecurityException ignored) {} }
@@ -214,7 +214,7 @@ public class BleGuestServiceImpl implements BleGuestService {
 
         @Override
         public void onMtuChanged(BluetoothGatt g, int mtu, int status) {
-            // Proceed regardless of whether the negotiation succeeded/what size was granted —
+            // Proceed regardless of whether the negotiation succeeded/what size was granted
             // reassembly in onCharacteristicChanged tolerates however many fragments result.
             try { g.discoverServices(); } catch (SecurityException ignored) {}
         }
@@ -252,7 +252,7 @@ public class BleGuestServiceImpl implements BleGuestService {
         @Override
         public void onDescriptorWrite(BluetoothGatt g, BluetoothGattDescriptor descriptor, int status) {
             if (!BleProtocol.CCCD_UUID.equals(descriptor.getUuid())) return;
-            // Notifications are now enabled — the write channel is ready. connected=true here means
+            // Notifications are now enabled, the write channel is ready. connected=true here means
             // "can send", not "host has accepted"; BleMultiplayerSession.joinHost sends the actual
             // "H|token|name" handshake line from this onResult callback and only reports true up to
             // its own caller once the host's welcome ("W|...") line arrives.
@@ -266,7 +266,7 @@ public class BleGuestServiceImpl implements BleGuestService {
             byte[] value = characteristic.getValue();
             if (value == null) return;
             // Without an MTU negotiation (none is requested), the default ATT payload is only ~20
-            // bytes — any host message longer than that arrives as multiple separate notify
+            // bytes, any host message longer than that arrives as multiple separate notify
             // callbacks. BleHostServiceImpl.notify() now newline-terminates each message, so
             // buffer across callbacks and only dispatch complete lines, mirroring the host's own
             // guest-write reassembly (BleHostServiceImpl.onCharacteristicWriteRequest).

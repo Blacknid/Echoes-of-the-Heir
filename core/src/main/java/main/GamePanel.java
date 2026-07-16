@@ -45,12 +45,12 @@ public class GamePanel {
     public final double scale = Config.scale;
 
     public final int tileSize = Config.tileSize; // runtime tile size (originalTileSize * scale)
-    // Logical resolution — the integer-scaled game view size (device pixels / pixelScale). All world,
+    // Logical resolution, the integer-scaled game view size (device pixels / pixelScale). All world,
     // HUD and input layout is authored in these logical pixels; the camera/GL viewport magnify them by
     // the whole-number pixelScale for crisp pixel art. Used for BOTH windowed and fullscreen.
     public int screenWidth  = 1280;
     public int screenHeight = 720;
-    // Raw device (window/framebuffer) size in physical pixels — what the OS gives us.
+    // Raw device (window/framebuffer) size in physical pixels, what the OS gives us.
     public int deviceWidth  = 1280;
     public int deviceHeight = 720;
     // Moonshire-style integer pixel scale: how many device pixels map to one logical game pixel.
@@ -59,11 +59,11 @@ public class GamePanel {
     // exact multiple) enlarges the logical viewport, which the tile culling turns into MORE visible
     // map tiles rather than black bars.
     public int pixelScale = 1;
-    // Display transform — set to pixelScale so panelToGame maps device coords back to logical space.
+    // Display transform, set to pixelScale so panelToGame maps device coords back to logical space.
     private float displayScaleF  = 1f;
     private int   displayOffsetX = 0;
     private int   displayOffsetY = 0;
-    // Visible tile counts — recalculated whenever the resolution changes
+    // Visible tile counts, recalculated whenever the resolution changes
     public int maxScreenCol = (int)Math.ceil((double)screenWidth / tileSize) + 1;
     public int maxScreenRow = (int)Math.ceil((double)screenHeight / tileSize) + 1;
     /** UI horizontal scale factor: how much bigger the screen is than the 1280-wide reference. */
@@ -75,7 +75,7 @@ public class GamePanel {
     public boolean drawPath = false;
     public boolean debugModeEnabled = false;
     public boolean debugMenuOpen = false;
-    // Pending debug reload — set from EDT, consumed by the game-loop thread at the start of update()
+    // Pending debug reload, set from EDT, consumed by the game-loop thread at the start of update()
     private volatile boolean pendingReloadAll     = false;
     private volatile boolean pendingReloadNPCs    = false;
     private volatile boolean pendingReloadMonsters= false;
@@ -84,7 +84,7 @@ public class GamePanel {
     public java.util.List<String> debugMapList = new java.util.ArrayList<>();
     public int debugMapSelectedIndex = 0;
 
-    // World grid dimensions — DYNAMIC per map. Default to 100x100 (the historical fixed size) so
+    // World grid dimensions, DYNAMIC per map. Default to 100x100 (the historical fixed size) so
     // arrays allocated before the first TMX load are valid; setWorldDimensions() updates these from
     // each map's TMX width/height and reallocates the dependent per-tile arrays.
     public int maxWorldCol = 100;
@@ -107,7 +107,7 @@ public class GamePanel {
         if (pFinder != null) pFinder.instantiateNodes();
     }
     
-    // (No Sprite back-buffer / GdxRenderer on the GPU — MichiGame renders straight to the
+    // (No Sprite back-buffer / GdxRenderer on the GPU, MichiGame renders straight to the
     // default framebuffer via a GdxRenderer each frame.)
     public boolean fullScreenOn = false;
     public boolean vSyncOn = true;
@@ -150,7 +150,7 @@ public class GamePanel {
     private static final gfx.Color DEFAULT_TORCH_COLOR = new gfx.Color(255, 170, 60);
 
     // Debug overlay is drawn in DEVICE-pixel space (see GdxRenderer.beginDeviceSpace) so it renders at a
-    // fixed, crisp on-screen size regardless of pixelScale — never Nearest-magnified. 16px reads well on
+    // fixed, crisp on-screen size regardless of pixelScale, never Nearest-magnified. 16px reads well on
     // both windowed and fullscreen; the box geometry below is likewise in device pixels.
     private static final gfx.Font DEBUG_FONT = new gfx.Font("Consolas", gfx.Font.PLAIN, 16);
     private static final gfx.Color DEBUG_BG_COLOR = new gfx.Color(0, 0, 0, 160);
@@ -237,10 +237,10 @@ public class GamePanel {
 
     /**
      * The world position everything (tiles, entities, particles, weather, minimap, UI prompts) draws
-     * relative to. Normally this is just the player's own position — but during a locked-camera
+ * relative to. Normally this is just the player's own position, but during a locked-camera
      * cutscene (see ui.BossIntroCutscene) it can point anywhere, panning the visible world away from
      * the player without moving the player itself. player.screenX/screenY (the fixed on-screen anchor
-     * point) never changes — only which world position maps to that anchor point changes.
+ * point) never changes, only which world position maps to that anchor point changes.
      *
      * Every draw call site that used to read gp.player.worldX/worldY as "the camera" should read
      * these instead; gp.player.screenX/screenY stay as-is everywhere (they're the anchor, not the
@@ -268,7 +268,7 @@ public class GamePanel {
     }
     public void unlockCamera() { cameraLocked = false; }
 
-    /** Finds a live (alive, not dying) boss in gp.monster[] by its display name — used by BossIntroTrigger. */
+    /** Finds a live (alive, not dying) boss in gp.monster[] by its display name, used by BossIntroTrigger. */
     public entity.Boss findBossByName(String bossName) {
         for (Entity m : monster) {
             if (m instanceof entity.Boss boss && boss.alive && !boss.dying && bossName.equals(boss.name)) {
@@ -284,7 +284,7 @@ public class GamePanel {
 
     public Player player = new Player(this,keyH);
     public Entity obj[] = new Entity[100];
-    // 20, not 10 — Canvas_Village_rework.tmx alone places 11 NPC_Generic objects; the old cap of 10
+    // 20, not 10, Canvas_Village_rework.tmx alone places 11 NPC_Generic objects; the old cap of 10
     // silently dropped the 11th (MapObjectLoader logs a warning, but it's easy to miss), so nothing
     // appeared for it even though its JSON/sprite/placement were all otherwise correct.
     public Entity npc[] = new Entity[20];
@@ -298,7 +298,7 @@ public class GamePanel {
     public Entity nearbyInteractable;
     public boolean inputLocked = false;
 
-    // GAME STATE — integer constants kept for backward compatibility
+    // GAME STATE, integer constants kept for backward compatibility
     public int gameState;
     private int previousGameState = -1; // tracks titleState entry/exit to drive title music
     public static final int titleState = 0;
@@ -328,10 +328,10 @@ public class GamePanel {
 
     /**
      * Puppet {@link entity.RemotePlayerEntity} per connected remote player (TCP mpClient peers keyed
-     * "tcp:<id>", BLE session peers keyed "ble:<id>" — namespaced since both id spaces start at 0 and
+ * "tcp:<id>", BLE session peers keyed "ble:<id>", namespaced since both id spaces start at 0 and
      * a session only ever uses one transport at a time, but this keeps it collision-proof either way).
-     * Rebuilt every tick in syncRemotePlayerEntities() so any system that scans Entity arrays — right
-     * now just the lighting gather in EnvironmentManager/Lightning — treats remote players as real
+ * Rebuilt every tick in syncRemotePlayerEntities() so any system that scans Entity arrays, right
+ * now just the lighting gather in EnvironmentManager/Lightning, treats remote players as real
      * light-emitting entities instead of the bespoke draw-only RemotePlayerState rectangles.
      */
     public final java.util.Map<String, entity.RemotePlayerEntity> remotePlayerEntities = new java.util.HashMap<>();
@@ -407,7 +407,7 @@ public class GamePanel {
     detectAndSetRefreshRate();
     setVSync(vSyncOn);
 
-    // Shaders, vignette bake, gradient textures — all GL, all purely visual. The server skips it.
+    // Shaders, vignette bake, gradient textures, all GL, all purely visual. The server skips it.
     if (!Headless.isEnabled()) {
         mapShader = new MapShaderManager(this);
         mapShader.setup();
@@ -421,7 +421,7 @@ public class GamePanel {
     );
 
     // Purely visual: the minimap bakes a terrain texture, which is GPU work the simulation never
-    // consults. The authoritative server skips it (see main.Headless) and leaves the field null —
+    // consults. The authoritative server skips it (see main.Headless) and leaves the field null
     // safe because every caller already null-checks it (KeyHandler, RenderPipeline, reloadMap).
     if (!Headless.isEnabled()) {
         minimap = new Minimap(this);
@@ -453,12 +453,12 @@ public class GamePanel {
         new String[]{"Echo is one of the most feared Phantoms of this Realm," , "due to his teleportation moves and aggrive bites.", "He is the weakest brother.", "To this day, it's still unknown how many of his type are there.", "Also known as 'Echo, the Unseen'."},
         6, "Unknown", 5f);
 
-    // Rendering only — the server never calls drawCurrentState(), so it never needs the pipeline
+    // Rendering only, the server never calls drawCurrentState(), so it never needs the pipeline
     // (which builds shaders and framebuffers, i.e. GL objects it has no context for).
     if (!Headless.isEnabled()) {
         renderPipeline = new RenderPipeline(this);
     }
-    // GPU port: no Sprite back-buffer — MichiGame renders to the screen via GdxRenderer.
+    // GPU port: no Sprite back-buffer, MichiGame renders to the screen via GdxRenderer.
     }
 
     public void registerMap(String id, String tmxPath) { mapManager.registerMap(id, tmxPath); }
@@ -468,19 +468,19 @@ public class GamePanel {
     public void resetGame(boolean restart) { mapManager.resetGame(restart); }
 
     /**
-     * Tear down any live multiplayer session and wipe every trace of the run that just ended —
+ * Tear down any live multiplayer session and wipe every trace of the run that just ended
      * world, player stats, inventory, skills, story flags, quests, journal.
      *
      * <p>Singleplayer and multiplayer share ONE {@link GamePanel}: the same {@code player}, the same
      * {@code obj/npc/monster/iTile} arrays, the same story flags. Nothing about entering or leaving a
-     * session used to clear any of that, so state bled straight across the boundary — a multiplayer
+ * session used to clear any of that, so state bled straight across the boundary, a multiplayer
      * session inherited whatever singleplayer left in memory (inventory, level, opened chests, the
      * streamed-over map), and quitting back to the title left the multiplayer world in place for the
      * next singleplayer run to start on top of. Both directions have to start from a clean slate,
      * which is why this is called on the way IN to a session and on the way OUT of one.
      *
      * <p>This is the same wipe {@code KeyHandler.startNewGame()} performs before the awakening
-     * cutscene — it is factored out here so the mode-change paths cannot drift from it.
+ * cutscene, it is factored out here so the mode-change paths cannot drift from it.
      */
     public void resetSession() {
         // Drop the network session first: a live mpClient/BLE peer would otherwise keep writing
@@ -510,7 +510,7 @@ public class GamePanel {
 
         // resetGame(true) rebuilds the world from the starting map and calls
         // player.setDefaultValues(), which clears the inventory and restores level/life/mana/
-        // stats/skill unlocks — the "stats and inventory" half of the reset.
+        // stats/skill unlocks, the "stats and inventory" half of the reset.
         resetGame(true);
     }
 
@@ -580,7 +580,7 @@ public class GamePanel {
         if (ui       != null) ui.onResolutionChanged();
     }
 
-    // (Custom in-canvas window controls/resize/drag removed — the libGDX LWJGL3 window provides
+    // (Custom in-canvas window controls/resize/drag removed, the libGDX LWJGL3 window provides
     // native decorations; F11 toggles fullscreen via applyFullScreenSetting.)
 
     public void setVSync(boolean enabled) {
@@ -663,7 +663,7 @@ public class GamePanel {
     public void update() {
         tickCounter++;
 
-        // TITLE MUSIC: start Main_Theme on entering the title screen, stop it on leaving —
+        // TITLE MUSIC: start Main_Theme on entering the title screen, stop it on leaving
         // one place instead of every titleState entry/exit site (new game, continue, quit to
         // title from pause/game-over, cutscene end, etc.).
         if (gameState != previousGameState) {
@@ -674,13 +674,13 @@ public class GamePanel {
             }
             // Whatever key/click closed the previous screen may have left a bound action's
             // one-shot "pending press" flag stale (e.g. E read via a raw key check instead of
-            // consumePressed()) — cleared here, one place, instead of every individual
+            // consumePressed()), cleared here, one place, instead of every individual
             // screen-close site having to remember to drain it. See InputActions.clearAllPending().
             actions.clearAllPending();
             previousGameState = gameState;
         }
 
-        // PENDING DEBUG RELOADS — executed here on the game-loop thread to avoid race conditions
+        // PENDING DEBUG RELOADS, executed here on the game-loop thread to avoid race conditions
         if (pendingReloadAll)      { pendingReloadAll      = false; doReloadAll(); }
         if (pendingReloadNPCs)     { pendingReloadNPCs     = false; doReloadNPCs(); }
         if (pendingReloadMonsters) { pendingReloadMonsters = false; doReloadMonsters(); }
@@ -729,7 +729,7 @@ public class GamePanel {
         }
 
         // DIALOGUE LOGIC (60 UPS): typewriter tick + Enter input + gameState transitions.
-        // Must NOT run in the draw path — at 400 FPS that makes dialogue FPS-dependent
+        // Must NOT run in the draw path, at 400 FPS that makes dialogue FPS-dependent
         // and saturates the CPU with wrapText() calls, starving the EDT.
         if (gameState == dialogueState || gameState == cutsceneState) {
             ui.updateDialogueState();
@@ -741,7 +741,7 @@ public class GamePanel {
 
         // World keeps simulating during dialogue, while the inventory/character screen is open, AND
         // during a cutscene (NPCs, monsters, particles, wind, lighting, etc.) so the game doesn't
-        // visibly freeze in the background — only the player is held out (via the playState-only
+        // visibly freeze in the background, only the player is held out (via the playState-only
         // player.update() below) so they can't move/act while a menu/cutscene has taken over. The boss
         // being shown off by BossIntroCutscene freezes itself into an idle pose (see the check at the
         // top of Boss.update()) so it doesn't wander off mid-shot while everything else keeps moving.
@@ -804,7 +804,7 @@ public class GamePanel {
                                    && bossIntroCutscene.getBoss() != monster[i]) {
                             // Distant monsters: run AI every 4 frames to prevent snap-teleport on re-entry.
                             // This calls setAction() directly, bypassing Boss.update()'s intro-cutscene
-                            // freeze check — so a boss the camera hasn't panned to yet (still "distant")
+                            // freeze check, so a boss the camera hasn't panned to yet (still "distant")
                             // could otherwise keep chasing the player throughout its own intro. Skip it
                             // entirely while it's the cutscene's subject.
                             monster[i].setAction();
@@ -852,7 +852,7 @@ public class GamePanel {
                 }
             }
             // Atmosphere: clouds, fog, fireflies, wind, music tension. None of it changes a
-            // gameplay outcome — it only decides what the frame looks and sounds like — and all of
+            // gameplay outcome, it only decides what the frame looks and sounds like, and all of
             // it lazily bakes GPU textures. The authoritative server has no frame and no GL, so it
             // skips the lot; everything below this block (spawning, events, entities) it still runs.
             if (!Headless.isEnabled()) {
@@ -879,7 +879,7 @@ public class GamePanel {
                 // NPC lights (e.g. a glowing figure beckoning in a dark cave) get a colored glow too.
                 addColoredGlows(npc, flickerBase, 100f);
                 // Remote players (BLE "invite player" guests/host, or TCP multiplayer server peers)
-                // broadcast the same warm glow as the local player's own torch light — see
+                // broadcast the same warm glow as the local player's own torch light, see
                 // RemotePlayerEntity and syncRemotePlayerEntities().
                 addRemotePlayerGlows();
                 fireflyLayer.addLights(eManager.lightning);
@@ -968,8 +968,8 @@ public class GamePanel {
 
     /**
      * Rebuilds {@link #remotePlayerEntities} from the live session state (TCP {@link #mpClient} and/or
-     * BLE {@link #bleSession}) every tick, so remote players are real {@link entity.Entity} instances —
-     * not just draw-only rectangles — for any system (currently: lighting) that wants to treat them as
+ * BLE {@link #bleSession}) every tick, so remote players are real {@link entity.Entity} instances
+ * not just draw-only rectangles, for any system (currently: lighting) that wants to treat them as
      * such. Stale entities (player left / session ended) are pruned; existing ones are reused in place
      * rather than reallocated so this stays allocation-free during steady-state play.
      */
@@ -1002,7 +1002,7 @@ public class GamePanel {
     }
 
     /** Colored-glow light per remote player entity, same warm player tint as the local player's torch
-     *  (no flicker — a player's glow should read steady, unlike ambient torch/NPC lights). */
+ * (no flicker, a player's glow should read steady, unlike ambient torch/NPC lights). */
     private void addRemotePlayerGlows() {
         if (eManager.lightning == null || remotePlayerEntities.isEmpty()) return;
         for (entity.RemotePlayerEntity re : remotePlayerEntities.values()) {
@@ -1043,7 +1043,7 @@ public class GamePanel {
         memoryFlashback.draw(g2);
     }
 
-    // DEBUG TEXT — drawn in DEVICE-pixel space so it stays crisp and fixed-size in fullscreen
+    // DEBUG TEXT, drawn in DEVICE-pixel space so it stays crisp and fixed-size in fullscreen
     // (logical-space text is magnified by pixelScale via Nearest filtering, which made it jaggy).
     if(keyH.showDebugText) {
         g2.beginDeviceSpace();
@@ -1203,13 +1203,13 @@ public class GamePanel {
         startTransition(targetId, -1, -1);
     }
 
-    // ── Called from EDT (key/menu) — just schedules; actual work runs on game-loop thread ──
+    // ── Called from EDT (key/menu), just schedules; actual work runs on game-loop thread ──
     public void reloadCurrentMapDebug() { pendingReloadAll      = true; }
     public void reloadNPCsDebug()       { pendingReloadNPCs     = true; }
     public void reloadMonstersDebug()   { pendingReloadMonsters = true; }
     public void reloadObjectsDebug()    { pendingReloadObjects  = true; }
 
-    // ── Actual reload implementations — MUST be called from the game-loop thread ──
+    // ── Actual reload implementations, MUST be called from the game-loop thread ──
     private void doReloadAll() {
         if (mapManager == null) return;
         data.NPCFactory.invalidateCache();

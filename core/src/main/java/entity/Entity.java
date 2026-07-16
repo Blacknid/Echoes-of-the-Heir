@@ -23,7 +23,7 @@ public class Entity {
     private static final int PATH_STALL_LIMIT = 10; // force repath after this many stalled frames
 
     // Consecutive frames spent completely unable to move toward the goal (A* found no route AND
-    // directChase is blocked on both axes) — once this crosses the limit, the chaser gives up and
+    // directChase is blocked on both axes), once this crosses the limit, the chaser gives up and
     // drops back to idle/wander instead of pushing against a wall forever.
     private int unreachableCounter = 0;
     private static final int UNREACHABLE_GIVE_UP_LIMIT = 90; // ~1.5s at 60 ticks/sec
@@ -38,7 +38,7 @@ public class Entity {
     // current axis must be beaten by more than this factor before switching, so standing near a
     // ~45 degree angle doesn't flicker the facing direction back and forth every frame.
     protected static final double DIRECTION_HYSTERESIS = 1.3;
-    // Below this many pixels of separation on an axis, ignore it when deciding facing direction —
+    // Below this many pixels of separation on an axis, ignore it when deciding facing direction
     // avoids flickering left/right (or up/down) from sub-tile jitter at point-blank range.
     private static final int DIRECTION_DEADZONE = 6;
 
@@ -138,7 +138,7 @@ public class Entity {
     private static final Color SPARK_COLOR_1 = new Color(255, 235, 120);
     private static final Color SPARK_COLOR_2 = new Color(255, 200, 80);
     private static final Color COIN_MSG_COLOR = new Color(255, 210, 90);
-    // (Hit-flash/telegraph now tint on the GPU via the batch — no intermediate buffer needed.)
+    // (Hit-flash/telegraph now tint on the GPU via the batch, no intermediate buffer needed.)
 
 
 
@@ -204,7 +204,7 @@ public class Entity {
     public boolean onPath = false;
     public boolean knockBack = false;          // true while being pushed by an attack
     public int knockBackPower = 0;             // magnitude of the push (for debug display)
-    // Knockback: callers set knockBackVectorX/Y as the INITIAL burst velocity (pixels/frame) — a
+    // Knockback: callers set knockBackVectorX/Y as the INITIAL burst velocity (pixels/frame), a
     // quick pop in the hit direction. Entity.update() then decays it every frame (knockBackDecay),
     // so the motion is fast-then-slow instead of a constant slide, and stops itself once the
     // velocity trails off (or on collision) rather than needing a separate travel-distance budget.
@@ -249,7 +249,7 @@ public class Entity {
     public String name;
     public int defaultSpeed = 1;
     public int speed;
-    // Multiplies the walk-cycle frame rate independently of movement speed — normally 1 (animation
+    // Multiplies the walk-cycle frame rate independently of movement speed, normally 1 (animation
     // cadence tracks movement speed like every other entity); raise it for a slow-moving entity
     // whose walk animation should still read at a normal pace (e.g. Inkblot).
     public float animSpeedMultiplier = 1f;
@@ -283,10 +283,10 @@ public class Entity {
     public boolean invisible = false;   // set from Tiled 'invisible' property (no draw)
     public int aggroRange = 160;        // aggro distance in pixels (default ~2.5 tiles)
     public int interactRange = 0;       // if > 0, player can interact when within this radius (facing the NPC)
-    public int depthSortYOffset = 0;    // added to entityY in depth sort — positive pushes entity to draw in front of lower tiles
+    public int depthSortYOffset = 0;    // added to entityY in depth sort, positive pushes entity to draw in front of lower tiles
     public int wanderRadius = 0;        // max wander pixel offset from spawn (0 = free)
     public Rect confinementZone = null; // if set, monster cannot leave this rectangle (world pixels)
-    public boolean staticNPC = false;   // NPC never wanders or follows paths — stays in place
+    public boolean staticNPC = false;   // NPC never wanders or follows paths, stays in place
     public boolean guardMode  = false;  // Static from spawn; faces the player every tick. Set onPath=true to unlock movement.
     public String portraitPath = null;  // optional portrait image path (e.g. "/res/NPC/alucard_portrait.png")
     public int walkToCol = -1;          // after interaction: walk to this tile column, then re-enter guardMode (-1 = unused)
@@ -334,7 +334,7 @@ public class Entity {
     public String   memoryFragmentName = null;   // display name ("His Last Expression")
     public String[] memoryFragmentText = null;   // 1–5 lines of flashback text
     public boolean  memoryFragmentClaimed = false;
-    // Trigger conditions — checked to decide if the fragment can be claimed
+    // Trigger conditions, checked to decide if the fragment can be claimed
     public int    fragmentRequiredCount = -1;     // minimum fragment count (-1 = no requirement)
     public String fragmentRequiredItem  = null;   // player must hold this item
     public int    fragmentRequiredBoss  = -1;     // boss # that must be defeated (1–4, -1 = none)
@@ -410,7 +410,7 @@ public class Entity {
 
     /**
      * Checks if the player has the required item; if so, starts the alternate dialogue.
-     * Call at the top of speak() — returns true if the item dialogue was triggered.
+ * Call at the top of speak(), returns true if the item dialogue was triggered.
      */
     protected boolean checkRequiredItemDialogue() {
         if (requiredItem != null && requiredItemDialogueSet >= 0) {
@@ -489,20 +489,20 @@ public class Entity {
     }
     /**
      * Turns this entity to face toward the player's actual position, ignoring the player's facing
-     * direction. Picks a single cardinal axis (never diagonal) and applies hysteresis — both for
+ * direction. Picks a single cardinal axis (never diagonal) and applies hysteresis, both for
      * switching axis (e.g. horizontal to vertical) and for flipping sign on the current axis (e.g.
-     * left to right) — so standing right next to the player, where dx/dy are tiny and noisy as they
+ * left to right), so standing right next to the player, where dx/dy are tiny and noisy as they
      * shuffle around, doesn't flicker the facing direction every frame.
      */
     public void faceTowardPlayer() {
-        // Centers, not worldX/worldY corners — entities whose hitbox is offset from their sprite's
+        // Centers, not worldX/worldY corners, entities whose hitbox is offset from their sprite's
         // top-left (e.g. a boss anchored upper-center for a floating sprite) would otherwise compare
         // against a point far from where their actual hitbox sits, making "level with the player"
         // visually mean something different than dy == 0.
         int dx = gp.player.getCenterX() - getCenterX();
         int dy = gp.player.getCenterY() - getCenterY();
 
-        // Deadzone: too close on both axes to meaningfully tell a direction apart — keep facing
+        // Deadzone: too close on both axes to meaningfully tell a direction apart, keep facing
         // whatever direction was already chosen instead of reacting to sub-pixel noise.
         if (Math.abs(dx) < DIRECTION_DEADZONE && Math.abs(dy) < DIRECTION_DEADZONE) return;
 
@@ -541,7 +541,7 @@ public class Entity {
 
     /**
      * Called right before a melee hit would apply damage to this entity. Return true to dodge the
-     * hit entirely (no damage, no knockback, no hit reaction) — the caller is responsible for
+ * hit entirely (no damage, no knockback, no hit reaction), the caller is responsible for
      * whatever visual/sound the dodge itself needs. Default: never dodges.
      */
     public boolean tryDodgeIncomingHit() { return false; }
@@ -579,7 +579,7 @@ public class Entity {
         }
 
         // Cutscene-style framing: turn the NPC toward the player and set the dialogue camera to zoom
-        // in and recenter on the midpoint of player+NPC. ONLY for real world NPCs — event-driven
+        // in and recenter on the midpoint of player+NPC. ONLY for real world NPCs, event-driven
         // dialogues (DialogueTrigger, healing pool, campfire, etc.) speak through a placeholder
         // eventMaster Entity with no world position, so framing on it would fling the camera to
         // (0,0). Those keep the camera centered on the player (neutral dialogue camera).
@@ -726,7 +726,7 @@ public class Entity {
             return;
         }
 
-        // handling knockback first — check collision before moving to prevent wall phasing
+        // handling knockback first, check collision before moving to prevent wall phasing
         if (tickKnockback()) {
             // i-frames must still count down during knockback, otherwise a fresh hit re-arming
             // knockback every swing (see Player.damageMonster) freezes invincible permanently and
@@ -763,7 +763,7 @@ public class Entity {
         int previousWorldY = worldY;
 
         // Activity-state evaluation (which animation/dialogueSet is active) must run every frame
-        // regardless of staticNPC — setAction() itself is skipped for static NPCs (they never
+        // regardless of staticNPC, setAction() itself is skipped for static NPCs (they never
         // wander), but a stationary NPC (e.g. the blacksmith) still needs its activity re-evaluated
         // continuously so state changes (quest progress) pick a new animation without requiring an
         // interaction first.
@@ -975,7 +975,7 @@ public class Entity {
 
             // Preserve the sprite's own aspect ratio instead of always stretching it into a square
             // tileSize x tileSize box. A source frame taller than wide (e.g. a standing NPC's 32x48
-            // idle frame) was previously squashed vertically to fit that square — visibly "pressed
+            // idle frame) was previously squashed vertically to fit that square, visibly "pressed
             // down" relative to the actual sheet. Keep width at the normal tileSize*spriteScale and
             // scale height to match the sprite's real proportions instead.
             if (currentSprite != null && currentSprite.getWidth() > 0) {
@@ -983,7 +983,7 @@ public class Entity {
                 drawH = Math.round(drawW * aspect);
             }
 
-            // Monster HP Bar — never draw once the monster is dying/dead, even if hpBarOn was still
+            // Monster HP Bar, never draw once the monster is dying/dead, even if hpBarOn was still
             // set from the killing hit (a lingering bar with residual HP looks like a bug).
             if (type == TYPE_MONSTER && hpBarOn && !dying && alive) {
                 double oneScale = (double)gp.tileSize / maxLife;
@@ -1027,7 +1027,7 @@ public class Entity {
             }
                 
             // Shadows are a consequence of light: the sprite's own pixels are drawn into the occluder
-            // mask (drawOccluder) and the light shader ray-marches them. No hardcoded blob shadow — the
+            // mask (drawOccluder) and the light shader ray-marches them. No hardcoded blob shadow, the
             // old oval drop-shadow was a fake "shadow object" independent of any light and is removed.
 
             // Safe guard against null images
@@ -1038,7 +1038,7 @@ public class Entity {
             }
 
             // ATTACK TELEGRAPH: tint sprite red when about to attack.
-            // GPU-native: redraw the sprite tinted red at telegraphAlpha — the sprite's own alpha
+            // GPU-native: redraw the sprite tinted red at telegraphAlpha, the sprite's own alpha
             // masks the tint to its silhouette (equivalent to the old SRC_ATOP buffer composite).
             if (attackWindupFlash > 0 && currentSprite != null && hitFlashCounter == 0) {
                 float telegraphAlpha = Math.min(0.7f, attackWindupFlash / 20f * 0.7f);
@@ -1061,7 +1061,7 @@ public class Entity {
     private static final Color TELEGRAPH_TINT = new Color(255, 60, 60);
 
     /**
-     * Resolve the sprite frame this entity would draw THIS frame — activity → idle → walk fallback,
+ * Resolve the sprite frame this entity would draw THIS frame, activity → idle → walk fallback,
      * mirroring the selection order in {@link #draw}. Extracted so the shadow-occluder pass casts the
      * exact silhouette the entity renders (same pose, same facing), keeping shadow and sprite in sync.
      */
@@ -1110,7 +1110,7 @@ public class Entity {
      * clears to transparent and draws every caster's current sprite in solid black; the light shader then
      * ray-marches this mask so lit pixels behind a silhouette fall into shadow. We draw the SAME frame at
      * the SAME screen rect as {@link #draw}, so the cast shadow matches the visible pose. Color/tint are
-     * ignored — only the sprite's alpha (its true silhouette, including canopy gaps) matters.
+ * ignored, only the sprite's alpha (its true silhouette, including canopy gaps) matters.
      */
     public void drawOccluder(GdxRenderer g2) {
         if (!castsShadow()) return;
@@ -1253,7 +1253,7 @@ public class Entity {
         // A caller just triggered this knockback this frame: seed the burst velocity from the
         // vector they set, then clear it so it isn't re-seeded every frame while decaying.
         // Scaled up (BURST_MULTIPLIER) since callers tuned their power values for the old
-        // constant-speed slide — the decay model needs a punchier initial pop to cover a similar
+        // constant-speed slide, the decay model needs a punchier initial pop to cover a similar
         // total distance before it tails off.
         if (knockBackVectorX != 0 || knockBackVectorY != 0) {
             knockBackVelX = knockBackVectorX * KNOCKBACK_BURST_MULTIPLIER;
@@ -1266,7 +1266,7 @@ public class Entity {
         }
 
         // Sub-pixel accumulation: at high decay the per-frame step can be well under 1px, so we
-        // carry the fractional remainder forward instead of losing it to int truncation — the
+        // carry the fractional remainder forward instead of losing it to int truncation, the
         // burst still reads as smooth motion as it tails off, not a jump then a dead stop.
         knockBackAccumX += knockBackVelX;
         knockBackAccumY += knockBackVelY;
@@ -1278,7 +1278,7 @@ public class Entity {
         int nextX = worldX + stepX;
         int nextY = worldY + stepY;
         gp.cChecker.checkTileNext(this, nextX, nextY);
-        // checkTileNext only guards against static map/tile geometry — also block sliding into any
+        // checkTileNext only guards against static map/tile geometry, also block sliding into any
         // solid object/interactive tile/NPC/monster, so a knockback never shoves an entity through
         // (or on top of) something else solid.
         if (!collisionOn && gp.cChecker.isSolidAt(this, nextX, nextY)) {
@@ -1310,7 +1310,7 @@ public class Entity {
 
     /**
      * Small puff of bob1-3 particles at the moment a knockback starts, selling the "impact burst"
-     * — a quick scatter roughly opposite the push direction, like debris kicked up by the hit.
+ *, a quick scatter roughly opposite the push direction, like debris kicked up by the hit.
      */
     private void spawnKnockbackBurst() {
         if (gp.particlePool == null) return;
@@ -1368,7 +1368,7 @@ public class Entity {
             // In multiplayer, XP, coins and the level-up are the server's to grant: it credits
             // them on the authoritative kill and pushes back player_stats (with leveledUp when a
             // level was gained). Awarding them here too would let a client mint its own XP/gold,
-            // which is exactly what we're closing — so skip the local award and let the server's
+            // which is exactly what we're closing, so skip the local award and let the server's
             // player_stats be the only thing that changes these.
             boolean serverOwnsRewards = gp.multiplayerMode
                     && gp.mpClient != null && gp.mpClient.isConnected();
@@ -1429,7 +1429,7 @@ public class Entity {
         int startCol = (worldX + solidArea.x) / gp.tileSize;
         int startRow = (worldY + solidArea.y) / gp.tileSize;
 
-        // Already standing on the goal — nothing to do
+        // Already standing on the goal, nothing to do
         if (startCol == goalCol && startRow == goalRow) {
             onPath = false;
             waypointCount = 0;
@@ -1451,7 +1451,7 @@ public class Entity {
             return;
         }
 
-        // Goal changed or stalled too long — run A* and cache the result
+        // Goal changed or stalled too long, run A* and cache the result
         pathStallCounter = 0;
         pathCacheGoalCol = goalCol;
         pathCacheGoalRow = goalRow;
@@ -1461,7 +1461,7 @@ public class Entity {
         gp.pFinder.setNodes(startCol, startRow, goalCol, goalRow, this);
         if (gp.pFinder.search()) {
             int pathSize = gp.pFinder.pathList.size();
-            // Grow backing arrays if needed — rare (only when path is longer than previous max)
+            // Grow backing arrays if needed, rare (only when path is longer than previous max)
             if (pathSize > waypointCols.length) {
                 int newCap = Math.max(pathSize, waypointCols.length * 2);
                 waypointCols = new int[newCap];
@@ -1479,7 +1479,7 @@ public class Entity {
                 onPath = false;
             }
         } else {
-            // A* found no route at all (goal fully walled off) — counts toward giving up exactly
+            // A* found no route at all (goal fully walled off), counts toward giving up exactly
             // like a blocked directChase does, so a target that's unreachable via any route
             // doesn't get chased forever.
             unreachableCounter++;
@@ -1528,7 +1528,7 @@ public class Entity {
         int dx = Math.abs(nextCenterX - enCenterX);
         int dy = Math.abs(nextCenterY - enCenterY);
 
-        // Reached current waypoint — advance to next
+        // Reached current waypoint, advance to next
         if (dx <= speed + 1 && dy <= speed + 1) {
             waypointIdx++;
             pathStallCounter = 0;
@@ -1561,7 +1561,7 @@ public class Entity {
             if (!moved) tryMoveVertical(enTopY, nextY);
         }
 
-        // Always count frames spent on this waypoint — triggers repath around obstacles
+        // Always count frames spent on this waypoint, triggers repath around obstacles
         pathStallCounter++;
     }
 
@@ -1597,7 +1597,7 @@ public class Entity {
 
     /**
      * Direct chase fallback: move toward the goal tile without A*. Returns true if either axis
-     * actually moved this frame — false means both the primary and fallback axis were blocked,
+ * actually moved this frame, false means both the primary and fallback axis were blocked,
      * i.e. the entity is completely stuck trying to reach the goal this tick.
      */
     protected boolean directChase(int goalCol, int goalRow) {
@@ -1654,11 +1654,11 @@ public class Entity {
             // otherwise treat it as a single-row strip and duplicate that row
             // across the expected directions.
             //
-            // Cell width and height are derived INDEPENDENTLY from the sheet's width/height —
+            // Cell width and height are derived INDEPENDENTLY from the sheet's width/height
             // NOT assumed square. A sheet whose frames are e.g. 32x48 (taller than wide, like a
             // standing-character idle sheet) previously had its cell width wrongly derived from
             // cellHeight (48), computing only sheet.getWidth()/48 = 4 columns instead of the real
-            // 6, which sliced two real frames' worth of pixels into one wrong, overlapping crop —
+            // 6, which sliced two real frames' worth of pixels into one wrong, overlapping crop
             // exactly the "bugged sprite" look. Width must come from the sheet's own width divided
             // by how many columns are actually expected.
             int rowsActual;
@@ -1680,7 +1680,7 @@ public class Entity {
             for (int y = 0; y < rowsWanted; y++) {
                 int expected = framesPerRow[y];
                 if (colsActual <= 0) {
-                    // No frames available — leave nulls; draw code guards against null sprites.
+                    // No frames available, leave nulls; draw code guards against null sprites.
                     frames[y] = new Sprite[expected];
                     continue;
                 }
@@ -1697,7 +1697,7 @@ public class Entity {
 
                     // Zero-copy sub-region (no padding buffer needed on the GPU); report tileSize logical.
                     // Scale to tileSize WIDTH but preserve the crop's own aspect ratio for height,
-                    // instead of forcing a square — a non-square source frame (e.g. 32x48, taller
+                    // instead of forcing a square, a non-square source frame (e.g. 32x48, taller
                     // than wide) previously got squashed to fit tileSize x tileSize here, then drawn
                     // at that squashed shape forever after. Entity.draw() reads this sprite's actual
                     // width/height back out to size the on-screen draw, so the real proportions need
@@ -1783,7 +1783,7 @@ public class Entity {
                     );
                 } else {
                     // Partial row: take the available sub-region but report the full cell as logical
-                    // size (GPU pads transparently — no buffer copy needed).
+                    // size (GPU pads transparently, no buffer copy needed).
                     matrix[y][x] = sheet.getSubimage(x * spriteWidth, srcY, spriteWidth, srcH)
                             .withLogicalSize(spriteWidth, spriteHeight);
                 }

@@ -17,7 +17,7 @@ public class OBJ_Door extends Entity {
 
     /** Direction the player faces after entering through this door (default: DIR_DOWN). */
     public int spawnDirection = DIR_DOWN;
-    /** Named spawn point on the target map — resolved after the map loads. */
+    /** Named spawn point on the target map, resolved after the map loads. */
     public String spawnId = "";
 
     public Sprite[] doorOpenFrames;
@@ -105,7 +105,7 @@ public class OBJ_Door extends Entity {
                 gp.player.worldX = col * gp.tileSize;
                 gp.player.worldY = row * gp.tileSize;
             } else if (doorOpenFrames != null && doorOpenFrames.length > 0) {
-                // Door has opening animation — play it first, then transition
+                // Door has opening animation, play it first, then transition
                 pendingLocation = location;
                 pendingSpawnCol = spawnCol;
                 pendingSpawnRow = spawnRow;
@@ -114,7 +114,7 @@ public class OBJ_Door extends Entity {
                 doorAnimCounter = 0;
                 gp.inputLocked = true;
             } else {
-                // No animation — immediate transition
+                // No animation, immediate transition
                 beginTransition(location, spawnCol, spawnRow);
             }
         } else {
@@ -131,7 +131,7 @@ public class OBJ_Door extends Entity {
             doorAnimCounter = 0;
             doorAnimIndex++;
             if (doorAnimIndex >= doorOpenFrames.length) {
-                // Animation finished — start the map transition
+                // Animation finished, start the map transition
                 doorOpening = false;
                 gp.inputLocked = false;
                 down1 = doorOpenFrames[doorOpenFrames.length - 1]; // hold last frame

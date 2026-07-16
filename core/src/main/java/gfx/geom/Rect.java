@@ -4,7 +4,7 @@ package gfx.geom;
  * Axis-aligned rectangle mirroring {@code java.awt.Rectangle} / {@code Rectangle2D.Double}
  * for the API the game uses (public x/y/width/height fields, contains, intersects, translate,
  * getBounds, getCenterX/Y). Used for entity hitboxes (solidArea, attackArea) and unrotated
- * collision objects — a drop-in type swap that preserves the original collision math.
+ * collision objects, a drop-in type swap that preserves the original collision math.
  *
  * <p>Fields are {@code int} (like java.awt.Rectangle) to match the existing arithmetic, but
  * the {@link Shape} methods accept doubles so Rect interoperates with the other shapes.
@@ -19,7 +19,7 @@ public class Rect implements Shape {
         this.x = x; this.y = y; this.width = width; this.height = height;
     }
 
-    /** Copy ctor — mirrors {@code new Rectangle(Rectangle)}. */
+    /** Copy ctor, mirrors {@code new Rectangle(Rectangle)}. */
     public Rect(Rect r) { this(r.x, r.y, r.width, r.height); }
 
     public void setBounds(int x, int y, int width, int height) {
@@ -47,7 +47,7 @@ public class Rect implements Shape {
         return px >= x && px < x + width && py >= y && py < y + height;
     }
 
-    /** Rectangle-vs-Rectangle overlap — mirrors java.awt.Rectangle.intersects(Rectangle). */
+    /** Rectangle-vs-Rectangle overlap, mirrors java.awt.Rectangle.intersects(Rectangle). */
     public boolean intersects(Rect r) {
         return intersects(r.x, r.y, r.width, r.height);
     }

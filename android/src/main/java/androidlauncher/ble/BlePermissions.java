@@ -8,9 +8,9 @@ import android.os.Build;
 
 /**
  * Runtime (dangerous) Bluetooth permission check/request for API 31+ (BLUETOOTH_ADVERTISE/
- * BLUETOOTH_CONNECT/BLUETOOTH_SCAN) — see AndroidManifest.xml's comment on why
+ * BLUETOOTH_CONNECT/BLUETOOTH_SCAN), see AndroidManifest.xml's comment on why
  * ACCESS_FINE_LOCATION isn't needed (neverForLocation). Below API 31 these permissions are
- * normal (granted at install), so {@link #hasAll} is trivially true there — this app's minSdk is
+ * normal (granted at install), so {@link #hasAll} is trivially true there, this app's minSdk is
  * 26, meaning no legacy pre-31 request path is needed either way.
  */
 public final class BlePermissions {
@@ -48,7 +48,7 @@ public final class BlePermissions {
     }
 
     /**
-     * Requests Bluetooth permissions once, the very first time the app is ever opened — so by the
+ * Requests Bluetooth permissions once, the very first time the app is ever opened, so by the
      * time a player actually taps INVITE PLAYER or JOIN GAME, the OS dialog is long out of the way
      * and doesn't interrupt the tap moment itself. Safe to call every boot: the "already asked"
      * flag (persisted in SharedPreferences, separate from Android's own permission grant state so

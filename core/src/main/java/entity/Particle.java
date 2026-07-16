@@ -28,15 +28,15 @@ public class Particle extends Entity implements Poolable {
     public static final int STYLE_TRAIL = 5;
     public static final int STYLE_BOB = 6;
     // Image-based debris burst (e.g. destroyed grass): tumbles outward, shrinks, and fades. Unlike
-    // STYLE_BOB it uses whatever Sprite the generator supplies via getParticleImage() — no fixed
-    // asset set — so any destructible tile can reuse this just by returning its own sprite.
+    // STYLE_BOB it uses whatever Sprite the generator supplies via getParticleImage(), no fixed
+    // asset set, so any destructible tile can reuse this just by returning its own sprite.
     public static final int STYLE_IMAGE_DEBRIS = 7;
     // Static one-shot stamp at a fixed world point (e.g. Strike_impact.png where a swing hit a wall/
-    // object) — no movement, no tumble. Plays through `frames` (if set) as a simple flipbook over its
+    // object), no movement, no tumble. Plays through `frames` (if set) as a simple flipbook over its
     // lifetime, else just shows `image` and fades.
     public static final int STYLE_IMPACT = 8;
     // Water droplet: quick outward burst that arcs under gravity and falls back down (unlike STYLE_BOB's
-    // gentle rise) — used for swim dashes instead of the dust bob burst.
+    // gentle rise), used for swim dashes instead of the dust bob burst.
     public static final int STYLE_SPLASH = 9;
 
     public Sprite image;
@@ -125,10 +125,10 @@ public class Particle extends Entity implements Poolable {
                 rotationDeg += xd * 14f; // tumble; direction/speed come from the burst's xd sign
                 break;
             case STYLE_IMPACT:
-                break; // static — no velocity, just ages out (fade handled in draw())
+                break; // static, no velocity, just ages out (fade handled in draw())
             case STYLE_SPLASH:
                 velocityX *= 0.92f;
-                velocityY += 0.16f; // stronger gravity than dust — falls back to the water fast
+                velocityY += 0.16f; // stronger gravity than dust, falls back to the water fast
                 break;
             default:
                 velocityY += 0.09f;
@@ -227,7 +227,7 @@ public class Particle extends Entity implements Poolable {
                 }
                 if (frame != null) {
                     // Punchy pop-in: scales up from 60% to 100% over the first fifth of its life,
-                    // then holds at full size — reads as an impact rather than a static stamp.
+                    // then holds at full size, reads as an impact rather than a static stamp.
                     float growT = Math.min(1f, age / 0.2f);
                     float scale = 0.6f + 0.4f * growT;
                     int drawSize = Math.max(1, Math.round(size * scale));
@@ -340,7 +340,7 @@ public class Particle extends Entity implements Poolable {
         // renderSorter/tile-interleave both key off "bottom edge" (tiles use worldY + tileSize; see
         // TileManager's sortY). worldY here is the sprite's TOP-LEFT corner (centerY - size/2), so
         // solidArea.height = size makes the sort key resolve to the stamp's BOTTOM edge
-        // (centerY + size/2) — at least as deep as the wall tile it's stamped on, so it draws in
+        // (centerY + size/2), at least as deep as the wall tile it's stamped on, so it draws in
         // front of that tile instead of being hidden behind it (the class-default 48px box put the
         // key well above the tile's own bottom-edge key, which is why it drew underneath).
         this.solidArea.x = 0;

@@ -42,7 +42,7 @@ public class OBJ_Chest extends Entity {
     /**
      * Load a multi-frame opening animation from a horizontal spritesheet, laid out left-to-right
      * with frameCount equal-width frames spanning the sheet's own native resolution (NOT assumed to
-     * already be tileSize × tileSize — e.g. chests.png is 128x32 native = 32px/frame, regardless of
+ * already be tileSize × tileSize, e.g. chests.png is 128x32 native = 32px/frame, regardless of
      * the current tileSize). Slicing must happen in native pixel space (getSubimage uses the sheet's
      * native rect), then each frame is scaled up to tileSize × tileSize for drawing. Loading the sheet
      * pre-scaled and slicing with tileSize-sized steps (the old code) reads out of the native bounds
@@ -83,7 +83,7 @@ public class OBJ_Chest extends Entity {
         if (!requiredItem.isEmpty()) {
             int idx = gp.player.searchItemInInventory(requiredItem);
             if (idx == 999) {
-                // Player doesn't have the required item — use dialogue for this
+                // Player doesn't have the required item, use dialogue for this
                 startDialogue(this, 3);
                 return;
             }

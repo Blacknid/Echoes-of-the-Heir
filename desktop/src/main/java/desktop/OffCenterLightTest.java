@@ -17,7 +17,7 @@ import main.MichiGame;
  * Hypothesis: the light mask is composited VERTICALLY MIRRORED about the screen center on some
  * tier. The player's own light sits at screen center (dead-zone camera), so mirror(center)=center
  * and every previous "pool is centred on the player" verification PASSED while every off-center
- * light rendered in the wrong place — and slid vertically while walking (mirrored camera motion).
+ * light rendered in the wrong place, and slid vertically while walking (mirrored camera motion).
  *
  * Method: register one static test light 250px ABOVE the player (world coords) and one 250px to the
  * RIGHT, then screenshot. If the top light's pool renders BELOW the player, the mask is y-mirrored.

@@ -139,7 +139,7 @@ public class TileParticleEmitter {
             p.worldY = worldY + rng.nextInt(gp.tileSize / 2); // upper half of tree
             p.sortY = worldY;
 
-            // Gentle drifting motion — sway left/right, fall slowly
+            // Gentle drifting motion, sway left/right, fall slowly
             p.vx = (rng.nextFloat() - 0.5f) * 0.5f;
             p.vy = 0.15f + rng.nextFloat() * 0.25f; // gentle fall
             p.swayAmplitude = 0.3f + rng.nextFloat() * 0.4f;
@@ -237,7 +237,7 @@ public class TileParticleEmitter {
             int particleIndex = activeIndices[i];
             FP p = particles[particleIndex];
 
-            // Apply sway for leaf particles (fastSin LUT — no native Math.sin call)
+            // Apply sway for leaf particles (fastSin LUT, no native Math.sin call)
             if (p.swayAmplitude > 0) {
                 p.swayPhase += p.swaySpeed;
                 p.vx += MapShaderManager.fastSin(p.swayPhase) * p.swayAmplitude * 0.05f;
@@ -295,7 +295,7 @@ public class TileParticleEmitter {
             if (col >= 0 && col < gp.maxWorldCol && row >= 0 && row < gp.maxWorldRow) {
                 int gid = treeLayer[col][row];
                 if (gid != 0) {
-                    // This tile has a tree — spawn a leaf
+                    // This tile has a tree, spawn a leaf
                     int worldX = col * gp.tileSize;
                     int worldY = row * gp.tileSize;
                     spawnOne(ParticleType.LEAF_FALL, worldX, worldY, entity.Entity.DIR_DOWN);
@@ -318,7 +318,7 @@ public class TileParticleEmitter {
      * OPTIMIZATION: The sorted list is preserved across frames. Each call:
      *   1. Compacts dead entries out (O(n))
      *   2. Appends newly-activated particles (O(new))
-     *   3. Insertion-sorts — because particles drift only a few pixels per frame,
+ * 3. Insertion-sorts, because particles drift only a few pixels per frame,
      *      the list is almost-sorted from last frame, so insertion sort runs in
      *      effectively O(n) instead of O(n²) on random data.
      *

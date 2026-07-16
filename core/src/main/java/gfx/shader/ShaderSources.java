@@ -8,7 +8,7 @@ package gfx.shader;
  * Targets GLSL ES 1.00 / desktop GLSL 120 (the {@code #version} line is intentionally omitted so
  * libGDX's {@link com.badlogic.gdx.graphics.glutils.ShaderProgram} prepends the right header per
  * platform). We use only {@code attribute}/{@code varying}, no dynamic-length loops that some drivers
- * reject — the light loop runs to a COMPILE-TIME constant {@code MAX_LIGHTS} and breaks early at the
+ * reject, the light loop runs to a COMPILE-TIME constant {@code MAX_LIGHTS} and breaks early at the
  * uniform {@code u_lightCount}, which every GLSL 1.00 driver accepts.
  */
 final class ShaderSources {
@@ -34,7 +34,7 @@ final class ShaderSources {
      * {@code glBlendFunc(GL_ONE, GL_ONE_MINUS_SRC_ALPHA)}: darkness multiplies the scene down, the glow
      * adds each light's warm color where it falls. The MED/mobile variant is built from this SAME source
      * by prepending {@code #define SHADOW_STEPS 12} + {@code #define CHEAP 1} (fewer shadow steps, no
-     * organic noise) — see ShaderPipeline.
+ * organic noise), see ShaderPipeline.
      */
     static final String LIGHT_FRAG =
         "#ifdef GL_ES\n" +
@@ -46,7 +46,7 @@ final class ShaderSources {
         "uniform float u_darkness;\n" +
         "uniform int   u_lightCount;\n" +
         "uniform vec2  u_lightPos[" + MAX_LIGHTS + "];\n" +
-        "uniform vec2  u_lightWorld[" + MAX_LIGHTS + "];\n" + // light center in WORLD px — anchors noise to ground
+        "uniform vec2  u_lightWorld[" + MAX_LIGHTS + "];\n" + // light center in WORLD px, anchors noise to ground
         "uniform float u_lightRadius[" + MAX_LIGHTS + "];\n" +
         "uniform vec3  u_lightColor[" + MAX_LIGHTS + "];\n" +
         "uniform float u_lightIntensity[" + MAX_LIGHTS + "];\n" +
@@ -55,7 +55,7 @@ final class ShaderSources {
         "uniform float u_time;\n" +             // seconds, for flicker/breathing/noise animation
         "uniform float u_detail;\n" +           // 1 = organic detail on, 0 = clean circle (debug F7)
         "\n" +
-        // Cheap 2D value noise (hash + bilinear) — gives the light pool an organic, textured falloff
+        // Cheap 2D value noise (hash + bilinear), gives the light pool an organic, textured falloff
         // instead of a sterile perfect circle. No texture lookup needed.
         "float hash(vec2 p) {\n" +
         "    return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453);\n" +
@@ -119,7 +119,7 @@ final class ShaderSources {
         "        vec2  toL = frag - u_lightPos[i];\n" +
         "        float d = length(toL) / r;\n" +
         "        if (d >= 1.0) continue;\n" +
-        // Falloff: punchy hot core (biased) easing to 0 at the edge — a lamp, not a flat disc.
+        // Falloff: punchy hot core (biased) easing to 0 at the edge, a lamp, not a flat disc.
         "        float f = 1.0 - d;\n" +
         "        f = f * f * (3.0 - 2.0 * f);\n" +
         "        f = mix(f, f * f, 0.35);\n" +
@@ -156,17 +156,17 @@ final class ShaderSources {
         "        tint = mix(u_night, lightHue, clamp(0.45 * lit, 0.0, 0.75));\n" +
         "    }\n" +
         // PREMULTIPLIED output (composite with GL_ONE, ONE_MINUS_SRC_ALPHA): darkness multiplies the
-        // scene down, warmGlow ADDS the light's warm hue where it falls — tapered out of the overbright
+        // scene down, warmGlow ADDS the light's warm hue where it falls, tapered out of the overbright
         // core so the center doesn't blow out to white under bloom.
         "    vec3 warmGlow = normalize(lightTint + 0.0001) * litClamped * (0.14 * u_darkness);\n" +
         "    gl_FragColor = vec4(tint * darkAlpha + warmGlow, darkAlpha);\n" +
         "}\n";
 
     /**
-     * Per-sprite RIM LIGHTING — screen-space, no hitboxes, no authoring. Reads the occluder mask (which
+ * Per-sprite RIM LIGHTING, screen-space, no hitboxes, no authoring. Reads the occluder mask (which
      * already holds every sprite's true silhouette alpha) and the scene color. At each pixel it computes
      * the silhouette's edge NORMAL from the alpha gradient (Sobel-ish), then for the nearest lights adds
-     * a warm rim wherever that edge FACES a light — a bright kiss of light along the lit-facing contour of
+ * a warm rim wherever that edge FACES a light, a bright kiss of light along the lit-facing contour of
      * characters, trees, objects. The rim is tinted by BOTH the light color and the sprite's own color at
      * that pixel, so it "works with the sprite and its colors" and never looks like a flat white outline.
      * Runs additively over the lit scene, before bloom, so rims bloom too. Purely GPU.
@@ -219,7 +219,7 @@ final class ShaderSources {
         "        float facing = max(0.0, dot(nScreen, Ldir));\n" +   // edge faces the light?
         "        float atten = 1.0 - dist / r;\n" +
         "        atten *= atten;\n" +
-        // A light sitting basically ON this sprite (the carried player light) has no rim DIRECTION — every
+        // A light sitting basically ON this sprite (the carried player light) has no rim DIRECTION, every
         // edge faces it, so it would trace a flat outline. Fade rim in only once the light is a bit away,
         // so rim comes from OFFSET lights (torches, crystals) as a true directional highlight.
         "        float dirWeight = smoothstep(0.10, 0.35, dist / r);\n" +
@@ -253,7 +253,7 @@ final class ShaderSources {
 
     /**
      * One axis of a separable Gaussian blur. u_dir is (texelW,0) for horizontal, (0,texelH) for
-     * vertical. 9-tap kernel — wide enough for a soft glow, cheap enough for two passes per frame.
+ * vertical. 9-tap kernel, wide enough for a soft glow, cheap enough for two passes per frame.
      */
     static final String BLOOM_BLUR_FRAG =
         "#ifdef GL_ES\n" +
@@ -278,7 +278,7 @@ final class ShaderSources {
     /**
      * Final color grade applied when blitting the captured scene back to screen: a gentle filmic S-curve
      * for contrast, a warm highlight lift + cool shadow tint for a cohesive cinematic tone, and a touch
-     * of saturation. Keeps the pixel art readable — subtle, not an Instagram filter. u_warmth scales the
+ * of saturation. Keeps the pixel art readable, subtle, not an Instagram filter. u_warmth scales the
      * whole effect (0 = passthrough).
      */
     static final String GRADE_FRAG =
@@ -291,7 +291,7 @@ final class ShaderSources {
         "void main() {\n" +
         "    vec3 c = texture2D(u_scene, v_uv).rgb;\n" +
         "    float lum = dot(c, vec3(0.299, 0.587, 0.114));\n" +
-        // filmic-ish S-curve: deepen shadows, lift a touch — smoothstep gives a gentle contrast bump.
+        // filmic-ish S-curve: deepen shadows, lift a touch, smoothstep gives a gentle contrast bump.
         "    vec3 curved = mix(c, smoothstep(0.0, 1.0, c), 0.35);\n" +
         // warm highlights, cool shadows (split-tone), scaled by luminance and warmth.
         "    vec3 warm = vec3(1.06, 1.0, 0.92);\n" +

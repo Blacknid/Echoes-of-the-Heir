@@ -9,20 +9,20 @@ import java.util.Arrays;
 
 /**
  * Emulates a standard NFC Forum Type-4 Tag (the real NDEF tag application, distinct from
- * FriendHceService's custom-AID single-APDU exchange) — this is what's actually required for
+ * FriendHceService's custom-AID single-APDU exchange), this is what's actually required for
  * Android's tag-dispatch system to cold-launch this app on tap, via an Android Application Record
  * (AAR) inside the served NDEF message. Always active (registered once in AndroidManifest.xml,
  * like FriendHceService) rather than toggled with hosting state: the served message is a static
- * AAR-only NDEF record that only ever means "tap to open Michi's Adventure" — it deliberately
+ * AAR-only NDEF record that only ever means "tap to open Michi's Adventure", it deliberately
  * carries no live host MAC/session token/map id, since a cold-launched app has no code running
  * yet to consume a rich payload anyway. The real handoff (host MAC/token/map id) always happens
  * afterward over FriendHceService's custom-AID channel, once the app is actually running and back
- * in NFC reader mode — see androidlauncher.AndroidLauncher's NFC-launch auto-continuation.
+ * in NFC reader mode, see androidlauncher.AndroidLauncher's NFC-launch auto-continuation.
  *
  * <p>Why two separate HCE services: a real NDEF Type-4 Tag requires implementing the standard
  * SELECT NDEF-app-AID -&gt; SELECT CC file -&gt; READ BINARY -&gt; SELECT NDEF file -&gt; READ BINARY
  * round-trip sequence (this class), which Android's tag dispatcher specifically recognizes and
- * parses for an AAR to auto-launch a closed app. That parsing does NOT happen for a custom AID —
+ * parses for an AAR to auto-launch a closed app. That parsing does NOT happen for a custom AID
  * hence FriendHceService's simpler one-shot exchange works for an already-open app (foreground
  * reader mode, no dispatch/AAR involved) but can't cold-launch anything.
  */
@@ -41,7 +41,7 @@ public class Ndef4Service extends HostApduService {
     private static final byte[] SELECT_HEADER = {0x00, (byte) 0xA4};
     private static final byte[] READ_BINARY_HEADER = {0x00, (byte) 0xB0};
 
-    /** Built once — the served message never changes (see class doc: AAR-only, no live data). */
+    /** Built once, the served message never changes (see class doc: AAR-only, no live data). */
     private static final byte[] NDEF_MESSAGE = buildAarOnlyMessage("com.michi.adventure");
 
     private enum Selected { NONE, CC, NDEF }
@@ -134,7 +134,7 @@ public class Ndef4Service extends HostApduService {
         return out;
     }
 
-    /** Single-record NDEF message: just the Android Application Record — see class doc. */
+    /** Single-record NDEF message: just the Android Application Record, see class doc. */
     private static byte[] buildAarOnlyMessage(String packageName) {
         return ndefRecord((byte) 0x04 /* TNF_EXTERNAL_TYPE */,
                 "android.com:pkg".getBytes(StandardCharsets.US_ASCII),
@@ -143,7 +143,7 @@ public class Ndef4Service extends HostApduService {
 
     private static byte[] ndefRecord(byte tnf, byte[] type, byte[] payload, boolean isFirst, boolean isLast) {
         byte header = tnf;
-        header |= (byte) 0x10; // SR (short record — payload length fits one byte)
+        header |= (byte) 0x10; // SR (short record, payload length fits one byte)
         if (isFirst) header |= (byte) 0x80; // MB (message begin)
         if (isLast)  header |= (byte) 0x40; // ME (message end)
 

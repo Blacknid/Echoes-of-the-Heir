@@ -11,7 +11,7 @@ import java.util.Map;
 /**
  * Single source of truth for every game action and the physical inputs (keyboard key,
  * mouse button, controller button/axis) that trigger it. Java-side defaults below are
- * overlaid by res/data/keybindings.json, key by key — an action missing from the JSON
+ * overlaid by res/data/keybindings.json, key by key, an action missing from the JSON
  * (or a missing/corrupt file) silently keeps its Java default.
  *
  * Token format: "key:W", "key:SHIFT_LEFT" (Input.Keys name), "mouse:left_click" /
@@ -32,7 +32,7 @@ public final class InputBindings {
     public static final String DASH     = "dash";
     // ATTACK = melee sword swing (facing-direction on controller/keyboard-ENTER, mouse-aim on
     // left-click). SHOOT = ranged arrow (always facing-direction; no aim). INTERACT = talk to
-    // NPCs / advance dialogue / confirm inventory selection — historically shares physical
+    // NPCs / advance dialogue / confirm inventory selection, historically shares physical
     // triggers with ATTACK (ENTER also interacts) but is tracked separately so a future rebind
     // can split them without code changes.
     public static final String ATTACK   = "attack";
@@ -97,12 +97,12 @@ public final class InputBindings {
         bindings.put(MOVE_RIGHT, List.of("key:D", "key:RIGHT", "controller:buttonDpadRight", "controller:axisLeftX+"));
 
         bindings.put(DASH,     List.of("key:SHIFT_LEFT", "key:SHIFT_RIGHT", "controller:buttonR1"));
-        // mouse:left_click is intentionally NOT bound to ATTACK — Player.fireMouseAttackIfRequested()
+        // mouse:left_click is intentionally NOT bound to ATTACK, Player.fireMouseAttackIfRequested()
         // already reads mouseH.leftClicked directly and attacks toward the cursor (mouse-aim), a
         // completely separate mechanism from ATTACK's facing-direction swing. Double-binding the
         // click here made one physical click arm BOTH paths: the facing-direction swing fired
         // immediately, but the mouse-aim swing's own !attacking guard blocked it that same frame
-        // and left mouseH.leftClicked sitting true, unconsumed — so it fired a SECOND, delayed
+        // and left mouseH.leftClicked sitting true, unconsumed, so it fired a SECOND, delayed
         // attack toward wherever the cursor had drifted to by the time the first swing's animation
         // finished. See ATTACK's doc comment above for why ENTER still legitimately drives both.
         bindings.put(ATTACK,   List.of("key:ENTER", "controller:buttonX"));
@@ -132,7 +132,7 @@ public final class InputBindings {
     }
 
     /** Overlays res/data/keybindings.json onto the defaults, action by action. Missing/corrupt
-     *  file is not an error — it just means every action keeps its Java default. */
+ * file is not an error, it just means every action keeps its Java default. */
     private static void overlayFromJson() {
         try (InputStream is = util.ResourceCache.openClasspathStream("/res/data/keybindings.json")) {
             if (is == null) return;

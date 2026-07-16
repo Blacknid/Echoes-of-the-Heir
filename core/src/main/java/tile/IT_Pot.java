@@ -42,10 +42,10 @@ public class IT_Pot extends interactiveTile {
     /**
      * Generate a simple pixel-art pot sprite into a libGDX Pixmap (GPU-native replacement for
      * the old BufferedImage+Graphics2D procedural draw). Ovals are approximated with filled
-     * ellipses via Pixmap primitives — visually identical at tile scale.
+ * ellipses via Pixmap primitives, visually identical at tile scale.
      */
     private Sprite generatePotSprite(int size) {
-        // Headless (server): the pot's appearance is irrelevant to the simulation — only its size
+        // Headless (server): the pot's appearance is irrelevant to the simulation, only its size
         // is, and that's the argument. Skip the Pixmap work entirely; there's no GL to upload to.
         if (util.ResourceCache.isHeadless()) return Sprite.headless(size, size);
 

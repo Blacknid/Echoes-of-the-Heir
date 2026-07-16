@@ -3,7 +3,7 @@ package entity;
 import main.GamePanel;
 
 /**
- * The Phantom — a fast melee boss that chases the player down and strikes on contact.
+ * The Phantom, a fast melee boss that chases the player down and strikes on contact.
  * Uses 64x64 sprites (native tile size), rendered at PHANTOM_SCALE.
  * At 50% health it enters phase 2 and becomes "Echo" (see the phase2* fields below).
  */
@@ -13,14 +13,14 @@ public class BOSS_Phantom extends Boss {
     private static final String SHEET_PATH = "/res/bosses/Phantom/Phantom_";
     private static final float PHANTOM_SCALE = 3f;
     // Final on-screen hitbox size (does not grow with PHANTOM_SCALE), anchored on the sprite as a
-    // simple fraction (0..1) of its drawn width/height — the ghost floats in the upper-center of
+    // simple fraction (0..1) of its drawn width/height, the ghost floats in the upper-center of
     // its frame, so the hitbox sits there too instead of at its feet.
     private static final int PHANTOM_HITBOX_WIDTH = 24;
     private static final int PHANTOM_HITBOX_HEIGHT = 64;
     private static final float PHANTOM_HITBOX_ANCHOR_X = 0.5f;
     private static final float PHANTOM_HITBOX_ANCHOR_Y = 0.4f;
 
-    // Attack cone (same shape as the player's melee cone) — tune these to resize the attack hitbox.
+    // Attack cone (same shape as the player's melee cone), tune these to resize the attack hitbox.
     private static final double ATTACK_CONE_RADIUS_SCALE = 1.45; // x gp.tileSize, cone length
     private static final double ATTACK_CONE_HALF_ANGLE_DEG = 55; // half-spread in degrees (total spread = 2x this)
 
@@ -30,7 +30,7 @@ public class BOSS_Phantom extends Boss {
         name = "Phantom";
         collision = true;
         setScale(PHANTOM_SCALE, PHANTOM_HITBOX_WIDTH, PHANTOM_HITBOX_HEIGHT, PHANTOM_HITBOX_ANCHOR_X, PHANTOM_HITBOX_ANCHOR_Y);
-        requiresIntroForHpBar = true; // has a BossIntroTrigger in Dungeon.tmx — HP bar waits for it
+        requiresIntroForHpBar = true; // has a BossIntroTrigger in Dungeon.tmx, HP bar waits for it
 
         maxLife = 120;
         life = maxLife;
@@ -52,7 +52,7 @@ public class BOSS_Phantom extends Boss {
         attackConeRadiusScale = ATTACK_CONE_RADIUS_SCALE;
         attackConeHalfAngle = Math.toRadians(ATTACK_CONE_HALF_ANGLE_DEG);
 
-        // Phase 2: at 50% health, the Phantom becomes "Echo" — heals back to full, attacks faster,
+        // Phase 2: at 50% health, the Phantom becomes "Echo", heals back to full, attacks faster,
         // and gains two new tricks: a chance to dash away from an incoming hit instead of taking it,
         // and periodic teleports (using the death animation played forward then backward) to close
         // distance or reposition unpredictably.
@@ -101,7 +101,7 @@ public class BOSS_Phantom extends Boss {
         }
 
         // Advances explore_the_cave's "defeat the phantom" step, same pattern
-        // BOSS_WitheredTree uses for defeat_hollow_king — nothing generically watches quest
+        // BOSS_WitheredTree uses for defeat_hollow_king, nothing generically watches quest
         // "defeat"/"enemy" step data, so each boss calls progress() on its own quest directly.
         if (gp.questManager != null) {
             gp.questManager.progress("explore_the_cave", 1);

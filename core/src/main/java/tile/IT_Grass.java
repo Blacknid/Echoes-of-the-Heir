@@ -12,16 +12,16 @@ import util.UtilityTool;
 
 public class IT_Grass extends interactiveTile {
 
-    // Shared across all instances — loaded once
+    // Shared across all instances, loaded once
     private static Sprite imgBlade1 = null;
     private static Sprite imgBlade2 = null;
 
-    // Per-instance sway state — blade 1
+    // Per-instance sway state, blade 1
     private float phase1;
     private final float speed1;
     private float angle1;
 
-    // Per-instance sway state — blade 2
+    // Per-instance sway state, blade 2
     private float phase2;
     private final float speed2;
     private float angle2;

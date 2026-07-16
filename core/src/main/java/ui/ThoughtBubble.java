@@ -11,7 +11,7 @@ import main.GamePanel;
 /**
  * Non-blocking inner monologue / thought system.
  *
- * PERFORMANCE: THOUGHT_FONT is a static constant — never allocated per frame.
+ * PERFORMANCE: THOUGHT_FONT is a static constant, never allocated per frame.
  * Creating a new Font object every frame causes UI.fmCache unbounded growth.
  *
  * Unlike NPC dialogue, thoughts:
@@ -19,7 +19,7 @@ import main.GamePanel;
  *   - Do NOT require Enter to dismiss
  *   - Type out letter-by-letter, linger, then fade away
  *   - Appear as soft italic text near the bottom-center of the screen
- *   - Queue up if multiple are triggered — one plays after the other
+ * - Queue up if multiple are triggered, one plays after the other
  *
  * USAGE FROM CODE:
  *   gp.thoughts.show("I can't remember anything...");
@@ -30,12 +30,12 @@ import main.GamePanel;
  *   Properties:
  *     message  (String)  "I can't remember anything..."
  *     oneShot  (bool)    true
- *     delay    (int)     0          — frames to wait before starting (optional)
- *     linger   (int)     120        — frames to hold after typing finishes (optional)
+ * delay (int) 0, frames to wait before starting (optional)
+ * linger (int) 120, frames to hold after typing finishes (optional)
  */
 public class ThoughtBubble {
 
-    // Cached font — static so it is created once for the lifetime of the JVM.
+    // Cached font, static so it is created once for the lifetime of the JVM.
     // Never use `new Font(...)` inside draw(); it grows UI.fmCache by 1 entry/frame.
     private static final Font THOUGHT_FONT = new Font("Serif", Font.ITALIC, 28);
 
@@ -98,7 +98,7 @@ public class ThoughtBubble {
         return active != null || !queue.isEmpty();
     }
 
-    /** Clear everything — useful when changing maps or skipping cutscenes. */
+    /** Clear everything, useful when changing maps or skipping cutscenes. */
     public void clear() {
         queue.clear();
         active = null;
@@ -130,7 +130,7 @@ public class ThoughtBubble {
                 while (charIndex < active.text.length() && active.text.charAt(charIndex) == ' ') {
                     charIndex++;
                 }
-                // Pause slightly on '.' ',' '!' '?' '—' for natural rhythm
+                // Pause slightly on '.' ',' '!' '?' ', ' for natural rhythm
                 if (charIndex > 0 && charIndex < active.text.length()) {
                     char prev = active.text.charAt(charIndex - 1);
                     if (prev == '.' || prev == '!' || prev == '?') {

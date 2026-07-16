@@ -14,9 +14,9 @@ import mobile.GamepadInputAdapter;
 import mobile.TouchControlsOverlay;
 
 /**
- * libGDX application entry point — the GPU replacement for the old Swing {@code GamePanel} game
+ * libGDX application entry point, the GPU replacement for the old Swing {@code GamePanel} game
  * loop. {@link com.badlogic.gdx.ApplicationListener#render()} is libGDX's per-frame callback,
- * driven by the LWJGL3 backend (desktop) or Android backend (later) — no daemon thread or
+ * driven by the LWJGL3 backend (desktop) or Android backend (later), no daemon thread or
  * {@code paintComponent}.
  *
  * <h2>Top-left pixel origin</h2>
@@ -44,15 +44,15 @@ public class MichiGame extends ApplicationAdapter {
     public void create() {
         // Must run first: on Android (singleTask launch mode) a "restart" can reuse the process,
         // so util.ResourceCache's static image caches may still hold Sprites/Textures tied to the
-        // previous, now-dead GL context — see ResourceCache.resetImages() for why that corrupts
+        // previous, now-dead GL context, see ResourceCache.resetImages() for why that corrupts
         // rendering (wrong texture bound to a recycled GL id) if not cleared before anything loads.
         util.ResourceCache.resetImages();
 
-        // Online license activation/login — same call on every backend (desktop, Android).
+        // Online license activation/login, same call on every backend (desktop, Android).
         // First run on this install: ACTIVATE issues a fresh license and persists only an
         // opaque activation_id + encrypted blob (see platform.LicenseActivation). Every later
         // run: LOGIN re-confirms it. Returns null (and leaves LICENSE_KEY unset) if no save
-        // server is reachable yet — the game still runs, just without cloud saves/MP this run.
+        // server is reachable yet, the game still runs, just without cloud saves/MP this run.
         // Run on a background thread: this does a real network round trip (with multi-second
         // timeouts per fallback endpoint tried), and blocking create() on it froze the window
         // ("Not Responding") for several seconds on every launch. LICENSE_KEY is volatile and
@@ -92,7 +92,7 @@ public class MichiGame extends ApplicationAdapter {
         mux.addProcessor(gp.mouseH);
         Gdx.input.setInputProcessor(mux);
 
-        // Gamepad support coexists with touch/keyboard — same shared input fields, no
+        // Gamepad support coexists with touch/keyboard, same shared input fields, no
         // exclusivity logic needed. Harmless no-op if no controller is paired.
         Controllers.addListener(new GamepadInputAdapter(gp));
 
@@ -107,12 +107,12 @@ public class MichiGame extends ApplicationAdapter {
     }
 
     /**
-     * Configure the camera + GL viewport for Moonshire-style integer-scaled rendering — identical for
+ * Configure the camera + GL viewport for Moonshire-style integer-scaled rendering, identical for
      * windowed and fullscreen.
      *
      * <p>We pick the largest whole-number {@code pixelScale} the window can FULLY support, then the
      * world is always drawn at that exact integer magnification (crisp pixel art, no fractional
-     * sampling). Any space left over because the window isn't an exact multiple is NOT letterboxed —
+ * sampling). Any space left over because the window isn't an exact multiple is NOT letterboxed
      * it becomes extra LOGICAL pixels, which the tile culling turns into MORE visible map tiles. So a
      * window that is 2.4x wide and a clean 2x tall renders the world at a crisp 2x and the leftover
      * 0.4x of width fills with additional tiles.
@@ -120,13 +120,13 @@ public class MichiGame extends ApplicationAdapter {
      * <p>Scale is {@code floor(min(widthRatio, heightRatio))}: we only step up to Nx once a COMPLETE
      * Nx of the 1280x720 baseline fits on BOTH axes, so the extra screen area only ever ADDS tiles and
      * never hides any of the baseline view. Consequence: a "2x" WINDOW often stays at 1x because the OS
-     * title bar steals a few px of height (so a full 2x of 720 doesn't fit) — fullscreen has no chrome,
+ * title bar steals a few px of height (so a full 2x of 720 doesn't fit), fullscreen has no chrome,
      * so it reaches 2x/3x cleanly. This is the intended trade-off (never crop the baseline view).
      */
     private void syncCamera(int deviceW, int deviceH) {
         // Choose the integer magnification from how far the window has zoomed past the baseline. Use
         // the SMALLER axis ratio as the ceiling (so we never zoom in so far that the logical view drops
-        // below the 1280x720 baseline on either axis — the extra screen must only ever ADD tiles, never
+        // below the 1280x720 baseline on either axis, the extra screen must only ever ADD tiles, never
         // remove them), but FLOOR it so we step up to Nx exactly when a full Nx of baseline fits.
         double fitRatio = Math.min(deviceW / (double) BASE_W, deviceH / (double) BASE_H);
         int pixelScale = Math.max(1, (int) Math.floor(fitRatio));
@@ -184,7 +184,7 @@ public class MichiGame extends ApplicationAdapter {
         gp.stepUpdates(Gdx.graphics.getDeltaTime());
 
         // Memory flashback freezes updates but must still render; gp.draw handles state internally.
-        // Use the LOGICAL resolution (not device px) — the camera/viewport magnify it by pixelScale.
+        // Use the LOGICAL resolution (not device px), the camera/viewport magnify it by pixelScale.
         renderer.begin(gp.screenWidth, gp.screenHeight);
         gp.draw(renderer);
         if (gp.memoryFlashback != null && gp.memoryFlashback.isActive()) {

@@ -64,7 +64,7 @@ import platform.GameStorage;
 public class CloudSaveService {
 
     /** Used only if {@code save_servers.txt} is missing or empty. */
-    // Public hosts first — the 192.168.* entries are LAN-only and unreachable for shipped builds.
+    // Public hosts first, the 192.168.* entries are LAN-only and unreachable for shipped builds.
     private static final String[] FALLBACK_HOSTS = { "142.93.103.51", "128.127.115.96", "192.168.137.14", "192.168.137.126", "192.168.1.9", "192.168.1.212" };
     private static final int    DEFAULT_PORT       = 5005;
     private static final int    CONNECT_TIMEOUT_MS = 3000;
@@ -109,7 +109,7 @@ public class CloudSaveService {
 
     /**
      * Fired from the heartbeat thread whenever a PING succeeds (i.e. potentially "just came back
-     * online" — checked every heartbeat, not just on the offline-to-online edge, so a late
+ * online", checked every heartbeat, not just on the offline-to-online edge, so a late
      * registration or a listener that itself no-ops when it has nothing to do is still safe).
      * Used by FriendsListManager to retry NFC-queued friend adds without needing its own poll
      * loop; keeps this class itself friends-agnostic.
@@ -155,7 +155,7 @@ public class CloudSaveService {
 
         // Local re-verify: detect on-disk tampering / fp drift before each
         // network attempt. If verifyCurrent() fails, skip cloud and fall
-        // through to the offline cache. (No throw — game must keep running.)
+        // through to the offline cache. (No throw, game must keep running.)
         if (!platform.License.verifyCurrent()) {
             System.out.println("[CloudSave] License re-verify failed — falling back to offline cache.");
             licenseKey = null;
@@ -163,7 +163,7 @@ public class CloudSaveService {
 
         // Gate on the *licensed* state, not on holding the plaintext key: only the very first run
         // (ACTIVATE) ever learns the key, while later runs authenticate over LOGIN with
-        // activation_id + enc_blob — which is exactly what uploadToServer() sends anyway. Requiring
+        // activation_id + enc_blob, which is exactly what uploadToServer() sends anyway. Requiring
         // licenseKey != null here meant cloud saves silently died after the first session.
         if (platform.License.verifyCurrent() && (serverOnline.get() || pingPool())) {
             SaveResult result = uploadToServer(state, licenseKey);
@@ -396,7 +396,7 @@ public class CloudSaveService {
             byte[] serverNonce = Base64.getDecoder().decode(okLine.substring(3));
             if (serverNonce.length != 16) { socket.close(); return null; }
 
-            // Step 3: LOGIN (RSA-OAEP) — the server already knows our license via activation_id
+            // Step 3: LOGIN (RSA-OAEP), the server already knows our license via activation_id
             // (issued once by platform.LicenseActivation's online ACTIVATE), so the handshake
             // JSON carries no license/fp/signature at all, just the shared nonces:
             // "LOGIN <enc_b64> <activation_id> <enc_blob_b64>"
@@ -885,7 +885,7 @@ public class CloudSaveService {
         return s.length() <= max ? s : s.substring(0, max) + "...";
     }
 
-    // Tiny JSON helpers — only used to read {"status":"..","data":".."}
+    // Tiny JSON helpers, only used to read {"status":"..","data":".."}
     private static String extractJsonString(String json, String key) {
         String search = "\"" + key + "\":\"";
         int i = json.indexOf(search);

@@ -18,7 +18,7 @@ import main.GamePanel;
  *
  * loadDirectionalSheet(path, frameSize) assumes rows are DOWN, LEFT, RIGHT, UP (top to bottom).
  * If your sheet uses a different row order, use the other overload and just list the actual
- * order — see its javadoc.
+ * order, see its javadoc.
  */
 public abstract class Boss extends Entity {
 
@@ -44,7 +44,7 @@ public abstract class Boss extends Entity {
     protected int attackRange;              // pixels; set from solidArea/tileSize in subclass
 
     // Cone hitbox for the attack, same shape/math as the player's melee cone (gfx.geom.Cone).
-    // Override these three in a subclass constructor to resize the cone for that boss — e.g.
+    // Override these three in a subclass constructor to resize the cone for that boss, e.g.
     // attackConeRadiusScale = 1.5; attackConeHalfAngle = Math.toRadians(45);
     protected double attackConeRadiusScale = 1.35; // x gp.tileSize
     protected double attackConeHalfAngle = Math.toRadians(55); // half-spread, radians
@@ -56,7 +56,7 @@ public abstract class Boss extends Entity {
     protected int hurtDuration = 16;
 
     // Set true in a subclass constructor if this boss has a BossIntroTrigger somewhere (see
-    // ui.BossIntroCutscene) — its HP bar then stays hidden until that intro has actually played once,
+    // ui.BossIntroCutscene), its HP bar then stays hidden until that intro has actually played once,
     // instead of just popping in whenever the player wanders within range. Bosses with no intro
     // cutscene leave this false and keep the old range-only behavior. Set by BossIntroCutscene.finish().
     protected boolean requiresIntroForHpBar = false;
@@ -69,7 +69,7 @@ public abstract class Boss extends Entity {
 
     // ─── Phase 2 ─────────────────────────────────────────────────────────────────────────────────
     // At phase2HealthFraction of max life (0 = no phase 2), the boss transitions once: optionally
-    // renames itself, optionally heals back to full, and — from then on — periodically summons
+    // renames itself, optionally heals back to full, and, from then on, periodically summons
     // minions, teleports, and/or attacks faster, per whichever of the fields below a subclass set.
     // Everything phase-2-related is opt-in (defaults are all "off"); set only what a given boss needs.
     protected float phase2HealthFraction = 0f;
@@ -96,7 +96,7 @@ public abstract class Boss extends Entity {
     private int evadeDashTimer = 0;
 
     // Teleport: opt in by setting teleportIntervalMinTicks/MaxTicks > 0. Reuses deathFrames played
-    // forward (vanish in place) then reversed (reappear at the new spot) — see updateTeleport().
+    // forward (vanish in place) then reversed (reappear at the new spot), see updateTeleport().
     protected int teleportIntervalMinTicks = 0;
     protected int teleportIntervalMaxTicks = 0;
     protected int teleportMinDistanceTiles = 3;
@@ -117,7 +117,7 @@ public abstract class Boss extends Entity {
     /**
      * Sets the visual size (spriteScale) and a same-size square hitbox, horizontally centered and
      * flush with the bottom of the tile (like a character standing on the ground). hitboxSize is a
-     * final on-screen pixel size — it does NOT grow with spriteScale (a bigger sprite doesn't need
+ * final on-screen pixel size, it does NOT grow with spriteScale (a bigger sprite doesn't need
      * a proportionally bigger hitbox).
      */
     protected void setScale(float scale, int hitboxSize) {
@@ -126,13 +126,13 @@ public abstract class Boss extends Entity {
 
     /**
      * Sets the visual size (spriteScale) and hitbox together, so they never drift apart no matter
-     * how big spriteScale is. hitboxSize is a final on-screen pixel size — it does NOT grow with
+ * how big spriteScale is. hitboxSize is a final on-screen pixel size, it does NOT grow with
      * spriteScale, so just pick a small tight box directly (e.g. 20-24px).
      *
      * anchorX/anchorY place the hitbox's center as a simple fraction of the drawn sprite: 0 = left/top
      * edge, 1 = right/bottom edge, 0.5 = middle. E.g. (0.5, 0.5) centers it in the sprite; (0.5, 0.3)
-     * puts it in the upper-center — handy for sprites like ghosts that float instead of standing on
-     * the ground. No pixel math, no native-frame coordinates — just eyeball where on the sprite you
+ * puts it in the upper-center, handy for sprites like ghosts that float instead of standing on
+ * the ground. No pixel math, no native-frame coordinates, just eyeball where on the sprite you
      * want it and adjust the fraction.
      */
     protected void setScale(float scale, int hitboxSize, float anchorX, float anchorY) {
@@ -166,7 +166,7 @@ public abstract class Boss extends Entity {
 
     /**
      * Loads a [direction][frame] sprite matrix from a sheet whose rows are in a different order
-     * than the engine expects. Just list which direction each row actually is, top to bottom —
+ * than the engine expects. Just list which direction each row actually is, top to bottom
      * e.g. a sheet drawn as DOWN, RIGHT, LEFT, UP would be:
      * <pre>loadDirectionalSheet(path, size, DIR_DOWN, DIR_RIGHT, DIR_LEFT, DIR_UP);</pre>
      */
@@ -181,7 +181,7 @@ public abstract class Boss extends Entity {
     }
 
     // When set > range, the boss backs off to this distance between attacks instead of sitting in
-    // the player's face — then closes in to `range` again once its attack is off cooldown, for a
+    // the player's face, then closes in to `range` again once its attack is off cooldown, for a
     // hit-and-run feel. 0 (default) disables this and the boss just stays at melee range, unchanged.
     protected int keepDistance = 0;
 
@@ -201,7 +201,7 @@ public abstract class Boss extends Entity {
         double dist = Math.sqrt((double) dx * dx + (double) dy * dy);
 
         // Retreat phase: attack is on cooldown and the player is already closer than the preferred
-        // hover distance — back away instead of continuing to close in.
+        // hover distance, back away instead of continuing to close in.
         if (keepDistance > range && attackCooldownTimer > 0 && dist < keepDistance) {
             onPath = true;
             double away = Math.atan2(getCenterY() - gp.player.getCenterY(), getCenterX() - gp.player.getCenterX());
@@ -232,7 +232,7 @@ public abstract class Boss extends Entity {
     /**
      * Moves this entity directly toward (targetX, targetY) at its current `speed`, checking X and Y
      * collision independently (like the player's own movement) so a wall blocking one axis doesn't
-     * stop movement on the other — the entity slides along walls/corners instead of freezing or
+ * stop movement on the other, the entity slides along walls/corners instead of freezing or
      * flip-flopping direction. Diagonal movement is normalized so it isn't faster than cardinal.
      * Also sets `direction` from whichever axis actually moved more, for the 4-way walk sprite.
      * Returns true if the entity moved on either axis this frame.
@@ -266,7 +266,7 @@ public abstract class Boss extends Entity {
     /**
      * Attempts to move by (dx, dy) on this single axis. Mirrors Player.moveAxis: checkCollision()
      * does a "swept" check that extends the probe by `speed` pixels in the entity's CURRENT
-     * `direction` — so it must run BEFORE worldX/worldY change, predicting the step rather than
+ * `direction`, so it must run BEFORE worldX/worldY change, predicting the step rather than
      * checking it after the fact (checking post-move would probe a step beyond where we actually
      * are). `direction` is only used for that check here, not left mutated by it.
      */
@@ -302,7 +302,7 @@ public abstract class Boss extends Entity {
         onPath = false;
         speed = 0;
         // Cardinal-only attack angle (matches `direction`, already axis-locked by faceTowardPlayer())
-        // so the cone always points exactly up/down/left/right — never at a free diagonal angle.
+        // so the cone always points exactly up/down/left/right, never at a free diagonal angle.
         attackAngle = switch (direction) {
             case DIR_UP -> -Math.PI / 2;
             case DIR_DOWN -> Math.PI / 2;
@@ -353,7 +353,7 @@ public abstract class Boss extends Entity {
     /** Called once, the moment the death animation finishes. Override to set defeat flags, advance quests, trigger map transitions, etc. */
     protected void onDefeated() {}
 
-    /** Prevents contact damage — bosses only hurt the player via their telegraphed attacks. */
+    /** Prevents contact damage, bosses only hurt the player via their telegraphed attacks. */
     @Override
     public void checkCollision() {
         collisionOn = false;
@@ -370,7 +370,7 @@ public abstract class Boss extends Entity {
         if (tickKnockback()) return;
 
         // While this boss is the subject of an intro cutscene, freeze in a plain idle-down pose
-        // instead of running its normal AI — the camera is showing it off, not fighting it yet.
+        // instead of running its normal AI, the camera is showing it off, not fighting it yet.
         // Clears every flag currentSprite() would otherwise prioritize over idle (in case the boss
         // was mid-attack/hurt/evade/teleport at the exact moment the cutscene trigger fired).
         if (gp.bossIntroCutscene != null && gp.bossIntroCutscene.getBoss() == this) {
@@ -421,7 +421,7 @@ public abstract class Boss extends Entity {
 
     /**
      * One-time phase-2 transition at phase2HealthFraction of max life: optional rename, optional
-     * full heal, optional faster attacks — then (if summonMonsterId is set) starts periodic minion
+ * full heal, optional faster attacks, then (if summonMonsterId is set) starts periodic minion
      * summoning. All fields default to "off"; a subclass only needs to set the ones it wants.
      */
     private void checkPhase2Transition() {
@@ -452,7 +452,7 @@ public abstract class Boss extends Entity {
     }
 
     // Summons never land within this many tiles of the player (Chebyshev distance), even if that
-    // spot is otherwise a valid ring tile around the boss — spawning right on top of the player
+    // spot is otherwise a valid ring tile around the boss, spawning right on top of the player
     // feels like a cheap surprise hit rather than a fair "something new joined the fight" moment.
     private static final int SUMMON_MIN_PLAYER_DIST_TILES = 2;
 
@@ -488,7 +488,7 @@ public abstract class Boss extends Entity {
 
     /**
      * Rolls evadeDashChance and, if it hits, dashes this boss away from the player instead of
-     * taking the incoming hit — see Entity.tryDodgeIncomingHit(). Only usable once phase 2 has
+ * taking the incoming hit, see Entity.tryDodgeIncomingHit(). Only usable once phase 2 has
      * started, dashFrames is loaded, and the boss isn't already mid-attack/evade/teleport.
      */
     @Override
@@ -539,7 +539,7 @@ public abstract class Boss extends Entity {
 
     /**
      * Teleport = deathFrames played forward in place (vanish), then a new spot is picked near the
-     * player, then deathFrames played backward at the new spot (reappear) — reusing the death
+ * player, then deathFrames played backward at the new spot (reappear), reusing the death
      * animation both ways instead of needing dedicated teleport art.
      */
     private void updateTeleport() {
@@ -675,7 +675,7 @@ public abstract class Boss extends Entity {
 
     /**
      * Drawn as a separate overlay pass (see RenderPipeline) after all world/depth-tile layers, not
-     * inline inside draw() — draw() runs interleaved with Y-sorted depth tiles (tall foliage, walls,
+ * inline inside draw(), draw() runs interleaved with Y-sorted depth tiles (tall foliage, walls,
      * overhangs that draw in front of entities standing behind them), so a bar emitted from inside it
      * could get painted over by a depth tile sorted after this boss. This bar is a fixed screen
      * overlay anyway (not tied to the boss's world position beyond which boss it belongs to), so it

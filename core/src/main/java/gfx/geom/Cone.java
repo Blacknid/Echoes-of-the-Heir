@@ -2,7 +2,7 @@ package gfx.geom;
 
 /**
  * Cone (circular-sector) hitbox: apex at a point, extending {@code radius} px toward
- * {@code centerAngle} (radians, atan2 convention — 0=+X/right, +PI/2=+Y/down under the yDown
+ * {@code centerAngle} (radians, atan2 convention, 0=+X/right, +PI/2=+Y/down under the yDown
  * camera) with a total angular spread of {@code halfAngle*2}. Modeled as an {@link IntPolygon}
  * triangle fan (apex + arc points) so it is drawable via the existing
  * {@code GdxRenderer.fill(Shape)}/{@code draw(Shape)} IntPolygon dispatch with no renderer

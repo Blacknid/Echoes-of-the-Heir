@@ -29,7 +29,7 @@ public class EnvironmentManager {
      */
     public float pinnedFilterAlpha = -1f;
     
-    public final int dayDuration = 10800;      // 3 minute — timp * 60 (FPS) = cadre totale pentru ciclul zi/noapte
+    public final int dayDuration = 10800;      // 3 minute, timp * 60 (FPS) = cadre totale pentru ciclul zi/noapte
     public final int transitionDuration = 3600; // tranzitie 2 minute (3600 cadre la 60 FPS)
 
     float transitionSpeed = 0.95f / transitionDuration;

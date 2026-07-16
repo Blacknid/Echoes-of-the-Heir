@@ -8,9 +8,9 @@ import java.util.Arrays;
 
 /**
  * Emulates this device as an NFC tag carrying this player's add-friend identity (friend_id +
- * username, never the license key — see platform.NfcFriendPayload). Android wakes this service
+ * username, never the license key, see platform.NfcFriendPayload). Android wakes this service
  * via AID routing whenever another phone's NFC reader mode SELECTs {@link #AID}, even if the game
- * itself is fully closed or backgrounded — the same mechanism Google Wallet relies on, so a
+ * itself is fully closed or backgrounded, the same mechanism Google Wallet relies on, so a
  * player's tag "just works" without them having the app open (see AndroidManifest's
  * apduservice.xml host-apdu-service registration).
  *
@@ -53,7 +53,7 @@ public class FriendHceService extends HostApduService {
 
     @Override
     public void onDeactivated(int reason) {
-        // No per-session state to clean up — currentPayload is long-lived (set once the player's
+        // No per-session state to clean up, currentPayload is long-lived (set once the player's
         // friend_id/username are known) and reused across taps.
     }
 

@@ -3,7 +3,7 @@ package gfx.geom;
 /**
  * Closed polygon mirroring a flattened {@code java.awt.geom.Path2D}/{@code Area} for collision.
  * All rotated rectangles, rotated ellipses (flattened), Tiled polygons, and stroked polylines
- * become a Polygon after transform — matching what {@code AffineTransform.createTransformedShape}
+ * become a Polygon after transform, matching what {@code AffineTransform.createTransformedShape}
  * produced in the original code.
  *
  * <p>{@link #contains} uses the even-odd (winding-parity) rule, matching Path2D's default

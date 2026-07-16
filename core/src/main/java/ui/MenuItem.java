@@ -6,18 +6,18 @@ import java.util.function.Supplier;
 
 /**
  * One row inside a {@link Menu}. A menu is declared as a flat list of these, and each item
- * knows how to be activated / adjusted — the {@link Menu} handles layout, drawing and
+ * knows how to be activated / adjusted, the {@link Menu} handles layout, drawing and
  * navigation. This replaces the old pattern of a {@code String[]} of labels in UI.java paired
  * with a hand-written {@code if (commandNum == i)} switch in KeyHandler.
  *
  * <p>Item kinds:
  * <ul>
- *   <li>{@link Kind#BUTTON}   — a plain button; Enter runs {@code onSelect}.</li>
- *   <li>{@link Kind#TOGGLE}   — on/off row (Full Screen, V-Sync…); Enter runs {@code onSelect},
+ * <li>{@link Kind#BUTTON}, a plain button; Enter runs {@code onSelect}.</li>
+ * <li>{@link Kind#TOGGLE}, on/off row (Full Screen, V-Sync…); Enter runs {@code onSelect},
  *       {@code boolGetter} supplies the current state for the checkbox.</li>
- *   <li>{@link Kind#SELECTOR} — ◀ value ▶ row (Graphics Low/Med/High); Left/Right run
+ * <li>{@link Kind#SELECTOR}, ◀ value ▶ row (Graphics Low/Med/High); Left/Right run
  *       {@code onLeft}/{@code onRight}, {@code textGetter} supplies the shown value.</li>
- *   <li>{@link Kind#SLIDER}   — ◀ [bar] ▶ row (Music, Sound FX); Left/Right run
+ * <li>{@link Kind#SLIDER}, ◀ [bar] ▶ row (Music, Sound FX); Left/Right run
  *       {@code onLeft}/{@code onRight}, {@code intGetter}/{@code max} drive the bar.</li>
  * </ul>
  */

@@ -14,7 +14,7 @@ import main.MichiGame;
 /**
  * Dev harness: boots the real game, forces it straight into playState (the initial map is already
  * loaded by setupGame), lets the scene settle for a fixed number of frames so lighting/shadows are
- * active, grabs the framebuffer, and writes a PNG — then exits. Lets us actually LOOK at the GLSL
+ * active, grabs the framebuffer, and writes a PNG, then exits. Lets us actually LOOK at the GLSL
  * lighting + sprite shadows without clicking through the title screen.
  *
  * Run: {@code ./gradlew :desktop:run -PmainClass=desktop.LightingScreenshotTest}

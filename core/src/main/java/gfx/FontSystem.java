@@ -32,7 +32,7 @@ public class FontSystem implements Disposable {
     public FontSystem() {
         // 1x1 white texture for solid fills routed through the batch. Built via
         // GdxTextureUtil.managedFromPixmap so it survives an Android GL context loss (see its
-        // class doc) — the source Pixmap must stay alive, so it is intentionally not disposed.
+        // class doc), the source Pixmap must stay alive, so it is intentionally not disposed.
         Pixmap pm = new Pixmap(1, 1, Pixmap.Format.RGBA8888);
         pm.setColor(1, 1, 1, 1); pm.fill();
         white = GdxTextureUtil.managedFromPixmap(pm);
@@ -59,7 +59,7 @@ public class FontSystem implements Disposable {
         if (bf != null) return bf;
 
         FreeTypeFontGenerator gen = generators.get(face);
-        if (gen == null) { // no faces registered at all — use libGDX builtin
+        if (gen == null) { // no faces registered at all, use libGDX builtin
             bf = new BitmapFont();
             fontCache.put(key, bf);
             return bf;
@@ -71,7 +71,7 @@ public class FontSystem implements Disposable {
         // (y grows downward), matching Graphics2D text placement.
         p.flip = true;
         // Pixel-perfect rasterization: mono (1-bit, NO anti-aliasing) + no hinting distortion. Without
-        // this, FreeType anti-aliases glyph edges into gray pixels, which read as a soft "shadow" —
+        // this, FreeType anti-aliases glyph edges into gray pixels, which read as a soft "shadow"
         // especially on thin PLAIN weights and once the whole frame is integer-magnified (pixelScale>1).
         // mono renders each glyph texel as pure on/off, so magnified text stays razor-sharp.
         p.mono = true;

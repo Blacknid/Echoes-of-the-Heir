@@ -113,7 +113,7 @@ public class MultiplayerClient {
                 String license = Main.LICENSE_KEY;
                 if (license == null || license.isBlank()) {
                     // Activation runs in the background at boot (MichiGame.create), so it may not
-                    // have finished yet — or it may have failed against a server that was briefly
+                    // have finished yet, or it may have failed against a server that was briefly
                     // down. Either way this used to be a dead end: the player was told they had no
                     // license and given no way to get one short of restarting the game. Retry it
                     // here instead. ensureActivated() is idempotent: it LOGINs with the stored
@@ -240,7 +240,7 @@ public class MultiplayerClient {
      * states it evaluates for us are gated on (requiredQuestComplete, requiredBoss, ...).
      *
      * <p>Note what this is: REPORTED progress. Quests and XP are still simulated here, so this
-     * is the client asserting its own story state — the server takes it at face value. The
+ * is the client asserting its own story state, the server takes it at face value. The
      * things worth cheating (coins, shop stock) are NOT in here: those live on the server and
      * are only changed by its own buy/sell handlers. Moving quests and XP server-side is the
      * next step, and would make this packet unnecessary.
@@ -347,9 +347,7 @@ public class MultiplayerClient {
         }
     }
 
-    // =====================================================================
-    //  HANDSHAKE
-    // =====================================================================
+    // Handshake
 
     private boolean performHandshake(String license, String name, String cls) {
         try {
@@ -381,7 +379,7 @@ public class MultiplayerClient {
                 return false;
             }
 
-            // Step 3: LOGIN (RSA-OAEP) — the server resolves our license via activation_id/enc_blob
+            // Step 3: LOGIN (RSA-OAEP), the server resolves our license via activation_id/enc_blob
             // (issued once by platform.LicenseActivation's online ACTIVATE against save_server),
             // so the handshake JSON carries no license field at all:
             // "LOGIN <enc_b64> <activation_id> <enc_blob_b64>"
@@ -431,9 +429,7 @@ public class MultiplayerClient {
         }
     }
 
-    // =====================================================================
-    //  ENCRYPTED FRAMING
-    // =====================================================================
+    // Encrypted framing
 
     private synchronized void sendEncrypted(String json) throws IOException, GeneralSecurityException {
         if (sessionKey == null || out == null) return;
@@ -491,9 +487,7 @@ public class MultiplayerClient {
         return in.readLine();
     }
 
-    // =====================================================================
-    //  RECEIVE / KEEPALIVE LOOPS
-    // =====================================================================
+    // Receive / keepalive loops
 
     private void receiveLoop() {
         try {
@@ -530,9 +524,7 @@ public class MultiplayerClient {
         }
     }
 
-    // =====================================================================
-    //  APPLICATION MESSAGES (parsed plaintext JSON)
-    // =====================================================================
+    // Application messages (parsed plaintext JSON)
 
     private void handleMessage(String json) {
         String type = extractString(json, "type");
@@ -596,7 +588,7 @@ public class MultiplayerClient {
                 if (id >= 0 && id != localId) {
                     RemotePlayerState rp = remotePlayers.get(id);
                     if (rp == null) {
-                        // player_update arrived before player_join — create on the fly
+                        // player_update arrived before player_join, create on the fly
                         rp = new RemotePlayerState();
                         remotePlayers.put(id, rp);
                     }
@@ -656,7 +648,7 @@ public class MultiplayerClient {
                     gp.ui.addMessage(from + ": " + msg, new gfx.Color(200, 200, 255));
                 }
             }
-            case "chat_throttled" -> { /* silently dropped — UI optional */ }
+            case "chat_throttled" -> { /* silently dropped, UI optional */ }
             case "pong" -> { /* keepalive */ }
             case "kick" -> {
                 String reason = extractString(json, "reason");
@@ -682,7 +674,7 @@ public class MultiplayerClient {
                         + " life=" + p.life + "/" + p.maxLife);
 
                 // The server banks one stat pick per level it granted us. If any are unspent and
-                // we're not already picking, open the level-up screen — the pick becomes a
+                // we're not already picking, open the level-up screen, the pick becomes a
                 // level_choice request the server authorises (see KeyHandler.handleLevelUpState).
                 int pendingChoices = extractInt(json, "pendingLevelChoices", 0);
                 if (pendingChoices > 0 && gp.gameState != GamePanel.levelUpState) {
@@ -725,7 +717,7 @@ public class MultiplayerClient {
             }
             info.skeletonXmlBytes = Base64.getDecoder().decode(skeletonB64);
             // applyWorldInfo() loads tileset textures (GL calls), which are only legal on the
-            // render thread — this handler runs on MP-Receive and would otherwise abort the JVM
+            // render thread, this handler runs on MP-Receive and would otherwise abort the JVM
             // ("No context is current") the moment a map is streamed in.
             com.badlogic.gdx.Gdx.app.postRunnable(() -> mapStreamer.applyWorldInfo(info));
         } catch (Exception e) {
@@ -859,9 +851,7 @@ public class MultiplayerClient {
         }
     }
 
-    // =====================================================================
-    //  CRYPTO PRIMITIVES
-    // =====================================================================
+    // CRYPTO primitives
 
     private static PublicKey loadRSAPublicKey() throws GeneralSecurityException {
         byte[] der = Base64.getDecoder().decode(RSA_PUBLIC_KEY_B64);
@@ -942,9 +932,7 @@ public class MultiplayerClient {
         return out;
     }
 
-    // =====================================================================
-    //  SMALL UTILITIES
-    // =====================================================================
+    // Small utilities
 
     private static byte[] longBE(long v) {
         return new byte[]{
@@ -1006,7 +994,7 @@ public class MultiplayerClient {
 
     /**
      * Returns the X component of the spline's instantaneous velocity at {@code nowNs},
-     * in pixels per nanosecond — the same units as {@code spVsX}/{@code spVeX}.
+ * in pixels per nanosecond, the same units as {@code spVsX}/{@code spVeX}.
      * Formula: dP/dt = (6t²-6t)Ps + (3t²-4t+1)Vs + (-6t²+6t)Pe + (3t²-2t)Ve,
      * then divide by duration to convert from px/segment → px/ns.
      */
@@ -1095,9 +1083,7 @@ public class MultiplayerClient {
         return json.startsWith("true", start);
     }
 
-    // =====================================================================
-    //  MOB SYNCHRONIZATION (multiplayer damage/death sync)
-    // =====================================================================
+    // Mob synchronization (multiplayer damage/death sync)
 
     /** Send mob damage to the server for synchronization with other players. */
     public void sendMobDamage(int mobId, int damage, int currentLife, int maxLife, String mobType) {
@@ -1189,14 +1175,12 @@ public class MultiplayerClient {
         }
     }
 
-    // =====================================================================
-    //  SERVER-HOSTED NPCs
-    // =====================================================================
+    // Server-hosted NPCs
     //
     //  In multiplayer the NPCs live on the server (SERVERS/multiplayer_server/npc.py): it owns
     //  npcs.json, resolves each NPC's activity state against the player's SERVER-held progress,
     //  and runs shop transactions against server-held gold and stock. The client is a renderer:
-    //  it spawns an NPC_Generic per npc_spawn packet (presentation only — sprites, frame counts,
+    // it spawns an NPC_Generic per npc_spawn packet (presentation only, sprites, frame counts,
     //  scale, light), sends npc_interact / shop_buy / shop_sell as intents, and displays whatever
     //  dialogue and stock the server hands back. It never decides what an NPC says or what a
     //  purchase costs.
@@ -1208,7 +1192,7 @@ public class MultiplayerClient {
      * "I want to talk to NPC n." The server range-checks it and replies with npc_dialogue.
      *
      * @param dialogueName a named dialogue set a quest step asked for (see NPC_Generic.speak), or
-     *                     null for ordinary conversation — in which case the server picks the line
+ * null for ordinary conversation, in which case the server picks the line
      *                     itself from the NPC's state machine.
      */
     public void sendNpcInteract(int npcId, String dialogueName) {
@@ -1257,7 +1241,7 @@ public class MultiplayerClient {
 
     /**
      * Spawn one server-hosted NPC. The packet carries presentation only, so this is the exact
-     * subset of NPCFactory.createAt's work that produces something drawable — no dialogues, no
+ * subset of NPCFactory.createAt's work that produces something drawable, no dialogues, no
      * states, no shop. Sprite loading is a GL operation, hence the postRunnable.
      */
     private void handleNpcSpawn(String json) {
@@ -1298,7 +1282,7 @@ public class MultiplayerClient {
             int posCol = extractInt(json, "pos_col", -1);
             int posRow = extractInt(json, "pos_row", -1);
 
-            // startDialogue() flips gameState and touches the UI — render thread only.
+            // startDialogue() flips gameState and touches the UI, render thread only.
             com.badlogic.gdx.Gdx.app.postRunnable(() ->
                     npc.applyServerDialogue(lines, animation, direction, stationary, posCol, posRow));
         } catch (Exception e) {
@@ -1322,7 +1306,7 @@ public class MultiplayerClient {
                 // The server sends what's LEFT for us (-1 = infinite/restocking). We hand that to
                 // ShopListing as both max and current: the client only ever asks infinite()
                 // (maxStock < 0) and inStock() (stock > 0) of it, and the real ceiling is the
-                // server's business — it re-sends this list after every purchase.
+                // server's business, it re-sends this list after every purchase.
                 int remaining = extractInt(obj, "stock", 0);
                 listings.add(new ui.ShopListing(itemId, price, remaining));
             }
@@ -1338,7 +1322,7 @@ public class MultiplayerClient {
     }
 
     /** Outcome of a buy/sell the server processed. On success it also grants/removes the item
-     *  locally — the server owns gold and stock, the client still owns the inventory. */
+ * locally, the server owns gold and stock, the client still owns the inventory. */
     private void handleShopResult(String json) {
         try {
             boolean ok   = extractBool(json, "ok");
@@ -1531,7 +1515,7 @@ public class MultiplayerClient {
         public float[] evalSpline(long nowNs) {
             if (!spReady) return new float[]{ worldX, worldY };
             long elapsed = nowNs - spStartNs;
-            // Clamp t to [0, 1.3] — allow slight overshoot rather than hard-snapping.
+            // Clamp t to [0, 1.3], allow slight overshoot rather than hard-snapping.
             float t = spDurationNs > 0 ? (float) elapsed / spDurationNs : 1f;
             if (t > 1.3f) t = 1.3f;
 

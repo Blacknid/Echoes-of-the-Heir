@@ -54,7 +54,7 @@ public class MapManager {
     public String pendingActTitle = "";
     /** When true, the pending actTitle is only shown during the New Game cutscene, never on normal map transitions. */
     public boolean pendingActTitleNewGameOnly = false;
-    /** Map IDs whose actTitle has already been shown this run — never shown again until New Game. */
+    /** Map IDs whose actTitle has already been shown this run, never shown again until New Game. */
     public final java.util.Set<String> shownActTitles = new java.util.HashSet<>();
 
     /** Spawn position to use when retrying after death (set on every map transition). */
@@ -116,7 +116,7 @@ public class MapManager {
             }
 
             // Classpath fallback. Gdx.files.internal() resolves against the working directory, which
-            // finds nothing when the assets are only on the classpath — the case for any process
+            // finds nothing when the assets are only on the classpath, the case for any process
             // launched outside the packaged layout, notably the headless authoritative server
             // (main.HeadlessGame). ResourceCache.resolve() already falls back this way for single
             // files; discovery needs the same, but a classpath FileHandle cannot be list()ed, so
@@ -148,7 +148,7 @@ public class MapManager {
      * directory lives in a jar or in an exploded build output.
      *
      * <p>Needed because a classpath {@code FileHandle} cannot be {@code list()}ed and
-     * {@code Gdx.files.internal()} only searches the working directory — so a process whose assets
+ * {@code Gdx.files.internal()} only searches the working directory, so a process whose assets
      * come from the classpath rather than a packaged asset folder (the headless server) would
      * otherwise discover no maps at all.
      *
@@ -327,7 +327,7 @@ public class MapManager {
         gp.fireflyLayer.clearAll();
         gp.tensionBeats.reset();
 
-        // Invalidate torch shadow cache — torches on new map are different
+        // Invalidate torch shadow cache, torches on new map are different
         if (gp.eManager != null && gp.eManager.lightning != null) {
             gp.eManager.lightning.clearShadowCaches();
         }
@@ -402,7 +402,7 @@ public class MapManager {
         }
 
         // Show act title card if one was defined for this map, but only once per run.
-        // If actTitleNewGameOnly=true, skip here — the New Game cutscene will show it instead.
+        // If actTitleNewGameOnly=true, skip here, the New Game cutscene will show it instead.
         // Skip during save-game loading for the same reason.
         if (!pendingActTitle.isEmpty()) {
             if (!loadingGame && !pendingActTitleNewGameOnly && !shownActTitles.contains(currentMapId)) {
@@ -431,7 +431,7 @@ public class MapManager {
             t.printStackTrace(System.out);
             try {
                 // GameStorage.outputStream always truncates (no append mode across both
-                // backends) — read-modify-write to preserve prior crash entries in the file.
+                // backends), read-modify-write to preserve prior crash entries in the file.
                 byte[] prior = new byte[0];
                 if (platform.GameStorage.exists("crash_log.txt")) {
                     try (java.io.InputStream is = platform.GameStorage.inputStream("crash_log.txt")) {

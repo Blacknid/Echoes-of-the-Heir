@@ -125,14 +125,14 @@ public class MonsterFactory {
         m.speed = m.defaultSpeed;
         m.animSpeedMultiplier = floatVal(def, "animSpeedMultiplier", 1f);
         m.walkFrameCount = intVal(def, "walkFrameCount", 6);
-        // Visual size multiplier — 1.0 = normal tile size. Sprite sheet frames are already scaled
+        // Visual size multiplier, 1.0 = normal tile size. Sprite sheet frames are already scaled
         // down/up to fit one tile regardless of their native resolution (see loadSheetVariable), so
         // this is purely for making a monster bigger/smaller than the default, not a sheet-cropping fix.
         m.spriteScale = floatVal(def, "scale", 1f);
         m.aggroRange = intVal(def, "aggroRange", 6) * gp.tileSize;
         m.fleeDuration = intVal(def, "fleeDuration", 60);
 
-        // Solid area — JSON values are authored at 64px tile; scale to current tile size
+        // Solid area, JSON values are authored at 64px tile; scale to current tile size
         int ts = gp.tileSize;
         m.solidArea.x      = intVal(def, "solidArea.x",      12) * ts / 64;
         m.solidArea.y      = intVal(def, "solidArea.y",       8) * ts / 64;
@@ -141,7 +141,7 @@ public class MonsterFactory {
         m.solidAreaDefaultX = m.solidArea.x;
         m.solidAreaDefaultY = m.solidArea.y;
 
-        // Octagon hurtbox — inscribed in the solidArea, centered on it
+        // Octagon hurtbox, inscribed in the solidArea, centered on it
         int hcx = m.solidArea.x + m.solidArea.width  / 2;
         int hcy = m.solidArea.y + m.solidArea.height / 2;
         int hr  = Math.min(m.solidArea.width, m.solidArea.height) / 2;
@@ -164,7 +164,7 @@ public class MonsterFactory {
         }
 
         // lightRadius / lightColor: make this monster emit a small light so it's visible (and
-        // telegraphed) in dark areas. Same convention as NPCFactory's identical fields — opt-in,
+        // telegraphed) in dark areas. Same convention as NPCFactory's identical fields, opt-in,
         // unset by default (radius -1 sentinel = no light).
         int monsterLightRadius = intVal(def, "lightRadius", -1);
         if (monsterLightRadius > 0) {

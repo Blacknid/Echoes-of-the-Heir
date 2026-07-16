@@ -256,7 +256,7 @@ public class TouchControlsOverlay {
         abilitySlots.add(new AbilitySlot(b, unlocked));
     }
 
-    /** Re-checks unlock state each frame — abilities can be unlocked mid-session via the skill tree. */
+    /** Re-checks unlock state each frame, abilities can be unlocked mid-session via the skill tree. */
     private void refreshAbilityVisibility() {
         for (AbilitySlot slot : abilitySlots) {
             slot.button().setVisible(slot.unlocked().get());

@@ -83,7 +83,7 @@ public class DataDrivenMonster extends Entity {
     public void damageReaction() {
         actionLockCounter = 0;
         switch (aiBehavior) {
-            case "stationary_trap" -> { /* stationary — no flee reaction */ }
+            case "stationary_trap" -> { /* stationary, no flee reaction */ }
             case "ranged_archer", "phasing_ranged" -> {
                 if (life <= maxLife * fleeThreshold) {
                     fleeing = true; onPath = false; fleeCounter = 0; speed = defaultSpeed + 1;
@@ -271,7 +271,7 @@ public class DataDrivenMonster extends Entity {
         if (packNearby) {
             setActionMelee();
         } else if (isPlayerInRange(aggroRange)) {
-            // Alone — flee from player
+            // Alone, flee from player
             int dx = worldX - gp.player.worldX;
             int dy = worldY - gp.player.worldY;
             setFleeDirection(dx, dy);
@@ -283,7 +283,7 @@ public class DataDrivenMonster extends Entity {
     }
 
     // Behaves like ranged_archer but the phasing cycle (toggling invincibility) is driven by Entity.update().
-    // The AI just needs to handle standard ranged combat — phasing is transparent to the AI.
+    // The AI just needs to handle standard ranged combat, phasing is transparent to the AI.
     private void setActionPhasingRanged() {
         setActionRanged();
     }

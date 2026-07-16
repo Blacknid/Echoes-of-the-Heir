@@ -14,15 +14,15 @@ import main.GamePanel;
  * <p>Every condition below is a mechanism that has caused (or could cause) the light pool to shift
  * relative to the world:
  * <ul>
- *   <li><b>MASK-TRANSFORM</b> — the full-screen mask was blitted while the batch carried a non-zero
+ * <li><b>MASK-TRANSFORM</b>, the full-screen mask was blitted while the batch carried a non-zero
  *       translate (camera shake / dialogue pan). The blit neutralizes it; if the value is non-zero
  *       AND dancing coincides, the neutralize is being bypassed somewhere.</li>
- *   <li><b>LIGHT≠PLAYER</b> — the shader light's screen position differs from where the player
+ * <li><b>LIGHT≠PLAYER</b>, the shader light's screen position differs from where the player
  *       sprite is drawn: the pool is genuinely elsewhere (coordinate/frame-lag bug).</li>
- *   <li><b>DLG-CAM</b> — the dialogue camera zoom/pan is not fully neutral during normal play
+ * <li><b>DLG-CAM</b>, the dialogue camera zoom/pan is not fully neutral during normal play
  *       (float residue keeps the world scaled ~1.0001 while the mask isn't).</li>
- *   <li><b>SHAKE</b> — camera shake active (world translated; mask must not be).</li>
- *   <li><b>CLAMP</b> — camera at a map edge (player not screen-centred; a different code path).</li>
+ * <li><b>SHAKE</b>, camera shake active (world translated; mask must not be).</li>
+ * <li><b>CLAMP</b>, camera at a map edge (player not screen-centred; a different code path).</li>
  * </ul>
  */
 public final class LightDebugHud {

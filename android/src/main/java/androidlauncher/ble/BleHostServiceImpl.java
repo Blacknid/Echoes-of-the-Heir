@@ -27,7 +27,7 @@ import platform.BleHostService;
  * Android implementation of {@link BleHostService}: runs a {@link BluetoothGattServer}
  * (peripheral/server role) with one custom service exposing a guest-write characteristic and a
  * host-notify characteristic, capped at {@link main.BleMultiplayerSession#MAX_GUESTS} connected
- * devices — see BleProtocol for the exact UUIDs and main.BleMultiplayerSession for the line
+ * devices, see BleProtocol for the exact UUIDs and main.BleMultiplayerSession for the line
  * protocol carried over these characteristics.
  *
  * <p>Guest slots are assigned 1..MAX_GUESTS in connection order and freed on disconnect, so a
@@ -70,7 +70,7 @@ public class BleHostServiceImpl implements BleHostService {
         if (adapter == null || !adapter.isEnabled()) return null;
 
         // gattCallback's methods (below) run on Android's Binder callback thread, not libGDX's
-        // GL/render thread — but onMessage/onGuestLeft flow straight into
+        // GL/render thread, but onMessage/onGuestLeft flow straight into
         // main.BleMultiplayerSession's game-state mutation (remotePlayers, gp.ui.addMessage),
         // which the render thread reads every frame with no synchronization. Wrapping once here
         // means every gattCallback call site is automatically safe. See
@@ -141,12 +141,12 @@ public class BleHostServiceImpl implements BleHostService {
     }
 
     /**
-     * Notifies are sent one at a time from a single thread (see the class's use sites — sendTo/
+ * Notifies are sent one at a time from a single thread (see the class's use sites, sendTo/
      * broadcast are only ever called from the game's own update loop, never concurrently), so
      * mutating notifyChar's shared value immediately before each notifyCharacteristicChanged call
      * is safe in practice despite the two calls not being atomic from the API's own point of view:
      * there is no second writer that could interleave. (An earlier attempt to sidestep this by
-     * passing a freshly-constructed, never-registered BluetoothGattCharacteristic crashed instead —
+ * passing a freshly-constructed, never-registered BluetoothGattCharacteristic crashed instead
      * notifyCharacteristicChanged requires the characteristic object to actually belong to a
      * service added to this gattServer; API 33+'s 4-arg overload avoids the shared-value method
      * entirely, but this app's minSdk 26 floor means it can't be used unconditionally here.)
@@ -232,7 +232,7 @@ public class BleHostServiceImpl implements BleHostService {
             if (slot == null) {
                 slot = nextFreeSlot();
                 if (slot < 0) {
-                    // Lobby full — respond ok (avoids a stuck guest write) but never assign a slot,
+                    // Lobby full, respond ok (avoids a stuck guest write) but never assign a slot,
                     // so this device is simply never routed to onMessage; guest sees no welcome and
                     // times out. (The explicit "F|lobby_full" line requires a slot to notify back on,
                     // which a rejected connection deliberately doesn't get.)

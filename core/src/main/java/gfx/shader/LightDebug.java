@@ -11,13 +11,13 @@ package gfx.shader;
  *
  * <p>Everything here is static and written by the render path each frame:
  * <ul>
- *   <li>{@code F5} — HUD on/off</li>
- *   <li>{@code F6} — freeze shader time (kills shimmer/breathe/flicker ANIMATION; if dancing stops,
+ * <li>{@code F5}, HUD on/off</li>
+ * <li>{@code F6}, freeze shader time (kills shimmer/breathe/flicker ANIMATION; if dancing stops,
  *       the "movement" was the organic light detail animating, not a coordinate bug)</li>
- *   <li>{@code F7} — disable the noise/ripple detail entirely (static falloff circle)</li>
- *   <li>{@code F8} — disable bloom (half-res glow can "swim" while scrolling)</li>
- *   <li>{@code F9} — disable shadows (ray-march churn)</li>
- *   <li>{@code F10} — disable rim lighting</li>
+ * <li>{@code F7}, disable the noise/ripple detail entirely (static falloff circle)</li>
+ * <li>{@code F8}, disable bloom (half-res glow can "swim" while scrolling)</li>
+ * <li>{@code F9}, disable shadows (ray-march churn)</li>
+ * <li>{@code F10}, disable rim lighting</li>
  * </ul>
  */
 public final class LightDebug {
@@ -33,8 +33,8 @@ public final class LightDebug {
     public static boolean noRim      = false;
 
     // ── Live values written by the render path each frame, read by the HUD ──
-    /** Batch transform translation at the moment the light mask was blitted (MUST be 0,0 —
-     *  anything else shifts the full-screen mask off the world by that amount). */
+    /** Batch transform translation at the moment the light mask was blitted (MUST be 0,0
+ * anything else shifts the full-screen mask off the world by that amount). */
     public static float maskBlitTx, maskBlitTy;
     /** Whether the mask blit ran inside the HIGH-tier scene capture (flip-orientation branch). */
     public static boolean maskBlitDuringCapture;

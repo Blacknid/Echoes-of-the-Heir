@@ -5,7 +5,7 @@ import com.badlogic.gdx.backends.headless.HeadlessApplication;
 import com.badlogic.gdx.backends.headless.HeadlessApplicationConfiguration;
 
 /**
- * Boots the game's simulation with no window and no GPU — the foundation the authoritative
+ * Boots the game's simulation with no window and no GPU, the foundation the authoritative
  * server is built on.
  *
  * <p>The point of this class is that the server runs <b>the same code as the client</b>. Not a
@@ -20,7 +20,7 @@ import com.badlogic.gdx.backends.headless.HeadlessApplicationConfiguration;
  *       opening a window or creating a GL context, so assets (TMX maps, JSON, PNG headers) still
  *       load through the normal {@code ResourceCache} path.</li>
  *   <li><b>{@link Headless}</b> switches off the handful of code paths that genuinely need the
- *       GPU. There are very few, because the simulation never reads a pixel — it only ever asks a
+ * GPU. There are very few, because the simulation never reads a pixel, it only ever asks a
  *       sprite how big it is, in order to slice a sheet into frames.</li>
  * </ul>
  *

@@ -22,7 +22,7 @@ import com.badlogic.gdx.files.FileHandle;
  * User-writable persistent storage (config, save games, server lists) for a simple relative
  * filename. Desktop resolves these against the process working directory exactly as the game
  * always has (plain {@code java.io.File}), preserving save-file compatibility byte-for-byte.
- * Android has no writable working directory — {@code Gdx.files.local(...)} resolves to the
+ * Android has no writable working directory, {@code Gdx.files.local(...)} resolves to the
  * app's private internal storage instead, which needs no runtime permission.
  */
 public final class GameStorage {

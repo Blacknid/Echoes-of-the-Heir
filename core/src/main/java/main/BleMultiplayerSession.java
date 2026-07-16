@@ -7,7 +7,7 @@ import entity.Entity;
 import platform.BleMultiplayer;
 
 /**
- * Lightweight local Bluetooth LE multiplayer session — the "invite player" alternative to the
+ * Lightweight local Bluetooth LE multiplayer session, the "invite player" alternative to the
  * license-bound {@link MultiplayerClient} TCP server. Two players tap phones (NFC hands off the
  * host's BLE address + a session token + the active map id, see platform.NfcInvitePayload); the
  * host's phone then runs an in-process BLE GATT server (see platform.BleHostService) that up to
@@ -16,7 +16,7 @@ import platform.BleMultiplayer;
  * <h2>Why this is "lightweight" compared to MultiplayerClient</h2>
  * Both phones already have the identical game install/map files on disk, so unlike the TCP
  * server model (built to support possibly-different installs), this session transmits NO map/tile
- * data at all — {@link #hostMapId} just tells a joining guest which map file (that it already
+ * data at all, {@link #hostMapId} just tells a joining guest which map file (that it already
  * has locally) to load via {@code gp.mapManager.changeMap}. There's also no world-progression
  * ownership, no account/license handshake, and no encryption (a same-room BLE link between two
  * phones you just tapped together doesn't have the threat model a public TCP server does).
@@ -36,7 +36,7 @@ import platform.BleMultiplayer;
  *                   K|mobId                              (this guest killed a mob)
  * </pre>
  * {@link entity.BossMonster}/{@link entity.BOSS_WitheredTree} spawn scaling reads
- * {@link #totalPlayerCount()} — see map.MapObjectLoader's boss-spawn hook.
+ * {@link #totalPlayerCount()}, see map.MapObjectLoader's boss-spawn hook.
  */
 public class BleMultiplayerSession {
 
@@ -67,21 +67,19 @@ public class BleMultiplayerSession {
     public boolean isGuesting() { return guesting; }
     public int getLocalId() { return localId; }
 
-    /** Total players in the session including the local one — 1 if inactive (solo). */
+    /** Total players in the session including the local one, 1 if inactive (solo). */
     public int totalPlayerCount() {
         if (!isActive()) return 1;
         return 1 + remotePlayers.size();
     }
 
-    // =========================================================================================
-    //  HOST SIDE
-    // =========================================================================================
+    // Host side
 
     /**
      * Starts BLE hosting (GATT server + advertising). Returns false if BLE hosting isn't supported
-     * on this device (permissions, adapter off/absent) — see BleHostService#start. The guest finds
+ * on this device (permissions, adapter off/absent), see BleHostService#start. The guest finds
      * this host via a BLE scan on BleProtocol.SERVICE_UUID (see BleGuestService's class doc for why
-     * NOT a Bluetooth address — Android doesn't let apps read a real one), so nothing device-address
+ * NOT a Bluetooth address, Android doesn't let apps read a real one), so nothing device-address
      * -shaped needs to come back from this call for the NFC invite payload to be built.
      */
     public boolean startHosting() {
@@ -151,7 +149,7 @@ public class BleMultiplayerSession {
 
     private void handleGuestUpdate(int guestSlot, String[] p) {
         // Guest's own "U" carries no slot id (the connection it arrived on IS the slot, unlike
-        // the host's outgoing "U|0|..." broadcast — see update()) — one field fewer than that
+        // the host's outgoing "U|0|..." broadcast, see update()), one field fewer than that
         // format, so the length floor here is 8, not 9.
         if (p.length < 8) return;
         MultiplayerClient.RemotePlayerState rp = remotePlayers.get(guestSlot);
@@ -178,13 +176,11 @@ public class BleMultiplayerSession {
         if (rp != null) gp.ui.addMessage(rp.name + " left the game", new gfx.Color(220, 160, 140));
     }
 
-    // =========================================================================================
-    //  GUEST SIDE
-    // =========================================================================================
+    // Guest side
 
     /**
      * Connects to a host using the decoded NFC invite payload. On success, loads the host's map
-     * (already present locally — see class doc) and places the local player at the given spawn
+ * (already present locally, see class doc) and places the local player at the given spawn
      * with default stats/no items, mirroring a fresh join. {@code onResult} fires once (accepted?).
      */
     public void joinHost(platform.NfcInvitePayload.Decoded invite, java.util.function.Consumer<Boolean> onResult) {
@@ -202,9 +198,9 @@ public class BleMultiplayerSession {
                 onResult.accept(false);
                 return;
             }
-            // Channel is write-ready — send the join handshake now. Acceptance is proven only by
+            // Channel is write-ready, send the join handshake now. Acceptance is proven only by
             // the host's own "W" (welcome) line arriving, which is what actually fires onResult
-            // true, below in onGuestReceivedLine — not this callback. The session token here is
+            // true, below in onGuestReceivedLine, not this callback. The session token here is
             // also what rules out a stray device that happens to advertise our service UUID but
             // isn't actually the host we tapped (see BleGuestService's scan-based discovery doc).
             BleMultiplayer.guestSend("H|" + invite.sessionToken() + "|" + myName);
@@ -224,7 +220,7 @@ public class BleMultiplayerSession {
                 String mapId = p[2];
                 int spawnCol = parseIntSafe(p[3], -1);
                 int spawnRow = parseIntSafe(p[4], -1);
-                gp.player.setDefaultValues(); // fresh stats, empty inventory — before changeMap so
+                gp.player.setDefaultValues(); // fresh stats, empty inventory, before changeMap so
                                                // its spawn positioning (below) is the final word
                 gp.mapManager.changeMap(mapId, spawnCol, spawnRow); // -1,-1 falls back to the map's
                                                                      // own default spawn (see MapManager)
@@ -276,9 +272,7 @@ public class BleMultiplayerSession {
         remotePlayers.clear();
     }
 
-    // =========================================================================================
-    //  PER-TICK OUTGOING STATE (called from GamePanel.update(), same shape as MultiplayerClient)
-    // =========================================================================================
+    // Per-tick outgoing state (called from GamePanel.update(), same shape as MultiplayerClient)
 
     public void update() {
         if (!isActive()) return;
@@ -292,7 +286,7 @@ public class BleMultiplayerSession {
         if (hosting) {
             // Host doesn't need to send its own position to itself; guests only need each other's
             // updates, which are relayed in handleGuestUpdate. Nothing to send here for the host's
-            // own transform — guests render the host implicitly via remotePlayers on their side
+            // own transform, guests render the host implicitly via remotePlayers on their side
             // once the host also broadcasts its own "U" line under a reserved id 0.
             BleMultiplayer.hostBroadcast("U|0|" + payload);
         } else if (guesting) {
@@ -300,7 +294,7 @@ public class BleMultiplayerSession {
         }
     }
 
-    /** Call from Player's attack/ability code alongside the existing MultiplayerClient sync — see entity.Player. */
+    /** Call from Player's attack/ability code alongside the existing MultiplayerClient sync, see entity.Player. */
     public void sendMobDamage(int mobId, int damage, int currentLife, int maxLife) {
         if (!isActive()) return;
         String msg = "D|" + mobId + "|" + currentLife + "|" + maxLife + "|" + damage;
@@ -321,9 +315,7 @@ public class BleMultiplayerSession {
         }
     }
 
-    // =========================================================================================
-    //  SHARED HELPERS
-    // =========================================================================================
+    // Shared helpers
 
     private void applyUpdate(MultiplayerClient.RemotePlayerState rp, String[] p, int off) {
         int x = parseIntSafe(p[off], rp.worldX);
@@ -335,7 +327,7 @@ public class BleMultiplayerSession {
         rp.maxLife = parseIntSafe(p[off + 6], rp.maxLife);
 
         // Simple linear-interpolation spline (BLE updates arrive far less often than TCP's, but
-        // the same Hermite evaluator in RemotePlayerState works fine with zero tangents — it just
+        // the same Hermite evaluator in RemotePlayerState works fine with zero tangents, it just
         // degrades to a straight lerp between snapshots, which is visually fine for this cadence).
         long now = System.nanoTime();
         rp.spPsX = rp.spReady ? rp.evalSpline(now)[0] : x;

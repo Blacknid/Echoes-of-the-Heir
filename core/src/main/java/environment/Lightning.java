@@ -12,7 +12,7 @@ import main.Config;
 import main.GamePanel;
 
 /**
- * 2D darkness / lighting compositor — GPU-native (libGDX / gfx facade) reimplementation.
+ * 2D darkness / lighting compositor, GPU-native (libGDX / gfx facade) reimplementation.
  *
  * <h2>Original (java.awt) technique</h2>
  * The Graphics2D version built a downscaled transparent {@code BufferedImage} overlay, filled it
@@ -28,7 +28,7 @@ import main.GamePanel;
  *   <li>For each light, a single baked unit "falloff" texture (white center → transparent edge,
  *       {@link GdxRenderer#bakeRadialGradient}) is drawn <b>additively</b>
  *       ({@link GdxRenderer#BLEND_ADDITIVE}) and tinted with the light color so it brightens the
- *       darkened scene back where the light reaches — the close-enough equivalent of punching a
+ * darkened scene back where the light reaches, the close-enough equivalent of punching a
  *       soft hole in the darkness. One unit texture is scaled per light radius; no per-radius bake.</li>
  *   <li>Colored ambient glows are baked per (color,radius) with {@link GdxRenderer#bakeRadialGradient}
  *       and drawn additively too.</li>
@@ -41,7 +41,7 @@ import main.GamePanel;
  * preserved unchanged: other systems read {@code tileM.tileIsLit} / {@code tileM.tileLightLevel}.
  *
  * <p>TODO(gfx-stage5): shadow occlusion (the old Path2D + DstOut polygon subtraction in the screen
- * overlay) is omitted — radial light areas no longer cast hard polygon shadows on screen. The
+ * overlay) is omitted, radial light areas no longer cast hard polygon shadows on screen. The
  * tile-grid shadow tests still gate {@code tileIsLit}. Lights without on-screen polygon shadows is
  * the accepted "close enough" behavior for this stage.
  */
@@ -72,7 +72,7 @@ public class Lightning {
     public int lightCount = 0;
 
     // Night color the darkness is tinted with (was a black ARGB fill in the overlay).
-    // Night ambient: a deep moonlit indigo-teal — cool and atmospheric, but with enough blue life that
+    // Night ambient: a deep moonlit indigo-teal, cool and atmospheric, but with enough blue life that
     // shadowed areas read as "moonlit night" rather than a dead flat black/purple. The warm light pools
     // pop against this cool base (classic warm-key / cool-fill contrast that makes lighting feel alive).
     // Per-map override: set via the Tiled 'nightColor' property (see MapObjectLoader), reset here so
@@ -101,9 +101,9 @@ public class Lightning {
     // Warm highlight color for reflective tiles (water, crystals, polished stone, …)
     private static final Color REFLECT_GLOW = new Color(255, 245, 200);
 
-    // ===================== BORDER VIGNETTE (night-scaled) =====================
+    // Border vignette (night-scaled)
     // A screen-edge darkening that grows with the current darkness level, so the far corners/edges of
-    // the screen read as blacker margins at night instead of the flat uniform darkness mask — makes
+    // the screen read as blacker margins at night instead of the flat uniform darkness mask, makes
     // night feel like the light is a pool in a bigger dark world, not a dark filter over the whole
     // screen. Baked once per screen size (like MapShaderManager's vignette), tinted with nightColor,
     // and its alpha is scaled by currentMaxDarkness each frame so it fades out completely by day.
@@ -169,7 +169,7 @@ public class Lightning {
         lastLitSignature = Long.MIN_VALUE;
     }
 
-    // ===================== PRIVATE HELPERS =====================
+    // Private helpers
 
     /**
      * Lazily bake the unit radial falloff texture (white opaque center → transparent edge),
@@ -254,7 +254,7 @@ public class Lightning {
      * Fold every contributing light's TILE position + radius (and the quality flags that select the
      * marking algorithm) into a single hash. Two frames with the same signature produce the same
      * tileIsLit grid, so the expensive mark pass can be skipped. Uses tile granularity (worldPx / ts)
-     * because the grid itself is per-tile — sub-tile movement never changes which tiles are lit.
+ * because the grid itself is per-tile, sub-tile movement never changes which tiles are lit.
      */
     private long lightGridSignature(int playerCX, int playerCY, int playerRadPx,
                                     boolean isLow, boolean useTileShadows) {
@@ -439,7 +439,7 @@ public class Lightning {
     /**
      * Bresenham tile walk from the light origin tile to the target tile.
      * Returns true if any INTERMEDIATE tile (not the target) is solid.
-     * Uses tileSolid grid directly — no per-frame allocation.
+ * Uses tileSolid grid directly, no per-frame allocation.
      */
     private boolean isRayBlockedByGrid(int ox, int oy, int tx, int ty) {
         boolean[][] solid = gp.tileM.tileSolid;
@@ -532,7 +532,7 @@ public class Lightning {
         }
     }
 
-    // ===================== RAY-AABB SHADOW TEST =====================
+    // RAY-AABB shadow test
 
     /**
      * Returns true if the segment from (ox,oy) → (tx,ty) is blocked by any occluder.
@@ -582,7 +582,7 @@ public class Lightning {
         return true;
     }
 
-    // ===================== REFLECTIVE TILE HIGHLIGHTS =====================
+    // Reflective tile highlights
 
     /**
      * After the darkness has been drawn, draw a warm highlight over every reflective
@@ -672,7 +672,7 @@ public class Lightning {
     }
 
     // Reusable scratch arrays for the torch snapshot in drawReflectiveHighlights.
-    // Sized to MAX_LIGHTS — enough headroom for all dynamic torches on any map.
+    // Sized to MAX_LIGHTS, enough headroom for all dynamic torches on any map.
     private final int[]   reusableTorchCX  = new int[MAX_LIGHTS];
     private final int[]   reusableTorchCY  = new int[MAX_LIGHTS];
     private final long[]  reusableTorchR2  = new long[MAX_LIGHTS];
@@ -684,11 +684,11 @@ public class Lightning {
     //     Stronger, since LOW has no shader glow/bloom to help the player/NPCs read in the dark.
     //   - SHADER_PUNCH_STRENGTH → feeds u_lightIntensity in the GLSL shader (HIGH/MEDIUM). Kept modest so a
     //     single light stays gently lit and two overlapping lights (player approaching an NPC) don't sum
-    //     past full brightness over a wide merged area — merging still happens, it just stays readable.
+    // past full brightness over a wide merged area, merging still happens, it just stays readable.
     private static final float LOW_PUNCH_STRENGTH    = 0.95f;
     private static final float SHADER_PUNCH_STRENGTH = 0.28f;
 
-    // ===================== GLSL LIGHT PATH (HIGH/MEDIUM) =====================
+    // GLSL light path (HIGH/MEDIUM)
     // Reusable arrays holding the current frame's lights in SCREEN pixels, uploaded to the light
     // shader in one pass. Sized to MAX_LIGHTS + 1 (the player light). Rebuilt each frame; never
     // allocated per-frame.
@@ -701,7 +701,7 @@ public class Lightning {
     private final float[] sint = new float[MAX_LIGHTS + 1];
     // Per-light WORLD position (screen px offset = worldX - cameraWorldX). The organic-noise texture is
     // sampled in world space so the light's textured falloff is painted onto the GROUND and stays locked
-    // to the world as the camera scrolls — instead of the noise sliding across the ground with the light
+    // to the world as the camera scrolls, instead of the noise sliding across the ground with the light
     // (the "texture drifts / tracks camera at 2x" artifact). Pure world-space; identical for every light
     // including remote players on a multiplayer server (no dependence on the local player's screen pos).
     private final float[] swx  = new float[MAX_LIGHTS + 1];
@@ -739,7 +739,7 @@ public class Lightning {
         int n = 0;
         // Player light (warm white). Center of the player tile. World pos = tile center in world coords.
         // psx/psy use the player's OWN screen position (its real worldX/Y offset from the camera), not
-        // playerScreenX/playerWorldX above (the camera's position) — those can differ during a locked-
+        // playerScreenX/playerWorldX above (the camera's position), those can differ during a locked-
         // camera cutscene, and this light must stay attached to the player, not the camera.
         int psx = gp.player.screenX + (gp.player.worldX - playerWorldX) + gp.tileSize / 2;
         int psy = gp.player.screenY + (gp.player.worldY - playerWorldY) + gp.tileSize / 2;
@@ -766,8 +766,8 @@ public class Lightning {
         }
 
         // Shadows are a consequence of light on BOTH shader tiers. HIGH runs the full 32-step march
-        // with organic light detail; MEDIUM (the mobile tier) uses the cheap variant — 12 steps, no
-        // noise — so phones still get real texture-cast shadows at a fraction of the cost.
+        // with organic light detail; MEDIUM (the mobile tier) uses the cheap variant, 12 steps, no
+        // noise, so phones still get real texture-cast shadows at a fraction of the cost.
         // F9 (LightDebug.noShadows) kills the march for the dancing-lights hunt.
         boolean shadows = !gfx.shader.LightDebug.noShadows;
         boolean cheap   = (gp.config.graphicsQuality != Config.GRAPHICS_HIGH);
@@ -788,20 +788,20 @@ public class Lightning {
 
     /**
      * Render every on-screen shadow-caster's silhouette into the occluder FBO. The light shader then
-     * ray-marches this mask so lit pixels behind a silhouette fall into shadow — the "rays hit the
+ * ray-marches this mask so lit pixels behind a silhouette fall into shadow, the "rays hit the
      * texture, shadow left behind" effect. Uses each entity's CURRENT sprite frame (via drawOccluder),
      * so shadows track the visible pose; viewport-culled so off-screen casters cost nothing.
      */
     private void buildOccluderMask(GdxRenderer g2) {
         g2.beginOccluderMask();
         // SCENERY SILHOUETTES: the walls / trees / rocks / props drawn as depth-sorted tiles are the
-        // actual "things around" — they cast shadows from their TEXTURES (the sprite's own alpha),
+        // actual "things around", they cast shadows from their TEXTURES (the sprite's own alpha),
         // not from hitboxes. Flat background floor tiles are the ground the shadows land on, so they
         // are intentionally excluded (see TileManager.drawDepthOccluders). This is what makes shadows
         // appear on maps whose scenery is tilemap art rather than entities (e.g. the cave walls).
         if (gp.tileM != null) gp.tileM.drawDepthOccluders(g2);
         // The player is NOT drawn into the occluder mask. The player carries the primary light centered
-        // on itself, so its silhouette would ray-march-shadow its OWN light pool — a black player-shaped
+        // on itself, so its silhouette would ray-march-shadow its OWN light pool, a black player-shaped
         // hole with starburst streaks (the "shadows mixed up" bug). LIGHT_EXCLUDE can't fully prevent it
         // because the player body spans a large fraction of its own (small) light radius. Excluding the
         // player from the mask kills it definitively; other casters (NPCs, monsters, objects, trees) are
@@ -824,7 +824,7 @@ public class Lightning {
             if (e == null) continue;
             // A light-EMITTING entity (torch, glowing NPC…) must not cast into the mask: its
             // silhouette sits exactly at its own light's center, so the ray march would shadow the
-            // light it carries and cancel it out entirely — the same reason the player (who carries
+            // light it carries and cancel it out entirely, the same reason the player (who carries
             // the primary light) is excluded above. Its light still casts OTHER entities' shadows.
             if (e.lightSource && e.lightRadius > 0) continue;
             if (e.castsShadow()) drawOccluderIfVisible(g2, e);
@@ -862,7 +862,7 @@ public class Lightning {
     }
 
     // Warm light tints for the shader path (slightly warm white reads far nicer than pure white).
-    // Warmer than pure white — a candle/torch amber-white. The light shader pushes the core warmer
+    // Warmer than pure white, a candle/torch amber-white. The light shader pushes the core warmer
     // still (hot gold heart), so these are the base/edge tint.
     private static final Color PLAYER_LIGHT_COLOR = new Color(255, 224, 170);
     private static final Color TORCH_LIGHT_COLOR  = new Color(255, 205, 140);
@@ -874,11 +874,11 @@ public class Lightning {
     /** Dev diagnostic (-Dlight.track=1): prints the per-frame delta of playerWorldX/screenX and the world
      *  offset (screenX - worldX) that every world point (and the shader light) is drawn with. If the offset
      *  is CONSTANT while walking, the light pool is coordinate-correct; if it JUMPS in step with movement,
-     *  screenX lags worldX by a frame and the pool drifts by the walk delta — the "2x/tracks camera" bug. */
+ * screenX lags worldX by a frame and the pool drifts by the walk delta, the "2x/tracks camera" bug. */
     public static boolean DEBUG_LIGHT_TRACK = "1".equals(System.getProperty("light.track"));
     private int lastDbgWorldX = Integer.MIN_VALUE, lastDbgScreenX = Integer.MIN_VALUE;
 
-    // ===================== MAIN DRAW =====================
+    // Main draw
     public void draw(GdxRenderer g2, float currentMaxDarkness) {
         int screenWidth  = gp.screenWidth;
         int screenHeight = gp.screenHeight;
@@ -889,11 +889,11 @@ public class Lightning {
         int playerScreenY = gp.player.screenY;
 
         // Per-frame drift tracker (-Dlight.track=1). Placed BEFORE the darkness early-return and tier
-        // branch so it fires whenever the player moves — dark or not, any graphics tier. The offset
+        // branch so it fires whenever the player moves, dark or not, any graphics tier. The offset
         // (screenX - worldX) is what every world point AND the shader light are shifted by. dWorld = how
         // far the player moved this frame; dOffset = how much the drawn offset changed. dOffset ~0 while
         // dWorld != 0 => pool glued to player (coords correct). dOffset tracking dWorld => screenX lagged
-        // worldX and the pool drifts by exactly the walk delta — the "2x/tracks camera" bug.
+        // worldX and the pool drifts by exactly the walk delta, the "2x/tracks camera" bug.
         if (DEBUG_LIGHT_TRACK && lastDbgWorldX != Integer.MIN_VALUE) {
             int dWorld  = playerWorldX  - lastDbgWorldX;
             int dScreen = playerScreenX - lastDbgScreenX;
@@ -911,7 +911,7 @@ public class Lightning {
 
         // Light center = center of the player tile (not the top-left corner). World-space, so it must
         // be the player's own real position, not playerWorldX/Y above (the camera's position, which
-        // can differ during a locked-camera cutscene) — this drives tile-lit bookkeeping/shadow math
+        // can differ during a locked-camera cutscene), this drives tile-lit bookkeeping/shadow math
         // that has to line up with where the player actually is.
         int playerLightCX = gp.player.worldX + gp.tileSize / 2;
         int playerLightCY = gp.player.worldY + gp.tileSize / 2;
@@ -920,11 +920,11 @@ public class Lightning {
         boolean isLow       = (gp.config.graphicsQuality == Config.GRAPHICS_LOW);
         boolean useTileShadows = (gp.config.graphicsQuality != Config.GRAPHICS_MEDIUM);
 
-        // ========= tileIsLit (+ tileLightLevel for LOW) =========
+        // TileIsLit (+ tileLightLevel for LOW)
         // tileIsLit / tileLightLevel are DISCRETE per-tile grids: a tile's lit state can only change
         // when a contributing light moves to a different TILE (or its radius/quality changes). Marking
-        // is the frame's heaviest CPU pass — O(radius² tiles) per light, each lit tile doing a Bresenham
-        // shadow ray-cast — so when no light has crossed a tile boundary since last frame the whole
+        // is the frame's heaviest CPU pass, O(radius² tiles) per light, each lit tile doing a Bresenham
+        // shadow ray-cast, so when no light has crossed a tile boundary since last frame the whole
         // clear+re-mark reproduces the identical grid and can be skipped. lightGridSignature() folds
         // every light's tile position + radius (and the quality flags that pick the algorithm) into one
         // long; equal signature ⇒ identical output ⇒ reuse. This makes standing still (the common case,
@@ -950,7 +950,7 @@ public class Lightning {
 
         if (currentMaxDarkness <= 0.001f) { gfx.shader.LightDebug.tier = "off (no darkness)"; return; }
 
-        // ========= GLSL SMOOTH-LIGHT PATH (HIGH / MEDIUM) =========
+        // GLSL smooth-light path (HIGH / MEDIUM)
         // Try the per-pixel shader mask first. On HIGH/MEDIUM with a capable GPU this replaces the
         // baked-falloff dst-out dance with smooth HDR lighting; if the pipeline is unavailable (old
         // GPU / shader compile failure) it returns false and we fall through to the legacy baked path
@@ -969,12 +969,12 @@ public class Lightning {
                 + " lightSX=" + (playerScreenX + gp.tileSize / 2)
                 + " translateX=" + g2.getTranslateX() + " translateY=" + g2.getTranslateY());
         }
-        // ========= DARKNESS MASK (offscreen) — legacy baked path =========
+        // Darkness mask (offscreen), legacy baked path
         if (!shaderLit) {
         gfx.shader.LightDebug.tier = "baked (shader unavailable)";
         // Proper 2D lighting: render a darkness LAYER into an offscreen alpha buffer, then carve soft
         // holes where lights reach (DST_OUT). Compositing that mask over the finished scene lets the
-        // scene show through at its NATURAL brightness in lit areas and stay genuinely dark elsewhere —
+        // scene show through at its NATURAL brightness in lit areas and stay genuinely dark elsewhere
         // replacing the old "darken + add white glow" approximation that washed the player out to a
         // bright blob and never let caves read as truly dark. Any new light source just carves its own
         // hole; no per-light tuning needed.
@@ -989,22 +989,22 @@ public class Lightning {
 
         // Carve light holes: DST_OUT subtracts each falloff's alpha from the darkness, revealing the
         // scene. LOW_PUNCH_STRENGTH < 1 keeps a faint darkness even at a light's core so lit areas
-        // read as "dimly lit", not fully bright — tweak per taste.
+        // read as "dimly lit", not fully bright, tweak per taste.
         g2.setBlendMode(GdxRenderer.BLEND_DSTOUT);
         float punch = LOW_PUNCH_STRENGTH;
 
-        // ========= PLAYER LIGHT =========
+        // Player light
         // Anchored to the player's own screen position (gp.player.screenX/Y + camOffset from its real
         // worldX/Y), NOT playerScreenX/playerWorldX above (those are the CAMERA's position, which can
-        // differ from the player's during a locked-camera cutscene — see Player.draw()'s camOffsetX/Y).
+        // differ from the player's during a locked-camera cutscene, see Player.draw()'s camOffsetX/Y).
         // Without this the light stays pinned to the panned camera center while the player's sprite
         // correctly recedes into the distance, visually detaching the glow from its owner.
         int playerSX = gp.player.screenX + (gp.player.worldX - playerWorldX) + gp.tileSize / 2;
         int playerSY = gp.player.screenY + (gp.player.worldY - playerWorldY) + gp.tileSize / 2;
         drawLight(g2, playerSX, playerSY, lightPxWorld, Color.WHITE, punch);
 
-        // ========= TORCH / NPC / MONSTER LIGHTS =========
-        // Any entity flagged lightSource carves a light hole — torches (gp.obj), NPCs (gp.npc), and
+        // Torch / NPC / monster lights
+        // Any entity flagged lightSource carves a light hole, torches (gp.obj), NPCs (gp.npc), and
         // now monsters (gp.monster, opt-in via monsters.json lightRadius), so a glowing NPC beckons
         // the player through a dark cave and a lit monster telegraphs its position. New light-emitting
         // entity types just get passed here.
@@ -1022,13 +1022,13 @@ public class Lightning {
         g2.drawLightMask();
         } // end legacy baked path (!shaderLit)
 
-        // ========= BORDER VIGNETTE (night-scaled) =========
-        // Extra darkening toward the screen edges, scaled with darkness — the far margins read as
+        // Border vignette (night-scaled)
+        // Extra darkening toward the screen edges, scaled with darkness, the far margins read as
         // blacker at night so the world feels bigger/darker beyond the light pool, without affecting
         // daytime at all (alpha is gated on currentMaxDarkness).
         drawBorderVignette(g2, currentMaxDarkness, screenWidth, screenHeight);
 
-        // ========= COLORED LIGHTS (ambient glow, no shadow casting) =========
+        // Colored lights (ambient glow, no shadow casting)
         // These ADD colored light on top of the composited scene (a colored torch/crystal glow), so
         // they stay additive on the default framebuffer.
         g2.setBlendMode(GdxRenderer.BLEND_ADDITIVE);
@@ -1053,7 +1053,7 @@ public class Lightning {
         g2.setAlpha(1f);
         g2.setBlendMode(GdxRenderer.BLEND_NORMAL);
 
-        // ========= REFLECTIVE TILE HIGHLIGHTS (normal blend) =========
+        // Reflective tile highlights (normal blend)
         drawReflectiveHighlights(g2, currentMaxDarkness,
                 playerWorldX, playerWorldY, playerScreenX, playerScreenY);
     }

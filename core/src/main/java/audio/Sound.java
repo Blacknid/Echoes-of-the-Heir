@@ -23,11 +23,11 @@ public class Sound {
 
     // Slots that get a small random pitch wobble each time they play, so a rapidly-repeated SFX
     // (e.g. attack swings) doesn't sound like the exact same sample looping. Add more slot numbers
-    // here to give any other SFX the same treatment — no other code needs to change.
+    // here to give any other SFX the same treatment, no other code needs to change.
     private static final java.util.Set<Integer> PITCH_VARIED_SLOTS = java.util.Set.of(SFX.WEAPON_SWING);
     private static final float PITCH_MIN = 0.90f;
     private static final float PITCH_MAX = 1.10f;
-    // Remembers the last pitch used per slot so back-to-back plays never repeat the same value —
+    // Remembers the last pitch used per slot so back-to-back plays never repeat the same value
     // "random but not repetitive", not just random.
     private final java.util.Map<Integer, Float> lastPitch = new java.util.HashMap<>();
 
@@ -80,7 +80,7 @@ public class Sound {
         return fh.exists() ? fh : null;
     }
 
-    /** Select the clip for slot i (does not start playback — call play()/loop()). */
+    /** Select the clip for slot i (does not start playback, call play()/loop()). */
     public void setFile(int i) {
         FileHandle fh = handle(i);
         if (fh == null) {

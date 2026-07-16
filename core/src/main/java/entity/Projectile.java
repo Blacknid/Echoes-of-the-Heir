@@ -123,7 +123,7 @@ public class Projectile extends Entity implements Poolable {
     /**
      * Rotate a sprite by a multiple of 90° into a new texture, the load-time GPU-native
      * replacement for the old BufferedImage+Graphics2D.rotate. Callers (Eye, OBJ_Arrow) only ever
-     * use ±90/180/270, so we rotate the source Pixmap exactly by transpose/flip — no sampling blur.
+ * use ±90/180/270, so we rotate the source Pixmap exactly by transpose/flip, no sampling blur.
      */
     public static Sprite rotateImage(Sprite img, double degrees) {
         Texture src = img.texture();

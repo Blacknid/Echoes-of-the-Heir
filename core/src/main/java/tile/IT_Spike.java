@@ -138,7 +138,7 @@ public class IT_Spike extends interactiveTile {
     private void triggerOn(Entity target) {
         phase = Phase.RISING;
         frameTicks = 0;
-        // frameIndex keeps whatever idle frame (0 or 1) it was already showing — the rise just
+        // frameIndex keeps whatever idle frame (0 or 1) it was already showing, the rise just
         // continues from there instead of snapping back to frame 0.
         // While dashing (or otherwise invincible) the target still triggers the rise but takes no
         // damage, so dashing through is a safe way to trigger/cross them.
@@ -175,7 +175,7 @@ public class IT_Spike extends interactiveTile {
         if (dist < 0.01) { dx = 1; dy = 0; dist = 1; }
         target.knockBackVectorX = (int) Math.round(dx / dist * KNOCKBACK_POWER);
         target.knockBackVectorY = (int) Math.round(dy / dist * KNOCKBACK_POWER);
-        target.knockBack = true; // arms Entity.tickKnockback() — without this the vectors are a no-op
+        target.knockBack = true; // arms Entity.tickKnockback(), without this the vectors are a no-op
     }
 
     private void updateRising() {
@@ -242,7 +242,7 @@ public class IT_Spike extends interactiveTile {
     /**
      * The pit/socket the spikes rise out of is drawn in the pre-entity ground-shadow pass (see
      * Entity.drawGroundShadowPass / RenderPipeline.drawGroundShadows) instead of inline here, so it
-     * never takes part in Y-sort and always renders behind the player and every entity — only the
+ * never takes part in Y-sort and always renders behind the player and every entity, only the
      * animated spikes themselves (in draw() below) Y-sort normally.
      */
     @Override
@@ -350,7 +350,7 @@ public class IT_Spike extends interactiveTile {
                    py < worldY + drawH && py + ph > worldY;
         }
 
-        // Invisible: no draw() — purely a logic trigger.
+        // Invisible: no draw(), purely a logic trigger.
         @Override
         public void draw(GdxRenderer g2) {
         }

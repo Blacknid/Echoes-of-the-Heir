@@ -12,7 +12,7 @@ import audio.SFX;
 import main.GamePanel;
 
 /**
- * The Withered Tree — a 3-phase Ent boss with melee, stomp, and root attacks.
+ * The Withered Tree, a 3-phase Ent boss with melee, stomp, and root attacks.
  * Uses 128×128 sprites rendered at 6× tileSize.
  * Phase 1 = Ent1 (Guardian), Phase 2 = Ent2 (Wrath), Phase 3 = Ent3 (Blight).
  *
@@ -131,7 +131,7 @@ public class BOSS_WitheredTree extends Entity {
     private static final int     ATTACK_RANGE     = 96;
     private static final int     STOMP_RANGE      = 240; // wider than melee
 
-    // (Hit flash now tints on the GPU via the batch — no intermediate buffer fields needed.)
+    // (Hit flash now tints on the GPU via the batch, no intermediate buffer fields needed.)
 
     private static final Random rng = new Random();
 
@@ -1233,7 +1233,7 @@ public class BOSS_WitheredTree extends Entity {
         int screenY = worldY - gp.getCamWorldY() + gp.player.screenY;
         int drawSize = gp.tileSize * BOSS_SCALE;
 
-        // Hitbox center in screen space — sprite is centered on this point
+        // Hitbox center in screen space, sprite is centered on this point
         int bossCX = screenX + solidArea.x + solidArea.width / 2;
         int bossCY = screenY + solidArea.y + solidArea.height / 2;
 
@@ -1371,7 +1371,7 @@ public class BOSS_WitheredTree extends Entity {
             g2.drawImage(currentSprite, drawX, drawY, drawW, drawH);
         }
 
-        // Hit flash overlay — GPU-native white silhouette tint (no intermediate buffer).
+        // Hit flash overlay, GPU-native white silhouette tint (no intermediate buffer).
         if (hitFlashCounter > 0 && currentSprite != null) {
             float flashAlpha = Math.min(1f, hitFlashCounter / 6f * 0.8f);
             int drawX = bossCX - drawSize / 2;
@@ -1471,7 +1471,7 @@ public class BOSS_WitheredTree extends Entity {
         boolean wasAlive = alive;
         super.dyingAnimation(g2);
         if (wasAlive && !alive) {
-            // Boss defeated — advance quest and story flags before map transition.
+            // Boss defeated, advance quest and story flags before map transition.
             gp.boss1Defeated = true;
             gp.storyAct = Math.max(gp.storyAct, 1);
             if (gp.questManager != null) gp.questManager.progress("defeat_hollow_king", 1);
@@ -1571,7 +1571,7 @@ public class BOSS_WitheredTree extends Entity {
             g2.fillRect(barX, barY, barWidth, barHeight);
         }
 
-        // Border — thicker, more dramatic
+        // Border, thicker, more dramatic
         Stroke oldStroke = g2.getStroke();
         g2.setStroke(BOSS_BAR_STROKE);
         g2.setColor(BOSS_BAR_BORDER_COLOR);

@@ -21,7 +21,7 @@ public class Tile {
      */
     public boolean depthSort = false;
     /**
-     * When true, this tile visually reflects nearby light sources — a white/warm
+ * When true, this tile visually reflects nearby light sources, a white/warm
      * highlight is composited over it proportional to the distance to the closest light.
      * Set <property name="reflectsLight" type="bool" value="true"/> in Tiled.
      */

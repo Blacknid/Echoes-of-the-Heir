@@ -51,7 +51,7 @@ public class UI {
 
     /** Whether the slot-selection cursor (inventory/shop) should be drawn this frame. False right
      *  after a menu opens or once the mouse leaves every slot with no keyboard/controller nav since
-     *  — set true by KeyHandler.pollMenuDirections() on any menu-direction press, and by
+ *, set true by KeyHandler.pollMenuDirections() on any menu-direction press, and by
      *  MouseHandler's hover code only while actually over a slot. Prevents a cursor "stuck" on a
      *  slot the player never actually navigated to or is no longer pointing at. */
     public boolean selectionVisible = false;
@@ -66,7 +66,7 @@ public class UI {
     // Cache of recolored textures keyed by the 4 target colors (bake once per unique theme).
     private final HashMap<Long, Sprite> uiPanelCache = new HashMap<>();
 
-    // A window's 4-role color theme for the nine-slice panel. Each role is a plain hex string —
+    // A window's 4-role color theme for the nine-slice panel. Each role is a plain hex string
     // to recolor a window, just change its hex codes below. To add a new window, add a THEME_* and
     // pass it to drawPanel(...) at that window's draw. Accepts "#RRGGBB" or "RRGGBB".
     public record PanelTheme(Color main, Color shadow, Color highlight, Color highlight2) {
@@ -81,7 +81,7 @@ public class UI {
         return new Color(Integer.parseInt(h, 16));
     }
 
-    // Per-window themes — main / shadow / highlight / 2nd-highlight, as hex codes.
+    // Per-window themes, main / shadow / highlight / 2nd-highlight, as hex codes.
     private static final PanelTheme THEME_DEFAULT   = PanelTheme.of("#0F0A08", "#644B1E", "#B48C3C", "#DAAF3E");
     private static final PanelTheme THEME_DIALOGUE  = PanelTheme.of("#0F0A08", "#644B1E", "#B48C3C", "#DAAF3E");
     private static final PanelTheme THEME_JOURNAL   = PanelTheme.of("#1f1f1f", "#2b2b2b", "#bea27c", "#ffdfa2");
@@ -113,18 +113,18 @@ public class UI {
     public String friendsNewName = "";
     public String friendsStatusMessage = ""; // last server response, shown briefly under the panel
     public int friendsStatusTimer = 0;
-    // On Android, ADD FRIEND starts NFC reader mode instead of friendsAddMode's text entry — see
+    // On Android, ADD FRIEND starts NFC reader mode instead of friendsAddMode's text entry, see
     // platform.NfcFriend and KeyHandler.handleFriendsListState. Desktop has no NFC hardware and
     // never sets this; platform.NfcFriend.isSupported() is what actually gates the two flows.
     public volatile boolean friendsNfcWaiting = false;
 
-    // ── Join Game (titleScreenState 6) — guest side of local BLE multiplayer ──────────────────
+    // ── Join Game (titleScreenState 6), guest side of local BLE multiplayer ──────────────────
     // See main.BleMultiplayerSession's class doc. Tapping the host's phone here decodes an
     // NfcInvitePayload and connects directly over BLE; Android-only, same gating as Friends' NFC.
     public volatile boolean joinGameNfcWaiting = false;
     public volatile String joinGameStatusMessage = "";
 
-    /** Whether a save file exists — decides if the title screen shows a "CONTINUE" entry. */
+    /** Whether a save file exists, decides if the title screen shows a "CONTINUE" entry. */
     public boolean titleHasSave() {
         return platform.GameStorage.exists("save.dat");
     }
@@ -134,7 +134,7 @@ public class UI {
     public volatile String continueStatusMessage = "";
 
     /**
-     * CONTINUE — load the save, then enter the game.
+ * CONTINUE, load the save, then enter the game.
      *
      * <p>This used to be {@code gp.saveLoad.load(); gp.keyH.startGame();} inline on the render
      * thread, which was wrong twice over:
@@ -142,7 +142,7 @@ public class UI {
      * <ul>
      *   <li><b>It raced license activation.</b> {@code SaveLoad.load()} asks the save server for the
      *       cloud save, but {@code CloudSaveService.download()} refuses unless
-     *       {@code License.verifyCurrent()} is already true — and activation runs on a background
+ * {@code License.verifyCurrent()} is already true, and activation runs on a background
      *       thread started in {@code MichiGame.create()}. Press CONTINUE before that lands (which is
      *       most of the time: it's a multi-second network round trip and the title screen is up
      *       immediately) and the download was silently skipped, quietly loading a STALE LOCAL save
@@ -152,21 +152,21 @@ public class UI {
      *       (pingPool() + the transfer), so the window locked up mid-load.</li>
      * </ul>
      *
-     * Now: wait for activation to SETTLE (succeeded or failed — either is a real answer) on a worker
+ * Now: wait for activation to SETTLE (succeeded or failed, either is a real answer) on a worker
      * thread, then do the load itself back ON the render thread via postRunnable. The split matters:
-     * the wait is pure blocking I/O and must not freeze the window, but the load is NOT thread-safe —
+ * the wait is pure blocking I/O and must not freeze the window, but the load is NOT thread-safe
      * it rebuilds entities and re-bakes the minimap, which create GPU Textures/Pixmaps, and libGDX
      * requires a current GL context for those. Running the load on the worker would mean GL calls
      * with no context.
      */
     private void continueGame() {
-        if (continueLoading) return;   // already in flight — ignore the double-press
+        if (continueLoading) return;   // already in flight, ignore the double-press
         continueLoading = true;
         continueStatusMessage = "Loading…";
 
         new Thread(() -> {
             // Wait for the licence answer rather than racing it. Bounded, because an unreachable
-            // server must not strand the player on the title screen forever — on timeout we fall
+            // server must not strand the player on the title screen forever, on timeout we fall
             // through and load whatever we have locally.
             if (!platform.LicenseActivation.awaitSettled(15_000)) {
                 System.out.println("[Load] License activation still pending after 15s — "
@@ -214,7 +214,7 @@ public class UI {
     // without having entered a username yet, so the box can flash red to draw the eye to it.
     public int usernameNagTimer = 0;
 
-    /** Username box geometry (top-right corner of the main title screen) — shared by draw + hit-test. */
+    /** Username box geometry (top-right corner of the main title screen), shared by draw + hit-test. */
     public int usernameBoxX() { return gp.screenWidth - 220 - 22; }
     public int usernameBoxY() { return 18; }
     public int usernameBoxW() { return 220; }
@@ -228,7 +228,7 @@ public class UI {
     /**
      * Gate for every "leave the main title screen" action (Continue/New Game/Multiplayer/Friends,
      * by click or Enter): a blank username blocks the action, focuses the box, and flashes it red
-     * instead. QUIT is exempt — the player must always be able to close the game. Returns true if
+ * instead. QUIT is exempt, the player must always be able to close the game. Returns true if
      * the action was blocked.
      */
     public boolean blockIfNoUsername(String actionLabel) {
@@ -241,7 +241,7 @@ public class UI {
 
     // ── Declarative menus (built lazily, cached). Each owns its item list + actions so a button is
     //    declared in ONE place; navigation flows through the Menu instead of hand-mapped indices. ──
-    private Menu titleMenu;      // title main menu (state 0) — count changes with save presence
+    private Menu titleMenu;      // title main menu (state 0), count changes with save presence
     private boolean titleMenuHadSave; // last titleHasSave() used to build titleMenu; rebuild on change
     private boolean titleMenuHadNfc;  // last NfcFriend.isSupported() used to build titleMenu; rebuild on change
     private Menu classMenu;      // class select (state 1)
@@ -284,7 +284,7 @@ public class UI {
                     gp.friendsListManager.refresh();
                     gp.friendsListManager.retryPendingAdds(); // in case connectivity returned since last visit
                     // Keeps the emulated NFC tag's identity current for the rest of this screen
-                    // visit (and while backgrounded — see platform.NfcFriendService's class doc).
+                    // visit (and while backgrounded, see platform.NfcFriendService's class doc).
                     String friendId = gp.friendsListManager.getMyFriendId();
                     String username = gp.friendsListManager.getClaimedUsername();
                     if (friendId != null && username != null) {
@@ -326,10 +326,10 @@ public class UI {
     }
 
     // Rebuild trigger for pauseMenu(): whether BLE is available/hosting, and (while hosting) the
-    // guest count — the INVITE PLAYER label needs to reflect both, and MenuItem.label is immutable
+    // guest count, the INVITE PLAYER label needs to reflect both, and MenuItem.label is immutable
     // by design (see MenuItem's SELECTOR precedent for dynamic values), so a change rebuilds the
     // item list. Tracked as the 3 primitive values themselves (not a concatenated String) since
-    // this is checked every frame while paused — avoids a string allocation/boxing per frame for
+    // this is checked every frame while paused, avoids a string allocation/boxing per frame for
     // what's fundamentally a cheap 2-bool-1-int comparison. The Menu instance itself is still
     // cached/reused otherwise, so the rects drawItems() records stay valid for
     // MouseHandler.clickPause()'s hit-testing between frames.
@@ -339,18 +339,18 @@ public class UI {
 
     /**
      * Pause menu (RESUME / INVITE PLAYER [Android+BLE only] / QUIT TO TITLE). Cached like
-     * titleMenu/classMenu — MouseHandler.clickPause() calls this same cached instance, not a fresh
+ * titleMenu/classMenu, MouseHandler.clickPause() calls this same cached instance, not a fresh
      * one, so its previously-drawn item rects stay valid for hit-testing.
      */
     public Menu pauseMenu() {
         boolean hosting = gp.bleSession.isHosting();
         boolean guesting = gp.bleSession.isGuesting();
         int playerCount = gp.bleSession.totalPlayerCount();
-        // isHostingSupported() does a real permission-check IPC (Binder call to PackageManager) —
+        // isHostingSupported() does a real permission-check IPC (Binder call to PackageManager)
         // skip it once hosting has actually started, since hosting==true already implies support
         // and re-checking every frame while paused would otherwise cost that IPC 60x/sec for no
         // reason (support/permission state doesn't change mid-frame). A guest never sees INVITE
-        // PLAYER at all — only the host of a session can invite further guests (see
+        // PLAYER at all, only the host of a session can invite further guests (see
         // main.BleMultiplayerSession's class doc: the host is the single source of truth for the
         // session, and hosting from inside someone else's session isn't a supported topology).
         boolean hasBle = !guesting && (hosting || platform.BleMultiplayer.isHostingSupported());
@@ -367,7 +367,7 @@ public class UI {
             }
             pauseMenu.button("QUIT TO TITLE", () -> {
                 boolean wasHosting = gp.bleSession.isHosting();
-                // Wipe the run we're leaving — world, stats, inventory, story flags — and drop any
+                // Wipe the run we're leaving, world, stats, inventory, story flags, and drop any
                 // live TCP/BLE session. Quitting used to leave all of it in memory, so the next
                 // singleplayer game started on top of the multiplayer world and character.
                 gp.resetSession();
@@ -402,12 +402,12 @@ public class UI {
     }
 
     /**
-     * Stops the phone from answering NFC taps with the (now-stale) BLE invite once hosting ends —
+ * Stops the phone from answering NFC taps with the (now-stale) BLE invite once hosting ends
      * otherwise the emulated tag would keep offering a session token/MAC that no longer accepts
      * connections indefinitely, since HCE payloads are otherwise long-lived (see
      * NfcFriendService's class doc). Restores the player's own friend-add payload if they've
      * claimed a username (so tap-to-add-friend keeps working), or clears the tag entirely
-     * otherwise — either way, a fresh INVITE PLAYER tap is required to broadcast an invite again.
+ * otherwise, either way, a fresh INVITE PLAYER tap is required to broadcast an invite again.
      */
     private void restoreDefaultNfcPayload() {
         String friendId = gp.friendsListManager.getMyFriendId();
@@ -421,9 +421,9 @@ public class UI {
 
     /**
      * Entry point for platform.NfcLaunch's cold-launch auto-join (see GamePanel.update()): the
-     * player's first tap already got them here (Android's AAR cold-launched the app — see
+ * player's first tap already got them here (Android's AAR cold-launched the app, see
      * androidlauncher.nfc.Ndef4Service), so this jumps straight past the title menu into the same
-     * waiting-for-tap state JOIN GAME uses, and starts reading immediately — from the player's
+ * waiting-for-tap state JOIN GAME uses, and starts reading immediately, from the player's
      * perspective it's one continuous "tap and hold the phones together" gesture, even though
      * technically the first NFC read (the AAR) and this second one (the real invite payload, over
      * FriendHceService's custom-AID channel) are two separate taps a moment apart.
@@ -438,7 +438,7 @@ public class UI {
     /**
      * Starts NFC reader mode for JOIN GAME (titleScreenState 6): on a successful tap, decodes the
      * host's NfcInvitePayload and connects over BLE via main.BleMultiplayerSession#joinHost, which
-     * on success loads the host's map and drops the local player in at spawn with default stats —
+ * on success loads the host's map and drops the local player in at spawn with default stats
      * see that method's class doc for why no map data needs to be transmitted.
      */
     private void startJoinGameNfcRead() {
@@ -447,10 +447,10 @@ public class UI {
     }
 
     /**
-     * Fires once per NFC tag Android's reader mode detects — including a misread (wrong tag,
+ * Fires once per NFC tag Android's reader mode detects, including a misread (wrong tag,
      * mid-tap glitch), which comes through as {@code payload == null}. Reader mode itself keeps
      * polling underneath regardless (see NfcFriendServiceImpl#startReading), so a failed decode
-     * here just re-arms silently rather than surfacing a dead-end "try again" — this is what makes
+ * here just re-arms silently rather than surfacing a dead-end "try again", this is what makes
      * the cold-launch flow feel like one continuous "hold the phones together" gesture instead of
      * needing a deliberate second tap (see startJoinGameFromNfcLaunch's class doc).
      */
@@ -464,7 +464,7 @@ public class UI {
             return;
         }
         joinGameNfcWaiting = false;
-        platform.NfcFriend.stopReading(); // got what we needed — no reason to keep scanning
+        platform.NfcFriend.stopReading(); // got what we needed, no reason to keep scanning
         joinGameStatusMessage = "Connecting…";
         gp.bleSession.joinHost(invite, accepted -> {
             if (accepted) {
@@ -484,14 +484,14 @@ public class UI {
     public Entity npc;
     int charIndex = 0;
     public float transitionAlpha = 0f;
-    // OPTIMIZATION: typewriter text accumulator — replaces String += String concatenation
+    // OPTIMIZATION: typewriter text accumulator, replaces String += String concatenation
     // (which allocated a fresh String every character). StringBuilder reuses internal char[].
     private final StringBuilder dialogueBuilder = new StringBuilder(256);
     String combinedText = "";
 
     // OPTIMIZATION: word-wrap cache for the active dialogue line.
     // wrapText() is expensive (FontMetrics.stringWidth per word per frame). The wrapped result
-    // is invariant for a given (text, width, font) triple — recompute only when one of those
+    // is invariant for a given (text, width, font) triple, recompute only when one of those
     // changes. Saves ~1-3ms per frame on long dialogue lines on weak hardware.
     private final java.util.ArrayList<String> dialogueWrapCache = new java.util.ArrayList<>();
     private String dialogueWrapKeyText = null;
@@ -519,14 +519,14 @@ public class UI {
 
     // ── HP bar "hit juice": trailing damage chunk, flash, shake ──────────────────────────────
     // Everything below is self-contained in UI.java and driven purely by watching gp.player.life
-    // change frame to frame in updateAnimations() — no changes needed anywhere damage is dealt.
+    // change frame to frame in updateAnimations(), no changes needed anywhere damage is dealt.
     private float lastSeenLife = -1f;   // life value last tick, to detect "damage just happened"
     private float chunkLife = -1f;      // trailing chunk edge (0..1), catches down to smoothLife
     private int hpFlashTimer = 0;       // ticks remaining on the on-hit flash overlay
     private int hpShakeTimer = 0;       // ticks remaining on the on-hit bar shake
     private float hpShakeStrength = 0f; // current shake magnitude in px, decays over hpShakeTimer
 
-    // ---- Tune the HP bar "feel" here — every knob for drain/chunk/flash/shake/color lives in
+    // ---- Tune the HP bar "feel" here, every knob for drain/chunk/flash/shake/color lives in
     // ---- this one block, nothing else needs touching to change how damage reads on the bar.
     private static final float HP_DRAIN_IN_RATE   = 0.35f;  // main bar: fast catch-up toward target
     private static final float HP_DRAIN_MID_RATE  = 0.06f;  // main bar: slow drift once close
@@ -537,9 +537,9 @@ public class UI {
     private static final Color HP_FLASH_COLOR      = new Color(255, 255, 255, 160); // on-hit flash tint
     private static final int   HP_SHAKE_DURATION   = 10;    // ticks the on-hit bar shake lasts
     private static final float HP_SHAKE_STRENGTH   = 3f;    // on-hit bar shake magnitude in px
-    private static final int   HP_BAR_CORNER_RADIUS = 3;    // bar corner rounding in px — 0 = sharp rectangle
+    private static final int   HP_BAR_CORNER_RADIUS = 3;    // bar corner rounding in px, 0 = sharp rectangle
     // Color-by-fullness: continuous gradient from red (empty) through orange/yellow to green (full).
-    // More stops = finer/less steppy transition — add/remove/reorder {fullnessThreshold 0..1, r, g, b}
+    // More stops = finer/less steppy transition, add/remove/reorder {fullnessThreshold 0..1, r, g, b}
     // rows freely, they just need ascending thresholds from 0.0 to 1.0.
     private static final float[][] HP_COLOR_STOPS = {
         { 0.00f, 210, 45, 45 },   // empty: red
@@ -578,7 +578,7 @@ public class UI {
 
     private Font hudFont_bold15, hudFont_bold8, hudFont_bold13;
     private Font hudFont_plain10, hudFont_bold10, hudFont_bold9, hudFont_bold22;
-    /** Prompt font ("ENTER" floating above interactables) — initialized in initHudFonts(). */
+    /** Prompt font ("ENTER" floating above interactables), initialized in initHudFonts(). */
     private Font hudFont_prompt;
     private static final Stroke STROKE_1  = new Stroke(1f);
     private static final Stroke STROKE_15 = new Stroke(1.5f);
@@ -731,7 +731,7 @@ public class UI {
             }
 
             // Frames are loaded lazily, a few per draw tick (see loadNextTitleAnimFrames()), instead
-            // of all 130 here — decoding/uploading them all up front made the game freeze/"Not
+            // of all 130 here, decoding/uploading them all up front made the game freeze/"Not
             // Responding" for several seconds on launch.
             titleAnimFrames = new Sprite[TITLE_ANIM_FRAME_COUNT];
 
@@ -764,7 +764,7 @@ public class UI {
 
     /** Cached font lookup â€” avoids expensive deriveFont() every frame. */
     private Font cachedFont(int style, float size) {
-        // Round to integer size — keeps pixel fonts crisp (avoids sub-pixel rounding blur).
+        // Round to integer size, keeps pixel fonts crisp (avoids sub-pixel rounding blur).
         float roundedSize = (float) Math.round(size);
         long key = ((long) style << 32) | Float.floatToIntBits(roundedSize);
         Font f = fontCache.get(key);
@@ -776,7 +776,7 @@ public class UI {
     }
 
     private void initHudFonts() {
-        // All sizes are integers — avoids sub-pixel rounding that blurs pixel fonts.
+        // All sizes are integers, avoids sub-pixel rounding that blurs pixel fonts.
         // At 1280-wide (sf=1.0) the sizes match the design values exactly.
         float sf = gp.uiSf();
         hudFont_bold15  = arial_40.deriveFont(Font.BOLD,  (float) Math.round(15f * sf));
@@ -988,7 +988,7 @@ public class UI {
     /**
      * Watches gp.player.life for a drop and, when one happens, kicks off the flash + shake + resets
      * the trailing damage chunk to the pre-hit value so it can catch down. No hook needed anywhere
-     * damage is dealt — this just compares life to what it was last tick, the same way smoothLife
+ * damage is dealt, this just compares life to what it was last tick, the same way smoothLife
      * already tracks targetLife in drawPlayerLife().
      */
     private void updateHpBarJuice() {
@@ -999,7 +999,7 @@ public class UI {
             hpShakeTimer = HP_SHAKE_DURATION;
             hpShakeStrength = HP_SHAKE_STRENGTH;
             // Chunk starts at the OLD (pre-hit) ratio so it visibly sits ahead of the newly-drained
-            // main bar, then eases down to meet it — if already mid-catch-up from an earlier hit,
+            // main bar, then eases down to meet it, if already mid-catch-up from an earlier hit,
             // don't snap backwards, keep whichever edge is further out.
             float preHitRatio = lastSeenLife / Math.max(1, gp.player.maxLife);
             chunkLife = Math.max(chunkLife, preHitRatio);
@@ -1019,7 +1019,7 @@ public class UI {
      * Fast-in, slow-middle, fast-out drain: far from the target it closes the gap quickly, near the
      * target it eases gently, and once it's essentially arrived it speeds back up to snap the last
      * sliver shut instead of crawling forever. The rate blends smoothly between HP_DRAIN_IN_RATE and
-     * HP_DRAIN_MID_RATE as a function of distance (no hard threshold switch — an earlier version
+ * HP_DRAIN_MID_RATE as a function of distance (no hard threshold switch, an earlier version
      * hard-switched rate at HP_DRAIN_MID_BAND, which produced a visible "kick" right at that distance;
      * this version ramps the rate continuously instead, so there's no single point where the speed
      * jumps). Hand-tuned lerp, matching the rest of the codebase's inline-lerp style instead of
@@ -1027,7 +1027,7 @@ public class UI {
      */
     private static float drainTowards(float current, float target) {
         float diff = target - current;
-        // 0 at/beyond HP_DRAIN_MID_BAND away, ramps to 1 as it approaches the target — smoothstep,
+        // 0 at/beyond HP_DRAIN_MID_BAND away, ramps to 1 as it approaches the target, smoothstep,
         // not a hard cutoff, so the blended rate below has no discontinuity.
         float closeness = 1f - Math.min(1f, Math.abs(diff) / HP_DRAIN_MID_BAND);
         closeness = closeness * closeness * (3f - 2f * closeness); // smoothstep
@@ -1069,12 +1069,12 @@ public class UI {
         if (smoothExp  < 0) smoothExp  = targetExp;
         if (chunkLife  < 0) chunkLife  = targetLife;
         // Main HP bar: fast-in/slow-mid/fast-out (see drainTowards). Mana/XP keep the original flat
-        // lerp — only HP got the "juice" treatment per the rework.
+        // lerp, only HP got the "juice" treatment per the rework.
         smoothLife = drainTowards(smoothLife, targetLife);
         smoothMana += (targetMana - smoothMana) * 0.08f;
         smoothExp  += (targetExp  - smoothExp)  * 0.08f;
         // Trailing damage chunk: always sits at or ahead of the main bar, catching down to it at its
-        // own (slower) rate — reset to the pre-hit ratio in updateHpBarJuice() the instant HP drops.
+        // own (slower) rate, reset to the pre-hit ratio in updateHpBarJuice() the instant HP drops.
         chunkLife = Math.max(targetLife, chunkLife + (smoothLife - chunkLife) * HP_CHUNK_RATE);
 
         float pulse = fastPulse(animTick, 1);       // 0..1 slow breathe (~1 Hz at 60 UPS)
@@ -1172,7 +1172,7 @@ public class UI {
         int coinTxtX = pillRX + pillW - (int)(9 * sf) - cachedFM().stringWidth(coinStr);
         g2.drawString(coinStr, coinTxtX, pillRY + pillH / 2 + cachedFM().getAscent() / 2 - 1);
 
-        // Inv/SP pills are hidden during normal play — only the coin pill above stays visible there.
+        // Inv/SP pills are hidden during normal play, only the coin pill above stays visible there.
         if (gp.gameState != GamePanel.playState) {
             pillRY += pillH + pillGap;
             g2.setColor(HUD_PANEL_BG);
@@ -1349,7 +1349,7 @@ public class UI {
      * in the HP_* constants near the top of this class.
      */
     private void drawHpBar(int x, int y, int w, int h) {
-        // Shake only this bar, not the whole HUD/world — a tiny random jitter around (x, y) that
+        // Shake only this bar, not the whole HUD/world, a tiny random jitter around (x, y) that
         // decays via hpShakeStrength (updated once per tick in updateHpBarJuice()).
         int shakeX = hpShakeStrength > 0.05f ? (int) ((Math.random() * 2 - 1) * hpShakeStrength) : 0;
         int shakeY = hpShakeStrength > 0.05f ? (int) ((Math.random() * 2 - 1) * hpShakeStrength) : 0;
@@ -1540,7 +1540,7 @@ public class UI {
     }
 
     /**
-     * Decodes/uploads a handful of title-animation frames per call instead of all 130 up front —
+ * Decodes/uploads a handful of title-animation frames per call instead of all 130 up front
      * doing them all in the UI constructor made the game freeze ("Not Responding") for several
      * seconds on launch. Cheap to call every draw: once fully loaded it's just a length check.
      */
@@ -1669,7 +1669,7 @@ public class UI {
                     g2.drawString(text, tx, iy);
                 }
             }
-            // Username input box — top-right corner of title screen
+            // Username input box, top-right corner of title screen
             {
                 float pulse2 = fastPulse(animTick, 2);
                 int boxW = usernameBoxW(), boxH = usernameBoxH();
@@ -1683,7 +1683,7 @@ public class UI {
                 g2.setColor(cachedColor(6, 4, 14, 200));
                 g2.fillRoundRect(boxX, boxY, boxW, boxH, boxRound, boxRound);
 
-                // Border — highlighted when focused, flashes red when the player tried to proceed
+                // Border, highlighted when focused, flashes red when the player tried to proceed
                 // without a name (nagging), pulses amber when empty to invite the very first tap.
                 if (nagging) {
                     int bordA = (int)(180 + fastPulse(animTick, 6) * 75);
@@ -1761,7 +1761,7 @@ public class UI {
             g2.setColor(cachedColor(120, 100, 60, 80));
             g2.drawLine(px + 30, py + 62, px + panelW - 30, py + 62);
 
-            // Class options — labels come from classMenu() (declared once); the icon/desc/color
+            // Class options, labels come from classMenu() (declared once); the icon/desc/color
             // presentation stays here, keyed by row index. Item 3 is the "Back" row.
             java.util.List<MenuItem> classItems = classMenu().items();
             String[] classes = {classItems.get(0).label, classItems.get(1).label, classItems.get(2).label};
@@ -1779,7 +1779,7 @@ public class UI {
             int optX = px + 30;
 
             // Record button rects so the mouse hover/click hit-test (MouseHandler) matches exactly
-            // what we draw here — the Menu owns hit-testing for this custom-styled screen too.
+            // what we draw here, the Menu owns hit-testing for this custom-styled screen too.
             classMenu().beginRects();
 
             for (int i = 0; i < 3; i++) {
@@ -2265,7 +2265,7 @@ public class UI {
         g2.drawString(hint, hx, gp.screenHeight - gp.tileSize);
     }
 
-    /** Selection index into pauseMenu() — separate from commandNum since pause isn't a titleScreenState. */
+    /** Selection index into pauseMenu(), separate from commandNum since pause isn't a titleScreenState. */
     public int pauseSelection = 0;
 
     private final HashMap<String, Sprite> portraitCache = new HashMap<>();
@@ -2282,7 +2282,7 @@ public class UI {
     /**
      * Word-wrap text to fit within maxWidth pixels using the given font. Respects existing \n as hard breaks.
      *
-     * OPTIMIZATION: scans the input string in a single pass — no split("\n") or split(" ")
+ * OPTIMIZATION: scans the input string in a single pass, no split("\n") or split(" ")
      * allocations. Reuses a single StringBuilder for the current line and computes word width
      * once per word using fm.stringWidth on a substring view. This makes wrapping ~3x cheaper
      * for typical dialogue lines on weak hardware.
@@ -2314,7 +2314,7 @@ public class UI {
             String word = text.substring(wordStart, i);
 
             if (wrapBuilder.length() == 0) {
-                // First word on the line — always fits (even if technically too wide)
+                // First word on the line, always fits (even if technically too wide)
                 wrapBuilder.append(word);
             } else {
                 // Check whether "<current> <word>" fits without building a new String
@@ -2338,7 +2338,7 @@ public class UI {
     /**
      * Returns the cached wrapped lines for {@code text}, recomputing only if any of
      * (text, font, maxWidth) has changed since the last call. The returned list is owned by
-     * the cache — do not mutate.
+ * the cache, do not mutate.
      */
     private java.util.List<String> wrapTextCached(String text, Font font, int maxWidth) {
         if (maxWidth == dialogueWrapKeyWidth
@@ -2386,14 +2386,14 @@ public class UI {
 
             if (gp.keyH.enterPressed) {
                 if (charIndex < fullLineLen) {
-                    // Typewriter still running — complete the line instantly, don't advance yet
+                    // Typewriter still running, complete the line instantly, don't advance yet
                     charIndex = fullLineLen;
                     currentDialogue = fullLine;
                     dialogueBuilder.setLength(0);
                     gp.keyH.enterPressed = false;
                     gp.stopDialogueTyping();
                 } else {
-                    // Line already complete — advance to next
+                    // Line already complete, advance to next
                     charIndex = 0;
                     combinedText = "";
                     dialogueBuilder.setLength(0);
@@ -2431,7 +2431,7 @@ public class UI {
                 }
             }
             // Shop NPCs: keep the greeting line on screen (see openShopPrompt/drawShopPrompt) instead
-            // of clearing it — must capture it before currentDialogue is wiped below.
+            // of clearing it, must capture it before currentDialogue is wiped below.
             boolean isShopNpc = npc instanceof entity.NPC_Generic gn0 && gn0.shopItems != null && !gn0.shopItems.isEmpty();
             String heldGreeting = isShopNpc ? currentDialogue : null;
 
@@ -2442,12 +2442,12 @@ public class UI {
             gp.stopDialogueTyping();
 
             if (gp.gameState == GamePanel.dialogueState) {
-                // Shop NPCs: the greeting line just finished — offer an "Enter Shop" prompt
+                // Shop NPCs: the greeting line just finished, offer an "Enter Shop" prompt
                 // (attached to the SAME dialogue box, which stays visible with the held line)
                 // instead of dropping straight back into play. Deliberately skip the camera
                 // zoom-out/un-pan/bar-retract below for this case: the box doesn't move or go
                 // away, so retracting the cinematic framing right now reads as a jarring snap
-                // rather than a real scene change — closeShop() eases it back out later instead.
+                // rather than a real scene change, closeShop() eases it back out later instead.
                 if (isShopNpc) {
                     openShopPrompt((entity.NPC_Generic) npc, heldGreeting);
                 } else {
@@ -2474,7 +2474,7 @@ public class UI {
     }
 
     /** Draws the panel + name-tag + portrait shared by drawDialogueScreen() and the shop's
-     *  Enter-Shop prompt (drawShopPrompt) — ONE piece of drawing code for both, so there is no
+ * Enter-Shop prompt (drawShopPrompt), ONE piece of drawing code for both, so there is no
      *  possible drift (a flicker/blink) between the two at the moment they hand off to each other. */
     private DialogueBoxLayout drawDialogueBoxChrome(String npcName, String portraitPath) {
         DialogueBoxLayout l = new DialogueBoxLayout();
@@ -2540,7 +2540,7 @@ public class UI {
         int portraitOffset = l.textX - (l.boxX + gp.tileSize);
 
         // All state mutations (typewriter tick, Enter handling, gameState changes) happen in
-        // updateDialogueState() at 60 UPS. drawDialogueScreen() is read-only — it only draws.
+        // updateDialogueState() at 60 UPS. drawDialogueScreen() is read-only, it only draws.
         String[][] dlgSets = npc.ensureDialogues();
         String fullLine    = (npc.dialogueSet < dlgSets.length
                               && npc.dialogueIndex < dlgSets[npc.dialogueSet].length)
@@ -2549,7 +2549,7 @@ public class UI {
         int fullLineLen    = (fullLine != null) ? fullLine.length() : 0;
 
         // End-of-dialogue transitions are already handled in updateDialogueState;
-        // if fullLine is null here the state change is scheduled — skip drawing.
+        // if fullLine is null here the state change is scheduled, skip drawing.
         if (fullLine == null) return;
 
         Font dialogueFont = cachedFont(Font.PLAIN, 28F);
@@ -2717,7 +2717,7 @@ public class UI {
     }
 
     /**
-     * The Game Over menu (Retry / Quit). Actions live here — the single source of truth — so
+ * The Game Over menu (Retry / Quit). Actions live here, the single source of truth, so
      * KeyHandler just calls {@code gameOverMenu().activate()} instead of an index switch, and the
      * draw code reads the labels from {@code items()}. Built once, then reused.
      */
@@ -2845,7 +2845,7 @@ public class UI {
         g2.setColor(Color.white);
         g2.setFont(cachedFont(Font.PLAIN, 32F));
 
-        // SUB WINDOW — centered at any resolution
+        // SUB WINDOW, centered at any resolution
         int frameWidth  = Math.min(520, (int)(gp.screenWidth * 0.42f));
         int frameHeight = Math.min(660, (int)(gp.screenHeight * 0.92f));
         int frameX = (gp.screenWidth  - frameWidth)  / 2;
@@ -3122,7 +3122,7 @@ public class UI {
         }
 
         // Action hint + item detail/description panel only make sense while a slot is actually
-        // selected (mouse over it, or keyboard/controller nav) — otherwise they'd show stale info
+        // selected (mouse over it, or keyboard/controller nav), otherwise they'd show stale info
         // for whatever slotCol/slotRow last pointed at (see selectionVisible).
         if (selectionVisible) {
             int itemIndex = getItemIndexOnSlot();
@@ -3220,7 +3220,7 @@ public class UI {
     private static final String[] GRAPHICS_QUALITY_NAMES = { "Low", "Medium", "High" };
 
     /**
-     * The Settings menu (subState 0) as one declarative list — toggles, a selector and sliders with
+ * The Settings menu (subState 0) as one declarative list, toggles, a selector and sliders with
      * their get/set lambdas. This replaces the old split where labels + Enter-actions lived in
      * options_top() and the ◀▶ handling lived in KeyHandler.adjustOptionsVolume(). Add a setting by
      * adding one row here.
@@ -3298,7 +3298,7 @@ public class UI {
     private int shopBuyTabX, shopSellTabX, shopTabY, shopTabW, shopTabH;
     /** The NPC's greeting line, held on screen (dialogue box style) behind the Enter Shop button. */
     private String shopGreeting = "";
-    /** Frames since the prompt opened — drives the button's fade-in (see FADE_IN_FRAMES). */
+    /** Frames since the prompt opened, drives the button's fade-in (see FADE_IN_FRAMES). */
     private int shopPromptFadeTimer = 0;
     private static final int FADE_IN_FRAMES = 20; // ~0.33s at 60 UPS
 
@@ -3321,7 +3321,7 @@ public class UI {
     }
 
     public void closeShop() {
-        // Ease the dialogue camera back to neutral now — this is the real "leaving the
+        // Ease the dialogue camera back to neutral now, this is the real "leaving the
         // conversation" moment (see updateDialogueState's isShopNpc branch, which skips this
         // on entry so the box doesn't visibly snap while the prompt/shop is still showing it).
         gp.dlgZoomTarget = 1f;
@@ -3348,7 +3348,7 @@ public class UI {
     }
 
     /** Rebuilt every time the shop opens, the tab switches, or a transaction changes
-     *  gold/stock/inventory. shopMenu only tracks selection/enabled state here — the grid is
+ * gold/stock/inventory. shopMenu only tracks selection/enabled state here, the grid is
      *  custom-drawn (see drawShopGrid) so item icons can be shown, Menu's own row layout can't. */
     private void rebuildShopRows() {
         shopMenu = Menu.of(shopSellTab ? "Sell" : "Buy", THEME_SHOP);
@@ -3373,7 +3373,7 @@ public class UI {
     }
 
     /** The price this vendor lists an item at, or 0 if it's not in their buy stock (nothing to
-     *  base a sell offer on — a vendor won't buy what they don't deal in). */
+ * base a sell offer on, a vendor won't buy what they don't deal in). */
     private int listingPriceFor(String itemId) {
         for (ShopListing listing : shopNpc.shopItems) {
             if (listing.itemId.equals(itemId)) return listing.price;
@@ -3442,7 +3442,7 @@ public class UI {
     /**
      * Outcome of a buy/sell the multiplayer server processed. Gold was already applied by the
      * player_stats packet that follows; what's left is the inventory half, which still lives on
-     * the client — so we add the bought item / remove the sold one only now, on confirmation.
+ * the client, so we add the bought item / remove the sold one only now, on confirmation.
      */
     public void applyServerShopResult(boolean ok, String msg, String action,
                                       String itemId, int qty) {
@@ -3494,7 +3494,7 @@ public class UI {
 
     // ── "Enter Shop" prompt, attached to the dialogue box ───────────────────
     // Single button, always selected: MENU_CONFIRM/click it opens the shop, anything else
-    // (Escape, walking away, talking ends) just leaves — no separate "Leave" button needed.
+    // (Escape, walking away, talking ends) just leaves, no separate "Leave" button needed.
     public void confirmShopPrompt() {
         enterShop();
     }
@@ -3510,12 +3510,12 @@ public class UI {
 
     /** Redraws the same dialogue box drawDialogueScreen() drew (with the just-finished greeting
      *  line held on screen, since dialogueState's own draw stops once gameState leaves it), then
-     *  fades in a single "Enter Shop" button in its bottom-left corner — inside the box itself,
+ * fades in a single "Enter Shop" button in its bottom-left corner, inside the box itself,
      *  not a separate window or a panel stacked below it. */
     private void drawShopPrompt() {
         if (shopPromptFadeTimer < FADE_IN_FRAMES) shopPromptFadeTimer++;
 
-        // Same chrome-drawing call drawDialogueScreen() makes — guarantees this box is
+        // Same chrome-drawing call drawDialogueScreen() makes, guarantees this box is
         // pixel-identical to the one that was just showing, so there is nothing to blink.
         DialogueBoxLayout l = drawDialogueBoxChrome(shopNpc != null ? shopNpc.name : null,
                                                      shopNpc != null ? shopNpc.portraitPath : null);
@@ -3536,7 +3536,7 @@ public class UI {
             y += 40;
         }
 
-        // Same "▼ ENTER" indicator drawDialogueScreen() shows once a line finishes — kept here
+        // Same "▼ ENTER" indicator drawDialogueScreen() shows once a line finishes, kept here
         // (bottom-right, same spot) instead of dropped, so pressing Enter to continue reads as
         // one continuous action ("Enter" = confirm the prompt) rather than the box's own cue
         // vanishing the instant the Enter Shop button appears.
@@ -3646,9 +3646,9 @@ public class UI {
         gp.keyH.enterPressed = false;
     }
 
-    /** Icon-grid inventory-style layout — each cell shows the item icon, a gold price/stock tag,
-     *  and (buy tab) a greyed overlay when unaffordable/out of stock. Menu.beginRects/recordRect
-     *  keep mouse hit-testing in sync with this custom layout (see Menu's own doc for the idiom). */
+    /** Icon-grid inventory-style layout, each cell shows the item icon, a gold price/stock tag,
+ * and (buy tab) a greyed overlay when unaffordable/out of stock. Menu.beginRects/recordRect
+ * keep mouse hit-testing in sync with this custom layout (see Menu's own doc for the idiom). */
     // Selected cell's geometry + item id, captured by drawShopGrid() each frame so
     // drawShopTooltip() can position itself without a second pass over the grid layout.
     private int shopTooltipCellX, shopTooltipCellY, shopTooltipCellSize;
@@ -3707,7 +3707,7 @@ public class UI {
     }
 
     /** Name + description popup for the selected grid cell (see shopTooltipItemId, captured by
-     *  drawShopGrid). Only shows while selectionVisible — same rule as the inventory detail panel. */
+ * drawShopGrid). Only shows while selectionVisible, same rule as the inventory detail panel. */
     private void drawShopTooltip(int panelX, int panelY, int panelRight, int panelBottom) {
         if (!selectionVisible || shopTooltipItemId == null) return;
         entity.Entity item = data.ItemFactory.create(gp, shopTooltipItemId);
@@ -3761,7 +3761,7 @@ public class UI {
     private void drawShopCell(int x, int y, int size, String itemId, String name, String tag,
                                boolean enabled, boolean selected) {
         // Slot background: reuse the same Slots1.png the inventory screen uses, drawn at its own
-        // native size (not stretched to the cell) so it looks identical to the inventory screen —
+        // native size (not stretched to the cell) so it looks identical to the inventory screen
         // stretching a small pixel-art tile to an arbitrary cell size warped it visibly.
         int slotSize = Math.min(size, gp.tileSize);
         int slotX = x + (size - slotSize) / 2;
@@ -3780,7 +3780,7 @@ public class UI {
             g2.drawImage(icon, iconX, iconY, SHOP_ICON, SHOP_ICON);
         }
         if (!enabled) {
-            // Flat overlay, no rounded corners — a rounded shape over square pixel-art slot edges
+            // Flat overlay, no rounded corners, a rounded shape over square pixel-art slot edges
             // is what was reading as stray "circles in the corners."
             g2.setColor(cachedColor(0, 0, 0, 150));
             g2.fillRect(slotX, slotY, slotSize, slotSize);
@@ -4046,7 +4046,7 @@ public class UI {
             int hintX = frameX + fw / 2 - hw / 2;
             int hintY = frameY + fh - backAreaH + 2;
             g2.drawString(hint, hintX, hintY);
-            // Real triangles, not font glyphs — Pixeloid Sans has no arrow characters at all.
+            // Real triangles, not font glyphs, Pixeloid Sans has no arrow characters at all.
             if (controlScroll > 0) g2.fillTriangle(gfx.GdxRenderer.TriangleDir.UP, hintX - 14, hintY - 10, 8, 10);
             if (controlScroll < maxScroll) g2.fillTriangle(gfx.GdxRenderer.TriangleDir.DOWN, hintX + hw + 6, hintY - 10, 8, 10);
         }
@@ -4055,7 +4055,7 @@ public class UI {
         g2.setColor(OPT_SEPARATOR);
         g2.fillRect(frameX + pad, frameY + fh - backAreaH + 6, fw - pad * 2, 1);
 
-        // BACK button — always at fixed position inside the reserved area
+        // BACK button, always at fixed position inside the reserved area
         g2.setFont(cachedFont(Font.PLAIN, 26F));
         String back = "Back";
         int bw   = cachedFM().stringWidth(back);
@@ -4138,7 +4138,7 @@ public class UI {
                 gp.resetGame(true);
                 gp.gameState = GamePanel.titleState;
             } else if (commandNum == 2) {
-                // Cancel — back to options menu
+                // Cancel, back to options menu
                 subState = 0;
                 commandNum = 7; // End Game row
             }
@@ -4158,7 +4158,7 @@ public class UI {
                 subState = 1;
             }
         }
-        // Phase 1: Hold fully black — wait for player + camera to settle
+        // Phase 1: Hold fully black, wait for player + camera to settle
         else if (subState == 1) {
             transitionAlpha = 1.0f;
             transitionHoldCounter++;
@@ -4166,7 +4166,7 @@ public class UI {
                 subState = 2;
             }
         }
-        // Phase 2: Fade from black — slow cinematic reveal
+        // Phase 2: Fade from black, slow cinematic reveal
         else if (subState == 2) {
             transitionAlpha -= 0.02f; // ~50 frames (~0.83s)
             if (transitionAlpha <= 0f) {
@@ -4444,7 +4444,7 @@ public class UI {
             g2.fillRect(GRAPH_X + b * COL_STEP, GRAPH_Y, COL_STEP, GRAPH_H);
         }
 
-        // connector lines — geometry is precomputed when scrollPx changes (static layout)
+        // connector lines, geometry is precomputed when scrollPx changes (static layout)
         ensureSkillTreeConnectorCache(nodes.length);
         if (!stConnGeomValid || stConnGeomScrollPx != scrollPx) {
             for (int i = 0; i < nodes.length; i++) {
@@ -4743,7 +4743,7 @@ public class UI {
      * nine-slice Button.png (palette-swapped + cached per theme) when present; otherwise falls back
      * to a themed rounded-rect (the same look the old hand-rolled menus used) so buttons still
      * render before art exists. When {@code selected} an accent overlay/border is drawn on top.
-     * Used by {@link Menu} — the declarative menu layer.
+ * Used by {@link Menu}, the declarative menu layer.
      */
     public void drawButton(int x, int y, int w, int h, PanelTheme theme, boolean selected) {
         if (buttonPanelRaw != null) {
@@ -4763,7 +4763,7 @@ public class UI {
                 g2.drawRoundRect(x + 2, y + 2, w - 4, h - 4, 10, 10);
             }
         } else {
-            // Vector fallback — mirrors the rounded-rect buttons in options_top / game-over.
+            // Vector fallback, mirrors the rounded-rect buttons in options_top / game-over.
             if (selected) {
                 g2.setColor(OPT_SEL_BG);
                 g2.fillRoundRect(x, y, w, h, 12, 12);
@@ -4854,7 +4854,7 @@ public class UI {
                 + friendsMenuOptions().length;
     }
 
-    /** Bottom menu options — CLAIM USERNAME only shows up before a username has been claimed. */
+    /** Bottom menu options, CLAIM USERNAME only shows up before a username has been claimed. */
     private String[] friendsMenuOptions() {
         boolean hasUsername = gp.friendsListManager.getClaimedUsername() != null;
         if (friendsClaimMode) {
@@ -5030,7 +5030,7 @@ public class UI {
         g2.drawString(hint, px + (panelW - hw) / 2, py + panelH - 16);
      }
 
-    // JOIN GAME (titleScreenState 6) — guest side of local BLE multiplayer, see
+    // JOIN GAME (titleScreenState 6), guest side of local BLE multiplayer, see
     // main.BleMultiplayerSession's class doc. Tap the host's phone to connect directly over BLE.
     public void drawJoinGameScreen() {
         int panelW = 480, panelH = 260;

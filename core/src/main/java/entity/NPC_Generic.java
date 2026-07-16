@@ -6,7 +6,7 @@ import java.util.Random;
 import main.GamePanel;
 
 /**
- * NPC condus de date — toate dialogurile, sprite-urile, comportamentul si proprietatile
+ * NPC condus de date, toate dialogurile, sprite-urile, comportamentul si proprietatile
  * fragmentelor de memorie sunt setate extern (de obicei de MapObjectLoader citind
  * proprietatile din Tiled), nu hardcodate.
  *
@@ -43,7 +43,7 @@ public class NPC_Generic extends Entity {
         public String dialogueName  = null;          // cheie dialog dupa nume (rezolvata via dialogueNameMap)
         public boolean stationary   = false;        // blocheaza NPC-ul in loc in aceasta activitate
 
-        // Conditii — TOATE trebuie sa fie satisfacute pentru activarea starii (logica AND)
+        // Conditii, TOATE trebuie sa fie satisfacute pentru activarea starii (logica AND)
         public String requiredQuestComplete = null; // ID quest care trebuie finalizat
         public String requiredQuestActive   = null; // ID quest care trebuie activ (nefinalizat)
         public int    requiredFragments     = -1;   // numar minim de fragmente (-1 = ignora)
@@ -64,7 +64,7 @@ public class NPC_Generic extends Entity {
 
     /**
      * Multiplayer: this NPC is hosted by the server (see SERVERS/multiplayer_server/npc.py).
-     * Its dialogue lines, activity state and shop stock are NOT in this process — the client
+ * Its dialogue lines, activity state and shop stock are NOT in this process, the client
      * holds only the sprites needed to draw it. speak() therefore sends an npc_interact intent
      * and waits; the server replies with the lines this player is allowed to see, which
      * MultiplayerClient feeds back via {@link #applyServerDialogue}.
@@ -78,14 +78,14 @@ public class NPC_Generic extends Entity {
      * True from the moment we send npc_interact until the server's npc_dialogue comes back.
      *
      * <p>Needed because the state flip into dialogueState is what normally stops Player.update()
-     * from calling speak() again — and for a server-driven NPC that flip is a network round-trip
+ * from calling speak() again, and for a server-driven NPC that flip is a network round-trip
      * away. Without this, every frame the player holds Enter fires another npc_interact, so a
      * single conversation floods the server and re-opens the box on each reply.
      */
     public boolean awaitingServerDialogue = false;
     /**
      * Named dialogue key a quest step asked for on this interaction, captured instead of played
-     * (a server-driven NPC has no dialogue text locally — see speak()). Sent with npc_interact so
+ * (a server-driven NPC has no dialogue text locally, see speak()). Sent with npc_interact so
      * the server, which does hold the lines, resolves it. Null = ordinary conversation, server
      * picks the line from the NPC's state machine.
      */
@@ -97,7 +97,7 @@ public class NPC_Generic extends Entity {
     public String idleSpritePath = null;
     /**
      * Numarul de cadre pe fiecare rand de directie (JOS, STANGA, DREAPTA, SUS) pentru foaia walk,
-     * respectiv idle — ex: [6,7,6,7]. O foaie cu un singur rand foloseste doar primul element si
+ * respectiv idle, ex: [6,7,6,7]. O foaie cu un singur rand foloseste doar primul element si
      * randul e refolosit pe toate cele 4 directii (vezi Entity.loadSheetVariable). Implicit: 4x6.
      */
     public int[] walkFramesPerRow = {6, 6, 6, 6};
@@ -140,7 +140,7 @@ public class NPC_Generic extends Entity {
         if (spritePath != null) {
             try {
                 // Plain fixed-grid slice by explicit per-row frame count (row 0=DOWN, 1=LEFT,
-                // 2=RIGHT, 3=UP) — same mechanism monsters.json uses (Entity.loadSheetVariable).
+                // 2=RIGHT, 3=UP), same mechanism monsters.json uses (Entity.loadSheetVariable).
                 // A single-row sheet is duplicated across all 4 directions automatically.
                 Sprite[][] frames = loadSheetVariable(spritePath, walkFramesPerRow);
                 walkFrames = new Sprite[4][];
@@ -152,7 +152,7 @@ public class NPC_Generic extends Entity {
                 System.out.println("NPC_Generic: Failed to load walk sprite '" + spritePath + "': " + e.getMessage());
             }
         }
-        // Idle sheet — same plain fixed-grid slice, row order DOWN/LEFT/RIGHT/UP.
+        // Idle sheet, same plain fixed-grid slice, row order DOWN/LEFT/RIGHT/UP.
         if (idleSpritePath != null) {
             try {
                 Sprite[][] frames = loadSheetVariable(idleSpritePath, idleFramesPerRow);
@@ -205,7 +205,7 @@ public class NPC_Generic extends Entity {
      */
     public void evaluateActivityState() {
         // Server-hosted NPC: the state machine runs on the server against progress WE don't
-        // hold (see npc.py NpcWorld.resolve_state). There is nothing to evaluate here — the
+        // hold (see npc.py NpcWorld.resolve_state). There is nothing to evaluate here, the
         // server pushes the resolved state with each npc_dialogue reply.
         if (serverDriven) return;
         if (activityStates.isEmpty()) return;
@@ -218,7 +218,7 @@ public class NPC_Generic extends Entity {
             }
         }
 
-        // Nicio stare nu s-a potrivit — resetare la valorile implicite
+        // Nicio stare nu s-a potrivit, resetare la valorile implicite
         if (candidate == null) {
             if (activeState != null) {
                 activeState = null;
@@ -236,7 +236,7 @@ public class NPC_Generic extends Entity {
             return;
         }
 
-        // Aceeasi stare ca inainte — nicio tranzitie necesara, dar aplica directia odata ajuns
+        // Aceeasi stare ca inainte, nicio tranzitie necesara, dar aplica directia odata ajuns
         if (candidate.id != null && candidate.id.equals(lastStateId)) {
             if (!onPath && candidate.direction >= 0) {
                 direction = candidate.direction;
@@ -265,7 +265,7 @@ public class NPC_Generic extends Entity {
             if (idleDirection < 0) idleDirection = candidate.direction;
         }
 
-        // Suprascrie setul de dialog — suporta chei de dialog dupa nume
+        // Suprascrie setul de dialog, suporta chei de dialog dupa nume
         if (candidate.dialogueName != null && dialogueNameMap != null) {
             Integer idx = dialogueNameMap.get(candidate.dialogueName);
             if (idx != null) walkToDialogueSet = idx;
@@ -325,7 +325,7 @@ public class NPC_Generic extends Entity {
     public void speak() {
         facePlayer();
 
-        // Server-hosted NPC: we don't know what it says — ask. The server checks we're actually
+        // Server-hosted NPC: we don't know what it says, ask. The server checks we're actually
         // standing next to it, resolves its state against OUR server-held progress, and replies
         // with npc_dialogue (+ npc_shop if it's a vendor). applyServerDialogue() opens the box.
         if (serverDriven) {
@@ -334,8 +334,8 @@ public class NPC_Generic extends Entity {
                 awaitingServerDialogue = true;
                 // Quests still run on the client, and talking to an NPC is how a "talk" step
                 // advances: QuestManager hands over the step's item and names the line to play.
-                // We can't play that line ourselves — a server-driven NPC holds no dialogue text
-                // — so we run the step for its effects, capture the name it asked for, and let
+                // We can't play that line ourselves, a server-driven NPC holds no dialogue text
+                //, so we run the step for its effects, capture the name it asked for, and let
                 // the server look it up. requestedDialogue stays null for ordinary conversation,
                 // in which case the server picks the line from the NPC's own state machine.
                 serverDialogueRequest = null;
@@ -429,7 +429,7 @@ public class NPC_Generic extends Entity {
     /**
      * Apply an npc_dialogue reply: the server resolved this NPC's activity state against our
      * server-held progress and sent back the lines we're allowed to see. We copy them into
-     * dialogue set 0 (the whole set the server sent — there is no other set on the client for
+ * dialogue set 0 (the whole set the server sent, there is no other set on the client for
      * a server-driven NPC) and open the box.
      *
      * <p>Must run on the render thread: startDialogue() flips gameState and touches the UI.
@@ -470,7 +470,7 @@ public class NPC_Generic extends Entity {
 
     /**
      * Apply an npc_shop reply: the vendor's live stock as the SERVER sees it for this player.
-     * Prices and remaining units are the server's numbers — we only render them. Buying and
+ * Prices and remaining units are the server's numbers, we only render them. Buying and
      * selling go back over the wire (see UI.buyItem/sellItem) rather than mutating anything here.
      */
     public void applyServerShop(float sellMultiplier, java.util.List<ui.ShopListing> listings) {

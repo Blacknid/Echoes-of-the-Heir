@@ -10,14 +10,14 @@ import main.KeyHandler;
 /**
  * Bluetooth/USB gamepad support. Every physical button/axis edge is translated into a symbolic
  * "controller:xxx" token (see {@link main.input.InputBindings}) and reported to
- * {@link main.input.InputActions}, the same action system keyboard and mouse feed — so
+ * {@link main.input.InputActions}, the same action system keyboard and mouse feed, so
  * d-pad/stick/face buttons drive movement, gameplay actions, AND menu navigation uniformly,
  * with no separate gamepad-only logic needed beyond this translation layer. To rebind a
- * controller button, edit res/data/keybindings.json — nothing in this file needs to change.
+ * controller button, edit res/data/keybindings.json, nothing in this file needs to change.
  *
  * <p>{@code ControllerMapping} fields are per-controller-instance (two gamepad models can report
  * buttonA at different raw codes), so resolution happens here, per event, via reverse lookup
- * against {@code controller.getMapping()} — never cached/baked in at JSON-load time.
+ * against {@code controller.getMapping()}, never cached/baked in at JSON-load time.
  *
  * <p>Registered unconditionally in {@code MichiGame.create()} via
  * {@code Controllers.addListener(...)}; harmless no-op if nothing is paired.
@@ -28,7 +28,7 @@ public class GamepadInputAdapter implements ControllerListener {
 
     private final GamePanel gp;
 
-    // Axes report continuous values, not discrete down/up events — these caches let axisMoved
+    // Axes report continuous values, not discrete down/up events, these caches let axisMoved
     // detect deadzone-crossing transitions and report a physical edge only once per crossing,
     // instead of every callback while held past the deadzone (which would repeatedly increment
     // InputActions' held-count without a matching decrement).
@@ -56,7 +56,7 @@ public class GamepadInputAdapter implements ControllerListener {
         gp.actions.setPhysical(token, true);
         // Button presses never go through libGDX's keyDown callback (ControllerListener is a
         // separate event source from InputProcessor), so nothing would otherwise re-run
-        // KeyHandler's per-state dispatch tree — this is what lets a controller press of, say,
+        // KeyHandler's per-state dispatch tree, this is what lets a controller press of, say,
         // Cross/X actually reach handleTitleState's MENU_CONFIRM check instead of the recorded
         // action just sitting unconsumed in gp.actions forever.
         gp.keyH.onControllerButton();

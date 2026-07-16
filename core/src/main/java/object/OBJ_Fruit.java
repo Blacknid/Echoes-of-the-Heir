@@ -32,9 +32,9 @@ public class OBJ_Fruit extends Entity {
     }
 
     /** fallStartOffsetTiles: how far above the landing spot (in tiles) the fruit starts its fall
-     *  from — pass the tree's canopy height so the drop visually originates from the canopy, not
+ * from, pass the tree's canopy height so the drop visually originates from the canopy, not
      *  the trunk/base where the fruit actually lands.
-     *  launchOriginXTiles: how far horizontally (in tiles) from the landing spot the fall starts —
+ * launchOriginXTiles: how far horizontally (in tiles) from the landing spot the fall starts
      *  pass a random offset within the canopy's width so fruit visibly falls from different spots
      *  across the canopy instead of always the same point straight above the trunk. */
     public OBJ_Fruit(GamePanel gp, float fallStartOffsetTiles, float launchOriginXTiles) {
@@ -47,7 +47,7 @@ public class OBJ_Fruit extends Entity {
         type = TYPE_BUFFS;
         description = "A ripe fruit, still warm from the sun.";
         // down1 must stay a full tileSize x tileSize sprite overall, since UI.drawInventory() draws
-        // item icons at native resolution with no per-item rescaling — a smaller down1 would just
+        // item icons at native resolution with no per-item rescaling, a smaller down1 would just
         // render tiny and stuck in the slot's top-left corner instead of centered. To get a smaller
         // *visible* icon that's still centered in the slot, composite the source art scaled down onto
         // a transparent tileSize x tileSize cell (see Sprite.croppedCentered) rather than shrinking

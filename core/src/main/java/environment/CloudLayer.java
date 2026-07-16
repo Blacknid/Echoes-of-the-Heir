@@ -39,7 +39,7 @@ public class CloudLayer {
     public static final float MIN_SPACING_PX = 700f;
 
     private static final Color CLOUD_TINT = new Color(235, 235, 245);
-    // What clouds fade toward as darkness rises — a cool, shadowed slate-blue instead of staying a
+    // What clouds fade toward as darkness rises, a cool, shadowed slate-blue instead of staying a
     // bright off-white at night (which read as clouds "glowing" with no light source). Interpolated
     // with CLOUD_TINT by the current darkness level (EnvironmentManager.lastDarkness) each frame.
     // Darkened further than a naive lerp target so the shift reads clearly even at partial ambient

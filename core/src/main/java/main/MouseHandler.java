@@ -14,11 +14,11 @@ public class MouseHandler implements InputProcessor {
     public int gameX = 0;
     public int gameY = 0;
 
-    // Left button state — consumed by Player.update() each frame
+    // Left button state, consumed by Player.update() each frame
     public boolean leftPressed  = false;
     public boolean rightPressed = false;
 
-    // One-shot click flags — set on press, cleared after being read
+    // One-shot click flags, set on press, cleared after being read
     public boolean leftClicked  = false;
     public boolean rightClicked = false;
 
@@ -137,7 +137,7 @@ public class MouseHandler implements InputProcessor {
 
     // ════════════════════════════════════════════════════════════════════════
     // TITLE SCREEN
-    // Items: [CONTINUE,] NEW GAME, MULTIPLAYER, QUIT — CONTINUE only if a save exists
+    // Items: [CONTINUE,] NEW GAME, MULTIPLAYER, QUIT, CONTINUE only if a save exists
     // menuStartY = screenHeight*0.77, each item 40px apart
     // ════════════════════════════════════════════════════════════════════════
 
@@ -148,7 +148,7 @@ public class MouseHandler implements InputProcessor {
     }
 
     // Class selection screen (titleScreenState == 1). The draw code records its button rects into
-    // classMenu() each frame, so hit-testing is just a query — no duplicated, drift-prone geometry.
+    // classMenu() each frame, so hit-testing is just a query, no duplicated, drift-prone geometry.
     private int classItemUnderMouse() {
         if (gp.ui.titleScreenState != 1) return -1;
         return gp.ui.classMenu().itemAt(gameX, gameY);
@@ -217,7 +217,7 @@ public class MouseHandler implements InputProcessor {
 
     /**
      * Fires whatever action the clicked item itself declares (see UI.titleMenu()), instead of
-     * re-deriving the item's meaning from its index — the menu's item count/order varies (CONTINUE
+ * re-deriving the item's meaning from its index, the menu's item count/order varies (CONTINUE
      * only if a save exists, JOIN GAME only if NFC is supported), so a fixed index-to-action
      * mapping here would silently fire the wrong action whenever the layout doesn't match what was
      * hardcoded. Mirrors KeyHandler's ENTER handling for the same menu.
@@ -238,7 +238,7 @@ public class MouseHandler implements InputProcessor {
     }
 
     // ════════════════════════════════════════════════════════════════════════
-    // PAUSE SCREEN — click a button to activate it; click outside every button
+    // PAUSE SCREEN, click a button to activate it; click outside every button
     // (the overlay background) resumes, preserving the old "click anywhere to
     // dismiss" feel for touch/mouse without a near-miss on QUIT TO TITLE (etc.)
     // silently resuming instead.
@@ -358,7 +358,7 @@ public class MouseHandler implements InputProcessor {
     private void clickDialogue() {
         int i = dialogueChoiceUnderMouse();
         if (i < 0) {
-            // Click outside choices — advance dialogue like Enter
+            // Click outside choices, advance dialogue like Enter
             gp.keyH.enterPressed = true;
             return;
         }
@@ -388,7 +388,7 @@ public class MouseHandler implements InputProcessor {
         gp.ui.commandNum = i;
         gp.playSE(audio.SFX.MENU_SELECT);
         if (i == 0) {
-            // Retry — resetGame(false) already repositions the player correctly (at
+            // Retry, resetGame(false) already repositions the player correctly (at
             // retrySpawnCol/Row, the tile they last entered the map at, falling back to the
             // map's default spawn only if that isn't set). An extra setDefaultPositions() call
             // here used to unconditionally overwrite that with the map's default/new-game
@@ -419,7 +419,7 @@ public class MouseHandler implements InputProcessor {
 
     private int optionsItemUnderMouse() {
         if (gp.ui.subState != 0) return -1;
-        // Ask the Menu what its last drawn frame put under the cursor — always matches the visuals.
+        // Ask the Menu what its last drawn frame put under the cursor, always matches the visuals.
         return gp.ui.optionsMenu().itemAt(gameX, gameY);
     }
 
@@ -481,7 +481,7 @@ public class MouseHandler implements InputProcessor {
 
     private void clickShop() {
         if (gp.ui.isShopPromptActive()) {
-            // Click the button to enter; clicking anywhere else means "not interested" — leave,
+            // Click the button to enter; clicking anywhere else means "not interested", leave,
             // same as any non-confirm keypress (see KeyHandler.handleShopState).
             if (gp.ui.shopPromptButtonUnderMouse(gameX, gameY)) {
                 gp.ui.confirmShopPrompt();
@@ -522,7 +522,7 @@ public class MouseHandler implements InputProcessor {
             }
             default -> {
                 // Try slider click first; if not on a slider, treat as item select. subState 0 is the
-                // declarative Menu (UI.optionsMenu()) — same as KeyHandler.handleOptionsState, clicking a
+                // declarative Menu (UI.optionsMenu()), same as KeyHandler.handleOptionsState, clicking a
                 // row must call menu.activate() directly; the enterPressed latch is only ever consumed by
                 // the non-declarative sub-screens (subStates 1-3), so setting it here was a silent no-op
                 // for every button/toggle/selector row (Full Screen, V-Sync, Controls, Back, etc).
@@ -535,7 +535,7 @@ public class MouseHandler implements InputProcessor {
                     gp.ui.commandNum = i;
                     ui.Menu menu = gp.ui.optionsMenu();
                     menu.setSelected(i);
-                    // SELECTOR rows (e.g. Graphics quality) don't respond to activate() — they need
+                    // SELECTOR rows (e.g. Graphics quality) don't respond to activate(), they need
                     // pressLeft()/pressRight() depending on which arrow was clicked, same as A/D on
                     // keyboard (KeyHandler.handleOptionsState). Everything else (buttons/toggles) is a
                     // plain activate().
@@ -563,7 +563,7 @@ public class MouseHandler implements InputProcessor {
         // drawJournalScreen() draws each row's text with listY as the BASELINE (drawString's y is
         // the baseline, not the top), so row i's glyphs sit ABOVE listY + i*lineH, not below it.
         // The old hit-test treated that same value as the row's top edge, which put the clickable
-        // band a row-height too low — hovering a fragment visually selected the one below/above it.
+        // band a row-height too low, hovering a fragment visually selected the one below/above it.
         // Center each row's hit band on its baseline instead, using half the font's ascent as the
         // offset above the baseline (matches the 18F font drawJournalScreen uses for this list).
         int baselineY = panelY + 30;
@@ -630,13 +630,13 @@ public class MouseHandler implements InputProcessor {
     }
 
     // ════════════════════════════════════════════════════════════════════════
-    // WORLD — NPC click-to-interact
+    // WORLD, NPC click-to-interact
     // Click anywhere in playState while an NPC is within its interactRange.
-    // No sprite hit-test needed — range proximity is the only requirement.
+    // No sprite hit-test needed, range proximity is the only requirement.
     // ════════════════════════════════════════════════════════════════════════
 
     private void clickWorld() {
-        // While the wind painter is active, the mouse paints — ignore world interactions.
+        // While the wind painter is active, the mouse paints, ignore world interactions.
         if (gp.windPainter != null && gp.windPainter.isActive()) { leftClicked = false; return; }
 
         // Don't steal click if it's meant for combat (handled by Player.update via leftClicked)
@@ -662,7 +662,7 @@ public class MouseHandler implements InputProcessor {
     }
 
     // ════════════════════════════════════════════════════════════════════════
-    // COMBAT — left-click attacks in the direction of the cursor
+    // COMBAT, left-click attacks in the direction of the cursor
     // ════════════════════════════════════════════════════════════════════════
 
     /** Continuous aim angle (radians, atan2 convention: 0=right, +PI/2=down) from the player

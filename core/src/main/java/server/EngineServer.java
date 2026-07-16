@@ -18,13 +18,13 @@ import main.HeadlessGame;
  * <p><b>Why a child process, not a rewrite.</b> The Python server is the network front end: it
  * owns the TCP socket, the AES-GCM handshake, license verification, bans, rate limiting, the
  * admin console and map/chunk streaming. All of that is audited and works, and none of it is
- * gameplay. This process owns the other half — the <em>rules</em> of the game (combat, XP, and
- * in time drops and quests) — and it owns them by running <b>the same Java classes the client
+ * gameplay. This process owns the other half, the <em>rules</em> of the game (combat, XP, and
+ * in time drops and quests), and it owns them by running <b>the same Java classes the client
  * runs</b> (see {@link HeadlessGame}). One rulebook, so the server and client can never disagree
  * about an outcome, and nothing has to be ported to Python and kept in sync.
  *
  * <p><b>The link.</b> Python launches this jar and talks to it over stdin/stdout with one JSON
- * object per line — a private, loopback-only channel between a parent and its child, so it needs
+ * object per line, a private, loopback-only channel between a parent and its child, so it needs
  * no encryption of its own (the client-facing crypto already terminated in Python). Requests come
  * in on stdin; events go out on stdout; everything else (our own logging) goes to stderr so it
  * can never corrupt the protocol stream.
@@ -33,12 +33,12 @@ import main.HeadlessGame;
  * {@code "event"} (responses, E→C). Requests carry an {@code "rid"} (request id) which the
  * matching event echoes, so Python can correlate a reply with its call. Current commands:
  * <ul>
- *   <li>{@code {"cmd":"ping","rid":N}} → {@code {"event":"pong","rid":N}} — liveness.</li>
+ * <li>{@code {"cmd":"ping","rid":N}} → {@code {"event":"pong","rid":N}}, liveness.</li>
  *   <li>{@code {"cmd":"mob_hit","rid":N,"mobId":M,"mobType":"slime","damage":D,"pid":P}} →
  *       {@code {"event":"mob_state","rid":N,"mobId":M,"life":L,"maxLife":ML,"alive":b,
  *       "dying":b,"applied":A,"killed":b,"exp":X,"pid":P}}. The server owns the life pool and
  *       decides {@code killed}/{@code exp} from the shared monster definitions.</li>
- *   <li>{@code {"cmd":"reset_mobs","rid":N}} → {@code {"event":"ok","rid":N}} — forget mob
+ * <li>{@code {"cmd":"reset_mobs","rid":N}} → {@code {"event":"ok","rid":N}}, forget mob
  *       state (e.g. on map change), so ids can be reused.</li>
  * </ul>
  *
@@ -198,7 +198,7 @@ public final class EngineServer {
         out.flush();
     }
 
-    /** Log to stderr — never stdout, which is the protocol channel. */
+    /** Log to stderr, never stdout, which is the protocol channel. */
     private static void log(String msg) {
         System.err.println(msg);
     }

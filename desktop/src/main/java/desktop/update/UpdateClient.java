@@ -28,7 +28,7 @@ import javax.swing.JOptionPane;
  * Mandatory update check.
  *
  *  - Reads the current version from {@code /res/build.properties} INSIDE
- *    the JAR (the same file Config reads — single source of truth, kept
+ * the JAR (the same file Config reads, single source of truth, kept
  *    in sync by compile.cmd's auto-increment). Defaults to "0.0.0".
  *  - Reads {@code update_servers.txt} for a host pool.
  *  - Asks the patch server: "CHECK <version>". If it answers UPTODATE the
@@ -51,7 +51,7 @@ public final class UpdateClient {
           + "fQXQjNE11pteAASgyluRNu7rqbsfHitvkZk2KQ91hJ642VRyf2IIfSezvwDOee5ST"
           + "QIDAQAB";
 
-    // Public hosts first — the 192.168.* entries are LAN-only and unreachable for shipped builds.
+    // Public hosts first, the 192.168.* entries are LAN-only and unreachable for shipped builds.
     private static final List<String> FALLBACK_HOSTS = List.of(
             "142.93.103.51:5006",
             "128.127.115.96:5006",
@@ -99,7 +99,7 @@ public final class UpdateClient {
                 System.out.println("[Update] " + target + " unreachable: " + ex.getMessage());
             }
         }
-        // No patch server reachable — let the game start (offline-friendly).
+        // No patch server reachable, let the game start (offline-friendly).
         System.out.println("[Update] No patch server reachable. Continuing.");
         return true;
     }
@@ -222,7 +222,7 @@ public final class UpdateClient {
         try {
             String url = UpdateClient.class.getProtectionDomain()
                     .getCodeSource().getLocation().toURI().getPath();
-            // On Windows the URL path looks like /C:/foo/game.jar — strip leading /
+            // On Windows the URL path looks like /C:/foo/game.jar, strip leading /
             if (isWindows() && url.startsWith("/")) url = url.substring(1);
             Path p = Paths.get(url);
             if (Files.isRegularFile(p) && p.toString().toLowerCase().endsWith(".jar")) {

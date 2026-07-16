@@ -100,7 +100,7 @@ import util.ResourceCache;
  *   lightColor    (String)  "#rrggbb" hex color tint (default: warm orange)
  *
  * PER-TILE PROPERTIES (set on individual tiles inside a tileset in Tiled):
- *   depthSort     (bool)    Depth-sort THIS tile against entities — player walks behind it
+ * depthSort (bool) Depth-sort THIS tile against entities, player walks behind it
  *                           when approaching from above, and in front when coming from below.
  *                           Ideal for campfires, barrels, trees, etc.
  *                           Example: select campfire tile → Custom Properties → add bool "depthSort" = true
@@ -111,7 +111,7 @@ import util.ResourceCache;
  *   background    (bool)    Force tile to never depth-sort (always behind entities).
  *
  * LAYER PROPERTIES (set on tile layers in Tiled):
- *   background    (bool)    Force ALL tiles on this layer to background — drawn first, behind entities.
+ * background (bool) Force ALL tiles on this layer to background, drawn first, behind entities.
  *                           Overrides tileset-level depthSort. Use for Ground layers with mixed tilesets.
  *   depthSort     (bool)    Force ALL tiles on this layer to depth-sort against entities.
  *   foreground    (bool)    Force ALL tiles on this layer to always draw above entities.
@@ -131,7 +131,7 @@ import util.ResourceCache;
  *   CameraShake     intensity: "light"|"medium"|"heavy"
  *   SpawnZone       monster (String, default "MON_monster"), maxAmount (int, default 5),
  *                   interval (int frames, default 300 = 5 s at 60 fps)
- *                   Rectangle area — mobs spawn randomly inside it up to maxAmount.
+ * Rectangle area, mobs spawn randomly inside it up to maxAmount.
  *
  * MONSTER AREA (Monsters layer, rectangle object):
  *   monster (String)  entity type to spawn (e.g. "MON_monster")
@@ -402,7 +402,7 @@ public class MapObjectLoader {
                             if (!entities) continue;
                             // Multiplayer: the server hosts the NPCs (it reads the same objectgroup
                             // out of its own copy of the map) and pushes them to us as npc_spawn
-                            // packets. Spawning them here as well would double them up — and the
+                            // packets. Spawning them here as well would double them up, and the
                             // local copies would run their own dialogue/shop logic, which is exactly
                             // the authority we moved to the server.
                             if (gp.multiplayerMode) continue;
@@ -504,7 +504,7 @@ public class MapObjectLoader {
             gp.eManager.setWeatherByName(weather.trim());
             System.out.println("MapObjectLoader: weather=" + weather.trim().toUpperCase());
         } else {
-            // No weather property — release the pin so auto-cycle works on this map
+            // No weather property, release the pin so auto-cycle works on this map
             gp.eManager.pinnedWeather = -1;
         }
 
@@ -826,7 +826,7 @@ public class MapObjectLoader {
         int wDlg = getIntProperty(obj, "walkToDialogueSet", -1);
         if (wDlg >= 0) npc.walkToDialogueSet = wDlg;
 
-        // step<N>_dialogue is optional — defaults to N so steps 0/1/2 automatically play
+        // step<N>_dialogue is optional, defaults to N so steps 0/1/2 automatically play
         // dialogue sets 0/1/2 from the NPC class's setDialogue() without any Tiled config.
         for (int si = 0; si < 20; si++) {
             int sCol = getIntProperty(obj, "step" + si + "_walkToCol", -2);
@@ -1166,7 +1166,7 @@ public class MapObjectLoader {
                 int    totalLim  = getIntProperty(obj, "totalLimit",  0);
                 String lootItm  = getStringProperty(obj, "lootItem",  "");
                 String lootFrag = getStringProperty(obj, "lootFragment", "");
-                // Check for a <polygon> child — if present build an exact polygon zone.
+                // Check for a <polygon> child, if present build an exact polygon zone.
                 // NOTE: worldX/worldY have already been shifted to the bounding-box top-left
                 // by the outer parsing block (worldX += minPX*sf). To recover the correct
                 // absolute world coords for each point use (rawX - minRawX)*sf + worldX,
@@ -1232,7 +1232,7 @@ public class MapObjectLoader {
                 }
             }
             case "WaterZone" -> {
-                // Check for a polygon child — if present, register the exact polygon shape.
+                // Check for a polygon child, if present, register the exact polygon shape.
                 // NOTE: worldX/worldY have already been shifted to the bounding-box top-left
                 // by the time loadEvent is called (worldX += minPX*sf). To recover absolute
                 // world coords for each point we use: worldX + (px - minPX)*sf, which requires
@@ -1291,7 +1291,7 @@ public class MapObjectLoader {
 
     /**
      * Creates a monster entity by name for use in dynamic systems (e.g. SpawnZone).
-     * No level scaling or property reading — uses defaults.
+ * No level scaling or property reading, uses defaults.
      */
     public Entity createMonsterByName(String type, int col, int row) {
         String id = switch (type) {
@@ -1472,7 +1472,7 @@ public class MapObjectLoader {
                 if (!name.equals(property.getAttribute("name"))) continue;
                 String value = property.getAttribute("value");
                 if (value == null || value.isBlank()) value = property.getTextContent();
-                // Treat blank/empty the same as missing — use the caller's default.
+                // Treat blank/empty the same as missing, use the caller's default.
                 // This makes message="" in Tiled fall back to "You cannot pass here." etc.
                 if (value == null || value.isBlank()) return defaultValue;
                 return value;

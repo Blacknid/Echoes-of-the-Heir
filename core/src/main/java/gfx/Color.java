@@ -67,7 +67,7 @@ public final class Color {
     /** Packed 0xAARRGGBB, matching java.awt.Color.getRGB(). */
     public int getRGB() { return (a << 24) | (r << 16) | (g << 8) | b; }
 
-    /** java.awt.Color.brighter() — scales toward white by 0.7 factor. */
+    /** java.awt.Color.brighter(), scales toward white by 0.7 factor. */
     public Color brighter() {
         int i = (int) (1.0 / (1.0 - 0.7));
         int rr = r, gg = g, bb = b;
@@ -80,7 +80,7 @@ public final class Color {
                          Math.min(255, (int) (bb / 0.7)), a);
     }
 
-    /** java.awt.Color.darker() — scales toward black by 0.7 factor. */
+    /** java.awt.Color.darker(), scales toward black by 0.7 factor. */
     public Color darker() {
         return new Color(Math.max(0, (int) (r * 0.7)),
                          Math.max(0, (int) (g * 0.7)),

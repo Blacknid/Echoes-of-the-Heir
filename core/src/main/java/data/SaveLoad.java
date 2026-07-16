@@ -26,7 +26,7 @@ import platform.GameStorage;
 
 public class SaveLoad {
 
-    // AES-128 key — 16 bytes (change these values to make your save unique)
+    // AES-128 key, 16 bytes (change these values to make your save unique)
     private static final byte[] SAVE_KEY = {
         0x4D,0x69,0x63,0x68,0x69,0x41,0x64,0x76,
         0x65,0x6E,0x74,0x75,0x72,0x65,0x32,0x30
@@ -332,7 +332,7 @@ public class SaveLoad {
                 sb.append("metNPCs.").append(i).append('=').append(metList.get(i)).append('\n');
             }
 
-            // Remaining shop stock — only present for listings with a finite "stock" in npcs.json
+            // Remaining shop stock, only present for listings with a finite "stock" in npcs.json
             // (see ui.ShopListing.infinite()); most shops never touch this.
             java.util.List<String> stockKeys = new java.util.ArrayList<>(gp.shopStock.keySet());
             sb.append("shopStock.size=").append(stockKeys.size()).append('\n');
@@ -368,7 +368,7 @@ public class SaveLoad {
 
     /**
      * Network half of a load: pull the cloud save and parse it, touching NO game state and NO GL
-     * resource. Safe — and intended — to call off the render thread, since {@code download()} does a
+ * resource. Safe, and intended, to call off the render thread, since {@code download()} does a
      * real blocking round trip (pingPool + transfer) that would otherwise freeze the window.
      * Reading the local timestamp is plain file I/O, so it belongs on this side of the split too.
      *
@@ -379,7 +379,7 @@ public class SaveLoad {
             CloudSaveService.DownloadResult result = cloudSaveService.download(Main.LICENSE_KEY);
             if (result.ok() && result.json() != null && !result.json().isBlank()) {
                 GameState state = parseGameStateJson(result.json());
-                // Cloud is only authoritative if it's actually newer than what's on disk —
+                // Cloud is only authoritative if it's actually newer than what's on disk
                 // otherwise a stale cloud save (e.g. from before this session's progress) would
                 // silently overwrite newer local progress with no error shown. Returning null
                 // hands applyFetched() back to the local save, which is exactly what we want.
@@ -395,7 +395,7 @@ public class SaveLoad {
 
     /**
      * State half of a load: apply what {@link #fetch()} returned, falling back to the local save if
-     * it returned null. MUST run on the render thread — it rebuilds entities and re-bakes the
+ * it returned null. MUST run on the render thread, it rebuilds entities and re-bakes the
      * minimap, which construct GPU Textures/Pixmaps and need a current GL context.
      */
     public void applyFetched(GameState state) {
@@ -407,8 +407,8 @@ public class SaveLoad {
         loadFromDisk();
     }
 
-    /** Timestamp of the local save.dat, or 0 if absent/unreadable — so a missing/corrupt local
-     *  file never blocks a valid cloud save from loading. */
+    /** Timestamp of the local save.dat, or 0 if absent/unreadable, so a missing/corrupt local
+ * file never blocks a valid cloud save from loading. */
     private long localSaveTimestamp() {
         if (!GameStorage.exists("save.dat")) return 0L;
         try (InputStream fis = GameStorage.inputStream("save.dat")) {
@@ -419,7 +419,7 @@ public class SaveLoad {
                     catch (NumberFormatException ignored) { return 0L; }
                 }
             }
-        } catch (Exception ignored) { /* unreadable/legacy save — treat as oldest */ }
+        } catch (Exception ignored) { /* unreadable/legacy save, treat as oldest */ }
         return 0L;
     }
 
@@ -438,7 +438,7 @@ public class SaveLoad {
                 if (eq > 0) map.put(line.substring(0, eq).trim(), line.substring(eq + 1).trim());
             }
 
-            // MAP RELOAD — load the saved map's TMX + entities BEFORE applying
+            // MAP RELOAD, load the saved map's TMX + entities BEFORE applying
             // saved state on top, otherwise the world tiles/collisions/NPCs/events
             // are still those of whatever map was loaded at startup (awakening_cave).
             // That mismatch is what caused: player teleported to wrong spot, drawn
@@ -502,11 +502,11 @@ public class SaveLoad {
 
             int objSize = Integer.parseInt(map.getOrDefault("obj.size", "0"));
             for (int i = 0; i < Math.min(objSize, gp.obj.length); i++) {
-                // Event-layer lights (Tiled "Lighting" objects) are transient — reloadSavedMap() already
+                // Event-layer lights (Tiled "Lighting" objects) are transient, reloadSavedMap() already
                 // recreated them fresh from the TMX just above, and they're never serialized into the
                 // save (serializeEntityId would just save their shared "Light" name, which getObject()
                 // can't reconstruct anyway). Skip these slots entirely so the save-state restore doesn't
-                // null them back out — this was why Tiled lights disappeared on Continue until a debug
+                // null them back out, this was why Tiled lights disappeared on Continue until a debug
                 // map reload (R) recreated them again with no save-restore afterward to wipe them.
                 if (gp.obj[i] != null && gp.obj[i].eventLayerLight) continue;
 
@@ -579,10 +579,10 @@ public class SaveLoad {
                 String nid = map.get("skilltree." + i);
                 if (nid != null && !nid.isBlank()) {
                     gp.player.skillTree.markUnlocked(nid);
-                    // markUnlocked() only flips the node's visual "unlocked" flag — it deliberately
+                    // markUnlocked() only flips the node's visual "unlocked" flag, it deliberately
                     // skips applySkillNodeEffect() to avoid double-applying stat bonuses if called
                     // mid-session. On a fresh load this is the ONLY place the node's actual gameplay
-                    // effect (dashUnlocked, shockwaveUnlocked, stat bonuses, ...) gets (re)applied —
+                    // effect (dashUnlocked, shockwaveUnlocked, stat bonuses, ...) gets (re)applied
                     // skip it and e.g. WINDSTEP shows unlocked in the UI but dash still doesn't work.
                     gp.player.applySkillNodeEffect(nid);
                 }
@@ -626,7 +626,7 @@ public class SaveLoad {
 
         if (state == null) return;
 
-        // MAP RELOAD — must happen before applying obj[]/player state, see
+        // MAP RELOAD, must happen before applying obj[]/player state, see
         // reloadSavedMap() doc. Uses the saved coords as the spawn point so
         // changeMap doesn't snap the player to the map's default spawn.
         reloadSavedMap(state.mapID, state.playerX, state.playerY);
@@ -643,7 +643,7 @@ public class SaveLoad {
         gp.player.nextLevelExp = Math.max(1, state.nextLevelExp);
         gp.player.coin = Math.max(0, state.coin);
 
-        // LOCATION — override changeMap's spawn position with exact saved coords.
+        // LOCATION, override changeMap's spawn position with exact saved coords.
         gp.player.worldX = state.playerX;
         gp.player.worldY = state.playerY;
         gp.player.direction = state.direction;
@@ -655,7 +655,7 @@ public class SaveLoad {
         gp.player.frostNovaUnlocked = state.frostNovaUnlocked;
         gp.player.overdriveUnlocked = state.overdriveUnlocked;
 
-        // Skill tree visual state — use full node list when available (new saves),
+        // Skill tree visual state, use full node list when available (new saves),
         // fall back to the 5 legacy boolean flags for old saves.
         if (state.unlockedSkillNodes != null && !state.unlockedSkillNodes.isEmpty()) {
             for (String nid : state.unlockedSkillNodes) {
@@ -713,10 +713,10 @@ public class SaveLoad {
         gp.player.getPlayerAttackImages();
 
         for (int i = 0; i < gp.obj.length; i++) {
-            // Event-layer lights (Tiled "Lighting" objects) are transient — reloadSavedMap() already
+            // Event-layer lights (Tiled "Lighting" objects) are transient, reloadSavedMap() already
             // recreated them fresh from the TMX just above, and they're never meaningfully serialized
             // (serializeEntityId only saves their shared "Light" name, which getObject() can't
-            // reconstruct). Skip these slots so the save-state restore doesn't null them back out —
+            // reconstruct). Skip these slots so the save-state restore doesn't null them back out
             // this was why Tiled lights disappeared on Continue until a debug map reload (R) recreated
             // them again with no save-restore afterward to wipe them.
             if (gp.obj[i] != null && gp.obj[i].eventLayerLight) continue;

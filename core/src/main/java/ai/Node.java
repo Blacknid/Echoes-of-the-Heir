@@ -11,7 +11,7 @@ public class Node {
     boolean solid;
     boolean open;
     boolean checked;
-    // OPTIMIZATION: lazy-evaluation state — only touch nodes A* actually visits.
+    // OPTIMIZATION: lazy-evaluation state, only touch nodes A* actually visits.
     // `touched` = node was modified during this search (needs reset before next search)
     // `collisionChecked` = solid flag is valid (collision test already ran)
     // `hCostValid` = hCost has been computed for this search's goal

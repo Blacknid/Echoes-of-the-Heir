@@ -22,7 +22,7 @@ public class RenderPipeline {
 
     private final GamePanel gp;
     // NOTE: the legacy Sprite worldFrame cache (reused for paused/menu states) is dropped
-    // for the GPU port — drawWorldLayers re-renders each frame. A FrameBuffer-backed cache can be
+    // for the GPU port, drawWorldLayers re-renders each frame. A FrameBuffer-backed cache can be
     // re-added in the optimization pass if paused-state CPU cost ever matters (it won't on the GPU).
     private boolean worldCacheValid = false;
 
@@ -41,15 +41,15 @@ public class RenderPipeline {
         return Integer.compare(feet1, feet2);
     };
 
-    private static final Color DBG_PLAYER  = new Color(  0, 255,   0, 160); // green  — player solid
-    private static final Color DBG_ATTACK  = new Color(255, 100,   0, 160); // orange — attack box
-    private static final Color DBG_NPC     = new Color( 80, 140, 255, 160); // blue   — NPC solid
-    private static final Color DBG_MONSTER = new Color(255, 220,   0, 160); // yellow — monster solid
-    private static final Color DBG_OBJECT  = new Color(255,  80,  80, 160); // red    — objects
-    private static final Color DBG_ITILE   = new Color(  0, 230, 230, 160); // cyan   — interactive tiles
-    private static final Color DBG_PROJ    = new Color(255,   0, 180, 160); // pink   — projectiles
-    private static final Color DBG_COLLIDE = new Color( 60,  80, 220, 140); // blue   — TMX collision shapes
-    private static final Color DBG_KNOCK   = new Color(200,   0, 255, 160); // purple — knockback overlay
+    private static final Color DBG_PLAYER  = new Color(  0, 255,   0, 160); // green, player solid
+    private static final Color DBG_ATTACK  = new Color(255, 100,   0, 160); // orange, attack box
+    private static final Color DBG_NPC     = new Color( 80, 140, 255, 160); // blue, NPC solid
+    private static final Color DBG_MONSTER = new Color(255, 220,   0, 160); // yellow, monster solid
+    private static final Color DBG_OBJECT  = new Color(255,  80,  80, 160); // red, objects
+    private static final Color DBG_ITILE   = new Color(  0, 230, 230, 160); // cyan, interactive tiles
+    private static final Color DBG_PROJ    = new Color(255,   0, 180, 160); // pink, projectiles
+    private static final Color DBG_COLLIDE = new Color( 60,  80, 220, 140); // blue, TMX collision shapes
+    private static final Color DBG_KNOCK   = new Color(200,   0, 255, 160); // purple, knockback overlay
     private static final Font  DBG_FONT    = new Font("Arial", Font.BOLD, 10);
 
     public RenderPipeline(GamePanel gp) {
@@ -71,7 +71,7 @@ public class RenderPipeline {
                 gp.ui.draw(g2);
                 break;
             case GamePanel.levelUpState:
-                // Level-up screen draws its own opaque overlay — skip expensive world render
+                // Level-up screen draws its own opaque overlay, skip expensive world render
                 gp.ui.draw(g2);
                 break;
             default:
@@ -85,14 +85,14 @@ public class RenderPipeline {
     // Bloom is HIGH-only and only worth the capture cost when the shader path is live. Threshold keeps
     // only genuinely bright pixels (lights, fire, sparkles) glowing; intensity is the glow strength.
     // Threshold raised so ordinary bright pixels (skin, white/cream clothing on a player or NPC under
-    // ambient light) stay below it and never bloom — only genuine light-source hotspots (which the
+    // ambient light) stay below it and never bloom, only genuine light-source hotspots (which the
     // light shader boosts past 1.0 at their core) still glow. Keeps characters crisp, not "blurry".
     private static final float BLOOM_THRESHOLD = 0.97f;
     private static final float BLOOM_INTENSITY = 0.18f;
 
     private void drawWorldLayers(GdxRenderer g2) {
         // Capture the world+lighting into an offscreen target so bloom can read the finished scene, then
-        // blit it back and add glow — all BEFORE the HUD (drawn later on the real screen, so it never
+        // blit it back and add glow, all BEFORE the HUD (drawn later on the real screen, so it never
         // blooms). Only on HIGH with working bloom shaders; otherwise render straight to screen.
         // F8 (LightDebug.noBloom) disables the WHOLE post chain (scene capture + grade + rim + bloom):
         // if the dancing stops with it off, the bug lives in the capture/blit path, not the lighting.
@@ -120,7 +120,7 @@ public class RenderPipeline {
 
         collectRenderableEntities();
 
-        // OPTIMIZATION: Trim to actual count using subList().clear() — O(1) range remove
+        // OPTIMIZATION: Trim to actual count using subList().clear(), O(1) range remove
         // instead of repeated remove() which is O(n) for each element removed.
         if (entityList.size() > entityListIndex) {
             entityList.subList(entityListIndex, entityList.size()).clear();
@@ -247,7 +247,7 @@ public class RenderPipeline {
 
     /**
      * Flat ground shadows (see Entity.drawGroundShadow) as their own pass, drawn once on the ground
-     * right after the background tiles and before ANY entity — never depth-sorted with the entities
+ * right after the background tiles and before ANY entity, never depth-sorted with the entities
      * themselves. They used to be drawn inline inside each caster's own draw() call, which put them at
      * that caster's depth-sort slot: whenever the player or an NPC stood "in front of" (later in the
      * depth order than) a tree, the tree's draw() ran after them and painted its shadow on top of their
@@ -262,7 +262,7 @@ public class RenderPipeline {
     }
 
     private void drawWorldOverlays(GdxRenderer g2) {
-        // Cinematic letterbox bars for dialogue — drawn over the (now-unzoomed) world but under the
+        // Cinematic letterbox bars for dialogue, drawn over the (now-unzoomed) world but under the
         // HUD/dialogue box below. Height eases in/out with the dialogue camera via gp.dlgBars.
         if (gp.dlgBars > 0.01f) {
             int h = Math.round(GamePanel.DLG_BAR_MAX_H * gp.dlgBars);
@@ -330,7 +330,7 @@ public class RenderPipeline {
             g2.fill(new gfx.geom.IntPolygon(xs, ys, 4));
         }
 
-        // Bright glow at the apex, like a small flash/spark — sits in the gap the ticks leave.
+        // Bright glow at the apex, like a small flash/spark, sits in the gap the ticks leave.
         int glowR = 7;
         g2.setAlpha(0.9f);
         g2.setColor(Color.WHITE);
@@ -672,7 +672,7 @@ public class RenderPipeline {
     /**
      * Draws the first in-range boss's HP bar, as a pass separate from the Y-sorted world entity
      * loop. Bosses used to draw their own bar inline inside Boss.draw(), which runs interleaved with
-     * depth-sorted tiles (tall foliage/walls/overhangs) — a depth tile sorted after the boss could
+ * depth-sorted tiles (tall foliage/walls/overhangs), a depth tile sorted after the boss could
      * paint over the bar. This overlay always runs after all world/foreground layers, so it can't be
      * covered by anything in the world.
      */

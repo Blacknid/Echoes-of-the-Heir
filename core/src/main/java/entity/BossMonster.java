@@ -5,7 +5,7 @@ import main.GamePanel;
 /**
  * Boss entity with a two-phase AI system.
  * Phase 1: Normal combat behavior (uses aiBehavior from DataDrivenMonster).
- * Phase 2: Triggered at HP threshold — speed boost, optional behavior change.
+ * Phase 2: Triggered at HP threshold, speed boost, optional behavior change.
  *
  * Tiled properties (read by MapObjectLoader):
  *   bossId             (int)     1–4, maps to gp.boss1Defeated…boss4Defeated
@@ -99,7 +99,7 @@ public class BossMonster extends Entity {
         this.fleeing = innerMonster.fleeing;
     }
 
-    /** Called by GamePanel when this boss dies — sets the corresponding defeated flag. */
+    /** Called by GamePanel when this boss dies, sets the corresponding defeated flag. */
     public void onDeath() {
         switch (bossId) {
             case 1 -> gp.boss1Defeated = true;

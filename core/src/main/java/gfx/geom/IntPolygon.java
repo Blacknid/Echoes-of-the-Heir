@@ -5,7 +5,7 @@ package gfx.geom;
  * entity hurt-boxes: {@code new Polygon(xs, ys, n)}, public {@code npoints/xpoints/ypoints},
  * {@code translate}, {@code contains}, {@code intersects(rect)}, {@code getBounds}. Combat
  * collision (CollisionChecker) translates these in/out of world space and tests overlap, so
- * exact java.awt parity matters — the algorithms here match java.awt.Polygon.
+ * exact java.awt parity matters, the algorithms here match java.awt.Polygon.
  */
 public class IntPolygon implements Shape {
 
@@ -19,7 +19,7 @@ public class IntPolygon implements Shape {
         this.xpoints = xpoints; this.ypoints = ypoints; this.npoints = npoints;
     }
 
-    /** java.awt.Polygon.translate(dx,dy) — shifts all vertices in place. */
+    /** java.awt.Polygon.translate(dx,dy), shifts all vertices in place. */
     public void translate(int dx, int dy) {
         for (int i = 0; i < npoints; i++) { xpoints[i] += dx; ypoints[i] += dy; }
     }

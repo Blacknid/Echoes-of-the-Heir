@@ -38,7 +38,7 @@ public class Player extends Entity {
 
     private Sprite[][] hitFrames;    // getHit sprite sheet [dir][frame]
     private Sprite[][] deathFrames;  // death sprite sheet  [dir][frame]
-    private Sprite[][] swimFrames;   // swimming sheet [dir][frame] — only 2 frames/direction
+    private Sprite[][] swimFrames;   // swimming sheet [dir][frame], only 2 frames/direction
     public boolean isSwimming = false; // true while standing in a WaterZone (see EventHandler.isInWaterZone)
     public boolean playerDying = false;     // death animation in progress
     public int playerDeathCounter = 0;      // tick counter for death anim
@@ -75,7 +75,7 @@ public class Player extends Entity {
     private static final int COMBO_WINDOW_MAX = 20;
     private boolean attackBuffered = false;
 
-    // Free-aim attack angle (radians, atan2 convention) — independent of the cardinal `direction`
+    // Free-aim attack angle (radians, atan2 convention), independent of the cardinal `direction`
     // field. `direction` stays cardinal for body sprite/frontal-armor/knockback/AI; `attackAngle`
     // drives the cone hitbox, the rotated slice VFX, and the attack kick.
     private double attackAngle = 0.0;
@@ -100,7 +100,7 @@ public class Player extends Entity {
         };
     }
 
-    // Slash VFX — sliceAnim.png is a 2-frame strip (2 cols x 1 row, 32x96 per cell): frame 0 =
+    // Slash VFX, sliceAnim.png is a 2-frame strip (2 cols x 1 row, 32x96 per cell): frame 0 =
     // slash peak, frame 1 = fade/trail. Rotated to attackAngle each swing; native tall/narrow
     // aspect is preserved (uniformly scaled, never stretched independently per axis).
     private Sprite[] sliceFrames; // [0]=peak, [1]=trail
@@ -113,7 +113,7 @@ public class Player extends Entity {
     // orientation; toggled at swing END so the current swing draws with the value set at its start.
     private boolean sliceFlip = false;
 
-    // Attack "kick" — a brief forward impulse along attackAngle during the swing, collision-checked.
+    // Attack "kick", a brief forward impulse along attackAngle during the swing, collision-checked.
     private float kickOffsetX = 0f, kickOffsetY = 0f;
     private static final float KICK_MAX_PX = 7f;
 
@@ -154,7 +154,7 @@ public class Player extends Entity {
 
     private boolean dashing = false;
     private int dashCounter = 0;
-    private final int dashDuration = 10;  // frames (~0.17s — snappy burst)
+    private final int dashDuration = 10;  // frames (~0.17s, snappy burst)
     private int dashCooldown = 0;
     private final int dashCooldownMax = 60; // ~1s cooldown
     private boolean dashParticle = false;
@@ -198,7 +198,7 @@ public class Player extends Entity {
     private static final int WIND_DOWN_FRAMES = 2;
 
     // Physics-based movement: F_D = 0.5 * rho * v^2 * C_D * A
-    // rho=1.225 kg/m^3, C_D=1.0, A=0.5 m^2, mass=60 kg — scaled to pixel/frame units.
+    // rho=1.225 kg/m^3, C_D=1.0, A=0.5 m^2, mass=60 kg, scaled to pixel/frame units.
     private static final float PLAYER_MASS  = 60f;    // kg
     private static final float DRAG_K       = 1.44f;  // 0.5 * rho * C_D * A, tuned to pixel space
     private static final float DRIVE_ACCEL  = 0.4f;   // px/frame^2 drive force per unit mass while key held
@@ -211,9 +211,9 @@ public class Player extends Entity {
 
     // Wind: a real force vector sampled from the map's WindField, applied as F/mass per frame.
     // Only the component along the player's movement axis is used (tailwind faster / headwind
-    // slower) — the sideways component is discarded so the player is never pushed off-course.
+    // slower), the sideways component is discarded so the player is never pushed off-course.
     private static final float WIND_FORCE_SCALE = 9.0f; // converts WindField strength (0..1) to px/frame^2 force
-    // The "inertia hitbox" — the body area the wind pushes on. Larger than the collision solidArea
+    // The "inertia hitbox", the body area the wind pushes on. Larger than the collision solidArea
     // so it is visually balanced with the on-screen player sprite (a person-sized sail, not just feet).
     private final Rect inertiaArea = new Rect();
 
@@ -330,8 +330,8 @@ public class Player extends Entity {
         snapCamera();
     }
 
-    /** Instantly snaps the smooth camera to its default position — call after a window resize
-     *  to avoid the camera lerping from the old position to the new screen centre. */
+    /** Instantly snaps the smooth camera to its default position, call after a window resize
+ * to avoid the camera lerping from the old position to the new screen centre. */
     public void snapCamera() {
         int mapPixelW = gp.tileM.currentMapCols * gp.tileSize;
         int mapPixelH = gp.tileM.currentMapRows * gp.tileSize;
@@ -555,7 +555,7 @@ public class Player extends Entity {
 
     /**
      * Keeps the player's idle animation playing while dialogue or the inventory/character screen
-     * has locked out input — {@link #update()} (and thus {@link #freezeForDialogueOrCutscene()}
+ * has locked out input, {@link #update()} (and thus {@link #freezeForDialogueOrCutscene()}
      * and {@link #updateIdleSprite()}) doesn't run in those states, so without this the sprite
      * would hold whatever frame it was on the instant the menu opened. Safe to call every frame;
      * does not touch movement/attack state.
@@ -724,7 +724,7 @@ public class Player extends Entity {
             if (dashing) {
                 // Dash is a burst, not a driven walk: snap straight to the dash speed. The quadratic
                 // air-drag model below has a terminal velocity of ~4 px/frame (0.4 = 0.024*v²), which
-                // is BELOW walking speed — so ramping toward it made the dash feel like normal walking.
+                // is BELOW walking speed, so ramping toward it made the dash feel like normal walking.
                 // Bypassing drag here is what makes the dash actually lunge forward.
                 currentSpeed = targetSpeed;
             } else {
@@ -735,7 +735,7 @@ public class Player extends Entity {
 
             // Wind: project the wind force onto the player's movement direction only.
             // Tailwind (force aligned with motion) adds speed; headwind subtracts it.
-            // The perpendicular component is discarded — no sideways shove.
+            // The perpendicular component is discarded, no sideways shove.
             float windAccel = windForceAlongMovement(movingLeft, movingRight, movingUp, movingDown);
             currentSpeed = Math.max(0.5f, currentSpeed + windAccel);
             // Allow tailwind to push the player past their normal top speed (capped).
@@ -831,7 +831,7 @@ public class Player extends Entity {
             keyH.enterPressed = false;
         }
         attacking();
-        // While attacking the player STOPS walking — no key-driven movement; only the lunge from
+        // While attacking the player STOPS walking, no key-driven movement; only the lunge from
         // attacking() carries them forward. Speed is bled off so that resuming walking after the
         // swing has to ramp back up from near-zero (see post-attack ramp below).
         currentSpeed = Math.min(currentSpeed, defaultSpeed * 0.25f);
@@ -929,7 +929,7 @@ public class Player extends Entity {
 
     /** Left-click free-aim attack (suppressed while the wind painter is active). */
     private void fireMouseAttackIfRequested() {
-        // Mouse left-click attack — fires whether standing still or moving
+        // Mouse left-click attack, fires whether standing still or moving
         // (suppressed while the wind painter is active: the mouse is painting, not attacking)
         boolean windPainting = gp.windPainter != null && gp.windPainter.isActive();
         if (windPainting) gp.mouseH.leftClicked = false;
@@ -1158,7 +1158,7 @@ public class Player extends Entity {
         // Lunge driven off the CONTINUOUS spriteCounter (ticks every 60Hz frame) rather than the coarse
         // integer currentFrame, so the push interpolates smoothly instead of snapping in ~3 steps. The
         // out-phase spans the first ~65% of the swing; a smoothstep (ease-in-out) accelerates then
-        // decelerates so it glides into the final position. After that it HOLDS (Moonshire lunge — keep
+        // decelerates so it glides into the final position. After that it HOLDS (Moonshire lunge, keep
         // the ground gained; only the visual lean recovers, worldX/Y stay put, no snap-back).
         float swingT = totalDuration > 0 ? Math.min(1f, spriteCounter / (float) totalDuration) : 1f;
         float outEnd = 0.85f; // spread the push across most of the swing for a longer, softer glide
@@ -1220,7 +1220,7 @@ public class Player extends Entity {
         int dxPx = Math.round(kx - kickOffsetX);
         int dyPx = Math.round(ky - kickOffsetY);
         // Also block the lunge against solid entities (objects/interactive tiles/NPCs/monsters), not
-        // just static map tiles — checkTileNext alone let the lunge push the player straight through
+        // just static map tiles, checkTileNext alone let the lunge push the player straight through
         // e.g. a chest or an unbroken destructible it was attacking, since only tile geometry was
         // guarded against.
         if (dxPx != 0) {
@@ -1238,19 +1238,19 @@ public class Player extends Entity {
         collisionOn = false;
     }
 
-    // Lazily loaded so nothing breaks before the asset exists — ResourceCache.loadImageIfPresent
+    // Lazily loaded so nothing breaks before the asset exists, ResourceCache.loadImageIfPresent
     // already tolerates a missing file (returns null), same pattern as sliceAnim.png above.
     private static Sprite[] strikeImpactFrames;
     private static boolean strikeImpactLoadAttempted = false;
 
-    // Fixed visual size/lifetime for the wall-impact stamp — same punch on every hit, no distance
+    // Fixed visual size/lifetime for the wall-impact stamp, same punch on every hit, no distance
     // scaling, so it always reads clearly.
     private static final float IMPACT_SIZE_SCALE = 1.5f;
     private static final int IMPACT_LIFE_TICKS = 18;
 
     // The debug cone-visual (drawAttackConeDebug) draws the swing as a fan of 17 ticks spanning the
     // full ATTACK_CONE_HALF_ANGLE spread. Only a graze near the outer edge of that fan shouldn't be
-    // "enough" to trigger the wall impact/recoil — narrow the check to roughly the middle 3 of those
+    // "enough" to trigger the wall impact/recoil, narrow the check to roughly the middle 3 of those
     // 17 ticks (so only a near-direct hit on the aim direction counts), by running the environment-hit
     // test against a slimmer cone. Tune by changing this one fraction.
     private static final double ENVIRONMENT_HIT_HALF_ANGLE_FRACTION = 3.0 / 16.0;
@@ -1270,7 +1270,7 @@ public class Player extends Entity {
 
         // Swinging into a solid, non-monster collision (a wall, Tiled collision shape, object, NPC)
         // bounces the player back and stamps the strike-impact animation at the tip of the attack
-        // cone. Monsters are excluded — hitting one already knocks THEM back via damageMonster above;
+        // cone. Monsters are excluded, hitting one already knocks THEM back via damageMonster above;
         // this is purely for "you swung into something solid that didn't take the hit". Checked
         // against a narrower cone than the actual swing (see ENVIRONMENT_HIT_HALF_ANGLE_FRACTION)
         // so only a hit near the aim direction counts, not a graze at the swing's outer edge.
@@ -1294,7 +1294,7 @@ public class Player extends Entity {
     private double recoilPxDoneSoFar = 0;
 
     /**
-     * Kick off a short recoil away from the attack direction — same push on every hit, regardless of
+ * Kick off a short recoil away from the attack direction, same push on every hit, regardless of
      * how far into the swing's reach it landed. This is a separate, simpler linear-ease push (see
      * tickEnvironmentRecoil) used only for "swung into a wall" feedback; actual hit knockback (being
      * struck by a monster/hazard) goes through the shared knockBackVectorX/Y + tickKnockback() burst
@@ -1308,14 +1308,14 @@ public class Player extends Entity {
         recoilPxDoneSoFar = 0;
     }
 
-    /** Advances the environment-recoil push by one frame — smootherstep (fast start, soft settle). */
+    /** Advances the environment-recoil push by one frame, smootherstep (fast start, soft settle). */
     private void tickEnvironmentRecoil() {
         if (recoilTicksLeft <= 0) return;
         int elapsed = recoilTicksTotal - recoilTicksLeft;
         float tPrev = elapsed / (float) recoilTicksTotal;
         float tNow = (elapsed + 1) / (float) recoilTicksTotal;
         // Smootherstep (6t^5-15t^4+10t^3), same curve the attack lunge itself uses (applyAttackKick)
-        // so this recoil reads consistently with the rest of the combat feel — flatter start AND
+        // so this recoil reads consistently with the rest of the combat feel, flatter start AND
         // flatter arrival than a plain cubic ease-out, settling without any abrupt stop.
         double easedPrev = tPrev * tPrev * tPrev * (tPrev * (tPrev * 6f - 15f) + 10f);
         double easedNow = tNow * tNow * tNow * (tNow * (tNow * 6f - 15f) + 10f);
@@ -1356,7 +1356,7 @@ public class Player extends Entity {
         int size = Math.max(1, Math.round(gp.tileSize * IMPACT_SIZE_SCALE));
         p.setAsImpact(null, strikeImpactFrames, worldPx, worldPy, size, IMPACT_LIFE_TICKS);
         // Tall multi-tile structures (cliffs, trees) share ONE sortY across their whole sprite (their
-        // base row's), which can sit far below the contact point painted mid-face — a plain worldY-
+        // base row's), which can sit far below the contact point painted mid-face, a plain worldY-
         // based key isn't enough to guarantee drawing in front of those. Push it forward hard, same
         // "always draw on top of what's near it" trick the codebase already uses elsewhere via
         // depthSortYOffset, so the stamp reliably reads as painted ON the surface it hit.
@@ -1380,7 +1380,7 @@ public class Player extends Entity {
                 if (kb < 1) kb = 1;
                 if (isHeavy) kb = (int)(kb * 2.0f);
                 // Cap total knockback travel so a hit can never shove the target past the attack
-                // cone's own reach — otherwise spamming attacks on the same target could launch it
+                // cone's own reach, otherwise spamming attacks on the same target could launch it
                 // just out of range between swings, whiffing the follow-up with no visible cause.
                 kb = Math.min(kb, MAX_KNOCKBACK_POWER);
                 knockBack(gp.monster[i], kb, worldX, worldY);
@@ -1741,7 +1741,7 @@ public class Player extends Entity {
     }
 
     /** Same as {@link #onHitByEnemy(int, int, int, int)}, with control over whether it turns the
-     *  player to face away from the hit — false keeps whatever direction they were already facing
+ * player to face away from the hit, false keeps whatever direction they were already facing
      *  (e.g. still walking into a hazard), while the knockback itself still pushes away from the
      *  source regardless. */
     public void onHitByEnemy(int damage, int sourceWorldX, int sourceWorldY, int knockbackPower, boolean faceAwayFromHit) {
@@ -1771,8 +1771,8 @@ public class Player extends Entity {
         if (knockbackPower > 0) knockBackAwayFrom(sourceWorldX, sourceWorldY, knockbackPower);
     }
 
-    /** Pushes the player directly away from (srcX, srcY), at any angle — unlike knockBack(), which
-     *  only pushes along the player's current cardinal facing. */
+    /** Pushes the player directly away from (srcX, srcY), at any angle, unlike knockBack(), which
+ * only pushes along the player's current cardinal facing. */
     private void knockBackAwayFrom(int srcX, int srcY, int power) {
         double dx = worldX - srcX;
         double dy = worldY - srcY;
@@ -1830,7 +1830,7 @@ public class Player extends Entity {
         }
     }
 
-    /** Spawn teleport particles — called from KeyHandler. */
+    /** Spawn teleport particles, called from KeyHandler. */
     public void spawnTeleportParticles(boolean implode) {
         Color tpColor = COLOR_TELEPORT;
         int count = 10;
@@ -1891,8 +1891,8 @@ public class Player extends Entity {
         }
     }
 
-    /** Splash burst for dashing through water — same fan layout as spawnBobBurst() but more
-     *  particles, color-only (no bob sprite), and splashy outward-then-falling physics. */
+    /** Splash burst for dashing through water, same fan layout as spawnBobBurst() but more
+ * particles, color-only (no bob sprite), and splashy outward-then-falling physics. */
     private void spawnSplashBurst() {
         double baseAngle;
         switch (direction) {
@@ -2247,7 +2247,7 @@ public class Player extends Entity {
     @Override
     public void draw(GdxRenderer g2) {
         // Normally screenX/screenY (the player's fixed on-screen anchor) is exactly where the player
-        // draws — the camera IS the player. During a locked-camera cutscene (see ui.BossIntroCutscene)
+        // draws, the camera IS the player. During a locked-camera cutscene (see ui.BossIntroCutscene)
         // the camera can pan away from the player's real position; this offset shifts the player's
         // draw position the opposite way so it stays visually anchored at its real WORLD position
         // (appears to get left behind / recede into the distance) instead of following the camera
@@ -2312,7 +2312,7 @@ public class Player extends Entity {
         int drawY = tempScreenY + animOffsetY;
 
         if (dashing) {
-            // Subtle directional lean — character leans into the evade
+            // Subtle directional lean, character leans into the evade
             float t = (dashDuration - dashCounter) / (float)Math.max(1, dashDuration);
             float lean = (float)Math.sin(t * Math.PI) * 0.06f; // subtle
             if (direction == DIR_LEFT || direction == DIR_RIGHT) {
@@ -2345,7 +2345,7 @@ public class Player extends Entity {
      */
     private void drawSliceVfx(GdxRenderer g2, int tempScreenX, int tempScreenY) {
         if (sliceFrames == null || swingProgress < 0f) return;
-        // Frame 0 (peak) for the first tick of the window, frame 1 (trail) for the rest — the old
+        // Frame 0 (peak) for the first tick of the window, frame 1 (trail) for the rest, the old
         // 0.6 threshold only let frame 1 show on the single last tick before the swing ended,
         // making it effectively invisible.
         Sprite frame = sliceFrames[swingProgress < 0.34f ? 0 : 1];
@@ -2371,7 +2371,7 @@ public class Player extends Entity {
         float drawX = centerX - originX;
         float drawY = centerY - originY;
         // sliceAnim.png's neutral (unrotated) crescent is vertical (long axis top-to-bottom), convex
-        // bulging RIGHT and concave facing LEFT — i.e. the neutral pose already IS a correct right-facing
+        // bulging RIGHT and concave facing LEFT, i.e. the neutral pose already IS a correct right-facing
         // slash (concave toward a player on the left). attackAngle uses the atan2 convention
         // (0=right, +90=down) matching drawImageRotated's clockwise-positive screen rotation, so rotating
         // the neutral pose straight by attackAngle keeps the concave side facing the player for every
@@ -2431,7 +2431,7 @@ public class Player extends Entity {
 
     public void checkLevelUp() {
         while (exp >= nextLevelExp) {
-            exp -= nextLevelExp;  // subtract — XP bar resets each level
+            exp -= nextLevelExp;  // subtract, XP bar resets each level
             level++;
             nextLevelExp = 4 + level * 3;  // linear growth: 7, 10, 13, 16, 19...
 
@@ -2453,7 +2453,7 @@ public class Player extends Entity {
 
     /**
      * Build the level-up options. In multiplayer the pick is authorised server-side, and the
-     * server only grants the four stats it tracks — "speed" has no server representation, so it is
+ * server only grants the four stats it tracks, "speed" has no server representation, so it is
      * excluded from the offered pool rather than offered and silently dropped.
      */
     private void generateLevelUpChoices(boolean multiplayer) {
@@ -2483,7 +2483,7 @@ public class Player extends Entity {
 
     /**
      * Open the level-up stat-pick screen for a level the SERVER already granted (multiplayer).
-     * The client does not touch level, XP or skill points here — those arrived via player_stats;
+ * The client does not touch level, XP or skill points here, those arrived via player_stats;
      * this only presents the four server-grantable stats, and the pick becomes a level_choice
      * request (see KeyHandler.handleLevelUpState).
      */
@@ -2656,7 +2656,7 @@ public class Player extends Entity {
 
         // In multiplayer the level was granted by the server and the pick is authorised there too:
         // send it and let the server's player_stats be the only thing that changes our stats. We
-        // deliberately do NOT apply the +1 locally — a client mutating its own stats is exactly
+        // deliberately do NOT apply the +1 locally, a client mutating its own stats is exactly
         // what this closes. Both input paths (keyboard and mouse) funnel through here, so this one
         // guard covers them. The feedback (particles/shake) below still plays.
         boolean serverOwns = gp.multiplayerMode

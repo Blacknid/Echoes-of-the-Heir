@@ -7,7 +7,7 @@ import com.badlogic.gdx.graphics.g2d.TextureRegion;
  * GPU image handle that replaces {@code java.awt.image.BufferedImage} throughout the game.
  * Wraps a libGDX {@link TextureRegion} so that {@code getSubimage} (used for sprite-sheet and
  * tileset slicing) is a zero-copy sub-region, and {@code getWidth/getHeight} report region size
- * in pixels — matching the BufferedImage API the code relied on.
+ * in pixels, matching the BufferedImage API the code relied on.
  *
  * <p>Drawing goes through {@code GdxRenderer.drawImage(Sprite, ...)}. Per-pixel work that used
  * {@code createGraphics()} (hit-flash tint, light masks, minimap bake) is reimplemented with
@@ -45,14 +45,14 @@ public class Sprite {
      * Headless sprite: dimensions only, no GPU texture.
      *
      * <p>The authoritative game server runs the same simulation classes as the client but has no
-     * GL context, so it cannot create a {@link Texture}. It doesn't need one — the simulation never
+ * GL context, so it cannot create a {@link Texture}. It doesn't need one, the simulation never
      * reads pixels; the only thing it asks of a sprite is its size, because sprite-sheet slicing
      * (Entity.loadSheetVariable and friends) divides sheet width/height to work out frame counts and
      * cell sizes. Those numbers come from {@code logicalW/logicalH}, which this constructor sets
      * from the PNG header alone (see ResourceCache.loadImage in headless mode).
      *
      * <p>Every GPU-bound method ({@link #region()}, {@link #texture()}, {@link #getRGB},
-     * {@link #croppedBottomAligned}) is null-safe and inert on such a sprite — the server never
+ * {@link #croppedBottomAligned}) is null-safe and inert on such a sprite, the server never
      * calls them, and if a future change does, it fails visibly rather than corrupting state.
      */
     public static Sprite headless(int width, int height) {
@@ -66,7 +66,7 @@ public class Sprite {
         this.rx = rx; this.ry = ry; this.rw = rw; this.rh = rh;
         this.logicalW = logicalW; this.logicalH = logicalH;
         if (tex == null) {
-            // Headless: no texture, hence no region. Slicing still works — it only needs rx/ry/rw/rh
+            // Headless: no texture, hence no region. Slicing still works, it only needs rx/ry/rw/rh
             // and the logical size, all of which are set above.
             this.region = null;
             return;
@@ -97,7 +97,7 @@ public class Sprite {
      * extraction. Coordinates are relative to this sprite's top-left.
      */
     public Sprite getSubimage(int x, int y, int w, int h) {
-        // texture() is null when headless — the private constructor handles that, so sheet slicing
+        // texture() is null when headless, the private constructor handles that, so sheet slicing
         // keeps producing correctly-sized frames on the server with no GPU behind them.
         return new Sprite(texture(), rx + x, ry + y, w, h, w, h);
     }
@@ -109,7 +109,7 @@ public class Sprite {
     // ── Decoded-pixmap batch cache ──
     // getRGB() / croppedBottomAligned() need CPU pixels, obtained via TextureData.consumePixmap(),
     // which DECODES THE WHOLE PNG each call. NPC sprite-sheet trimming calls getRGB() once per pixel
-    // (tens of thousands of times) plus croppedBottomAligned() per frame — without batching that is
+    // (tens of thousands of times) plus croppedBottomAligned() per frame, without batching that is
     // tens of thousands of full-PNG decodes and was making class-select take ~12 seconds.
     //
     // When a pixel batch is open, the decoded Pixmap for each Texture is cached and reused across
@@ -183,7 +183,7 @@ public class Sprite {
 
     /**
      * Crop a sub-rectangle of this sprite, scale it to (dw,dh), and place it bottom-aligned and
-     * horizontally centered into a transparent cell of (cellW,cellH) — the GPU-native replacement
+ * horizontally centered into a transparent cell of (cellW,cellH), the GPU-native replacement
      * for the "new BufferedImage + createGraphics + drawImage(crop, ox, oy, dw, dh)" pattern used
      * by NPC sprite-sheet trimming. Runs at load time via a Pixmap composite.
      */
@@ -194,7 +194,7 @@ public class Sprite {
 
     /**
      * Same composite as {@link #croppedBottomAligned}, but centers the scaled crop both
-     * horizontally and vertically in the transparent cell instead of anchoring to the bottom —
+ * horizontally and vertically in the transparent cell instead of anchoring to the bottom
      * for icons that should shrink-and-center (e.g. a smaller inventory sprite) rather than sit on
      * a shared baseline (e.g. sprite-sheet frame trimming).
      */

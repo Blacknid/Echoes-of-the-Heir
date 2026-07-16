@@ -13,7 +13,7 @@ import util.ResourceCache;
 
 /**
  * A single destructible grass sprite, rendered at its own native resolution/aspect ratio (not
- * squeezed to fill a tile) and then scaled by the game's global content scale (gp.scale — the same
+ * squeezed to fill a tile) and then scaled by the game's global content scale (gp.scale, the same
  * multiplier every other tile uses, so a 32x32 grass PNG reads at the same visual scale as the rest
  * of the world). Any weapon breaks it into a small burst of grass-colored debris particles cut from
  * its own image.
@@ -36,7 +36,7 @@ public class IT_GrassPatch extends interactiveTile {
 
     private final Sprite image;
     // Drawn at the sprite's own native resolution, then scaled by the same global content scale as
-    // every other tile in the game (gp.scale — e.g. 2x for 32px art rendered at 64px tiles), so a
+    // every other tile in the game (gp.scale, e.g. 2x for 32px art rendered at 64px tiles), so a
     // grass sprite reads at the same visual scale as the rest of the world instead of half-size.
     private final int drawWidth;
     private final int drawHeight;
@@ -62,7 +62,7 @@ public class IT_GrassPatch extends interactiveTile {
         }
 
         // Hitbox is a small footprint anchored at the sprite's visual BASE, not the whole image
-        // bounds — matching IT_Prop's pattern (a tall canopy has a small trunk-sized hitbox, not a
+        // bounds, matching IT_Prop's pattern (a tall canopy has a small trunk-sized hitbox, not a
         // hitbox spanning the whole tree). Keeps weapon-hit detection sane regardless of how wide
         // the grass art is drawn.
         if (image != null) {
@@ -102,7 +102,7 @@ public class IT_GrassPatch extends interactiveTile {
             worldY - drawHeight >= gp.getCamWorldY() + (gp.screenHeight - gp.player.screenY)) return;
 
         // Drawn at the image's own native resolution, scaled by the game's global content scale
-        // (same as every other tile) — not the raw PNG pixel size.
+        // (same as every other tile), not the raw PNG pixel size.
         g2.drawImage(image, screenX, screenY, drawWidth, drawHeight);
     }
 

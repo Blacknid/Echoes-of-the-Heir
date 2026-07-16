@@ -2,7 +2,7 @@ package platform;
 
 /**
  * Wire format for the NDEF payload exchanged on an add-friend NFC tap. Deliberately NOT JSON to
- * keep the emulated NDEF record tiny (single-frame APDU) — a versioned pipe-delimited record.
+ * keep the emulated NDEF record tiny (single-frame APDU), a versioned pipe-delimited record.
  * Never includes the license key; friend_id is a separate opaque per-account token issued by the
  * friends server (see SERVERS/save_server/server.py GET_MY_FRIEND_ID).
  */

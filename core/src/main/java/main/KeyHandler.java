@@ -27,7 +27,7 @@ public class KeyHandler implements InputProcessor {
 
     // Menu navigation key-repeat (bypasses slow OS repeat delay). Sourced from
     // gp.actions.isDown(MENU_*) every poll (see pollMenuDirections()), so keyboard AND
-    // controller d-pad/stick both drive this identically — no separate gamepad menu-nav
+    // controller d-pad/stick both drive this identically, no separate gamepad menu-nav
     // code needed anywhere in this file.
     private boolean menuUp, menuDown, menuLeft, menuRight;
     private int menuRepeatCounter;
@@ -39,7 +39,7 @@ public class KeyHandler implements InputProcessor {
     }
 
     /** Maps a key code to the constant-name spelling used in keybindings.json/InputBindings
-     *  (e.g. ESCAPE, SHIFT_LEFT, UP) — NOT Input.Keys.toString(), whose human-readable display
+ * (e.g. ESCAPE, SHIFT_LEFT, UP), NOT Input.Keys.toString(), whose human-readable display
      *  strings ("Escape", "L-Shift", "Up") don't match the JSON's "key:ESCAPE" style tokens and
      *  silently fail every lookup for every non-single-letter key. Built once via reflection over
      *  Input.Keys' public static final int fields, which is exactly what Input.Keys.valueOf(name)
@@ -78,7 +78,7 @@ public class KeyHandler implements InputProcessor {
         // get the exact same initial-fire + repeat-delay behavior.
         if (consumeFreshDirPress()) return true;
 
-        // F11 — fullscreen toggle, works in every game state (standard PC game convention)
+        // F11, fullscreen toggle, works in every game state (standard PC game convention)
         if (code == Input.Keys.F11) {
             gp.applyFullScreenSetting(!gp.fullScreenOn);
             return true;
@@ -91,10 +91,10 @@ public class KeyHandler implements InputProcessor {
     /**
      * Per-state dispatch shared by keyDown (real key events) and onControllerButton (gamepad
      * face/shoulder/stick-click button events, which never go through libGDX's keyDown callback
-     * at all — ControllerListener is a separate event source). Every handleXState method below
+ * at all, ControllerListener is a separate event source). Every handleXState method below
      * reads action state via gp.actions.consumePressed(...), not this code param, EXCEPT for a
      * handful of genuinely keyboard-only affordances (BACKSPACE to delete text, TAB to cycle a
-     * text field, debug keys) — those intentionally no-op for a controller-sourced call, since
+ * text field, debug keys), those intentionally no-op for a controller-sourced call, since
      * code is CONTROLLER_CALL (-1) and matches no real Input.Keys constant.
      */
     private void dispatchToState(int code) {
@@ -147,19 +147,19 @@ public class KeyHandler implements InputProcessor {
         }
     }
 
-    /** Sentinel passed as the "key code" for controller-sourced dispatch — matches no real
-     *  Input.Keys constant, so every `code == Input.Keys.X` check in the handleXState methods
-     *  correctly falls through as a no-op for genuinely keyboard-only affordances. */
+    /** Sentinel passed as the "key code" for controller-sourced dispatch, matches no real
+ * Input.Keys constant, so every `code == Input.Keys.X` check in the handleXState methods
+ * correctly falls through as a no-op for genuinely keyboard-only affordances. */
     private static final int CONTROLLER_CALL = -1;
 
     /**
      * Entry point for GamepadInputAdapter: a controller button maps to one or more actions (see
      * InputBindings), and gp.actions already has the physical edge recorded via setPhysical()
-     * before this is called — but nothing would otherwise re-run the per-state dispatch tree,
+ * before this is called, but nothing would otherwise re-run the per-state dispatch tree,
      * since that tree normally only runs inside keyDown() and gamepad buttons never fire libGDX's
      * keyDown callback (ControllerListener is a separate event source). Without this, one-shot
      * menu actions like confirm/cancel on a face button would be recorded in gp.actions but never
-     * actually consumed anywhere — which is exactly why, before this method existed, pressing
+ * actually consumed anywhere, which is exactly why, before this method existed, pressing
      * Cross/X on the title screen silently did nothing.
      */
     public void onControllerButton() {
@@ -172,7 +172,7 @@ public class KeyHandler implements InputProcessor {
      * the deadzone (the "down" transition), so the initial-fire + MENU_INITIAL_DELAY-arm behavior
      * matches keyboard/d-pad exactly. Without this, stick-driven menu nav skipped the initial
      * delay entirely (menuRepeatCounter defaults to 0, not MENU_INITIAL_DELAY), so update()'s
-     * poll would repeat at MENU_REPEAT_RATE (4 frames, ~67ms) starting from the very first tick —
+ * poll would repeat at MENU_REPEAT_RATE (4 frames, ~67ms) starting from the very first tick
      * nearly 2.5x faster than the intended hold-to-repeat delay, easily reading as "one light
      * tap on the stick jumps 2-3 options" since a brief press could span several 67ms ticks.
      */
@@ -181,7 +181,7 @@ public class KeyHandler implements InputProcessor {
     }
 
     /** Shared by onControllerButton/onControllerAxisDirection: consumes a fresh MENU_* edge (if
-     *  any), fires it immediately, and arms the repeat counter at the initial (slow) delay —
+ * any), fires it immediately, and arms the repeat counter at the initial (slow) delay
      *  returns true if it handled a direction press, so callers can skip further dispatch. */
     private boolean consumeFreshDirPress() {
         pollMenuDirections();
@@ -221,15 +221,15 @@ public class KeyHandler implements InputProcessor {
         return true;
     }
 
-    /** Refreshes the four repeat-nav booleans from gp.actions — the single place both keyboard
-     *  (via keyDown/keyUp above) and gamepad (via GamepadInputAdapter, which also just calls
-     *  gp.actions.setPhysical) end up driving the same menu-navigation repeat system. */
+    /** Refreshes the four repeat-nav booleans from gp.actions, the single place both keyboard
+ * (via keyDown/keyUp above) and gamepad (via GamepadInputAdapter, which also just calls
+ * gp.actions.setPhysical) end up driving the same menu-navigation repeat system. */
     private void pollMenuDirections() {
         menuUp    = gp.actions.isDown(InputBindings.MENU_UP);
         menuDown  = gp.actions.isDown(InputBindings.MENU_DOWN);
         menuLeft  = gp.actions.isDown(InputBindings.MENU_LEFT);
         menuRight = gp.actions.isDown(InputBindings.MENU_RIGHT);
-        // Any keyboard/controller nav press reveals the slot-selection cursor (see UI.selectionVisible) —
+        // Any keyboard/controller nav press reveals the slot-selection cursor (see UI.selectionVisible)
         // covers every menu-direction source uniformly since gp.actions.isDown already abstracts
         // keyboard/d-pad/stick.
         if (menuUp || menuDown || menuLeft || menuRight) gp.ui.selectionVisible = true;
@@ -303,7 +303,7 @@ public class KeyHandler implements InputProcessor {
                 if (!gp.ui.blockIfNoUsername(label)) menu.activate();
             }
         } else if (gp.ui.titleScreenState == 1) {
-            // Class select — items + actions declared on UI.classMenu(); commandNum mirrors selection.
+            // Class select, items + actions declared on UI.classMenu(); commandNum mirrors selection.
             ui.Menu menu = gp.ui.classMenu();
             menu.setSelected(gp.ui.commandNum);
             if (gp.actions.consumePressed(InputBindings.MENU_UP))   { menu.moveUp();   gp.ui.commandNum = menu.getSelected(); }
@@ -334,7 +334,7 @@ public class KeyHandler implements InputProcessor {
         if (gp.actions.consumePressed(InputBindings.MENU_CANCEL)) {
             platform.NfcFriend.stopReading();
             // joinHost() sets guesting=true synchronously, before the async BLE connect result is
-            // known — backing out here must undo that too, or bleSession.isActive() stays true
+            // known, backing out here must undo that too, or bleSession.isActive() stays true
             // forever (GamePanel keeps ticking/drawing a session the player already left).
             gp.bleSession.leaveHost();
             gp.ui.joinGameNfcWaiting = false;
@@ -351,7 +351,7 @@ public class KeyHandler implements InputProcessor {
         if (gp.actions.consumePressed(InputBindings.MENU_UP))   { menu.moveUp();   ui.pauseSelection = menu.getSelected(); }
         if (gp.actions.consumePressed(InputBindings.MENU_DOWN)) { menu.moveDown(); ui.pauseSelection = menu.getSelected(); }
         if (gp.actions.consumePressed(InputBindings.MENU_CONFIRM)) { menu.activate(); }
-        // P/Escape always resume immediately, regardless of menu selection — preserves the
+        // P/Escape always resume immediately, regardless of menu selection, preserves the
         // original one-key-toggle muscle memory rather than requiring RESUME to be highlighted.
         if (gp.actions.consumePressed(InputBindings.PAUSE) || gp.actions.consumePressed(InputBindings.MENU_CANCEL)) {
             gp.gameState = GamePanel.playState;
@@ -480,7 +480,7 @@ public class KeyHandler implements InputProcessor {
 
     /**
      * ADD FRIEND on platforms with NFC (Android): starts reader mode instead of the typed-username
-     * box, per platform.NfcFriend's class doc — the phone being tapped can have the game fully
+ * box, per platform.NfcFriend's class doc, the phone being tapped can have the game fully
      * closed, but this device must stay on this screen actively reading. Desktop (no NFC hardware)
      * falls back to the existing typed flow.
      */
@@ -501,7 +501,7 @@ public class KeyHandler implements InputProcessor {
                 ui.friendsStatusMessage = "Tap failed — try again";
                 return;
             }
-            // Shows up immediately (marked "syncing") and is queued to disk — the actual
+            // Shows up immediately (marked "syncing") and is queued to disk, the actual
             // SEND_FRIEND_REQUEST reaches the server whenever it's next reachable, not
             // necessarily right now. See FriendsListManager's offline-NFC-adds class doc.
             gp.friendsListManager.addFriendByNfc(decoded.friendId(), decoded.username());
@@ -520,7 +520,7 @@ public class KeyHandler implements InputProcessor {
         // choosing NEW GAME after an End-Game-to-title (or after a LOAD, or after a multiplayer
         // session) keeps the old inventory, opened chests, story flags, etc.
         gp.resetSession();
-        // Enter cutscene state — the Awakening scene handles the rest
+        // Enter cutscene state, the Awakening scene handles the rest
         gp.gameState = GamePanel.cutsceneState;
         gp.csManager.sceneNum = gp.csManager.awakening;
         gp.csManager.scenePhase = 0;
@@ -682,12 +682,12 @@ public class KeyHandler implements InputProcessor {
             return;
         }
         // Start from a clean slate. Singleplayer and multiplayer share one GamePanel, so without
-        // this the session inherits whatever the previous singleplayer run left in memory — its
-        // inventory, level, story flags and world — instead of a fresh character. resetSession()
+        // this the session inherits whatever the previous singleplayer run left in memory, its
+        // inventory, level, story flags and world, instead of a fresh character. resetSession()
         // also tears down any session still live, so it must run BEFORE we connect the new one.
         gp.resetSession();
 
-        // Start connection attempt — use username from title screen, fall back to "Player"
+        // Start connection attempt, use username from title screen, fall back to "Player"
         String username = (gp.ui.playerUsername != null && !gp.ui.playerUsername.isEmpty())
                 ? gp.ui.playerUsername : "Player";
         gp.mpClient.connect(ip.trim(), port, username, "Fighter");
@@ -696,7 +696,7 @@ public class KeyHandler implements InputProcessor {
         // Watcher thread:
         //   1. wait up to 6 s for the TCP handshake to succeed
         //   2. then wait up to 60 s for the streamed world to fully load
-        // Only after the world is ready do we enter playState — entering
+        // Only after the world is ready do we enter playState, entering
         // earlier would render an empty map until chunks arrived.
         new Thread(() -> {
             long start = System.currentTimeMillis();
@@ -773,25 +773,25 @@ public class KeyHandler implements InputProcessor {
     }
 
     private void handlePlayState(int code) {
-        // Ctrl+D — enable / disable debug mode entirely
+        // Ctrl+D, enable / disable debug mode entirely
         if (ctrlDown() && code == Input.Keys.D) {
             gp.debugModeEnabled = !gp.debugModeEnabled;
             if (!gp.debugModeEnabled && gp.debugMenuOpen) gp.toggleDebugMenu();
             return;
         }
 
-        // F9 — open / close debug panel (only when debug mode is on)
+        // F9, open / close debug panel (only when debug mode is on)
         if (code == Input.Keys.F9) {
             if (gp.debugModeEnabled && (gp.debugMenuOpen || !isOverlayOpen())) gp.toggleDebugMenu();
             return;
         }
 
-        // Ctrl+W — toggle the Wind Painter (debug mode only)
+        // Ctrl+W, toggle the Wind Painter (debug mode only)
         if (ctrlDown() && code == Input.Keys.W) {
             if (gp.debugModeEnabled && gp.windPainter != null) gp.windPainter.toggle();
             return;
         }
-        // Ctrl+S — save the wind map while the painter is active
+        // Ctrl+S, save the wind map while the painter is active
         if (ctrlDown() && code == Input.Keys.S) {
             if (gp.windPainter != null && gp.windPainter.handleSave()) return;
         }
@@ -804,7 +804,7 @@ public class KeyHandler implements InputProcessor {
         if (gp.debugMenuOpen) {
             if (gp.actions.consumePressed(InputBindings.MENU_CONFIRM)) gp.activateDebugMenuSelection();
             // Consuming OPTIONS here (not just checking the raw key) drains its pending-press
-            // flag — otherwise it stays pending while gameState never left playState (the debug
+            // flag, otherwise it stays pending while gameState never left playState (the debug
             // menu is an overlay flag, not a separate state), and the next pollGameplayActions()
             // tick would immediately open the options screen too.
             if (gp.actions.consumePressed(InputBindings.OPTIONS)) gp.toggleDebugMenu();
@@ -838,12 +838,12 @@ public class KeyHandler implements InputProcessor {
         pollGameplayActions();
     }
 
-    /** Reads gp.actions for every gameplay action and applies the result — movement booleans,
-     *  one-shot flags, screen-toggle transitions. Called once per key press (from
-     *  handlePlayState, for immediate keyboard response) and once per game-loop tick (from
-     *  update(), to also catch gamepad-only edges that never go through keyDown). Guarded the
-     *  same way handlePlayState is: skipped while the debug menu or wind painter is capturing
-     *  input. */
+    /** Reads gp.actions for every gameplay action and applies the result, movement booleans,
+ * one-shot flags, screen-toggle transitions. Called once per key press (from
+ * handlePlayState, for immediate keyboard response) and once per game-loop tick (from
+ * update(), to also catch gamepad-only edges that never go through keyDown). Guarded the
+ * same way handlePlayState is: skipped while the debug menu or wind painter is capturing
+ * input. */
     private void pollGameplayActions() {
         if (gp.gameState != GamePanel.playState) return;
         if (gp.debugMenuOpen) return;
@@ -875,8 +875,8 @@ public class KeyHandler implements InputProcessor {
         rightPressed = gp.actions.isDown(InputBindings.MOVE_RIGHT);
 
         // Each of these opens a screen that ALSO reacts to MENU_CANCEL (same key/button, ESCAPE
-        // or Circle, as some of these triggers) to close itself. clearAllPending() right here —
-        // not just relying on GamePanel's deferred per-tick gameState-change detector — prevents
+        // or Circle, as some of these triggers) to close itself. clearAllPending() right here
+        // not just relying on GamePanel's deferred per-tick gameState-change detector, prevents
         // a race: if the player's very next keypress is a direction key, keyDown's
         // consumeFreshDirPress() early-returns before ever calling handleXState, so a stale
         // MENU_CANCEL flag from THIS press could sit unconsumed until some later keypress
@@ -888,7 +888,7 @@ public class KeyHandler implements InputProcessor {
         if (gp.actions.consumePressed(InputBindings.SKILL_TREE) && !isOverlayOpen())       { gp.gameState = GamePanel.skillTreeState; gp.actions.clearAllPending(); }
         if (gp.actions.consumePressed(InputBindings.JOURNAL) && !isOverlayOpen())          { gp.gameState = GamePanel.journalState; gp.actions.clearAllPending(); }
         // enterPressed drives melee swing (Player.java) AND dialogue/interact (EventHandler.java)
-        // — ATTACK (ENTER/left-click/Square) and INTERACT (ENTER/Cross) both feed it so keyboard's
+        //, ATTACK (ENTER/left-click/Square) and INTERACT (ENTER/Cross) both feed it so keyboard's
         // historical "ENTER does both" behavior is preserved, while a controller gets separate
         // buttons for "swing sword" vs "talk to NPC / confirm". Both consumePressed() calls must
         // run every poll (not short-circuit via ||) so a controller press on either button is
@@ -898,14 +898,14 @@ public class KeyHandler implements InputProcessor {
         if (attackPressed || interactPressed) { enterPressed = true; }
         // shotKeyPressed is read (but never cleared) by Player.fireProjectileIfRequested(), so
         // it must be true for exactly one tick per press, same as TouchControlsOverlay's
-        // documented true-then-false-next-sample contract — reset every poll, then re-set only
+        // documented true-then-false-next-sample contract, reset every poll, then re-set only
         // on a fresh edge, instead of leaving it permanently true after the first press. SHOOT
         // (F/R2) is a separate action from ATTACK so one controller press can't fire both the
         // sword swing and the arrow at once.
         shotKeyPressed = gp.actions.consumePressed(InputBindings.SHOOT);
         if (shotKeyPressed) System.out.println("[DBG] pollGameplayActions: SHOOT consumed, shotKeyPressed=true");
 
-        // Dash: fires once per press regardless of which bound key/button triggered it —
+        // Dash: fires once per press regardless of which bound key/button triggered it
         // consumePressed already gives one-shot-on-rising-edge semantics, replacing the old
         // dashKeyHeld latch (Player dashes in the facing direction, so a direction key need
         // not be held; dash from standstill lunges the way you're facing).
@@ -947,7 +947,7 @@ public class KeyHandler implements InputProcessor {
                 if (npc.selectedChoice >= npc.dialogueChoices.length) npc.selectedChoice = 0;
             }
         }
-        // Consuming INTERACT here (not just checking the raw key) drains its pending-press flag —
+        // Consuming INTERACT here (not just checking the raw key) drains its pending-press flag
         // otherwise it stays pending after dialogue ends and gameState returns to playState, and
         // the next pollGameplayActions() tick would fire a spurious extra interact/attack.
         if (gp.actions.consumePressed(InputBindings.INTERACT) || gp.actions.consumePressed(InputBindings.MENU_CONFIRM)) {
@@ -957,7 +957,7 @@ public class KeyHandler implements InputProcessor {
 
     private void handleJournalState(int code) {
         // Consuming JOURNAL/MENU_CANCEL here (not just checking the raw key) drains their
-        // pending-press flags — otherwise the close keypress leaves one pending, and the next
+        // pending-press flags, otherwise the close keypress leaves one pending, and the next
         // playState poll in pollGameplayActions() would immediately re-open the screen it was
         // just closed from.
         if (gp.actions.consumePressed(InputBindings.JOURNAL) || gp.actions.consumePressed(InputBindings.MENU_CANCEL)) {
@@ -1005,7 +1005,7 @@ public class KeyHandler implements InputProcessor {
 
     private void handleSkillTreeState(int code) {
         // Consuming SKILL_TREE/MENU_CANCEL here (not just checking the raw key) drains their
-        // pending-press flags — otherwise the close keypress leaves one pending, and the next
+        // pending-press flags, otherwise the close keypress leaves one pending, and the next
         // playState poll in pollGameplayActions() would immediately re-open the screen it was
         // just closed from.
         if (gp.actions.consumePressed(InputBindings.MENU_CANCEL) || gp.actions.consumePressed(InputBindings.SKILL_TREE)) {
@@ -1019,7 +1019,7 @@ public class KeyHandler implements InputProcessor {
                 // In multiplayer the server owns the skill points and the unlocked set: send the
                 // intent and let it decide. The node is only marked unlocked and its effect applied
                 // when the server replies skill_result ok (see MultiplayerClient.handleSkillResult),
-                // so a client can't grant itself a skill it can't afford. No local save here — the
+                // so a client can't grant itself a skill it can't afford. No local save here, the
                 // server persists the unlock for us.
                 SkillTree st = gp.player.skillTree;
                 int idx = st.selectedIndex;
@@ -1030,7 +1030,7 @@ public class KeyHandler implements InputProcessor {
                 gp.playSE(SFX.PLAYER_HIT);
             } else {
                 gp.ui.invalidateSkillTreeConnectorCache();
-                // Persist immediately — a skill unlock is real player progress, and waiting for a
+                // Persist immediately, a skill unlock is real player progress, and waiting for a
                 // manual Save Game meant it could silently vanish on the next Continue (see
                 // dashUnlocked bug: unlock WINDSTEP, reload, dash is gone with no error shown).
                 gp.saveLoad.save();
@@ -1040,7 +1040,7 @@ public class KeyHandler implements InputProcessor {
 
     private void handleCharacterState(int code) {
         // Consuming CHARACTER_SCREEN/MENU_CANCEL here (not just checking the raw key) drains
-        // their pending-press flags — otherwise the close keypress leaves one pending, and the
+        // their pending-press flags, otherwise the close keypress leaves one pending, and the
         // next playState poll in pollGameplayActions() would immediately re-open the screen it
         // was just closed from.
         if (gp.actions.consumePressed(InputBindings.CHARACTER_SCREEN)) gp.gameState = GamePanel.playState;
@@ -1060,7 +1060,7 @@ public class KeyHandler implements InputProcessor {
 
     private void handleOptionsState(int code) {
         // Consuming OPTIONS/MENU_CANCEL here (not just checking the raw key) drains their
-        // pending-press flags — otherwise the close keypress leaves one pending, and the next
+        // pending-press flags, otherwise the close keypress leaves one pending, and the next
         // playState poll in pollGameplayActions() would immediately re-open the options screen
         // it was just closed from.
         if (gp.actions.consumePressed(InputBindings.OPTIONS) || gp.actions.consumePressed(InputBindings.MENU_CANCEL)) {
@@ -1092,7 +1092,7 @@ public class KeyHandler implements InputProcessor {
 
     private void handleShopState(int code) {
         // Consuming MENU_CANCEL here (not just checking the raw key) drains its pending-press
-        // flag — otherwise the close keypress leaves one pending, and the next playState poll
+        // flag, otherwise the close keypress leaves one pending, and the next playState poll
         // in pollGameplayActions() would immediately re-trigger an interact.
         if (gp.actions.consumePressed(InputBindings.MENU_CANCEL)) {
             gp.ui.closeShop();
@@ -1119,7 +1119,7 @@ public class KeyHandler implements InputProcessor {
         if (gp.actions.consumePressed(InputBindings.MENU_UP))    gp.ui.moveShopSelection(0, -1);
         if (gp.actions.consumePressed(InputBindings.MENU_DOWN))  gp.ui.moveShopSelection(0, 1);
         if (gp.actions.consumePressed(InputBindings.MENU_CONFIRM)) gp.ui.activateShopSelection();
-        // Buy/Sell tabs are click-only (see MouseHandler.clickShop) — keyboard players don't need
+        // Buy/Sell tabs are click-only (see MouseHandler.clickShop), keyboard players don't need
         // a dedicated binding for something this infrequent, keeps the input surface small.
     }
 
@@ -1135,9 +1135,9 @@ public class KeyHandler implements InputProcessor {
             gp.ui.commandNum = 1 - gp.ui.commandNum;
             gp.playSE(SFX.MENU_SELECT);
         }
-        // Execute selected option with ENTER/controller confirm — actions are declared on the
+        // Execute selected option with ENTER/controller confirm, actions are declared on the
         // Menu (UI.gameOverMenu()). Consuming MENU_CONFIRM here (not just checking the raw key)
-        // drains its pending-press flag — otherwise it stays pending across a Retry (which
+        // drains its pending-press flag, otherwise it stays pending across a Retry (which
         // returns to playState), and the next pollGameplayActions() tick would fire a spurious
         // extra interact/attack.
         if (gp.actions.consumePressed(InputBindings.MENU_CONFIRM)) {
@@ -1158,7 +1158,7 @@ public class KeyHandler implements InputProcessor {
             gp.playSE(SFX.MENU_SELECT);
         }
         // Consuming MENU_CONFIRM here (not just checking the raw key) drains its pending-press
-        // flag — otherwise it stays pending after returning to playState, and the next
+        // flag, otherwise it stays pending after returning to playState, and the next
         // pollGameplayActions() tick would fire a spurious extra interact/attack.
         if (gp.actions.consumePressed(InputBindings.MENU_CONFIRM)) {
             // applyLevelUpChoice is multiplayer-aware: offline it applies the +1 locally; online it
@@ -1169,9 +1169,7 @@ public class KeyHandler implements InputProcessor {
         }
     }
 
-    // ============================
-    // UPDATE METHOD
-    // ============================
+    // Update method
     public void update() {
         // Reduce cooldowns every game tick
         if (projectileCooldown > 0) projectileCooldown--;
@@ -1181,7 +1179,7 @@ public class KeyHandler implements InputProcessor {
         // keeps movement booleans continuously in sync with held actions every tick.
         pollGameplayActions();
 
-        // Menu navigation key repeat — refresh from gp.actions so a held gamepad d-pad/stick
+        // Menu navigation key repeat, refresh from gp.actions so a held gamepad d-pad/stick
         // (fed via GamepadInputAdapter -> gp.actions.setPhysical, same as keyboard) drives this
         // identically to a held keyboard key.
         pollMenuDirections();
@@ -1283,7 +1281,7 @@ public class KeyHandler implements InputProcessor {
             repeatMenu(gp.ui.gameOverMenu());
         }
         else if (state == GamePanel.pauseState) {
-            // Uses ui.pauseSelection, not commandNum (see handlePauseState) — can't reuse
+            // Uses ui.pauseSelection, not commandNum (see handlePauseState), can't reuse
             // repeatMenu() as-is, same up/down logic against the pause-specific field instead.
             ui.Menu menu = gp.ui.pauseMenu();
             menu.setSelected(gp.ui.pauseSelection);
@@ -1293,7 +1291,7 @@ public class KeyHandler implements InputProcessor {
         }
         else if (state == GamePanel.shopState) {
             if (gp.ui.isShopPromptActive()) {
-                // Single "Enter Shop" button, no left/right selection on the prompt itself — any
+                // Single "Enter Shop" button, no left/right selection on the prompt itself, any
                 // direction press means the player wants out, same as Escape (see handleShopState).
                 gp.ui.closeShop();
                 gp.playSE(SFX.MENU_SELECT);

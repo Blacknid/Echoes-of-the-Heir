@@ -12,7 +12,7 @@ import main.GamePanel;
 import main.MichiGame;
 
 /**
- * Captures what the REAL game renders at the REAL spawn — NO teleport, NO darkness override, NO scene
+ * Captures what the REAL game renders at the REAL spawn, NO teleport, NO darkness override, NO scene
  * hand-picking. Just: force playState at the configured quality, let it settle, screenshot. This shows
  * exactly what the player sees, so we stop being fooled by harnesses that relocate the player to a
  * flattering open spot. Args: out.png quality(0/1/2, default HIGH).

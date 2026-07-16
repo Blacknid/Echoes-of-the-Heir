@@ -18,17 +18,17 @@ import util.ResourceCache;
  * To add a new breakable:
  *   1) Drop the sprite PNG under assets/res/Interactive/Breakable/.
  *   2) Add one line to {@link #KINDS} with a new kind id (optionally tweak its size via extraScale).
- *   3) Place it in Tiled with type "Breakable" and a "kind" property matching that id — position is
+ * 3) Place it in Tiled with type "Breakable" and a "kind" property matching that id, position is
  *      read straight from the object's raw (x, y) in Tiled, not snapped to the tile grid, so it can
  *      go anywhere. In code, use {@link #atPixel} the same way.
  * No new Java class needed unless the object needs special behavior (e.g. loot drops) beyond
- * "breaks into particles of its own image" — for that, extend Breakable (see class doc below).
+ * "breaks into particles of its own image", for that, extend Breakable (see class doc below).
  */
 public class Breakable extends interactiveTile {
 
     /**
      * One entry per look: sprite path, an optional distinct particle image (falls back to the
-     * sprite itself), and an extra scale multiplier applied on top of gp.scale — 1.0 means "draw at
+ * sprite itself), and an extra scale multiplier applied on top of gp.scale, 1.0 means "draw at
      * the same visual scale as every other tile", use higher/lower to make a specific kind read
      * bigger/smaller (e.g. a squat barrel vs a tall crate) without touching the PNG.
      */
@@ -77,7 +77,7 @@ public class Breakable extends interactiveTile {
     }
 
     /**
-     * Places the breakable at an exact pixel position instead of snapping to the tile grid — use
+ * Places the breakable at an exact pixel position instead of snapping to the tile grid, use
      * this when a crate/barrel needs to sit at an arbitrary (x, y) rather than tile col/row.
      */
     public static Breakable atPixel(GamePanel gp, int worldX, int worldY, String kindId) {
@@ -142,7 +142,7 @@ public class Breakable extends interactiveTile {
      * Bursts this breakable's own particle image into a handful of tumbling, fading debris
      * chunks. Subclasses that want different debris behavior (count, spread, extra effects like a
      * loot drop) should override this and call {@code super.spawnDestroyBurst()} or replace it
-     * entirely — see {@code Player.damageInteractiveTile} for the call site.
+ * entirely, see {@code Player.damageInteractiveTile} for the call site.
      */
     public void spawnDestroyBurst() {
         if (particleImage == null || gp.particlePool == null) return;

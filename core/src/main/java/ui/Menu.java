@@ -14,7 +14,7 @@ import ui.UI.PanelTheme;
 
 /**
  * A declarative menu: build it as a flat list of {@link MenuItem}s, then let it draw and navigate
- * itself. Adding a button is one line ({@code .button("Quit", () -> ...)}) — no array-index sync
+ * itself. Adding a button is one line ({@code .button("Quit", () -> ...)}), no array-index sync
  * between the draw code (UI.java) and the input code (KeyHandler.java) like before.
  *
  * <p>Usage:
@@ -50,12 +50,12 @@ public class Menu {
     private Runnable onNavigate;
 
     // Last-drawn button rects (one per item, parallel to items), recorded by drawItems() every
-    // frame. This is the single source of truth for mouse hit-testing — MouseHandler queries
+    // frame. This is the single source of truth for mouse hit-testing, MouseHandler queries
     // itemAt(x,y) instead of recomputing geometry that can drift from the draw code.
     private int[] rectX = new int[0], rectY = new int[0], rectW = new int[0], rectH = new int[0];
     private int rectCount = 0;
 
-    // Slider control geometry — shared by drawRow (rendering) and sliderBarRect (mouse mapping) so
+    // Slider control geometry, shared by drawRow (rendering) and sliderBarRect (mouse mapping) so
     // a click on the bar lands on the value the player sees. Matches drawMedievalSlider's bar size.
     private static final int SLIDER_BAR_W = 150;
     private static final int SLIDER_BAR_H = 18;
@@ -212,7 +212,7 @@ public class Menu {
     /**
      * Index of the item whose last-drawn button rect contains (px,py), or -1. Uses the rects
      * recorded by the most recent {@link #drawItems}/{@link #draw}, so hover/click hit-testing is
-     * always in exact agreement with what the player sees — no duplicated, drift-prone geometry.
+ * always in exact agreement with what the player sees, no duplicated, drift-prone geometry.
      * Coordinates are in the same space the menu was drawn in (game/UI space).
      */
     public int itemAt(int px, int py) {
@@ -290,7 +290,7 @@ public class Menu {
 
         if (selected && it.enabled && !it.centered) {
             // Right-pointing caret nudged by the shared UI pulse. Drawn as a real triangle, not a
-            // font glyph — Pixeloid Sans (this project's pixel font) has no arrow characters at all.
+            // font glyph, Pixeloid Sans (this project's pixel font) has no arrow characters at all.
             int nudge = (int) (pulse * 3);
             g2.setColor(theme.highlight2());
             g2.fillTriangle(GdxRenderer.TriangleDir.RIGHT, bx + 4 + nudge, labelBaseline - 10, 10, 12);
@@ -315,7 +315,7 @@ public class Menu {
                 int vw = vfm.stringWidth(val);
                 int valCx = ctrlRight - 90;
                 g2.setColor(selected ? theme.highlight2() : ui.cachedColorFor(200, 190, 170, 220));
-                // Real triangles, not font glyphs — see the RIGHT-caret comment above.
+                // Real triangles, not font glyphs, see the RIGHT-caret comment above.
                 g2.fillTriangle(GdxRenderer.TriangleDir.LEFT, valCx - 46, labelBaseline - 10, 10, 12);
                 g2.drawString(val, valCx - vw / 2, labelBaseline);
                 g2.fillTriangle(GdxRenderer.TriangleDir.RIGHT, valCx + 36, labelBaseline - 10, 10, 12);

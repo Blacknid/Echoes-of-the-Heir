@@ -14,10 +14,10 @@ import main.GamePanel;
  * <p>Wind is stored as a continuous per-tile grid (one cell per map tile), independent of Tiled.
  * Each cell holds:
  * <ul>
- *   <li><b>strength</b> — base wind coefficient at that tile (0 = calm, 1 = full gale). This is the
+ * <li><b>strength</b>, base wind coefficient at that tile (0 = calm, 1 = full gale). This is the
  *       per-tile "wind coefficient" the design calls for: a tile can be windier than its neighbour.</li>
- *   <li><b>dirX, dirY</b> — a unit vector giving the <em>local</em> wind direction painted into that tile.</li>
- *   <li><b>rainBonus</b> — extra strength added <em>only while it is raining</em>. Per-tile, so you decide
+ * <li><b>dirX, dirY</b>, a unit vector giving the <em>local</em> wind direction painted into that tile.</li>
+ * <li><b>rainBonus</b>, extra strength added <em>only while it is raining</em>. Per-tile, so you decide
  *       which tiles get windier in rain (and how much) and which don't.</li>
  * </ul>
  *
@@ -28,7 +28,7 @@ import main.GamePanel;
  *
  * <p>On top of the static painted field, the whole map <em>gusts</em> coherently: a global animated
  * direction wobbles over time, and when it decides to swing to a new heading it first lets the gust die
- * down to 70% strength, then rotates, then builds back up — so the wind never instantly reverses.
+ * down to 70% strength, then rotates, then builds back up, so the wind never instantly reverses.
  *
  * <p>{@link #sampleX}/{@link #sampleY} return the final wind <em>force</em> vector at a world position,
  * already including the per-tile strength, the rain bonus, and the global gust envelope. The player
@@ -88,7 +88,7 @@ public class WindField {
         this.hasPaintedData = false;
 
         if (!loadWindMapFile(this.currentMapId)) {
-            // No painted file — fall back to a code-defined gradient (if any).
+            // No painted file, fall back to a code-defined gradient (if any).
             buildProceduralGrid();
         }
         // Reset gust state so a new map starts calm-ish, not mid-swing.
@@ -148,7 +148,7 @@ public class WindField {
     }
 
     // ──────────────────────────────────────────────────────────────────────────
-    // Sampling — final wind force vector at a world position
+    // Sampling, final wind force vector at a world position
     // ──────────────────────────────────────────────────────────────────────────
 
     /** True when it's currently raining/storming (rain bonus applies). */
@@ -190,13 +190,13 @@ public class WindField {
         return (float) Math.sin(angle[row][col] + gustAngleOffset) * s;
     }
 
-    /** Raw painted strength at a tile (no rain, no gust) — for the painter overlay. */
+    /** Raw painted strength at a tile (no rain, no gust), for the painter overlay. */
     public float rawStrengthAt(int col, int row) {
         if (strength == null || col < 0 || row < 0 || col >= cols || row >= rows) return 0f;
         return strength[row][col];
     }
 
-    /** Raw painted angle at a tile — for the painter overlay. */
+    /** Raw painted angle at a tile, for the painter overlay. */
     public float rawAngleAt(int col, int row) {
         if (angle == null || col < 0 || row < 0 || col >= cols || row >= rows) return 0f;
         return angle[row][col];
@@ -207,7 +207,7 @@ public class WindField {
         return rainBonus[row][col];
     }
 
-    /** Current global gust strength (0..1) — for HUD readouts. */
+    /** Current global gust strength (0..1), for HUD readouts. */
     public float getGustStrength() { return gustStrength; }
     public float getGustAngleOffset() { return gustAngleOffset; }
 
@@ -265,7 +265,7 @@ public class WindField {
     private static float clamp01(float v) { return v < 0f ? 0f : (v > 1f ? 1f : v); }
 
     // ──────────────────────────────────────────────────────────────────────────
-    // Persistence — <Map>.windmap companion file
+    // Persistence, <Map>.windmap companion file
     // ──────────────────────────────────────────────────────────────────────────
 
     /** Resolve the source-tree path for a map's .windmap (dev-time save target). */
@@ -307,7 +307,7 @@ public class WindField {
                     return false;
                 }
                 if (c != cols || rw != rows) {
-                    // Grid resized since authoring — accept but clamp into our buffers.
+                    // Grid resized since authoring, accept but clamp into our buffers.
                     System.out.println("[WindField] windmap size " + c + "x" + rw
                         + " != map " + cols + "x" + rows + "; loading with clamp.");
                 }

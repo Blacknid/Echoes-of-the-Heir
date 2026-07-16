@@ -4,7 +4,7 @@ package gfx;
  * Radial gradient descriptor mirroring {@code java.awt.RadialGradientPaint} (center + radius,
  * fraction stops, stop colors). Used for vignettes and light halos. Because radial gradients
  * are expensive to draw per-frame on the GPU, {@code gfx.GdxRenderer} bakes a RadialGradient
- * to a Texture once (see Stage 5) and draws that — matching the original look closely.
+ * to a Texture once (see Stage 5) and draws that, matching the original look closely.
  */
 public final class RadialGradient {
     public final float cx, cy, radius;

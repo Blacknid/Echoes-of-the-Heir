@@ -73,7 +73,7 @@ public class TileManager {
     int mapOffsetPixelsY = 0;
     public Color mapBackgroundColor = new Color(20, 18, 22);
 
-    // (Alpha is a plain float on the GPU facade — no AlphaComposite cache needed.)
+    // (Alpha is a plain float on the GPU facade, no AlphaComposite cache needed.)
 
     private static final String DEFAULT_COLLISION_OBJECT_LAYER = "Collision";
 
@@ -121,7 +121,7 @@ public class TileManager {
         float opacity = 1f;
         Color tint = null;
         // OPTIMIZATION: original (possibly animated) GID so we can patch `image` in-place
-        // when a tile animation advances a frame — avoids a full visible-tile rebuild.
+        // when a tile animation advances a frame, avoids a full visible-tile rebuild.
         int baseGid;
     }
 
@@ -197,11 +197,11 @@ public class TileManager {
     public ArrayList<Float> layerOffsetY = new ArrayList<>();
     // (layerOpacity and layerTint declared above near ImageLayerData)
 
-    // Collision shapes (from Tiled objectgroup layers — rectangles, rotated rects, polygons, ellipses)
+    // Collision shapes (from Tiled objectgroup layers, rectangles, rotated rects, polygons, ellipses)
     public ArrayList<Shape> collisionShapes = new ArrayList<>();
     // Bounding boxes for each shape (used by spatial grid for broad-phase)
     public ArrayList<Rect> collisionBounds = new ArrayList<>();
-    // Axis-aligned rectangle occluders only — used exclusively by the lighting system for shadow casting.
+    // Axis-aligned rectangle occluders only, used exclusively by the lighting system for shadow casting.
     // Non-rectangular and rotated shapes are intentionally excluded to prevent incorrect shadow projections.
     public ArrayList<Rect> lightOccluderRects = new ArrayList<>();
 
@@ -209,7 +209,7 @@ public class TileManager {
     // Index: [col][row]. Null until initTileLitMap() is called on first map load.
     public boolean[][] tileIsLit = null;
 
-    // Per-tile solid state — true if the tile is covered by any collision shape.
+    // Per-tile solid state, true if the tile is covered by any collision shape.
     // Built once per map load by initTileSolid(); used by the lighting system for
     // shadow casting and BFS propagation on all graphics quality levels.
     public boolean[][] tileSolid = null;
@@ -571,7 +571,7 @@ public class TileManager {
         return null;
     }
 
-    // Mask to strip Tiled flip flags (horizontal, vertical, diagonal) from GIDs —
+    // Mask to strip Tiled flip flags (horizontal, vertical, diagonal) from GIDs
     // used when we only need the clean tile index (lookup). Flip flags are extracted separately.
     private static final long GID_MASK = 0x1FFFFFFFL;
 
@@ -919,7 +919,7 @@ public class TileManager {
         ild.opacity   = getFloatAttribute(ilEl, "opacity", 1f) * parentOpacity;
         ild.tintColor = composeTint(parentTint, parseTintColor(ilEl.getAttribute("tintcolor")));
         ild.globalLayerIndex = globalIndex;
-        // Read "render" enum property (RenderBucket) — takes priority over legacy "foreground" boolean
+        // Read "render" enum property (RenderBucket), takes priority over legacy "foreground" boolean
         String renderProp = getStringProperty(ilEl, "render", null);
         if (renderProp != null && !renderProp.isBlank()) {
             String r = renderProp.trim().toLowerCase();
@@ -995,12 +995,12 @@ public class TileManager {
                 for (int j = 0; j < objects.getLength(); j++) {
                     try {
                         Element obj = (Element) objects.item(j);
-                        // Skip template definitions — they are not real collision shapes
+                        // Skip template definitions, they are not real collision shapes
                         if ("true".equalsIgnoreCase(getObjectProperty(obj, "isCollisionTemplate"))) continue;
 
                         String tmplName = getObjectProperty(obj, "collisionTemplate");
                         if (tmplName != null && !tmplName.isEmpty()) {
-                            // Template instance — clone template shape at this object's position
+                            // Template instance, clone template shape at this object's position
                             Element tmpl = templateMap.get(tmplName);
                             if (tmpl != null) {
                                 Shape shape = parseCollisionObjectAtPosition(tmpl, obj);
@@ -1108,9 +1108,9 @@ public class TileManager {
             return buildEllipseShape(x, y, w, h, rotation);
         }
 
-        // --- Polyline — stroked into one thin quad PER SEGMENT, added directly to the collision list.
+        // --- Polyline, stroked into one thin quad PER SEGMENT, added directly to the collision list.
         // (A single offset-outline ring self-intersects on long/closed paths, which no fill can render
-        // correctly — that was the glitched blue hitbox overlay. Per-segment convex quads stroke any
+        // correctly, that was the glitched blue hitbox overlay. Per-segment convex quads stroke any
         // path cleanly.) Returns null because it adds its own shapes rather than a single Shape.
         NodeList polylineNodes = obj.getElementsByTagName("polyline");
         if (polylineNodes.getLength() > 0) {
@@ -1229,11 +1229,11 @@ public class TileManager {
     private int[]     gidToSortYOffset;
     public  boolean[] gidToReflectsLight;
 
-    // OPTIMIZATION: Cache whether any image layer is marked foreground — avoids O(n) scan every frame in drawForeground
+    // OPTIMIZATION: Cache whether any image layer is marked foreground, avoids O(n) scan every frame in drawForeground
     private boolean hasFgImagesCache = false;
     private boolean hasFgImagesCacheValid = false;
 
-    // OPTIMIZATION: Dirty tracking — skip rebuild when viewport is identical to last frame
+    // OPTIMIZATION: Dirty tracking, skip rebuild when viewport is identical to last frame
     private int lastVisMinCol = -99, lastVisMaxCol = -99;
     private int lastVisMinRow = -99, lastVisMaxRow = -99;
     private int lastCamWorldX = Integer.MIN_VALUE, lastCamWorldY = Integer.MIN_VALUE;
@@ -1267,7 +1267,7 @@ public class TileManager {
                              || minRow != lastVisMinRow || maxRow != lastVisMaxRow);
         boolean camMoved     = (cameraWorldX != lastCamWorldX || cameraWorldY != lastCamWorldY);
 
-        // OPTIMIZATION 1: Nothing changed at all — reuse everything (player standing still)
+        // OPTIMIZATION 1: Nothing changed at all, reuse everything (player standing still)
         if (!rangeChanged && !camMoved) return;
 
         lastCamWorldX = cameraWorldX;
@@ -1275,7 +1275,7 @@ public class TileManager {
 
         if (!rangeChanged) {
             // OPTIMIZATION 2: Same set of tiles, camera moved sub-tile.
-            // Just recalculate screenX/Y from stored world coords — skip full rebuild AND sort.
+            // Just recalculate screenX/Y from stored world coords, skip full rebuild AND sort.
             int bgSize = backgroundVisibleTiles.size();
             for (int i = 0; i < bgSize; i++) {
                 VisibleTileDraw vtd = backgroundVisibleTiles.get(i);
@@ -1297,7 +1297,7 @@ public class TileManager {
             return;
         }
 
-        // OPTIMIZATION 3: Full rebuild — but using O(1) direct GID arrays instead of linear tileset scans
+        // OPTIMIZATION 3: Full rebuild, but using O(1) direct GID arrays instead of linear tileset scans
         lastVisMinCol = minCol; lastVisMaxCol = maxCol;
         lastVisMinRow = minRow; lastVisMaxRow = maxRow;
 
@@ -1306,7 +1306,7 @@ public class TileManager {
         foregroundVisibleTiles.clear();
         poolIndex = 0;
 
-        // Use pre-computed firstAutoDepthLayerIdx — layers at or above it
+        // Use pre-computed firstAutoDepthLayerIdx, layers at or above it
         // auto-promote to depth-sort so they interleave correctly with entities.
 
         for (int layerIndex = 0; layerIndex < mapLayers.size(); layerIndex++) {
@@ -1335,7 +1335,7 @@ public class TileManager {
             } else if ("depth".equals(bucket)) {
                 forceDepthSort = true;
             } else if (bucket == null || "auto".equals(bucket)) {
-                // No render enum set — check legacy booleans only
+                // No render enum set, check legacy booleans only
                 boolean legacyBg = layerIndex < layerBackground.size() && layerBackground.get(layerIndex);
                 boolean legacyDs = layerIndex < layerDepthSort.size() && layerDepthSort.get(layerIndex);
                 boolean legacyFg = layerIndex < layerForeground.size() && layerForeground.get(layerIndex);
@@ -1351,7 +1351,7 @@ public class TileManager {
                     int gid = map[worldCol][worldRow];
                     if (gid == 0) continue;
 
-                    // Resolve animation frame — substitute animated GID if present
+                    // Resolve animation frame, substitute animated GID if present
                     int drawGid = gid;
                     TileAnimation anim = gidToAnimation.get(gid);
                     if (anim != null) {
@@ -1359,7 +1359,7 @@ public class TileManager {
                         // drawGid here is the absolute GID of the current frame image
                     }
 
-                    // O(1) direct lookup — no linear tileset scan
+                    // O(1) direct lookup, no linear tileset scan
                     Tile currentTile = (gidToTile != null && drawGid < gidToTile.length) ? gidToTile[drawGid] : null;
                     if (currentTile == null || currentTile.image == null) continue;
 
@@ -1388,13 +1388,13 @@ public class TileManager {
                     visibleTile.renderOrder = glIdx;
 
                     // sortY = bottom edge of this tile + sortYOffset.
-                    // sortYOffset values are in GAME pixels (not Tiled pixels) — no scaling needed.
+                    // sortYOffset values are in GAME pixels (not Tiled pixels), no scaling needed.
                     // For multi-row structures, set sortYOffset on the TOP-row tiles
                     // so their sortY matches the bottom row's sortY.
                     int sortYOff = (gidToSortYOffset != null && gid < gidToSortYOffset.length) ? gidToSortYOffset[gid] : 0;
                     visibleTile.sortY = worldY + tileSize + sortYOff;
 
-                    // Per-tile bucket overrides — read from gid lookup arrays
+                    // Per-tile bucket overrides, read from gid lookup arrays
                     boolean isTileForeground = (gidToForeground != null && gid < gidToForeground.length && gidToForeground[gid]);
                     boolean isTileBackground = (gidToBackground != null && gid < gidToBackground.length && gidToBackground[gid]);
                     boolean isTileDepth      = (gidToDepthSort  != null && gid < gidToDepthSort.length  && gidToDepthSort[gid]);
@@ -1491,7 +1491,7 @@ public class TileManager {
     }
 
     public void drawForeground(GdxRenderer g2) {
-        // Fast path: no foreground image layers — just draw tiles
+        // Fast path: no foreground image layers, just draw tiles
         if (!hasFgImagesCacheValid) {
             hasFgImagesCache = false;
             for (int j = 0; j < imageLayers.size(); j++) {
@@ -1550,11 +1550,11 @@ public class TileManager {
 
     /**
      * Render every visible depth-sorted tile (the walls / trees / rocks / props that interleave with
-     * entities — i.e. the solid "things around") as a solid-black silhouette into the currently-bound
+ * entities, i.e. the solid "things around") as a solid-black silhouette into the currently-bound
      * shadow-occluder mask. The light shader ray-marches this mask, so lit pixels behind any of these
-     * sprites fall into shadow — shadows cast by the actual TEXTURES on screen, not by hitboxes.
+ * sprites fall into shadow, shadows cast by the actual TEXTURES on screen, not by hitboxes.
      *
-     * Only depth-sorted tiles standing on a SOLID (collision) cell cast — i.e. walls, pillars, tree
+ * Only depth-sorted tiles standing on a SOLID (collision) cell cast, i.e. walls, pillars, tree
      * trunks, statues, the upright scenery you genuinely can't see through. Walkable ground clutter
      * (cave rubble, grass, floor detail) is deliberately excluded: it sits on the same plane as the
      * light, so casting from it would bury the player in their own surroundings' shadow. Gating on
@@ -1568,7 +1568,7 @@ public class TileManager {
             VisibleTileDraw vt = depthVisibleTiles.get(i);
             if (vt.image == null) continue;
             // Only cast from solid scenery. If no collision grid exists, cast from all depth tiles
-            // (fail open — better a heavy shadow than none on a map with no collision data).
+            // (fail open, better a heavy shadow than none on a map with no collision data).
             if (solid != null) {
                 int c = vt.worldCol, r = vt.worldRow;
                 if (c < 0 || c >= solid.length || r < 0 || r >= solid[c].length || !solid[c][r]) continue;
@@ -1642,7 +1642,7 @@ public class TileManager {
 
     /**
      * Walk a visible-tile bucket and update the `image` reference of any tile whose
-     * baseGid is animated. O(visible tiles) — no sort, no collision re-check, no
+ * baseGid is animated. O(visible tiles), no sort, no collision re-check, no
      * per-layer iteration over the full world rect.
      */
     private void patchAnimatedTileImages(ArrayList<VisibleTileDraw> list) {
@@ -1667,7 +1667,7 @@ public class TileManager {
             if (tsMax > maxGIDValue) maxGIDValue = tsMax;
         }
 
-        // Build O(1) direct GID lookup arrays — eliminates per-tile linear tileset scan
+        // Build O(1) direct GID lookup arrays, eliminates per-tile linear tileset scan
         gidColorCache.clear(); // GIDs are remapped per map; drop stale minimap colour samples
         gidToTile          = new Tile[maxGIDValue + 1];
         gidToRenderOrder   = new int[maxGIDValue + 1];
@@ -1738,7 +1738,7 @@ public class TileManager {
     public Color sampleTileColor(int gid) {
         if (gid <= 0 || gidToTile == null || gid >= gidToTile.length) return null;
 
-        // Cached? (NULL_COLOR means "sampled, but transparent/missing" — don't re-decode.)
+        // Cached? (NULL_COLOR means "sampled, but transparent/missing", don't re-decode.)
         Color cached = gidColorCache.get(gid);
         if (cached != null) return cached == NULL_COLOR ? null : cached;
 
@@ -1831,7 +1831,7 @@ public class TileManager {
     /**
      * Reads per-tile custom properties from a <tileset> XML element and applies them
      * to the already-loaded Tileset's Tile objects.
-     * Currently supports: sortYOffset (int) — shifts the depth-sort Y for that tile.
+ * Currently supports: sortYOffset (int), shifts the depth-sort Y for that tile.
      */
     private void applyPerTileProperties(Tileset ts, Element tilesetElement) {
         NodeList children = tilesetElement.getChildNodes();
@@ -1850,7 +1850,7 @@ public class TileManager {
                 String reflStr = getStringProperty(tileEl, "reflectsLight", null);
                 if (reflStr != null) ts.tiles[tileId].reflectsLight = Boolean.parseBoolean(reflStr.trim());
 
-                // Read unified "render" enum (RenderBucket) — takes priority over legacy booleans
+                // Read unified "render" enum (RenderBucket), takes priority over legacy booleans
                 String renderProp = getStringProperty(tileEl, "render", null);
                 if (renderProp != null && !renderProp.isBlank()) {
                     String r = renderProp.trim().toLowerCase();
@@ -1902,7 +1902,7 @@ public class TileManager {
     }
 
     private String getStringProperty(Element element, String propertyName, String defaultValue) {
-        // Only search <property> elements inside a direct <properties> child —
+        // Only search <property> elements inside a direct <properties> child
         // NOT recursive, so per-tile properties don't leak up to the tileset level.
         org.w3c.dom.NodeList children = element.getChildNodes();
         for (int c = 0; c < children.getLength(); c++) {

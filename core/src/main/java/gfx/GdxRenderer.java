@@ -19,7 +19,7 @@ import com.badlogic.gdx.scenes.scene2d.utils.ScissorStack;
  * <h2>Mode auto-flushing</h2>
  * libGDX needs SpriteBatch (textured quads: images, text, gradients) and ShapeRenderer (fills,
  * lines, ovals) to be active one at a time. This class tracks the current mode and flushes/
- * switches transparently, so callers never manage GL state — they just call draw methods in any
+ * switches transparently, so callers never manage GL state, they just call draw methods in any
  * order, exactly like Graphics2D.
  *
  * <h2>State</h2>
@@ -90,7 +90,7 @@ public class GdxRenderer {
         applyTransform();
     }
 
-    // Reused transform matrix — applyTransform() runs on every translate()/setWorldZoom(), i.e. once
+    // Reused transform matrix, applyTransform() runs on every translate()/setWorldZoom(), i.e. once
     // per camera-shake offset, per dialogue-pan, and per debug-hitbox translate. Rebuilt in place each
     // call (idt()) so it never accumulates, avoiding a Matrix4 allocation on each of those calls.
     private final Matrix4 xformScratch = new Matrix4();
@@ -140,7 +140,7 @@ public class GdxRenderer {
     }
 
     // Reused scratch color for shape fills/lines. ShapeRenderer.setColor(Color) copies the channel
-    // values into its own field, so handing it the same instance every call is safe — this avoids a
+    // values into its own field, so handing it the same instance every call is safe, this avoids a
     // fresh com.badlogic.gdx.graphics.Color allocation on EVERY fillRect/fillOval/drawLine/etc. At
     // dozens-to-hundreds of shape draws per frame (HUD bars, debug overlays, weather splashes) that
     // was the single largest source of per-frame garbage in the renderer.
@@ -190,12 +190,12 @@ public class GdxRenderer {
      * Switch the SpriteBatch blend function, the GPU-native replacement for
      * {@code Graphics2D.setComposite(AlphaComposite.*)}. Flushes the batch first so already-queued
      * quads keep their previous blend, then applies the new function. Remember to reset to
-     * {@link #BLEND_NORMAL} when done — the rest of the renderer assumes normal alpha blending.
+ * {@link #BLEND_NORMAL} when done, the rest of the renderer assumes normal alpha blending.
      *
      * <ul>
-     *   <li>{@link #BLEND_NORMAL}   — standard src-over (default).</li>
-     *   <li>{@link #BLEND_ADDITIVE} — additive light/glow (brightens the destination).</li>
-     *   <li>{@link #BLEND_DSTOUT}   — subtracts source alpha from the destination's alpha,
+ * <li>{@link #BLEND_NORMAL}, standard src-over (default).</li>
+ * <li>{@link #BLEND_ADDITIVE}, additive light/glow (brightens the destination).</li>
+ * <li>{@link #BLEND_DSTOUT}, subtracts source alpha from the destination's alpha,
      *       i.e. punches soft holes; used by the lighting compositor to cut light into darkness.</li>
      * </ul>
      */
@@ -219,7 +219,7 @@ public class GdxRenderer {
             }
         }
         // SpriteBatch only applies its own blend function lazily on its next draw call, and
-        // ShapeRenderer never sets one at all — it just issues geometry through whatever GL blend
+        // ShapeRenderer never sets one at all, it just issues geometry through whatever GL blend
         // function is currently bound. Setting it here directly is the single source of truth both
         // renderers actually draw with, instead of silently inheriting stale state from whichever
         // renderer last touched the GL context (e.g. a fillRect drawn via ShapeRenderer right after
@@ -253,7 +253,7 @@ public class GdxRenderer {
     /**
      * Fractional-position variant of {@link #drawImage(Sprite, int, int, int, int)}: lets a caller
      * animate at sub-pixel precision (e.g. a slow small-amplitude sway) instead of snapping to whole
-     * screen pixels every frame. Most draws should keep using the int overload — nearest-neighbor
+ * screen pixels every frame. Most draws should keep using the int overload, nearest-neighbor
      * pixel art elsewhere in the game relies on whole-pixel alignment; only use this where smooth
      * sub-pixel motion is explicitly wanted over crisp pixel-grid alignment.
      */
@@ -288,7 +288,7 @@ public class GdxRenderer {
      */
     // Cache of the 9 sliced sub-sprites per source texture. The slices depend only on the source
     // Sprite (its region + native size), not on the destination rect, so they're identical every
-    // frame — computing them here once instead of allocating 9 Sprites (each wrapping a new
+    // frame, computing them here once instead of allocating 9 Sprites (each wrapping a new
     // TextureRegion) on every drawNineSlice call removes ~9 allocations per panel per frame. Keyed by
     // source Sprite identity; the game holds a small fixed set of baked, themed panel textures.
     private final java.util.IdentityHashMap<Sprite, Sprite[]> nineSliceCache =
@@ -316,7 +316,7 @@ public class GdxRenderer {
         int midW = w - 2 * sw;       // stretched horizontal span
         int midH = h - 2 * sh;       // stretched vertical span
 
-        // Native (top-left) source cells of the 3x3 grid — cached per source texture (see nineSliceOf).
+        // Native (top-left) source cells of the 3x3 grid, cached per source texture (see nineSliceOf).
         Sprite[] c = nineSliceOf(tex, s);
         Sprite tl = c[0], tc = c[1], tr = c[2];
         Sprite ml = c[3], mc = c[4], mr = c[5];
@@ -330,7 +330,7 @@ public class GdxRenderer {
         drawImage(tr, xR, yT, sw, sh);
         drawImage(bl, xL, yB, sw, sh);
         drawImage(br, xR, yB, sw, sh);
-        // Edges (stretch on one axis) — only if there's span to fill.
+        // Edges (stretch on one axis), only if there's span to fill.
         if (midW > 0) {
             drawImage(tc, xC, yT, midW, sh);
             drawImage(bc, xC, yB, midW, sh);
@@ -350,7 +350,7 @@ public class GdxRenderer {
      * matches {@code markers[i]} becomes {@code targets[i]} (its original alpha is preserved);
      * every other pixel is copied through unchanged (including transparency). This is the
      * CPU/Pixmap-baked, shader-free way to give one authored UI.png per-window color themes
-     * (main/shadow/highlight/...). Mirrors the one-time {@link #bakeRadialGradient} bake — the
+ * (main/shadow/highlight/...). Mirrors the one-time {@link #bakeRadialGradient} bake, the
      * caller should cache the result per color-set (it is NOT free; it decodes + re-uploads a
      * texture), never call it per frame.
      */
@@ -421,7 +421,7 @@ public class GdxRenderer {
 
     /**
      * Rotated image draw with optional horizontal and/or vertical mirror (in the sprite's own local
-     * space, applied before rotation). {@code flipY} swaps top/bottom — used e.g. to alternate a
+ * space, applied before rotation). {@code flipY} swaps top/bottom, used e.g. to alternate a
      * crescent slash VFX's arc between swings without changing which side its concave faces. Works on
      * a region copy so the cached region's flip state is untouched.
      */
@@ -453,7 +453,7 @@ public class GdxRenderer {
         batch.setColor(1f, 1f, 1f, alpha);
         com.badlogic.gdx.graphics.g2d.TextureRegion r0 = img.region();
         // Reuse one scratch region (set from the source each call) instead of allocating a fresh
-        // TextureRegion per flipped tile — flipped tiles are extremely common (every mirrored
+        // TextureRegion per flipped tile, flipped tiles are extremely common (every mirrored
         // wall/floor GID in a map draws through here every frame). batch.draw() consumes the region's
         // vertices synchronously, so a single reused instance is safe; we still never mutate the
         // cached region's flip state (we copy into scratch and flip that).
@@ -481,7 +481,7 @@ public class GdxRenderer {
 
     // ── Offscreen light-mask FrameBuffer ──────────────────────────────────────
     // The lighting model composites a darkness LAYER over the finished scene, then carves soft holes
-    // in that layer where lights reach — so the scene shows through at its NATURAL brightness (no
+    // in that layer where lights reach, so the scene shows through at its NATURAL brightness (no
     // additive white washout). DST_OUT hole-punching needs a real alpha channel, which the default
     // (opaque) framebuffer doesn't provide, so we render the mask into this offscreen RGBA target and
     // then blit it over the scene with normal alpha blending. Sized to the LOGICAL resolution and
@@ -511,7 +511,7 @@ public class GdxRenderer {
         Gdx.gl.glClear(com.badlogic.gdx.graphics.GL20.GL_COLOR_BUFFER_BIT);
         // Same y-down ortho as the scene camera (top=0), so game coords land in the FBO in the SAME
         // orientation as every other render target and drawLightMask can blit it with NO flip.
-        // (setToOrtho2D is y-UP — it stored the mask vertically inverted and needed a compensating
+        // (setToOrtho2D is y-UP, it stored the mask vertically inverted and needed a compensating
         // V-flip at composite time, which is exactly the mirror family of bugs behind "dancing lights".)
         Matrix4 m = new Matrix4().setToOrtho(0, screenW, screenH, 0, 0, 1);
         batch.setProjectionMatrix(m);
@@ -535,10 +535,10 @@ public class GdxRenderer {
 
     /**
      * After a nested offscreen FBO (light mask, occluder mask, shader light mask) calls end(), libGDX
-     * unbinds to the DEFAULT framebuffer — NOT to any scene-capture FBO that was active before the nest.
+ * unbinds to the DEFAULT framebuffer, NOT to any scene-capture FBO that was active before the nest.
      * If we're mid scene-capture (for bloom), everything drawn afterward (including the light-mask
      * composite) must go back into sceneFbo, or it lands on the screen and the bloom blit then overwrites
-     * it — which silently ate the darkness overlay. This re-binds sceneFbo when capture is active, else
+ * it, which silently ate the darkness overlay. This re-binds sceneFbo when capture is active, else
      * restores the world viewport.
      */
     private void rebindActiveTarget() {
@@ -581,7 +581,7 @@ public class GdxRenderer {
         // and rim.frag assume when sampling u_occluders (uv.y = 1 - screenY/res): game-top must sit at
         // texture v=1, exactly like sceneFbo and the shader-written lightFbo. The old setToOrtho2D
         // (y-UP) stored the silhouettes vertically MIRRORED, so every ray-marched shadow was computed
-        // from an upside-down world — shadows detached from their casters and slid vertically while
+        // from an upside-down world, shadows detached from their casters and slid vertically while
         // walking (the same mirror signature the light pools had before their blit-flip fix).
         Matrix4 m = new Matrix4().setToOrtho(0, screenW, screenH, 0, 0, 1);
         batch.setProjectionMatrix(m);
@@ -690,7 +690,7 @@ public class GdxRenderer {
      * fillRect-darkness + baked-falloff-hole sequence with a single per-pixel shader pass. After this
      * returns the FBO holds the finished darkness mask; call {@link #drawLightMask()} to composite it.
      * Coordinates are SCREEN pixels (top-left origin), matching the game's light screen positions.
-     * No-op (returns false) if the pipeline is unavailable — caller should then use the baked path.
+ * No-op (returns false) if the pipeline is unavailable, caller should then use the baked path.
      */
     public boolean renderShaderLightMask(Color night, float darkness, int lightCount,
                                          float[] lx, float[] ly, float[] lwx, float[] lwy, float[] lrad,
@@ -732,16 +732,16 @@ public class GdxRenderer {
         batch.setColor(1f, 1f, 1f, 1f);
         // The light mask is computed in SCREEN pixels (light positions are already screen-space). It must
         // therefore be blitted full-screen with NO world transform. But when this runs mid scene-capture
-        // (HIGH), the batch still carries the world translate — specifically the camera-shake offset
+        // (HIGH), the batch still carries the world translate, specifically the camera-shake offset
         // (RenderPipeline applies g2.translate(shakeX,shakeY)) and any dialogue pan/zoom. Left in place,
         // the full-screen mask quad gets shifted/scaled by that transform while the world already baked
         // the shake in, so the light pool slides off the scene by the shake amount EVERY frame the camera
-        // shakes — i.e. it "dances only when the camera is moving". Neutralize the transform for the blit,
+        // shakes, i.e. it "dances only when the camera is moving". Neutralize the transform for the blit,
         // then restore it so subsequent world draws are unaffected.
         Matrix4 savedTransform = new Matrix4(batch.getTransformMatrix());
         batch.setTransformMatrix(new Matrix4());
         // Diagnostics for the "lights dance" hunt: record what the world transform WAS at blit time
-        // (should be neutralized here — non-zero means shake/dialogue-pan was live this frame) and
+        // (should be neutralized here, non-zero means shake/dialogue-pan was live this frame) and
         // which composite branch runs.
         gfx.shader.LightDebug.maskBlitTx = savedTransform.val[Matrix4.M03];
         gfx.shader.LightDebug.maskBlitTy = savedTransform.val[Matrix4.M13];
@@ -749,9 +749,9 @@ public class GdxRenderer {
         gfx.shader.LightDebug.maskPremultiplied = lightMaskPremultiplied;
         // FBO color texture; drawn full-screen, NEVER V-flipped. PROOF (OffCenterLightTest, a probe
         // light 250px ABOVE the player): with the old "flip when not capturing" logic the probe's pool
-        // rendered 250px BELOW the player on the non-capture path — the whole mask was vertically
+        // rendered 250px BELOW the player on the non-capture path, the whole mask was vertically
         // MIRRORED about the screen center. The mirror was invisible in every previous verification
-        // because those all watched the PLAYER'S OWN pool, which sits at the screen center — and the
+        // because those all watched the PLAYER'S OWN pool, which sits at the screen center, and the
         // mirror maps the center to itself. In play it made every off-center light's pool sit in the
         // wrong place and GLIDE vertically in sync with the walking player (camera scroll mirrored =
         // "the lights follow me / dance"), while standing still it just looked like misplaced shadows.
@@ -843,7 +843,7 @@ public class GdxRenderer {
                 // glow combine lands in the right place. In fullscreen at pixelScale > 1 the device
                 // viewport is offset/larger than (0,0,screenW,screenH); using the logical size there used
                 // to bake the glow quad into a small corner of the window (a tiny duplicated-scene sliver)
-                // — the "mini game playing in the corner" artifact on HIGH graphics + fullscreen.
+                //, the "mini game playing in the corner" artifact on HIGH graphics + fullscreen.
                 pipe.renderBloom(sceneFbo.getColorBufferTexture(), screenW, screenH,
                                  worldVpX, worldVpY, worldVpW, worldVpH, threshold, intensity);
             }
@@ -870,7 +870,7 @@ public class GdxRenderer {
     // Everything above draws in LOGICAL pixels, which the camera magnifies by pixelScale (crisp for
     // pixel art, but it Nearest-upscales small non-pixel text into a jaggy mess in fullscreen). These
     // helpers temporarily swap to a 1:1 DEVICE-pixel projection (top-left origin, y-down) so an overlay
-    // can be drawn at its true on-screen size — resolution-independent and never magnified. Coordinates
+    // can be drawn at its true on-screen size, resolution-independent and never magnified. Coordinates
     // passed while in device space are physical window pixels. Always pair with endDeviceSpace().
     private boolean deviceSpace = false;
     public void beginDeviceSpace() {
@@ -952,11 +952,11 @@ public class GdxRenderer {
     }
 
     /** Directional arrow/triangle markers (▼▲◀▶), for UI cues where a font glyph would be used on
-     *  most fonts — this project's pixel font (Pixeloid Sans, 107 glyphs) doesn't contain them, so
+ * most fonts, this project's pixel font (Pixeloid Sans, 107 glyphs) doesn't contain them, so
      *  they're drawn as real triangles instead of a missing-glyph box. */
     public enum TriangleDir { UP, DOWN, LEFT, RIGHT }
 
-    /** Fills a small triangle pointing `dir`, inscribed in the box (x,y,w,h) — y-down screen space. */
+    /** Fills a small triangle pointing `dir`, inscribed in the box (x,y,w,h), y-down screen space. */
     public void fillTriangle(TriangleDir dir, int x, int y, int w, int h) {
         useShape(ShapeRenderer.ShapeType.Filled);
         shapes.setColor(gdxColor());
@@ -972,11 +972,11 @@ public class GdxRenderer {
      * a smooth ShapeRenderer ellipse, so it reads as hand-drawn pixel art like the rest of the game's
      * sprites instead of a smooth vector shape. x,y,w,h is the ellipse's bounding box.
      *
-     * <p>anchorWorldX/Y is the caster's FIXED world position (e.g. a tree's worldX/worldY) — the pixel
+ * <p>anchorWorldX/Y is the caster's FIXED world position (e.g. a tree's worldX/worldY), the pixel
      * grid is snapped against this world anchor, not the on-screen bounding box. The screen box (x,y)
      * moves by a whole-pixel amount every frame as the camera scrolls (worldX - cameraWorldX), so its
      * value mod stepW changes continuously; rounding against IT made the grid re-snap to a different
-     * alignment almost every frame — a visible shake/jitter as you walked, even though the shadow's
+ * alignment almost every frame, a visible shake/jitter as you walked, even though the shadow's
      * true position was correct. Snapping against the never-changing world anchor instead keeps the
      * chosen alignment fixed for the caster's whole lifetime; the screen box only supplies the (also
      * whole-pixel) camera translation, applied AFTER snapping so it never perturbs the rounding.
@@ -1067,7 +1067,7 @@ public class GdxRenderer {
 
     /**
      * Fill an arbitrary SIMPLE polygon (convex OR concave) given as flat [x0,y0,x1,y1,...] vertices.
-     * A naive triangle fan from vertex 0 only fills convex polygons correctly — Tiled collision
+ * A naive triangle fan from vertex 0 only fills convex polygons correctly, Tiled collision
      * polygons and stroked polylines are frequently concave, and fanning them produced the glitched
      * overlapping-triangle mess seen in the hitbox debug overlay. Ear-clipping triangulates properly.
      */
@@ -1116,7 +1116,7 @@ public class GdxRenderer {
 
     /**
      * Bake a {@link RadialGradient} into a Sprite (Texture) once, the GPU-native replacement for
-     * Java2D's RadialGradientPaint. Used for vignettes and light halos — draw the returned Sprite
+ * Java2D's RadialGradientPaint. Used for vignettes and light halos, draw the returned Sprite
      * each frame instead of rasterizing a gradient. Interpolates the stop colors per pixel by radius.
      */
     public static Sprite bakeRadialGradient(RadialGradient g, int w, int h) {

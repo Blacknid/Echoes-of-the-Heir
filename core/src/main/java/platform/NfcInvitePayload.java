@@ -8,13 +8,13 @@ package platform;
  * single-APDU budget the HCE exchange is built around (see FriendHceService's class doc).
  *
  * <p>Carries a random per-session token (proves this guest was actually tapped rather than just
- * happening to be first through the door — see BleGuestService's scan-based join), the active map
- * id (so the guest loads the identical map file it already has locally — see
+ * happening to be first through the door, see BleGuestService's scan-based join), the active map
+ * id (so the guest loads the identical map file it already has locally, see
  * main.BleMultiplayerSession's class doc for why no map data is transmitted), and the host's
  * display name for the guest's join UI. Deliberately does NOT carry a Bluetooth address: Android
  * has returned a fixed placeholder from {@code BluetoothAdapter.getAddress()} to every
  * non-privileged app since API 23, so a "real" address was never actually obtainable to embed here
- * — the guest instead finds the host via a filtered BLE scan on the fixed service UUID.
+ *, the guest instead finds the host via a filtered BLE scan on the fixed service UUID.
  */
 public final class NfcInvitePayload {
     private NfcInvitePayload() {}

@@ -8,7 +8,7 @@ package platform;
  * {@code com.sun.net.httpserver}, neither of which exists on Android. Core only ever sees this
  * interface, so it stays buildable on every backend.
  *
- * <p>If no provider is registered, {@link LicenseActivation} activates without a purchase token —
+ * <p>If no provider is registered, {@link LicenseActivation} activates without a purchase token
  * which succeeds only against a server that has its itch gate switched off.
  *
  * @see LicenseActivation#ensureActivated()
@@ -17,7 +17,7 @@ public interface ItchAuthProvider {
 
     /**
      * Obtains an itch.io access token for the player, blocking until they finish (or abandon)
-     * the browser flow. Never called on a later run — only when this install has no license yet.
+ * the browser flow. Never called on a later run, only when this install has no license yet.
      *
      * @return the token, or null if unsupported, cancelled, or timed out.
      */

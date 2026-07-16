@@ -22,7 +22,7 @@ public class AssetSetter {
     public void setObject() {
         for (int i = 0; i < gp.obj.length; i++) gp.obj[i] = null;
 
-        // Test map: return door needs runtime values — keep hardcoded
+        // Test map: return door needs runtime values, keep hardcoded
         if ("test".equals(gp.mapManager.currentMapId)) {
             setObject_test();
         }

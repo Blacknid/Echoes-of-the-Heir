@@ -20,15 +20,15 @@ import main.GamePanel;
  * Handles all in-world events triggered by the player stepping on tiles.
  *
  * ---- EVENT TYPES -----------------------------------------------------------
- *  MapTransition   — step-on tile that changes map (supports spawnId)
- *  HealingPool     — restores HP/MP on ENTER press, saves game
- *  DamageTrap      — deals damage on step (optional repeatable flag)
- *  DialogueTrigger — shows a one-shot (or repeatable) dialogue message
- *  LevelGate       — blocks below minLevel; passes above (optionally transitions)
- *  Checkpoint      — silent save + HP/MP restore (no prompt)
- *  QuestTrigger    — increments quest progress by a set amount
- *  CameraShake     — triggers screen shake on step
- *  BossIntroTrigger — plays a camera-pan-to-boss cutscene (see ui.BossIntroCutscene) on step
+ * MapTransition, step-on tile that changes map (supports spawnId)
+ * HealingPool, restores HP/MP on ENTER press, saves game
+ * DamageTrap, deals damage on step (optional repeatable flag)
+ * DialogueTrigger, shows a one-shot (or repeatable) dialogue message
+ * LevelGate, blocks below minLevel; passes above (optionally transitions)
+ * Checkpoint, silent save + HP/MP restore (no prompt)
+ * QuestTrigger, increments quest progress by a set amount
+ * CameraShake, triggers screen shake on step
+ * BossIntroTrigger, plays a camera-pan-to-boss cutscene (see ui.BossIntroCutscene) on step
  *
  * ---- NAMED SPAWN POINTS ----------------------------------------------------
  *  SpawnPoint objects in the Events layer register a named {id -> col, row} entry.
@@ -208,7 +208,7 @@ public class EventHandler {
         canTouchEvent = true;
         previousEventX = gp.player.worldX;
         previousEventY = gp.player.worldY;
-        // Clear MobSpawner zones — they are re-registered per map from Tiled
+        // Clear MobSpawner zones, they are re-registered per map from Tiled
         gp.mobSpawner.clearZones();
     }
 
@@ -356,7 +356,7 @@ public class EventHandler {
             // If totalLimit is set, check if all spawned monsters have been killed
             if (zone.totalLimit > 0 && zone.totalSpawned >= zone.totalLimit
                     && zone.trackedSlots.isEmpty() && !zone.lootGiven) {
-                // All monsters from this zone are dead — award loot
+                // All monsters from this zone are dead, award loot
                 zone.lootGiven = true;
                 if (!zone.lootItem.isEmpty()) {
                     entity.Entity item = gp.mapObjectLoader.createEntityByName(zone.lootItem);
@@ -378,10 +378,10 @@ public class EventHandler {
                 continue; // zone is complete, nothing left to spawn
             }
 
-            // If totalLimit reached, don't spawn more — just wait for remaining to die
+            // If totalLimit reached, don't spawn more, just wait for remaining to die
             if (zone.totalLimit > 0 && zone.totalSpawned >= zone.totalLimit) continue;
 
-            // Still at cap — nothing to do yet
+            // Still at cap, nothing to do yet
             if (zone.trackedSlots.size() >= zone.maxAmount) continue;
 
             // Activation range check: only spawn when player is within N tiles of the zone
@@ -492,7 +492,7 @@ public class EventHandler {
             }
         }
 
-        // Gates checked BEFORE dialogues — blocking barriers take priority.
+        // Gates checked BEFORE dialogues, blocking barriers take priority.
         for (PixelEvent<LevelGateData> pe : levelGates) {
             if (playerRect.intersects(pe.hitbox) && triggerLevelGate(pe.data)) return;
         }
@@ -605,7 +605,7 @@ public class EventHandler {
         if (gp.thoughts == null) return;
         gp.thoughts.show(data.message, data.linger, data.delay);
         if (data.oneShot) data.triggered = true;
-        // No touchConsumed() — thoughts are non-blocking, player keeps walking
+        // No touchConsumed(), thoughts are non-blocking, player keeps walking
     }
 
     /** @return true if the player was blocked (consume touch), false if passed silently. */
@@ -652,7 +652,7 @@ public class EventHandler {
                 touchConsumed();
                 return true;
             }
-            // Requirements met, no transition — pass silently (don't block other events)
+            // Requirements met, no transition, pass silently (don't block other events)
             return false;
         } else {
             // Snap player back 2 tiles, reset walk frame, then show dialogue
@@ -689,7 +689,7 @@ public class EventHandler {
                 touchConsumed();
                 return true;
             }
-            // Requirements met, no transition — pass silently
+            // Requirements met, no transition, pass silently
             return false;
         } else {
             switch (gp.player.direction) {
@@ -738,14 +738,14 @@ public class EventHandler {
     private void triggerFragmentEvent(FragmentTriggerData ft) {
         if (gp.memoryJournal == null) return;
         if (gp.memoryJournal.has(ft.fragmentId)) {
-            // Already collected — mark triggered and move on silently
+            // Already collected, mark triggered and move on silently
             ft.triggered = true;
             touchConsumed();
             return;
         }
         data.MemoryJournal.MemoryFragment frag = gp.memoryJournal.collect(ft.fragmentId);
         if (frag == null) {
-            // Not registered via NPC — collect by id anyway (creates placeholder)
+            // Not registered via NPC, collect by id anyway (creates placeholder)
             gp.memoryJournal.addById(ft.fragmentId);
             frag = gp.memoryJournal.getFragment(ft.fragmentId);
         }
@@ -760,7 +760,7 @@ public class EventHandler {
 
     private void triggerBossIntro(BossIntroData bi) {
         entity.Boss boss = gp.findBossByName(bi.bossName);
-        if (boss == null) return; // boss not present/already defeated — skip silently, don't burn the trigger
+        if (boss == null) return; // boss not present/already defeated, skip silently, don't burn the trigger
         gp.bossIntroCutscene.start(boss);
         if (bi.oneShot) bi.triggered = true;
         touchConsumed();
@@ -806,35 +806,35 @@ public class EventHandler {
         g2.setStroke(new Stroke(2f));
         g2.setAlpha(0.75f);
 
-        // Map transitions — magenta
+        // Map transitions, magenta
         drawEventLayer(g2, mapTransitions,   playerWorldX, playerWorldY, pScreenX, pScreenY,
                        new Color(255,   0, 255), "WARP");
-        // Healing pools — bright green
+        // Healing pools, bright green
         drawEventLayer(g2, healingPools,     playerWorldX, playerWorldY, pScreenX, pScreenY,
                        new Color(  0, 220,  80), "HEAL");
-        // Damage traps — bright red
+        // Damage traps, bright red
         drawEventLayer(g2, damageTraps,      playerWorldX, playerWorldY, pScreenX, pScreenY,
                        new Color(220,  40,  40), "TRAP");
-        // Dialogue triggers — yellow
+        // Dialogue triggers, yellow
         drawEventLayer(g2, dialogueTriggers, playerWorldX, playerWorldY, pScreenX, pScreenY,
                        new Color(255, 230,   0), "DIAL");
-        // Level gates — orange
+        // Level gates, orange
         drawEventLayer(g2, levelGates,       playerWorldX, playerWorldY, pScreenX, pScreenY,
                        new Color(255, 140,   0), "GATE");
-        // Checkpoints — cyan
+        // Checkpoints, cyan
         drawEventLayer(g2, checkpoints,      playerWorldX, playerWorldY, pScreenX, pScreenY,
                        new Color(  0, 220, 220), "SAVE");
-        // Quest triggers — purple
+        // Quest triggers, purple
         drawEventLayer(g2, questTriggers,    playerWorldX, playerWorldY, pScreenX, pScreenY,
                        new Color(180,  80, 255), "QUEST");
-        // Camera shakes — white
+        // Camera shakes, white
         drawEventLayer(g2, cameraShakes,     playerWorldX, playerWorldY, pScreenX, pScreenY,
                        new Color(220, 220, 220), "SHAKE");
-        // Memory gates — deep blue
+        // Memory gates, deep blue
         drawEventLayer(g2, memoryGates,      playerWorldX, playerWorldY, pScreenX, pScreenY,
                        new Color( 60,  80, 255), "MEM");
 
-        // Water zones — light blue filled + outline (supports both rectangles and polygons)
+        // Water zones, light blue filled + outline (supports both rectangles and polygons)
         int camOffX = pScreenX - playerWorldX;
         int camOffY = pScreenY - playerWorldY;
         // Save/restore the translate offset (the only transform state the gfx facade tracks).
@@ -844,7 +844,7 @@ public class EventHandler {
         g2.setAlpha(0.25f);
         g2.setColor(new Color(80, 160, 255));
         // TODO(gfx-stage5): GdxRenderer.fill/draw(Shape) only handle Rect/Ellipse/Polygon, not
-        // IntPolygon — polygon water/spawn zones won't render in debug overlay until that branch
+        // IntPolygon, polygon water/spawn zones won't render in debug overlay until that branch
         // is added. Rect zones render fine. Debug-only; no gameplay impact.
         for (Shape wz : waterZones) g2.fill(wz);
         g2.setAlpha(0.75f);
@@ -856,7 +856,7 @@ public class EventHandler {
         }
         g2.setTranslate(savedTx, savedTy);
 
-        // Spawn zones — draw exact polygon when present, otherwise fall back to AABB rect
+        // Spawn zones, draw exact polygon when present, otherwise fall back to AABB rect
         g2.setTranslate(savedTx, savedTy); // ensure we're back on the default transform
         g2.translate(camOffX, camOffY);    // switch to world-space camera transform
         g2.setAlpha(0.30f);
@@ -882,7 +882,7 @@ public class EventHandler {
         }
         g2.setTranslate(savedTx, savedTy); // restore before drawing spawn points
 
-        // Named spawn points — lime
+        // Named spawn points, lime
         g2.setColor(new Color(160, 255, 80));
         for (Map.Entry<String, int[]> e : namedSpawnPoints.entrySet()) {
             int[] pos = e.getValue();  // [col, row]

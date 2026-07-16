@@ -36,12 +36,12 @@ import java.util.Map;
  *
  * Step actions:
  * <ul>
- *   <li><b>talk</b>    — NPC plays dialogue, optionally gives item.  Auto-advances.</li>
- *   <li><b>deliver</b> — Player must have item.  Consume + dialogue + advance on success.
+ * <li><b>talk</b>, NPC plays dialogue, optionally gives item. Auto-advances.</li>
+ * <li><b>deliver</b>, Player must have item. Consume + dialogue + advance on success.
  *                        Plays failDialogue when item is missing.</li>
- *   <li><b>collect</b> — Advance via {@link #progress} calls.  Step {@code count} = target.</li>
- *   <li><b>kill</b>    — Same as collect, tracked by monster-kill progress() calls.</li>
- *   <li><b>go</b>      — Same as collect, triggered by map events / triggers.</li>
+ * <li><b>collect</b>, Advance via {@link #progress} calls. Step {@code count} = target.</li>
+ * <li><b>kill</b>, Same as collect, tracked by monster-kill progress() calls.</li>
+ * <li><b>go</b>, Same as collect, triggered by map events / triggers.</li>
  * </ul>
  *
  * Quests WITHOUT a {@code steps} array still work exactly as before
@@ -217,7 +217,7 @@ public class QuestManager {
     public QuestManager(GamePanel gp) {
         this.gp = gp;
         loadRegistry();
-        // Do NOT call startAutoQuests() here — quests are started by the
+        // Do NOT call startAutoQuests() here, quests are started by the
         // awakening cutscene on New Game, or restored from save on Load Game.
         // Calling it here would queue a "New quest" notification that fires
         // a second time once the cutscene ends, causing a duplicate.
@@ -227,7 +227,7 @@ public class QuestManager {
     /**
      * Start a quest by its id (looks it up in quests.json).
      * If the quest is already active it is silently ignored.
-     * Checks prerequisite — quest won't start unless prerequisite is complete.
+ * Checks prerequisite, quest won't start unless prerequisite is complete.
      */
     public void addQuest(String id) {
         QuestDef def = findDef(id);
@@ -432,7 +432,7 @@ public class QuestManager {
                         int idx = gp.player.searchItemInInventory(step.item);
                         int have = idx != 999 ? Math.max(1, gp.player.inventory.get(idx).amount) : 0;
                         if (idx == 999 || have < step.count) {
-                            // Player doesn't have enough — play fail dialogue
+                            // Player doesn't have enough, play fail dialogue
                             if (step.failDialogue != null) {
                                 npc.startNamedDialogue(npc, step.failDialogue);
                             } else {
@@ -469,7 +469,7 @@ public class QuestManager {
             }
         }
 
-        // No active quest step for this NPC — auto-start quests whose first step
+        // No active quest step for this NPC, auto-start quests whose first step
         // is a "talk" action targeting this NPC (prerequisite must be met).
         loadRegistry();
         for (int r = 0, rn = registry.size(); r < rn; r++) {
@@ -537,7 +537,7 @@ public class QuestManager {
             tracker = active.name + "  (" + active.current + "/" + active.target + ")";
         }
 
-        // Layout — mirror the pill dimensions from UI.drawPlayerLife()
+        // Layout, mirror the pill dimensions from UI.drawPlayerLife()
         float sf    = gp.screenWidth / (float) Config.UI_BASE_W;
         int margin  = (int)(12 * sf);
         int pillH   = (int)(28 * sf);
@@ -911,7 +911,7 @@ public class QuestManager {
         if (def == null) return;
         String nextId = strVal(def.props, "chainQuestId", "");
         if (!nextId.isEmpty()) {
-            // Chaining bypasses prerequisite check — use addQuest directly
+            // Chaining bypasses prerequisite check, use addQuest directly
             QuestDef nextDef = findDef(nextId);
             if (nextDef != null) {
                 String name = strVal(nextDef.props, "name", nextId);

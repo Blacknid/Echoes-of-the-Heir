@@ -7,9 +7,9 @@ package platform;
  *
  * <p>Two independent NFC roles, both required for one tap to fully add a friend:
  * <ul>
- *   <li><b>Emulate</b> (HCE tag) — always-on, works even with the app closed (like Google Pay):
+ * <li><b>Emulate</b> (HCE tag), always-on, works even with the app closed (like Google Pay):
  *   broadcasts this device's own {@code friend_id + username} as an NDEF message to whoever reads it.
- *   <li><b>Read</b> (reader mode) — requires the app open and this method actively invoked; the
+ * <li><b>Read</b> (reader mode), requires the app open and this method actively invoked; the
  *   initiator of "Add Friend" reads the other phone's emulated tag to capture their friend_id.
  * </ul>
  */
@@ -32,7 +32,7 @@ public interface NfcFriendService {
 
     /**
      * Updates the NDEF payload this device's HCE service emulates when read by another phone's
-     * reader mode — should be called once {@link main.FriendsListManager#getMyFriendId()} and the
+ * reader mode, should be called once {@link main.FriendsListManager#getMyFriendId()} and the
      * claimed username are known, so the emulated tag stays current for as long as the app runs
      * (including backgrounded, per HCE's AID-routing behavior).
      */
@@ -40,7 +40,7 @@ public interface NfcFriendService {
 
     /**
      * Same underlying mechanism as {@link #setEmulatedPayload(String, String)} but with an
-     * already-encoded payload string — used for BLE session invites ({@code NfcInvitePayload}),
+ * already-encoded payload string, used for BLE session invites ({@code NfcInvitePayload}),
      * which reuse this exact tap-to-exchange-data channel for a different kind of payload. Only
      * one payload can be emulated at a time; callers own switching it back when done (e.g. the
      * host restores its friend payload after ending a BLE session). Pass {@code null} to stop

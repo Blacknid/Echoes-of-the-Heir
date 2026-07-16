@@ -12,17 +12,17 @@ import util.UtilityTool;
 
 // Tiled Editor : new String variant = "nume copac / statuie / etc".
 //
-// Trees, statues, movable plants — anything drawn as one or more swaying canopy layers over a
+// Trees, statues, movable plants, anything drawn as one or more swaying canopy layers over a
 // static trunk/base, with a background-anchored shadow. One PNG per variant holds every part side
 // by side in a single row of `cellCount` EQUAL-WIDTH cells (cellWidth = sheetWidth / cellCount,
-// full sheetHeight tall — cells are NOT assumed square, since sheetWidth/sheetHeight alone can't
+// full sheetHeight tall, cells are NOT assumed square, since sheetWidth/sheetHeight alone can't
 // tell us how many cells there are). Cell order, from the END of the row:
 //   cell N-1 (last)           = shadow
 //   cell N-2 (second-to-last) = trunk / base
 //   cells 0 .. N-3            = canopy layers, each swaying independently as one rigid piece
 // A plain trunk+shadow prop (a statue, say) is just a 2-cell sheet with no canopy cells at all.
 // This means adding a new tree/statue/plant is one image file, sized as wide as it needs to be,
-// instead of two or three separate files — and the shadow is real art, not a procedural blob.
+// instead of two or three separate files, and the shadow is real art, not a procedural blob.
 
 public class IT_Prop extends interactiveTile {
 
@@ -146,11 +146,11 @@ public class IT_Prop extends interactiveTile {
     private final int maxFruits;
     private int fruitsDropped = 0;
 
-    // Per-instance random starting point in the sway cycle (seeded from tile position — see ctor).
+    // Per-instance random starting point in the sway cycle (seeded from tile position, see ctor).
     private final float phaseSeed;
     // Radians/second, NOT radians/tick: the sway is driven by wall-clock time at draw time (see
     // drawPhase()) instead of the fixed 60Hz update() tick, so it stays perfectly smooth even when65
-    // the monitor refresh rate isn't a clean multiple of 60 — a fixed-tick phase only changes 60
+    // the monitor refresh rate isn't a clean multiple of 60, a fixed-tick phase only changes 60
     // times/sec, which on a 75/144/165Hz display redraws the same position for several frames in a
     // row before jumping, reading as stepped motion no matter how smooth the easing curve is.
     private final float swaySpeedPerSecond;
@@ -201,7 +201,7 @@ public class IT_Prop extends interactiveTile {
     // against) so converting to radians/second preserves the exact same sway speed as before.
     private static final float TARGET_UPS_FOR_SWAY = 60f;
 
-    /** Wall-clock phase at draw time — see the swaySpeedPerSecond field doc for why. */
+    /** Wall-clock phase at draw time, see the swaySpeedPerSecond field doc for why. */
     private float drawPhase() {
         return phaseSeed + (System.nanoTime() * 1e-9f) * swaySpeedPerSecond;
     }
@@ -362,7 +362,7 @@ public class IT_Prop extends interactiveTile {
     }
 
     /** Fruit-variant trees pop a fruit loose on each hit, up to a per-tree cap, without being
-     *  destroyed (destructible stays false — see class doc for why props never break). Reuses
+ * destroyed (destructible stays false, see class doc for why props never break). Reuses
      *  interactiveTile's invincible/invincibleCounter as a simple per-swing cooldown. */
     @Override
     public void onAttackHit(Entity player) {
@@ -372,7 +372,7 @@ public class IT_Prop extends interactiveTile {
         fruitsDropped++;
 
         // Canopy occupies roughly the top portion of the tree's full draw height, trunk/base the
-        // bottom ~1 tile — so the fall should visually start about (sizeInTiles - 1) tiles above the
+        // bottom ~1 tile, so the fall should visually start about (sizeInTiles - 1) tiles above the
         // landing spot, putting its origin up in the leaves rather than at the trunk.
         float canopyFallHeight = Math.max(1f, variant.sizeInTiles() - 1);
 

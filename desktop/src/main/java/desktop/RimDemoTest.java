@@ -14,7 +14,7 @@ import gfx.shader.ShaderPipeline;
 /**
  * Isolated rim-light + shadow verification: draws ONE test sprite (a solid disc with a soft alpha edge)
  * on a dark background, lit by a single OFFSET light, then runs the light mask + rim pass exactly like the
- * game and screenshots the result. No game, no map — a clean rig to confirm the rim shape/warmth/strength
+ * game and screenshots the result. No game, no map, a clean rig to confirm the rim shape/warmth/strength
  * and directional shadow are correct, decoupled from the game's camera framing.
  *
  * Run: {@code ./gradlew :desktop:run -PmainClass=desktop.RimDemoTest}

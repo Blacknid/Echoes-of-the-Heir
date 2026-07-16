@@ -20,7 +20,7 @@ import com.badlogic.gdx.graphics.glutils.ShaderProgram;
  * <h2>Why this exists</h2>
  * The legacy lighting baked a radial-gradient TEXTURE and blended it. That bands, can't do smooth HDR
  * falloff, and can't sample an occluder map to cast shadows. Moving the light math into a fragment
- * shader gives per-pixel smooth falloff, soft penumbra, and (stage 2) shadow sampling — all on any GPU
+ * shader gives per-pixel smooth falloff, soft penumbra, and (stage 2) shadow sampling, all on any GPU
  * that supports GLSL ES 1.00 / GLSL 120, i.e. essentially everything from the last ~15 years. There is
  * no vendor-specific code (no "tensor cores" etc.); a single portable shader is both the fastest and
  * the most compatible choice for 2D lighting.
@@ -75,12 +75,12 @@ public final class ShaderPipeline {
     private static final boolean FREEZE_TIME = "1".equals(System.getProperty("light.freezetime"));
 
     public ShaderPipeline() {
-        // Don't throw on a bad shader — we want a clean boolean the caller can branch on.
+        // Don't throw on a bad shader, we want a clean boolean the caller can branch on.
         ShaderProgram.pedantic = false;
 
         // Shaders live as editable .vert/.frag files under res/shaders/; loaded at runtime with the
         // in-class string constants as a guaranteed fallback (a missing/unreadable file never breaks the
-        // build or the game — it just uses the baked-in source).
+        // build or the game, it just uses the baked-in source).
         // Load the vertex source: file with a baked-in fallback. We keep BOTH strings so compile() can
         // self-heal (retry with the baked-in source) if a file edit produces invalid GLSL.
         String vertFile = src("res/shaders/fullscreen.vert", ShaderSources.FULLSCREEN_VERT);
@@ -96,7 +96,7 @@ public final class ShaderPipeline {
                 failureLog = "light.frag: " + light.getLog();
             } else {
                 // MED/mobile light variant: the SAME light.frag source compiled with defines prepended
-                // (fewer shadow-march steps, organic noise stripped). Optional — any failure logs and
+                // (fewer shadow-march steps, organic noise stripped). Optional, any failure logs and
                 // leaves lightCheap null, and renderLightMask silently reuses the full shader.
                 String cheapFrag = CHEAP_DEFINES + src("res/shaders/light.frag", ShaderSources.LIGHT_FRAG);
                 lightCheap = new ShaderProgram(vertFile, cheapFrag);
@@ -174,14 +174,14 @@ public final class ShaderPipeline {
      * responsible for binding the target FBO, setting the viewport, and clearing. This writes an RGBA
      * "darkness mask": alpha = remaining darkness (0 = fully lit, night alpha = unlit), rgb = the night
      * tint, so compositing it over the scene with normal alpha blending darkens unlit pixels and lets
-     * lit pixels show through at natural brightness — same contract as the legacy mask, but per-pixel
+ * lit pixels show through at natural brightness, same contract as the legacy mask, but per-pixel
      * smooth and HDR.
      *
      * @param screenW,screenH  target size in pixels (for aspect / pixel→uv mapping)
      * @param nightR,nightG,nightB  night tint (0..1)
      * @param darkness  base darkness alpha (0..1) applied where no light reaches
      * @param lightCount  number of valid entries in the light arrays
-     * @param lx,ly  light centers in SCREEN pixels (top-left origin, y-down — matching game coords)
+ * @param lx,ly light centers in SCREEN pixels (top-left origin, y-down, matching game coords)
      * @param lradius  light radius in screen pixels
      * @param lr,lg,lb  per-light color (0..1)
      * @param lintensity  per-light strength 0..1 (how strongly it lifts the darkness)
@@ -215,7 +215,7 @@ public final class ShaderPipeline {
         prog.setUniformi("u_shadows", castShadows ? 1 : 0);
         prog.setUniformi("u_occluders", 1); // sampler on unit 1
         // F6 (LightDebug.freezeTime) freezes the shimmer/breathe/flicker animation; F7 (noDetail)
-        // zeroes the noise/ripple term entirely — both isolate "the light LOOKS like it moves"
+        // zeroes the noise/ripple term entirely, both isolate "the light LOOKS like it moves"
         // from "the light IS mispositioned" during the dancing-lights hunt.
         prog.setUniformf("u_time", (FREEZE_TIME || LightDebug.freezeTime) ? 0f : time);
         prog.setUniformf("u_detail", LightDebug.noDetail ? 0f : 1f);
@@ -333,7 +333,7 @@ public final class ShaderPipeline {
         bloomA.end();
 
         // 4) Additively combine the blurred glow onto the screen. Must use the REAL device-pixel
-        // viewport, not (0,0,screenW,screenH) — screenW/H are LOGICAL px, so at pixelScale > 1
+        // viewport, not (0,0,screenW,screenH), screenW/H are LOGICAL px, so at pixelScale > 1
         // (fullscreen) that hardcoded viewport used to pin this draw to a small corner of the window,
         // baking a tiny mispositioned glow quad into the frame (visible as a small duplicated scene
         // sliver in a corner) even though later draws restored the correct viewport.
@@ -370,7 +370,7 @@ public final class ShaderPipeline {
     /**
      * Load shader source from an asset path, falling back to a baked-in string if the file is missing or
      * unreadable. Tries the internal (working-dir) root first, then the classpath (bundled jar / dev
-     * resources) — the same resolution the rest of the engine uses for {@code res/...} assets. Any failure
+ * resources), the same resolution the rest of the engine uses for {@code res/...} assets. Any failure
      * is non-fatal: we log and return {@code fallback}, so editing/removing a shader file can never break
      * the game.
      */
@@ -389,8 +389,8 @@ public final class ShaderPipeline {
     }
 
     /**
-     * Compile a shader from its FILE source (frag path + vert file source); if that fails to compile —
-     * e.g. someone edited the .frag into invalid GLSL — retry once with the BAKED-IN fallback strings so
+ * Compile a shader from its FILE source (frag path + vert file source); if that fails to compile
+ * e.g. someone edited the .frag into invalid GLSL, retry once with the BAKED-IN fallback strings so
      * the game self-heals instead of losing lighting. Returns whichever program compiled (or the failed
      * file-based one if even the fallback fails, so the caller's isCompiled() check still reports it).
      */
@@ -398,7 +398,7 @@ public final class ShaderPipeline {
         String fragFile = src(fragPath, fragBake);
         ShaderProgram p = new ShaderProgram(vertFile, fragFile);
         if (p.isCompiled()) return p;
-        // File source didn't compile — fall back to the baked-in source.
+        // File source didn't compile, fall back to the baked-in source.
         Gdx.app.error("ShaderPipeline", "shader file '" + fragPath
             + "' compiled with errors — falling back to baked-in source. Log: " + p.getLog());
         ShaderProgram fb = new ShaderProgram(vertBake, fragBake);

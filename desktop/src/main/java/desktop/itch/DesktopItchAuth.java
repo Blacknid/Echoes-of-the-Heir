@@ -17,12 +17,12 @@ import com.sun.net.httpserver.HttpServer;
 import platform.ItchAuthProvider;
 
 /**
- * Desktop itch.io OAuth — used purely as proof of purchase, exactly once, at first activation.
+ * Desktop itch.io OAuth, used purely as proof of purchase, exactly once, at first activation.
  *
  * <p><b>itch is the door, not the landlord.</b> The token this returns is handed to our save
  * server, which asks itch "did this account buy the game?" and, if so, issues a license that
  * belongs to <i>us</i>. From then on the game authenticates with that license (activation_id +
- * encrypted blob) and itch is never contacted again — the player can play offline, without the
+ * encrypted blob) and itch is never contacted again, the player can play offline, without the
  * itch app, forever.
  *
  * <p>The loopback listener is likewise one-shot: it binds an ephemeral port, waits for the single
@@ -36,7 +36,7 @@ public final class DesktopItchAuth implements ItchAuthProvider {
 
     /**
      * Baked-in itch.io OAuth application client id (itch.io → Settings → OAuth applications).
-     * Public by design — a client id is not a secret. The API key that actually proves
+ * Public by design, a client id is not a secret. The API key that actually proves
      * ownership is a different value entirely and never leaves the server.
      *
      * <p>While it is blank the purchase check is skipped, which only works against a server
@@ -48,13 +48,13 @@ public final class DesktopItchAuth implements ItchAuthProvider {
     private static final String CLIENT_ID =
             System.getProperty("michi.itch.clientId", ITCH_CLIENT_ID_BAKED);
 
-    /** Only the player's identity is needed — the server does the ownership check itself. */
+    /** Only the player's identity is needed, the server does the ownership check itself. */
     private static final String SCOPE = "profile:me";
 
     private static final int AUTH_TIMEOUT_SECONDS = 180;
 
     /**
-     * itch.io validates redirect_uri with an exact string match — it does NOT accept a
+ * itch.io validates redirect_uri with an exact string match, it does NOT accept a
      * registered "http://127.0.0.1/" on an arbitrary port. Must match the redirect URI
      * registered on the OAuth application exactly, port included.
      */
@@ -82,7 +82,7 @@ public final class DesktopItchAuth implements ItchAuthProvider {
                 if (token == null) {
                     // itch returns the token in the URL *fragment*, which browsers never send to
                     // the server. Serve a page whose JS copies the fragment into the query string
-                    // and re-requests — the second hit is the one that actually carries the token.
+                    // and re-requests, the second hit is the one that actually carries the token.
                     respond(exchange,
                             "<p>Verifying your itch.io purchase…</p>"
                           + "<script>"
@@ -140,7 +140,7 @@ public final class DesktopItchAuth implements ItchAuthProvider {
     /**
      * Open the player's default browser at {@code url}. Tries {@code java.awt.Desktop} first,
      * then falls back to the Windows shell ({@code rundll32 url.dll,FileProtocolHandler}), which
-     * works even when AWT reports BROWSE unsupported. Returns false only if every route failed —
+ * works even when AWT reports BROWSE unsupported. Returns false only if every route failed
      * the caller then shows the URL in a visible dialog rather than failing silently.
      */
     private static boolean openBrowser(String url) {
@@ -195,13 +195,13 @@ public final class DesktopItchAuth implements ItchAuthProvider {
                 try {
                     java.awt.Toolkit.getDefaultToolkit().getSystemClipboard()
                             .setContents(new java.awt.datatransfer.StringSelection(authUrl), null);
-                } catch (RuntimeException ignored) { /* headless / no clipboard — dialog still shows */ }
+                } catch (RuntimeException ignored) { /* headless / no clipboard, dialog still shows */ }
                 javax.swing.JOptionPane.showMessageDialog(null, panel,
                         "Michi's Adventure — verify your purchase",
                         javax.swing.JOptionPane.INFORMATION_MESSAGE);
             });
         } catch (Exception e) {
-            // If even Swing is unavailable, we've done all we can — the URL is still in the log.
+            // If even Swing is unavailable, we've done all we can, the URL is still in the log.
             System.out.println("[Itch] Could not show manual-auth dialog (" + e + "). URL:\n" + authUrl);
         }
     }

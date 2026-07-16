@@ -30,20 +30,20 @@ import javax.crypto.spec.PSource;
 import javax.crypto.spec.SecretKeySpec;
 
 /**
- * Online license activation/login, shared by every backend (desktop, Android — no more
+ * Online license activation/login, shared by every backend (desktop, Android, no more
  * per-platform machine-fingerprint code, since licensing lives entirely on the save server now).
  *
  * <p>First run: {@link #ensureActivated()} calls the save server's ACTIVATE handshake, which
  * issues a brand-new license_key and hands back:
  * <ul>
  *   <li>the plaintext license_key itself (AEAD-wrapped in transit, told to the client exactly
- *       once — it's needed in memory as the account identifier for every save/friend/MP call)</li>
+ * once, it's needed in memory as the account identifier for every save/friend/MP call)</li>
  *   <li>an opaque {@code activation_id} plus an AES-GCM-encrypted blob of the license_key,
  *       encrypted with a random key the server keeps to itself alongside the license_key in its
  *       {@code licenses} table</li>
  * </ul>
  * Only {@code activation_id} and the encrypted blob are ever persisted locally, in
- * {@value #ACTIVATION_FILE} via {@link GameStorage} — the plaintext license_key is never written
+ * {@value #ACTIVATION_FILE} via {@link GameStorage}, the plaintext license_key is never written
  * to disk.
  *
  * <p>Every later run: {@link #ensureActivated()} sends {@code activation_id} + the encrypted blob
@@ -58,7 +58,7 @@ public final class LicenseActivation implements LicenseCheck {
 
     private static final String ACTIVATION_FILE = "activation.dat";
     /**
-     * Owner-only escape hatch, read from disk next to the game — NEVER hardcoded, never shipped.
+ * Owner-only escape hatch, read from disk next to the game, NEVER hardcoded, never shipped.
      * itch never issues an OAuth access_token to the developer's own account (only to accounts
      * that bought the game through the storefront), so the normal browser flow can never
      * activate the owner's install. If this file exists, its contents (trimmed) are sent as the
@@ -81,7 +81,7 @@ public final class LicenseActivation implements LicenseCheck {
     private static final byte[] ITCH_TOKEN_INFO = "michi-itchtoken-v2".getBytes(StandardCharsets.UTF_8);
     private static final byte[] ITCH_TOKEN_AAD = "MichiItchToken".getBytes(StandardCharsets.UTF_8);
 
-    // Server's transport RSA public key — same keypair CloudSaveService/MultiplayerClient use
+    // Server's transport RSA public key, same keypair CloudSaveService/MultiplayerClient use
     // to encrypt the ACTIVATE/LOGIN envelope. Not a "license signing" key: it never authenticates
     // anything by itself, it just keeps the handshake payload private in transit.
     private static final String RSA_PUBLIC_KEY_B64 =
@@ -104,7 +104,7 @@ public final class LicenseActivation implements LicenseCheck {
     private volatile String lastError;
 
     /**
-     * Trips when {@link #ensureActivated()} has finished — succeeded OR failed. It does NOT mean
+ * Trips when {@link #ensureActivated()} has finished, succeeded OR failed. It does NOT mean
      * "licensed"; ask {@link #verifyCurrent()} for that. It only means the answer is in.
      *
      * <p>Activation runs on a background thread (MichiGame.create() starts it, so the window doesn't
@@ -112,7 +112,7 @@ public final class LicenseActivation implements LicenseCheck {
      * {@code License.verifyCurrent()}. Anything that loads a save therefore has to WAIT for this
      * instead of reading a half-initialized answer: pressing CONTINUE before activation landed used
      * to see verifyCurrent()==false, silently skip the cloud download, and load a stale local save
-     * instead — a pure race, so the same button did different things depending on click speed.
+ * instead, a pure race, so the same button did different things depending on click speed.
      */
     private static final CountDownLatch SETTLED = new CountDownLatch(1);
 
@@ -138,8 +138,8 @@ public final class LicenseActivation implements LicenseCheck {
      * True once the save server has confirmed this install's license this run.
      *
      * <p>Deliberately does NOT require {@link #cachedKey}: only ACTIVATE (first ever run) discloses
-     * the plaintext license_key. On every later run we authenticate with LOGIN, and the server —
-     * which alone holds enc_key — decrypts enc_blob, verifies it, and answers AUTH_OK without
+ * the plaintext license_key. On every later run we authenticate with LOGIN, and the server
+ * which alone holds enc_key, decrypts enc_blob, verifies it, and answers AUTH_OK without
      * echoing the key back. A successful LOGIN is therefore itself the proof of license. Gating on
      * cachedKey != null here silently marked every returning player unlicensed and disabled their
      * cloud saves.
@@ -153,17 +153,17 @@ public final class LicenseActivation implements LicenseCheck {
     /**
      * Ensures this install has a license: logs in with a previously persisted activation if one
      * exists, otherwise activates fresh online and persists the result. Safe to call on every
-     * boot — it only ever does one network round trip.
+ * boot, it only ever does one network round trip.
      *
      * @return the plaintext license_key on success, or null if no save server was reachable this
-     *         run (offline first boot, or a transient outage on a later boot — caller should keep
+ * run (offline first boot, or a transient outage on a later boot, caller should keep
      *         running license-less and retry next launch).
      */
     public static String ensureActivated() {
         try {
             return activate();
         } finally {
-            // In a finally so that NO exit path — early return, thrown exception — can leave a
+            // In a finally so that NO exit path, early return, thrown exception, can leave a
             // caller blocked in awaitSettled() forever waiting for an answer that already came.
             SETTLED.countDown();
         }
@@ -179,7 +179,7 @@ public final class LicenseActivation implements LicenseCheck {
         m.lastError = null;
 
         // Proof of purchase is needed ONLY when this install has no license yet. A returning
-        // player logs in with the credentials they already hold and never sees a browser —
+        // player logs in with the credentials they already hold and never sees a browser
         // the license is ours, not itch's, and it keeps working offline forever.
         String itchToken = null;
         if (!isLogin) {
@@ -201,17 +201,17 @@ public final class LicenseActivation implements LicenseCheck {
                 Result r = m.handshake(ep, isLogin, existingId, existingBlob, itchToken);
                 if (r == null) {
                     // A definitive verdict (not owned / itch down) is the server's final answer.
-                    // Trying the next endpoint would just re-ask the same question — and, worse,
+                    // Trying the next endpoint would just re-ask the same question, and, worse,
                     // burn the one-shot itch token against a server that already rejected it.
                     if (m.lastError != null) return null;
-                    continue;  // this endpoint is simply unreachable — try the next one
+                    continue;  // this endpoint is simply unreachable, try the next one
                 }
                 if (!isLogin) writeLocal(r.activationId, r.encBlobB64);
                 m.activationId = r.activationId;
                 m.encBlobB64 = r.encBlobB64;
                 // Set on both paths: ACTIVATE issues the key, LOGIN re-delivers it (CloudSaveService
                 // derives its session delivery_key from it, so it's needed every run). Stays null
-                // only against an older server that doesn't send it — hence `confirmed`, not
+                // only against an older server that doesn't send it, hence `confirmed`, not
                 // cachedKey, is what marks this install licensed.
                 m.cachedKey = r.licenseKey;
                 m.confirmed = true;
@@ -219,7 +219,7 @@ public final class LicenseActivation implements LicenseCheck {
                 System.out.println(isLogin ? "[License] Logged in." : "[License] Activated online — license issued.");
                 return r.licenseKey;
             } catch (java.io.IOException netFailure) {
-                // Endpoint unreachable or the connection dropped — worth trying the next one.
+                // Endpoint unreachable or the connection dropped, worth trying the next one.
             } catch (Exception bug) {
                 // A crypto/parse failure is OUR bug, not an outage, and it will fail identically
                 // against every endpoint. Swallowing it silently is what let the oversized-RSA
@@ -270,7 +270,7 @@ public final class LicenseActivation implements LicenseCheck {
             } else {
                 // The itch token travels in its own AES-GCM box, NOT inside the RSA envelope:
                 // it is a live credential for the player's itch account, so it must never cross
-                // the wire in the clear — but RSA-2048 with OAEP-SHA256 can only carry 190 bytes
+                // the wire in the clear, but RSA-2048 with OAEP-SHA256 can only carry 190 bytes
                 // of plaintext, and the nonces alone already spend 117 of them. A real itch token
                 // pushed the envelope past the limit, rsaOaepEncrypt() threw, and the buyer's
                 // ACTIVATE was never even sent. The box is keyed off the two nonces, which both
@@ -289,7 +289,7 @@ public final class LicenseActivation implements LicenseCheck {
             String authLine = r.readLine();
             if (authLine == null || !authLine.startsWith("AUTH_OK ")) {
                 // Distinguish "you don't own the game" from "our licence server is having a
-                // bad day" — otherwise a server-side outage reads to the player as an accusation
+                // bad day", otherwise a server-side outage reads to the player as an accusation
                 // of piracy, and they have no idea whether to buy again or just wait.
                 if ("ITCH_NOT_OWNED".equals(authLine)) {
                     lastError = "itch.io says this account hasn't purchased Michi's Adventure. "
@@ -306,12 +306,12 @@ public final class LicenseActivation implements LicenseCheck {
             String[] parts = authLine.split(" ");
 
             // issuance_key is derived purely from the nonces (both sides already share those at
-            // this point) — NOT from license_key, since on ACTIVATE the client doesn't know it yet;
+            // this point), NOT from license_key, since on ACTIVATE the client doesn't know it yet;
             // that's the value being delivered. Must match the server's hkdf() call exactly.
             byte[] issuanceKey = hkdf(concat(clientNonce, serverNonce), serverNonce, ISSUANCE_INFO, 32);
 
             if (isLogin) {
-                // "AUTH_OK <enc_session_b64> <enc_license_key_b64>" — the key is re-delivered every
+                // "AUTH_OK <enc_session_b64> <enc_license_key_b64>", the key is re-delivered every
                 // run because we never persist it, yet CloudSaveService derives its session
                 // delivery_key from it. A 2-token reply means an older server that doesn't send it:
                 // stay licensed (the handshake still proved it), just without cloud access.

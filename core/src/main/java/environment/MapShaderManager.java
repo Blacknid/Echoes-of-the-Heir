@@ -250,7 +250,7 @@ public class MapShaderManager {
 
     public void update() {
         tick++;
-        // NOTE: updateParticles() removed — drawAmbientParticles() is disabled,
+        // NOTE: updateParticles() removed, drawAmbientParticles() is disabled,
         // so particle computation was wasted CPU every frame.
         updateWeather();
     }
@@ -311,7 +311,7 @@ public class MapShaderManager {
         float intensity = gp.eManager.weatherIntensity;
         if (intensity <= 0.001f) return;
 
-        // Camera top-left in world space — used for screen-space bounds check only
+        // Camera top-left in world space, used for screen-space bounds check only
         float camWX = (gp.player != null) ? gp.getCamWorldX() - gp.player.getCamScreenX() : 0f;
         float camWY = (gp.player != null) ? gp.getCamWorldY() - gp.player.getCamScreenY() : 0f;
 
@@ -461,7 +461,7 @@ public class MapShaderManager {
             int active = (int)(MAX_SNOW * intensity);
             if (gp.currentFPS > 0 && gp.currentFPS < 30) active = active / 4;
             else if (gp.currentFPS > 0 && gp.currentFPS < 45) active = active / 2;
-            // Set composite + color ONCE before the loop — was 120 setComposite calls, now 1
+            // Set composite + color ONCE before the loop, was 120 setComposite calls, now 1
             float snowA = Math.min(1f, 0.5f * intensity);
             g2.setAlpha(clampAlpha(snowA));
             g2.setColor(SNOW_FLAKE_COLOR);

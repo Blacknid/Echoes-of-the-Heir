@@ -10,7 +10,7 @@ import java.util.function.IntConsumer;
  * unset, so hosting is simply unavailable there.
  *
  * <p>The host acts as a BLE GATT server (peripheral role) and advertises so it's discoverable by
- * MAC address alone — guests connect directly using the address handed off via NFC
+ * MAC address alone, guests connect directly using the address handed off via NFC
  * (see NfcInvitePayload), no BLE scan needed. Message framing is transport-internal to the
  * implementation (one GATT characteristic write/notify per line, mirroring the pipe-delimited
  * compactness of {@code MultiplayerClient}'s JSON messages but leaner for BLE's small MTU); see
@@ -23,7 +23,7 @@ public interface BleHostService {
 
     /**
      * Starts advertising + the GATT server, capped at {@code maxGuests} simultaneous connections
-     * (see class doc — server rejects a connection attempt beyond the cap). {@code onMessage}
+ * (see class doc, server rejects a connection attempt beyond the cap). {@code onMessage}
      * fires (guestSlot, message) for every line received from a guest once it has completed the
      * join handshake; {@code onGuestLeft} fires (guestSlot) when a connected guest disconnects.
      * Safe to call once per session; call {@link #stop()} before starting a new one.
