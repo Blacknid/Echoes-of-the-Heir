@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<map version="1.10" tiledversion="1.12.1" orientation="orthogonal" renderorder="right-down" width="40" height="30" tilewidth="32" tileheight="32" infinite="0" nextlayerid="25" nextobjectid="132">
+<map version="1.10" tiledversion="1.12.1" orientation="orthogonal" renderorder="right-down" width="40" height="30" tilewidth="32" tileheight="32" infinite="0" nextlayerid="25" nextobjectid="137">
  <properties>
   <property name="ambientLight" type="float" value="1"/>
   <property name="music" type="int" value="1"/>
@@ -4594,6 +4594,28 @@
     <property name="openAnimation" value="/res/objects/chests"/>
     <property name="openFrames" type="int" value="4"/>
     <property name="requiredItem" value="Key"/>
+   </properties>
+  </object>
+  <object id="133" name="Chest ( Music_sheet  )" type="Chest" x="64" y="96" width="32" height="32">
+   <properties>
+    <property name="lootId" value="sheet_music"/>
+    <property name="openAnimation" value="/res/objects/chests"/>
+    <property name="openFrames" type="int" value="4"/>
+   </properties>
+  </object>
+  <object id="134" name="Mushroom" type="Item" x="384" y="576" width="32" height="32">
+   <properties>
+    <property name="itemId" value="mushroom_bundle"/>
+   </properties>
+  </object>
+  <object id="135" name="Mushroom" type="Item" x="800" y="128" width="32" height="32">
+   <properties>
+    <property name="itemId" value="mushroom_bundle"/>
+   </properties>
+  </object>
+  <object id="136" name="Mushroom" type="Item" x="865" y="233.667" width="32" height="32">
+   <properties>
+    <property name="itemId" value="mushroom_bundle"/>
    </properties>
   </object>
  </objectgroup>

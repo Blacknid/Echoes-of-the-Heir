@@ -189,6 +189,22 @@ public class Sprite {
      */
     public Sprite croppedBottomAligned(int srcX, int srcY, int srcW, int srcH,
                                        int dw, int dh, int cellW, int cellH) {
+        return croppedIntoCell(srcX, srcY, srcW, srcH, dw, dh, cellW, cellH, cellH - dh);
+    }
+
+    /**
+     * Same composite as {@link #croppedBottomAligned}, but centers the scaled crop both
+     * horizontally and vertically in the transparent cell instead of anchoring to the bottom —
+     * for icons that should shrink-and-center (e.g. a smaller inventory sprite) rather than sit on
+     * a shared baseline (e.g. sprite-sheet frame trimming).
+     */
+    public Sprite croppedCentered(int srcX, int srcY, int srcW, int srcH,
+                                   int dw, int dh, int cellW, int cellH) {
+        return croppedIntoCell(srcX, srcY, srcW, srcH, dw, dh, cellW, cellH, (cellH - dh) / 2);
+    }
+
+    private Sprite croppedIntoCell(int srcX, int srcY, int srcW, int srcH,
+                                    int dw, int dh, int cellW, int cellH, int oy) {
         boolean[] owns = {false};
         com.badlogic.gdx.graphics.Pixmap src = acquirePixmap(owns);
         // Headless (server): there are no pixels to composite and nothing to draw them with. Hand
@@ -199,7 +215,6 @@ public class Sprite {
         cell.setBlending(com.badlogic.gdx.graphics.Pixmap.Blending.None);
         cell.setFilter(com.badlogic.gdx.graphics.Pixmap.Filter.NearestNeighbour);
         int ox = (cellW - dw) / 2;
-        int oy = cellH - dh; // bottom-align
         cell.drawPixmap(src,
             rx + srcX, ry + srcY, srcW, srcH, // src rect (native top-left pixel coords)
             ox, oy, dw, dh);                  // dst rect (scaled)

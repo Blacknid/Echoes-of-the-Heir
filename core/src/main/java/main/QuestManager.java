@@ -427,11 +427,12 @@ public class QuestManager {
                     return true;
                 }
                 case "deliver" -> {
-                    // Check player has the required item
+                    // Check player has the required item, in the required quantity
                     if (step.item != null) {
                         int idx = gp.player.searchItemInInventory(step.item);
-                        if (idx == 999) {
-                            // Player doesn't have the item — play fail dialogue
+                        int have = idx != 999 ? Math.max(1, gp.player.inventory.get(idx).amount) : 0;
+                        if (idx == 999 || have < step.count) {
+                            // Player doesn't have enough — play fail dialogue
                             if (step.failDialogue != null) {
                                 npc.startNamedDialogue(npc, step.failDialogue);
                             } else {
@@ -439,10 +440,10 @@ public class QuestManager {
                             }
                             return true;
                         }
-                        // Consume the item
-                        if (step.consume && idx < gp.player.inventory.size()) {
+                        // Consume the required amount
+                        if (step.consume) {
                             entity.Entity item = gp.player.inventory.get(idx);
-                            if (item.amount > 1) item.amount--;
+                            if (item.amount > step.count) item.amount -= step.count;
                             else gp.player.inventory.remove(idx);
                         }
                     }
@@ -673,8 +674,15 @@ public class QuestManager {
                     }
                 }
 
+                int objMaxWidth = W - PADDING * 2 - 32;
+                java.util.List<String> objLines = java.util.List.of();
+                if (objective != null && !objective.isEmpty()) {
+                    g2.setFont(fontPlain14b);
+                    objLines = wrapText(g2, objective, objMaxWidth);
+                }
+
                 int cardH = 34;
-                if (objective != null && !objective.isEmpty()) cardH += 22;
+                if (!objLines.isEmpty()) cardH += 18 * objLines.size() + 4;
                 if (hasProgress) cardH += 18;
 
                 g2.setColor(CARD_BG);
@@ -691,12 +699,16 @@ public class QuestManager {
 
                 qy += 6;
 
-                // Objective
-                if (objective != null && !objective.isEmpty()) {
+                // Objective (word-wrapped so long step descriptions don't run past the card edge)
+                if (!objLines.isEmpty()) {
                     g2.setFont(fontPlain14b);
                     g2.setColor(OBJECTIVE_COLOR);
-                    g2.drawString("\u2192  " + objective, x + PADDING + 20, qy + 14);
-                    qy += 22;
+                    for (int li = 0; li < objLines.size(); li++) {
+                        String prefix = li == 0 ? "\u2192  " : "    ";
+                        g2.drawString(prefix + objLines.get(li), x + PADDING + 20, qy + 14);
+                        qy += 18;
+                    }
+                    qy += 4;
                 }
 
                 if (hasProgress) {
@@ -762,6 +774,28 @@ public class QuestManager {
         String hint = logScrollMax > 0 ? "\u2191 \u2193 to scroll  \u2022  Q to close" : "Q to close";
         int hw = g2.getFontMetrics().stringWidth(hint);
         g2.drawString(hint, x + (W - hw) / 2, contentBottom + 17);
+    }
+
+    /** Word-wraps text to fit maxWidth under g2's currently set font. Splits on spaces only. */
+    private java.util.List<String> wrapText(GdxRenderer g2, String text, int maxWidth) {
+        java.util.List<String> lines = new java.util.ArrayList<>();
+        if (text == null || text.isEmpty()) { lines.add(""); return lines; }
+        var fm = g2.getFontMetrics();
+        StringBuilder line = new StringBuilder();
+        for (String word : text.split(" ")) {
+            if (line.length() == 0) {
+                line.append(word);
+            } else if (fm.stringWidth(line + " " + word) > maxWidth) {
+                lines.add(line.toString());
+                line.setLength(0);
+                line.append(word);
+            } else {
+                line.append(' ').append(word);
+            }
+        }
+        if (line.length() > 0) lines.add(line.toString());
+        if (lines.isEmpty()) lines.add("");
+        return lines;
     }
 
     /** Helper: draws a section header with label and a horizontal rule. */

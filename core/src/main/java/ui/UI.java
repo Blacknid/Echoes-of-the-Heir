@@ -84,7 +84,7 @@ public class UI {
     // Per-window themes — main / shadow / highlight / 2nd-highlight, as hex codes.
     private static final PanelTheme THEME_DEFAULT   = PanelTheme.of("#0F0A08", "#644B1E", "#B48C3C", "#DAAF3E");
     private static final PanelTheme THEME_DIALOGUE  = PanelTheme.of("#0F0A08", "#644B1E", "#B48C3C", "#DAAF3E");
-    private static final PanelTheme THEME_JOURNAL   = PanelTheme.of("#120E18", "#46375A", "#9678BE", "#C8AFEB");
+    private static final PanelTheme THEME_JOURNAL   = PanelTheme.of("#1f1f1f", "#2b2b2b", "#bea27c", "#ffdfa2");
     private static final PanelTheme THEME_OPTIONS   = PanelTheme.of("#000000", "#46465A", "#9696AF", "#D2D2E6");
     private static final PanelTheme THEME_CHARACTER = PanelTheme.of("#030202", "#5A3C23", "#AF8246", "#E1B45A");
     private static final PanelTheme THEME_INVENTORY = PanelTheme.of("#0C0C0E", "#3C463C", "#789678", "#B4D7B4");
@@ -3177,12 +3177,16 @@ public class UI {
 
                     int textX = dFrameX + 30;
                     int textY = iconY + gp.tileSize + 20;
-                    g2.setFont(cachedFont(Font.PLAIN, 22F));
+                    Font descFont = cachedFont(Font.PLAIN, 22F);
+                    g2.setFont(descFont);
                     g2.setColor(cachedColor(200, 200, 200));
                     if (!item.description.isEmpty()) {
-                        for (String line : item.description.split("\n")) {
-                            g2.drawString(line, textX, textY);
-                            textY += 26;
+                        int descMaxWidth = dFrameWidth - 60;
+                        for (String rawLine : item.description.split("\n")) {
+                            for (String line : wrapText(rawLine, descFont, descMaxWidth)) {
+                                g2.drawString(line, textX, textY);
+                                textY += 26;
+                            }
                         }
                     }
                 }

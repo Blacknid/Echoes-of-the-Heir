@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<map version="1.10" tiledversion="1.12.1" orientation="orthogonal" renderorder="right-down" width="26" height="20" tilewidth="32" tileheight="32" infinite="0" nextlayerid="21" nextobjectid="24">
+<map version="1.10" tiledversion="1.12.1" orientation="orthogonal" renderorder="right-down" width="26" height="20" tilewidth="32" tileheight="32" infinite="0" nextlayerid="21" nextobjectid="26">
  <properties>
   <property name="ambientLight" type="float" value="0"/>
   <property name="weather" value="CLEAR"/>
@@ -1455,7 +1455,7 @@
 0,0,0,0,0,0,481,482,447,0,0,0,0,0,0,0,0,443,0,0,0,0,0,0,0,0,
 0,0,0,0,0,0,0,0,0,0,0,0,0,0,412,0,317,318,0,0,0,0,0,0,0,0,
 0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,338,338,339,0,0,0,0,0,0,0,0,
-0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
+0,0,0,0,536,537,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
 0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,548,0,0,0,0,0,0,0,0,0,0,
 0,0,0,0,0,554,555,0,0,0,0,0,0,0,0,569,0,0,0,510,511,512,0,0,0,0,
 0,0,0,0,0,575,576,0,0,0,0,0,0,0,0,0,0,0,0,531,532,533,0,0,0,0,
@@ -1655,6 +1655,18 @@
   <object id="23" name="Drunk" type="NPC_Generic" x="159.625" y="239.875">
    <properties>
     <property name="npcId" value="drunk"/>
+   </properties>
+   <point/>
+  </object>
+  <object id="24" name="Dancer" type="NPC_Generic" x="288" y="320">
+   <properties>
+    <property name="npcId" value="dancer"/>
+   </properties>
+   <point/>
+  </object>
+  <object id="25" name="Eater" type="NPC_Generic" x="384" y="192">
+   <properties>
+    <property name="npcId" value="host"/>
    </properties>
    <point/>
   </object>

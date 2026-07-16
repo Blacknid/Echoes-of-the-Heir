@@ -239,8 +239,41 @@ public class NPCFactory {
         npc.idleFramesPerRow = intArrayVal(def.props, "idleFramesPerRow", new int[]{6, 6, 6, 6});
         float spriteScaleVal = floatVal(def.props, "spriteScale", 1.0f);
         if (spriteScaleVal > 0) npc.spriteScale = spriteScaleVal;
+<<<<<<< HEAD
+
+        // Hitbox scales with the sprite instead of staying pinned to NPC_Generic's default
+        // (constructor-time, spriteScale-1.0) box: Entity.draw() grows the sprite horizontally-
+        // centered but bottom-anchored (feet stay at the tile's bottom edge), so a bigger
+        // spriteScale should widen/heighten the hitbox around that same base, not just leave a
+        // tiny fixed box under a now much bigger sprite. Keeps the modest "near the feet"
+        // proportions the box already has at scale 1.0 — not a full head-to-toe hitbox.
+        if (spriteScaleVal != 1.0f) {
+            int baseW = npc.solidArea.width, baseH = npc.solidArea.height;
+            int scaledW = Math.round(baseW * spriteScaleVal);
+            int scaledH = Math.round(baseH * spriteScaleVal);
+            int tileFootprint = gp.tileSize; // the sprite's horizontal center is the tile's center
+            npc.solidArea.x = (tileFootprint - scaledW) / 2;
+            // Bottom edge stays where the unscaled box's bottom edge was (near the feet); grow upward.
+            int baseBottomY = npc.solidArea.y + baseH;
+            npc.solidArea.y = baseBottomY - scaledH;
+            npc.solidArea.width = scaledW;
+            npc.solidArea.height = scaledH;
+            npc.solidAreaDefaultX = npc.solidArea.x;
+            npc.solidAreaDefaultY = npc.solidArea.y;
+
+            int hcx = npc.solidArea.x + npc.solidArea.width  / 2;
+            int hcy = npc.solidArea.y + npc.solidArea.height / 2;
+            int hr  = Math.min(npc.solidArea.width, npc.solidArea.height) / 2;
+            npc.setOctagonHurt(hcx, hcy, hr);
+        }
+        int interactRangeVal = intVal(def.props, "interactRange", 0);
+        npc.interactRange = interactRangeVal;
+        int depthSortYOffsetVal = intVal(def.props, "depthSortYOffset", 0);
+        npc.depthSortYOffset = depthSortYOffsetVal;
+=======
         npc.interactRange = intVal(def.props, "interactRange", 0);
         npc.depthSortYOffset = intVal(def.props, "depthSortYOffset", 0);
+>>>>>>> 0d4354eb7d1fbe445416eb7585d726d75014fdbc
         // Activity key to switch to while this NPC is being talked to (e.g. blacksmith stops
         // forging and just idles mid-conversation), restored automatically when dialogue ends.
         String dialogueActivityVal = def.props.get("dialogueActivity");

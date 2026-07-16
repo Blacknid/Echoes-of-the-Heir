@@ -560,13 +560,21 @@ public class MouseHandler implements InputProcessor {
         int panelY  = 100;
         int panelW  = gp.screenWidth / 3;
         int panelH  = gp.screenHeight - 140;
-        int listY   = panelY + 30;
+        // drawJournalScreen() draws each row's text with listY as the BASELINE (drawString's y is
+        // the baseline, not the top), so row i's glyphs sit ABOVE listY + i*lineH, not below it.
+        // The old hit-test treated that same value as the row's top edge, which put the clickable
+        // band a row-height too low — hovering a fragment visually selected the one below/above it.
+        // Center each row's hit band on its baseline instead, using half the font's ascent as the
+        // offset above the baseline (matches the 18F font drawJournalScreen uses for this list).
+        int baselineY = panelY + 30;
         int lineH   = 28;
+        int aboveBaseline = 13; // ~ascent/2 for the 18pt list font, keeps the band centered on the glyphs
         int maxVis  = (panelH - 40) / lineH;
+        int listTop = baselineY - aboveBaseline;
         // only react if inside the left panel
         if (gameX < panelX || gameX >= panelX + panelW) return;
-        if (gameY < listY  || gameY >= listY + maxVis * lineH) return;
-        int row = (gameY - listY) / lineH;
+        if (gameY < listTop || gameY >= listTop + maxVis * lineH) return;
+        int row = (gameY - listTop) / lineH;
         int idx = gp.ui.journalScroll + row;
         int max = Math.max(0, gp.memoryJournal.getAllSorted().size() - 1);
         gp.ui.journalSelectedIndex = Math.max(0, Math.min(max, idx));

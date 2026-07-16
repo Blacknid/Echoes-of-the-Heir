@@ -31,6 +31,7 @@ public class ItemFactory {
         TYPE_MAP.put("obstacle", 8);   // type_obstacle
         TYPE_MAP.put("buffs", 9);      // type_buffs
         TYPE_MAP.put("ending", 10);    // type_ending
+        TYPE_MAP.put("quest", 9);      // type_buffs -- quest items pick up on touch like other carried items
     }
 
     /** Load item definitions from JSON resource. Call once at startup. */
