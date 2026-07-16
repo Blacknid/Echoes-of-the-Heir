@@ -164,6 +164,9 @@ public class Lightning {
      */
     public void clearShadowCaches() {
         torchShadowCacheDirty = true;
+        // Collision geometry changed: the same light positions can now light a different set of tiles
+        // (walls moved), so force the next draw() to recompute tileIsLit instead of trusting the cache.
+        lastLitSignature = Long.MIN_VALUE;
     }
 
     // ===================== PRIVATE HELPERS =====================
@@ -241,6 +244,42 @@ public class Lightning {
         Sprite falloff = getFalloffTexture();
         int d = rad * 2;
         g2.drawImageTinted(falloff, sx - rad, sy - rad, d, d, tint, strength);
+    }
+
+    // Signature of the inputs that determine tileIsLit/tileLightLevel. When unchanged frame-to-frame
+    // the grid is identical and the mark pass can be skipped (see draw()). MIN_VALUE = "never computed".
+    private long lastLitSignature = Long.MIN_VALUE;
+
+    /**
+     * Fold every contributing light's TILE position + radius (and the quality flags that select the
+     * marking algorithm) into a single hash. Two frames with the same signature produce the same
+     * tileIsLit grid, so the expensive mark pass can be skipped. Uses tile granularity (worldPx / ts)
+     * because the grid itself is per-tile — sub-tile movement never changes which tiles are lit.
+     */
+    private long lightGridSignature(int playerCX, int playerCY, int playerRadPx,
+                                    boolean isLow, boolean useTileShadows) {
+        int ts = gp.tileSize;
+        long h = 1125899906842597L; // large prime seed
+        h = h * 31 + (playerCX / ts);
+        h = h * 31 + (playerCY / ts);
+        h = h * 31 + (playerRadPx / ts);
+        h = h * 31 + (isLow ? 1 : 0);
+        h = h * 31 + (useTileShadows ? 1 : 0);
+        h = accumulateArraySignature(h, gp.obj, ts);
+        h = accumulateArraySignature(h, gp.npc, ts);
+        h = accumulateArraySignature(h, gp.monster, ts);
+        return h;
+    }
+
+    private long accumulateArraySignature(long h, entity.Entity[] arr, int ts) {
+        if (arr == null) return h;
+        for (entity.Entity e : arr) {
+            if (e == null || !e.lightSource || e.lightRadius <= 0) continue;
+            h = h * 31 + ((e.worldX + ts / 2) / ts);
+            h = h * 31 + ((e.worldY + ts / 2) / ts);
+            h = h * 31 + e.lightRadius;
+        }
+        return h;
     }
 
     /**
@@ -881,19 +920,31 @@ public class Lightning {
         boolean isLow       = (gp.config.graphicsQuality == Config.GRAPHICS_LOW);
         boolean useTileShadows = (gp.config.graphicsQuality != Config.GRAPHICS_MEDIUM);
 
-        // ========= ALWAYS: update tileIsLit (+ tileLightLevel for LOW) =========
+        // ========= tileIsLit (+ tileLightLevel for LOW) =========
+        // tileIsLit / tileLightLevel are DISCRETE per-tile grids: a tile's lit state can only change
+        // when a contributing light moves to a different TILE (or its radius/quality changes). Marking
+        // is the frame's heaviest CPU pass — O(radius² tiles) per light, each lit tile doing a Bresenham
+        // shadow ray-cast — so when no light has crossed a tile boundary since last frame the whole
+        // clear+re-mark reproduces the identical grid and can be skipped. lightGridSignature() folds
+        // every light's tile position + radius (and the quality flags that pick the algorithm) into one
+        // long; equal signature ⇒ identical output ⇒ reuse. This makes standing still (the common case,
+        // e.g. dialogue, menus, idle) essentially free here instead of re-ray-casting every frame.
         if (gp.tileM.tileIsLit != null) {
-            gp.tileM.clearTileLitMap();
-            if (isLow) {
-                markTilesLitLowBFS(playerLightCX, playerLightCY, lightPxWorld);
-                markEntityArrayTilesLit(gp.obj, isLow, useTileShadows);
-                markEntityArrayTilesLit(gp.npc, isLow, useTileShadows);
-                markEntityArrayTilesLit(gp.monster, isLow, useTileShadows);
-            } else {
-                markTilesLit(playerLightCX, playerLightCY, lightPxWorld, useTileShadows, false);
-                markEntityArrayTilesLit(gp.obj, isLow, useTileShadows);
-                markEntityArrayTilesLit(gp.npc, isLow, useTileShadows);
-                markEntityArrayTilesLit(gp.monster, isLow, useTileShadows);
+            long sig = lightGridSignature(playerLightCX, playerLightCY, lightPxWorld, isLow, useTileShadows);
+            if (sig != lastLitSignature) {
+                lastLitSignature = sig;
+                gp.tileM.clearTileLitMap();
+                if (isLow) {
+                    markTilesLitLowBFS(playerLightCX, playerLightCY, lightPxWorld);
+                    markEntityArrayTilesLit(gp.obj, isLow, useTileShadows);
+                    markEntityArrayTilesLit(gp.npc, isLow, useTileShadows);
+                    markEntityArrayTilesLit(gp.monster, isLow, useTileShadows);
+                } else {
+                    markTilesLit(playerLightCX, playerLightCY, lightPxWorld, useTileShadows, false);
+                    markEntityArrayTilesLit(gp.obj, isLow, useTileShadows);
+                    markEntityArrayTilesLit(gp.npc, isLow, useTileShadows);
+                    markEntityArrayTilesLit(gp.monster, isLow, useTileShadows);
+                }
             }
         }
 
