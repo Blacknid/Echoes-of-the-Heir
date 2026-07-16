@@ -26,7 +26,7 @@ final class ShaderSources {
         "}\n";
 
     // Keep in sync with ShaderPipeline.MAX_LIGHTS.
-    private static final int MAX_LIGHTS = 20;
+    private static final int MAX_LIGHTS = 32;
 
     /**
      * Smooth per-pixel lighting. Output is a PREMULTIPLIED darkness mask (rgb = night tint × alpha +

@@ -5,7 +5,7 @@
 precision highp float;
 #endif
 
-#define MAX_LIGHTS 20
+#define MAX_LIGHTS 32
 
 varying vec2 v_uv;
 uniform sampler2D u_scene;

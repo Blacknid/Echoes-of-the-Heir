@@ -386,17 +386,12 @@ public class Player extends Entity {
      * Adaugam un sistem de incarcare a unui spritesheet cu un numar variabil de cadre pe rand.
      */
     private void getPlayerImages() {
-        // Sheet order: down=row0, left=row1, right=row2, up=row3 — maps directly to DIR_DOWN=0,LEFT=1,RIGHT=2,UP=3
         int[] framesPerRow = {8, 8, 8, 7};
         walkFrames = loadSheetVariable("/res/player/player_walking-sheet_test", framesPerRow);
-        // 150 ms/frame at default speed; scaled by movement speed at runtime so feet don't slide.
         walkClip = new gfx.AnimClip(walkFrames, 200, com.badlogic.gdx.graphics.g2d.Animation.PlayMode.LOOP);
     }
 
     public void getPlayerAttackImages() {
-        // Unified attack sheet (4 rows × 5 cols, 1-tile each: down/left/right/up) — same sheet
-        // reused for all 3 combo steps; only per-step timing (frameDurations in attacking())
-        // and the free-aim cone/slice differ, not the body sprite.
         int[] a = {5, 5, 5, 5};
         Sprite[][] raw = loadSheetVariable("/res/player/player_attacking_test", a);
         attackFrames = new Sprite[4][];
@@ -410,9 +405,6 @@ public class Player extends Entity {
         getSliceEffectImages();
     }
 
-    /** sliceAnim.png is a 2-frame strip (2 cols x 1 row, 32x96 per cell) — not square, so it
-     *  can't go through loadSheetVariable (which force-scales cells to a square tileSize).
-     *  Sliced manually, keeping the native tall/narrow aspect for the rotated VFX quad. */
     private void getSliceEffectImages() {
         Sprite sheet = util.ResourceCache.loadImageIfPresent("/res/effects/sliceAnim.png");
         if (sheet == null) { sliceFrames = null; return; }
@@ -422,45 +414,41 @@ public class Player extends Entity {
     }
 
     private void getPlayerHitImages() {
-        int[] framesPerRow = {4, 4, 4, 4}; // sheet rows: down, left, up, right
+        int[] framesPerRow = {4, 4, 4, 4};
         Sprite[][] frames = loadSheetVariable("/res/player/Player_getHit", framesPerRow);
         hitFrames = new Sprite[4][];
-        hitFrames[DIR_UP]    = frames[0]; // row 0 = up
-        hitFrames[DIR_RIGHT] = frames[3]; // row 1 = right
-        hitFrames[DIR_DOWN]  = frames[1]; // row 2 = down
-        hitFrames[DIR_LEFT]  = frames[2]; // row 3 = left
-        hitClip = new gfx.AnimClip(hitFrames, 100, com.badlogic.gdx.graphics.g2d.Animation.PlayMode.LOOP); // 100 ms/frame
+        hitFrames[DIR_UP]    = frames[0];
+        hitFrames[DIR_RIGHT] = frames[3];
+        hitFrames[DIR_DOWN]  = frames[1];
+        hitFrames[DIR_LEFT]  = frames[2];
+        hitClip = new gfx.AnimClip(hitFrames, 100, com.badlogic.gdx.graphics.g2d.Animation.PlayMode.LOOP);
     }
 
-    /** Hit recovery plays on a raw counter; source its per-frame ticks from hitClip's ms (100 ms = 6 ticks). */
     private int hitTicksPerFrame() { return Math.max(1, Math.round(hitClip.frameMs * 60f / 1000f)); }
 
     private void getPlayerDeathImages() {
-        int[] framesPerRow = {5, 5, 5, 5}; // sheet rows: up, down, left, right
+        int[] framesPerRow = {5, 5, 5, 5};
         Sprite[][] frames = loadSheetVariable("/res/player/Player_death", framesPerRow);
         deathFrames = new Sprite[4][];
-        deathFrames[DIR_DOWN]  = frames[0]; // row 0 = down
-        deathFrames[DIR_RIGHT] = frames[2]; // row 2 = right
-        deathFrames[DIR_UP]    = frames[1]; // row 1 = up
-        deathFrames[DIR_LEFT]  = frames[3]; // row 3 = left
-        deathClip = new gfx.AnimClip(deathFrames, 167, com.badlogic.gdx.graphics.g2d.Animation.PlayMode.LOOP); // 167 ms/frame
+        deathFrames[DIR_DOWN]  = frames[0];
+        deathFrames[DIR_RIGHT] = frames[2];
+        deathFrames[DIR_UP]    = frames[1];
+        deathFrames[DIR_LEFT]  = frames[3];
+        deathClip = new gfx.AnimClip(deathFrames, 167, com.badlogic.gdx.graphics.g2d.Animation.PlayMode.LOOP);
     }
 
-    /** Death plays on a raw counter (also drives game-over/fade timing); source its per-frame ticks
-     *  from deathClip's ms (167 ms = 10 ticks), so all coupled timing stays in ticks. */
     private int deathTicksPerFrame() { return Math.max(1, Math.round(deathClip.frameMs * 60f / 1000f)); }
 
     private void getPlayerSwimImages() {
-        int[] framesPerRow = {2, 2, 2, 2}; // sheet rows: down, up, left, right (2 frames/dir)
+        int[] framesPerRow = {2, 2, 2, 2};
         Sprite[][] frames = loadSheetVariable("/res/player/player_swimming", framesPerRow);
         swimFrames = new Sprite[4][];
-        swimFrames[DIR_DOWN]  = frames[1]; // row 0 = down (facing camera)
-        swimFrames[DIR_UP]    = frames[0]; // row 1 = up (back of head)
-        swimFrames[DIR_LEFT]  = frames[2]; // row 2 = left profile
-        swimFrames[DIR_RIGHT] = frames[3]; // row 3 = right profile
+        swimFrames[DIR_DOWN]  = frames[1];
+        swimFrames[DIR_UP]    = frames[0];
+        swimFrames[DIR_LEFT]  = frames[2];
+        swimFrames[DIR_RIGHT] = frames[3];
     }
 
-    /** Swim sheet only has 2 frames/direction; wrap the normal walk/idle frame counter into that range. */
     private Sprite getSwimFrame(int dir, int frame) {
         if (swimFrames == null || dir < 0 || dir >= swimFrames.length || swimFrames[dir] == null
                 || swimFrames[dir].length == 0) return null;
@@ -470,14 +458,13 @@ public class Player extends Entity {
     }
 
     private void getPlayerIdleImages() {
-        int[] framesPerRow = {6, 6, 6, 6}; // sheet rows: up, down, left, right
+        int[] framesPerRow = {6, 6, 6, 6};
         Sprite[][] frames = loadSheetVariable("/res/player/Player_idle-sheet", framesPerRow);
         idleFrames = new Sprite[4][];
-        idleFrames[DIR_UP]    = frames[0]; // row 0 = up
-        idleFrames[DIR_DOWN]  = frames[1]; // row 1 = down
-        idleFrames[DIR_LEFT]  = frames[2]; // row 2 = left
-        idleFrames[DIR_RIGHT] = frames[3]; // row 3 = right
-        // 167 ms/frame; LOOP_PINGPONG = the old 1..6..1 bounce.
+        idleFrames[DIR_UP]    = frames[0];
+        idleFrames[DIR_DOWN]  = frames[1];
+        idleFrames[DIR_LEFT]  = frames[2];
+        idleFrames[DIR_RIGHT] = frames[3];
         idleClip = new gfx.AnimClip(idleFrames, 175, com.badlogic.gdx.graphics.g2d.Animation.PlayMode.LOOP_PINGPONG);
     }
 

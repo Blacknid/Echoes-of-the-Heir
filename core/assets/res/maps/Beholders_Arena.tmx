@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<map version="1.10" tiledversion="1.12.1" orientation="orthogonal" renderorder="right-down" width="40" height="30" tilewidth="32" tileheight="32" infinite="0" nextlayerid="2" nextobjectid="1">
+<map version="1.10" tiledversion="1.12.1" orientation="orthogonal" renderorder="right-down" width="40" height="30" tilewidth="32" tileheight="32" infinite="0" nextlayerid="3" nextobjectid="3">
  <tileset firstgid="1" name="Ground" tilewidth="32" tileheight="32" tilecount="682" columns="62">
   <image source="../tiles/CAVE/Ground.png" width="1984" height="352"/>
  </tileset>
@@ -37,4 +37,12 @@
 0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0
 </data>
  </layer>
+ <objectgroup id="2" name="Events">
+  <object id="2" name="Coming from Cave" type="SpawnPoint" x="640" y="544">
+   <properties>
+    <property name="id" value="coming_from_cave"/>
+   </properties>
+   <point/>
+  </object>
+ </objectgroup>
 </map>

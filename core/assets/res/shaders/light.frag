@@ -19,7 +19,7 @@
 precision highp float;
 #endif
 
-#define MAX_LIGHTS 20
+#define MAX_LIGHTS 32
 
 #ifndef SHADOW_STEPS
 #define SHADOW_STEPS 32

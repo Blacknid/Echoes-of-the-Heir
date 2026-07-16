@@ -1,13 +1,13 @@
 package environment;
 
+import java.util.ArrayList;
+import java.util.HashMap;
+
 import gfx.Color;
 import gfx.GdxRenderer;
 import gfx.RadialGradient;
 import gfx.Sprite;
 import gfx.geom.Rect;
-import java.util.ArrayList;
-import java.util.HashMap;
-
 import main.Config;
 import main.GamePanel;
 
@@ -63,7 +63,7 @@ public class Lightning {
 
     public int playerLightRadius = 2;
 
-    private static final int MAX_LIGHTS = 20;
+    private static final int MAX_LIGHTS = 50;
     public int[]   lightWX        = new int[MAX_LIGHTS];
     public int[]   lightWY        = new int[MAX_LIGHTS];
     public int[]   lightRadiusPx  = new int[MAX_LIGHTS];

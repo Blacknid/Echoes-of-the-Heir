@@ -239,8 +239,6 @@ public class NPCFactory {
         npc.idleFramesPerRow = intArrayVal(def.props, "idleFramesPerRow", new int[]{6, 6, 6, 6});
         float spriteScaleVal = floatVal(def.props, "spriteScale", 1.0f);
         if (spriteScaleVal > 0) npc.spriteScale = spriteScaleVal;
-<<<<<<< HEAD
-
         // Hitbox scales with the sprite instead of staying pinned to NPC_Generic's default
         // (constructor-time, spriteScale-1.0) box: Entity.draw() grows the sprite horizontally-
         // centered but bottom-anchored (feet stay at the tile's bottom edge), so a bigger
@@ -270,10 +268,6 @@ public class NPCFactory {
         npc.interactRange = interactRangeVal;
         int depthSortYOffsetVal = intVal(def.props, "depthSortYOffset", 0);
         npc.depthSortYOffset = depthSortYOffsetVal;
-=======
-        npc.interactRange = intVal(def.props, "interactRange", 0);
-        npc.depthSortYOffset = intVal(def.props, "depthSortYOffset", 0);
->>>>>>> 0d4354eb7d1fbe445416eb7585d726d75014fdbc
         // Activity key to switch to while this NPC is being talked to (e.g. blacksmith stops
         // forging and just idles mid-conversation), restored automatically when dialogue ends.
         String dialogueActivityVal = def.props.get("dialogueActivity");

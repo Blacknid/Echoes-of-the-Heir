@@ -33,7 +33,7 @@ import com.badlogic.gdx.graphics.glutils.ShaderProgram;
 public final class ShaderPipeline {
 
     /** Max simultaneous lights uploaded to the light shader in one pass (matches Lightning.MAX_LIGHTS). */
-    public static final int MAX_LIGHTS = 20;
+    public static final int MAX_LIGHTS = 32;
 
     /** Compile-time defines prepended to light.frag for the MED/mobile variant: a 12-step shadow march
      *  (vs 32) and CHEAP (skips the value-noise/ripple organic detail). Same source, one tier knob. */

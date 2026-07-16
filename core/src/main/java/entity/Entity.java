@@ -1176,7 +1176,6 @@ public class Entity {
             case "idle" -> idleFrames;
             case "attack" -> attackFrames;
             default -> {
-                // Check activity animations for custom types (e.g. "forge", "sweep")
                 if (activityAnimations != null) yield activityAnimations.get(type);
                 yield null;
             }
