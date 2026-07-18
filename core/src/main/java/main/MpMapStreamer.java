@@ -346,7 +346,9 @@ public class MpMapStreamer {
     private static long[] decodeRawGids(String b64, int count) throws Exception {
         byte[] gz = Base64.getDecoder().decode(b64);
         try (GZIPInputStream gis = new GZIPInputStream(new ByteArrayInputStream(gz))) {
-            byte[] buf = gis.readAllBytes();
+            // Bounded gunzip: a hostile server could otherwise send a tiny gzip bomb that
+            // expands to gigabytes. A map chunk is count*4 bytes, so allow that plus slack.
+            byte[] buf = util.NetIO.readAllBounded(gis, Math.max(count * 4 + 1024, 64 * 1024));
             if (buf.length < count * 4) {
                 throw new java.io.IOException("chunk underrun: got " + buf.length + " bytes, need " + (count * 4));
             }

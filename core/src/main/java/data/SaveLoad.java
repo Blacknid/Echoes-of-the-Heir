@@ -130,20 +130,46 @@ public class SaveLoad {
         return value.replace("\\n", "\n").replace("\\\\", "\\");
     }
 
+    /** Guards against stacking one cloud-upload thread per save while a slow upload is in flight. */
+    private final java.util.concurrent.atomic.AtomicBoolean cloudSaveInFlight =
+            new java.util.concurrent.atomic.AtomicBoolean(false);
+
     public void save() {
         saveToDisk();
 
+        // Snapshot the game state NOW, on the caller (render) thread — buildGameState reads live
+        // entities, so it must not run concurrently with the simulation. The network half then
+        // runs on a worker: CloudSaveService.save() does a real blocking round trip (pingPool can
+        // burn a 3s connect timeout PER endpoint when offline), and doing that inline froze the
+        // window on every Save Game / Save & Quit / skill unlock.
+        final GameState gs;
         try {
-            GameState gs = buildGameState();
-            CloudSaveService.SaveResult result =
-                    cloudSaveService.save(gs, Main.LICENSE_KEY, Main.OFFLINE_MODE);
-            if (!result.ok()) {
-                System.out.println(result.message());
-            }
+            gs = buildGameState();
         } catch (RuntimeException e) {
-            System.out.println("Cloud save failed: " + e.getMessage());
-            System.out.println("Save Exception!");
+            System.out.println("Cloud save skipped, could not snapshot state: " + e.getMessage());
+            return;
         }
+
+        if (!cloudSaveInFlight.compareAndSet(false, true)) {
+            // An upload is already running; the offline-cache + heartbeat sync path will still
+            // deliver the newest local save.dat state on the next successful save or reconnect.
+            return;
+        }
+        Thread uploader = new Thread(() -> {
+            try {
+                CloudSaveService.SaveResult result =
+                        cloudSaveService.save(gs, Main.LICENSE_KEY, Main.OFFLINE_MODE);
+                if (!result.ok()) {
+                    System.out.println(result.message());
+                }
+            } catch (RuntimeException e) {
+                System.out.println("Cloud save failed: " + e.getMessage());
+            } finally {
+                cloudSaveInFlight.set(false);
+            }
+        }, "CloudSave-Upload");
+        uploader.setDaemon(true);
+        uploader.start();
     }
 
     private GameState buildGameState() {
@@ -352,14 +378,22 @@ public class SaveLoad {
             }
 
             byte[] encrypted = encrypt(sb.toString());
-            try (OutputStream fos = GameStorage.outputStream("save.dat")) {
-                fos.write(encrypted);
-            }
+            // Atomic replace: a crash mid-write must never leave a truncated save.dat behind.
+            GameStorage.writeAtomic("save.dat", encrypted);
 
         } catch (java.io.IOException | java.security.GeneralSecurityException | RuntimeException e) {
             System.out.println("Save to disk failed: " + e.getMessage());
             System.out.println("Save Exception!");
         }
+    }
+
+    /**
+     * Disk-only save for application shutdown: no cloud thread (the JVM is exiting, a daemon
+     * upload would be killed mid-flight anyway) — the heartbeat/pending-upload path syncs the
+     * state to the cloud on the next launch instead.
+     */
+    public void saveOnExit() {
+        saveToDisk();
     }
 
     public void load() {
@@ -423,7 +457,20 @@ public class SaveLoad {
         return 0L;
     }
 
+    /** Tolerant per-field parse: a single corrupt value falls back to its default instead of
+     * aborting the whole load and leaving the game half-applied. */
+    private static int parseInt(Map<String, String> map, String key, int fallback) {
+        String v = map.get(key);
+        if (v == null) return fallback;
+        try { return Integer.parseInt(v.trim()); } catch (NumberFormatException e) { return fallback; }
+    }
+
     private void loadFromDisk() {
+
+        if (!GameStorage.exists("save.dat")) {
+            System.out.println("No local save found — nothing to load.");
+            return;
+        }
 
         try {
             byte[] raw;
@@ -444,63 +491,85 @@ public class SaveLoad {
             // That mismatch is what caused: player teleported to wrong spot, drawn
             // under tiles, and unable to move more than a couple of tiles.
             String savedMapId = map.getOrDefault("mapID", "").trim();
-            int savedWorldX = Integer.parseInt(map.getOrDefault("player.worldX", "0"));
-            int savedWorldY = Integer.parseInt(map.getOrDefault("player.worldY", "0"));
+            int savedWorldX = parseInt(map, "player.worldX", 0);
+            int savedWorldY = parseInt(map, "player.worldY", 0);
             reloadSavedMap(savedMapId, savedWorldX, savedWorldY);
 
-            gp.player.level        = Integer.parseInt(map.getOrDefault("player.level",        "1"));
-            gp.player.maxLife      = Integer.parseInt(map.getOrDefault("player.maxLife",      "6"));
-            gp.player.life         = Integer.parseInt(map.getOrDefault("player.life",         "6"));
-            gp.player.maxMana      = Integer.parseInt(map.getOrDefault("player.maxMana",      "4"));
-            gp.player.mana         = Integer.parseInt(map.getOrDefault("player.mana",         "4"));
-            gp.player.strenght     = Integer.parseInt(map.getOrDefault("player.strenght",     "1"));
-            gp.player.dexterity    = Integer.parseInt(map.getOrDefault("player.dexterity",    "1"));
-            gp.player.exp          = Integer.parseInt(map.getOrDefault("player.exp",          "0"));
-            gp.player.nextLevelExp = Integer.parseInt(map.getOrDefault("player.nextLevelExp", "5"));
-            gp.player.coin         = Integer.parseInt(map.getOrDefault("player.coin",         "0"));
+            // SKILL TREE FIRST: node effects are applied on top of setDefaultValues() (multipliers,
+            // ability flags, cooldown bonuses aren't serialized), and only THEN are the absolute
+            // stats below written from the save. The old order (stats first, effects last) re-added
+            // VITALITY_CORE/AETHER_RESERVE-style permanent bonuses on top of saved values that
+            // already contained them, inflating maxLife/maxMana a little more on every single load.
+            int stSize = parseInt(map, "skilltree.size", 0);
+            for (int i = 0; i < stSize; i++) {
+                String nid = map.get("skilltree." + i);
+                if (nid != null && !nid.isBlank()) {
+                    gp.player.skillTree.markUnlocked(nid);
+                    // markUnlocked() only flips the node's visual "unlocked" flag; this is the ONLY
+                    // place the node's actual gameplay effect (dashUnlocked, multipliers, ...) gets
+                    // re-applied on load. Quiet: no "Unlocked skill" toast/sound per node.
+                    gp.player.applySkillNodeEffect(nid, false);
+                }
+            }
+            gp.player.skillPoints = parseInt(map, "player.skillPoints", 0);
 
-            gp.player.worldX = Integer.parseInt(map.getOrDefault("player.worldX", "0"));
-            gp.player.worldY = Integer.parseInt(map.getOrDefault("player.worldY", "0"));
-            try {
-                gp.player.direction = Integer.parseInt(map.getOrDefault("player.direction", "2"));
-            } catch (NumberFormatException ignored) { /* legacy save */ }
+            gp.player.level        = parseInt(map, "player.level",        1);
+            gp.player.maxLife      = parseInt(map, "player.maxLife",      6);
+            gp.player.life         = parseInt(map, "player.life",         6);
+            gp.player.maxMana      = parseInt(map, "player.maxMana",      4);
+            gp.player.mana         = parseInt(map, "player.mana",         4);
+            gp.player.strenght     = parseInt(map, "player.strenght",     1);
+            gp.player.dexterity    = parseInt(map, "player.dexterity",    1);
+            gp.player.exp          = parseInt(map, "player.exp",          0);
+            gp.player.nextLevelExp = parseInt(map, "player.nextLevelExp", 5);
+            gp.player.coin         = parseInt(map, "player.coin",         0);
+
+            // Clamp: a hand-edited/corrupt save must not produce dead-on-arrival or negative stats.
+            gp.player.maxLife = Math.max(1, gp.player.maxLife);
+            gp.player.life    = Math.max(1, Math.min(gp.player.life, gp.player.maxLife));
+            gp.player.maxMana = Math.max(0, gp.player.maxMana);
+            gp.player.mana    = Math.max(0, Math.min(gp.player.mana, gp.player.maxMana));
+
+            gp.player.worldX = savedWorldX;
+            gp.player.worldY = savedWorldY;
+            gp.player.direction = parseInt(map, "player.direction", 2);
 
             gp.player.inventory.clear();
-            int invSize = Integer.parseInt(map.getOrDefault("inventory.size", "0"));
+            int invSize = parseInt(map, "inventory.size", 0);
             for (int i = 0; i < invSize; i++) {
                 Entity item = getObject(map.get("inventory." + i + ".name"));
                 if (item != null) {
-                    item.amount = Integer.parseInt(map.getOrDefault("inventory." + i + ".amount", "1"));
+                    item.amount = Math.max(1, parseInt(map, "inventory." + i + ".amount", 1));
                     gp.player.inventory.add(item);
                 }
             }
 
             if (gp.questManager != null && map.containsKey("quests.size")) {
                 gp.questManager.clearQuests();
-                int questSize = Integer.parseInt(map.getOrDefault("quests.size", "0"));
+                int questSize = parseInt(map, "quests.size", 0);
                 for (int i = 0; i < questSize; i++) {
                     String questId = unescapeValue(map.get("quests." + i + ".id"));
                     if (questId.isBlank()) continue;
                     String questName = unescapeValue(map.getOrDefault("quests." + i + ".name", questId));
                     String questDesc = unescapeValue(map.getOrDefault("quests." + i + ".desc", ""));
-                    int current = Integer.parseInt(map.getOrDefault("quests." + i + ".current", "0"));
-                    int target = Integer.parseInt(map.getOrDefault("quests." + i + ".target", "1"));
-                    int step = Integer.parseInt(map.getOrDefault("quests." + i + ".step", "-1"));
-                    int stepProg = Integer.parseInt(map.getOrDefault("quests." + i + ".stepProgress", "0"));
+                    int current = parseInt(map, "quests." + i + ".current", 0);
+                    int target = parseInt(map, "quests." + i + ".target", 1);
+                    int step = parseInt(map, "quests." + i + ".step", -1);
+                    int stepProg = parseInt(map, "quests." + i + ".stepProgress", 0);
                     gp.questManager.restoreQuest(questId, questName, questDesc, target, current, step, stepProg);
                 }
             }
 
-            int weaponSlot = Integer.parseInt(map.getOrDefault("player.weaponSlot", "0"));
-            int shieldSlot = Integer.parseInt(map.getOrDefault("player.shieldSlot", "1"));
-            if (weaponSlot < gp.player.inventory.size()) gp.player.currentWeapon = gp.player.inventory.get(weaponSlot);
-            if (shieldSlot < gp.player.inventory.size()) gp.player.currentShield = gp.player.inventory.get(shieldSlot);
+            int weaponSlot = parseInt(map, "player.weaponSlot", 0);
+            int shieldSlot = parseInt(map, "player.shieldSlot", 1);
+            if (weaponSlot >= 0 && weaponSlot < gp.player.inventory.size()) gp.player.currentWeapon = gp.player.inventory.get(weaponSlot);
+            if (shieldSlot >= 0 && shieldSlot < gp.player.inventory.size()) gp.player.currentShield = gp.player.inventory.get(shieldSlot);
 
             gp.player.getAttack();
             gp.player.getDefense();
             gp.player.getPlayerAttackImages();
 
-            int objSize = Integer.parseInt(map.getOrDefault("obj.size", "0"));
+            int objSize = parseInt(map, "obj.size", 0);
             for (int i = 0; i < Math.min(objSize, gp.obj.length); i++) {
                 // Event-layer lights (Tiled "Lighting" objects) are transient, reloadSavedMap() already
                 // recreated them fresh from the TMX just above, and they're never serialized into the
@@ -518,8 +587,8 @@ public class SaveLoad {
                 gp.obj[i] = getObject(name);
                 if (gp.obj[i] == null) continue;
 
-                gp.obj[i].worldX = Integer.parseInt(map.getOrDefault("obj." + i + ".worldX", "0"));
-                gp.obj[i].worldY = Integer.parseInt(map.getOrDefault("obj." + i + ".worldY", "0"));
+                gp.obj[i].worldX = parseInt(map, "obj." + i + ".worldX", 0);
+                gp.obj[i].worldY = parseInt(map, "obj." + i + ".worldY", 0);
                 gp.obj[i].opened = Boolean.parseBoolean(map.getOrDefault("obj." + i + ".opened", "false"));
 
                 String lootName = map.get("obj." + i + ".loot");
@@ -534,7 +603,7 @@ public class SaveLoad {
             }
 
             if (gp.memoryJournal != null) {
-                int fragSize = Integer.parseInt(map.getOrDefault("fragments.size", "0"));
+                int fragSize = parseInt(map, "fragments.size", 0);
                 for (int i = 0; i < fragSize; i++) {
                     String fid = map.get("fragments." + i);
                     if (fid != null && !fid.isBlank()) {
@@ -548,23 +617,23 @@ public class SaveLoad {
             gp.boss3Defeated = Boolean.parseBoolean(map.getOrDefault("boss3Defeated", "false"));
             gp.boss4Defeated = Boolean.parseBoolean(map.getOrDefault("boss4Defeated", "false"));
 
-            gp.storyAct = Integer.parseInt(map.getOrDefault("storyAct", "0"));
-            gp.endingChosen = Integer.parseInt(map.getOrDefault("endingChosen", "0"));
+            gp.storyAct = parseInt(map, "storyAct", 0);
+            gp.endingChosen = parseInt(map, "endingChosen", 0);
 
-            int gatesSize = Integer.parseInt(map.getOrDefault("openedGates.size", "0"));
+            int gatesSize = parseInt(map, "openedGates.size", 0);
             gp.openedGates.clear();
             for (int i = 0; i < gatesSize; i++) {
                 String gid = map.get("openedGates." + i);
                 if (gid != null && !gid.isBlank()) gp.openedGates.add(gid);
             }
-            int metSize = Integer.parseInt(map.getOrDefault("metNPCs.size", "0"));
+            int metSize = parseInt(map, "metNPCs.size", 0);
             gp.metNPCs.clear();
             for (int i = 0; i < metSize; i++) {
                 String mid = map.get("metNPCs." + i);
                 if (mid != null && !mid.isBlank()) gp.metNPCs.add(mid);
             }
 
-            int stockSize = Integer.parseInt(map.getOrDefault("shopStock.size", "0"));
+            int stockSize = parseInt(map, "shopStock.size", 0);
             gp.shopStock.clear();
             for (int i = 0; i < stockSize; i++) {
                 String key = map.get("shopStock." + i + ".key");
@@ -573,21 +642,6 @@ public class SaveLoad {
                     try { gp.shopStock.put(key, Integer.parseInt(val)); } catch (NumberFormatException ignored) {}
                 }
             }
-
-            int stSize = Integer.parseInt(map.getOrDefault("skilltree.size", "0"));
-            for (int i = 0; i < stSize; i++) {
-                String nid = map.get("skilltree." + i);
-                if (nid != null && !nid.isBlank()) {
-                    gp.player.skillTree.markUnlocked(nid);
-                    // markUnlocked() only flips the node's visual "unlocked" flag, it deliberately
-                    // skips applySkillNodeEffect() to avoid double-applying stat bonuses if called
-                    // mid-session. On a fresh load this is the ONLY place the node's actual gameplay
-                    // effect (dashUnlocked, shockwaveUnlocked, stat bonuses, ...) gets (re)applied
-                    // skip it and e.g. WINDSTEP shows unlocked in the UI but dash still doesn't work.
-                    gp.player.applySkillNodeEffect(nid);
-                }
-            }
-            gp.player.skillPoints = Integer.parseInt(map.getOrDefault("player.skillPoints", "0"));
 
         } catch (java.io.IOException | java.security.GeneralSecurityException | RuntimeException e) {
             System.out.println("Load from disk failed: " + e.getMessage());
@@ -631,10 +685,32 @@ public class SaveLoad {
         // changeMap doesn't snap the player to the map's default spawn.
         reloadSavedMap(state.mapID, state.playerX, state.playerY);
 
-        // PLAYER STATS
+        // SKILL TREE FIRST: re-apply each unlocked node's gameplay effect (multipliers, ability
+        // flags, cooldown bonuses — none of which are serialized) on top of setDefaultValues(),
+        // and only THEN write the absolute stats below from the save. This mirrors loadFromDisk():
+        // before, the cloud path never applied node effects at all, so a cloud Continue restored
+        // e.g. IRON_WILL/BLADE_MASTERY as visually unlocked but without their actual effect.
+        if (state.unlockedSkillNodes != null && !state.unlockedSkillNodes.isEmpty()) {
+            for (String nid : state.unlockedSkillNodes) {
+                gp.player.skillTree.markUnlocked(nid);
+                gp.player.applySkillNodeEffect(nid, false);
+            }
+        } else {
+            // Legacy saves: only the 5 ability booleans exist; the flags themselves are set
+            // directly below, so just restore the visual unlocked state here.
+            if (state.dashUnlocked)      gp.player.skillTree.markUnlocked("WINDSTEP");
+            if (state.shockwaveUnlocked) gp.player.skillTree.markUnlocked("SHOCKWAVE");
+            if (state.voidSnareUnlocked) gp.player.skillTree.markUnlocked("VOID_SNARE");
+            if (state.frostNovaUnlocked) gp.player.skillTree.markUnlocked("FROST_NOVA");
+            if (state.overdriveUnlocked) gp.player.skillTree.markUnlocked("OVERDRIVE");
+        }
+
+        // PLAYER STATS (absolute values from the save; these already include permanent node
+        // bonuses like VITALITY_CORE's +2 maxLife, which is why they must come AFTER the
+        // effect re-application above rather than before it).
         gp.player.level = Math.max(1, state.level);
         gp.player.maxLife = Math.max(1, state.maxHealth);
-        gp.player.life = Math.max(0, Math.min(state.health, gp.player.maxLife));
+        gp.player.life = Math.max(1, Math.min(state.health, gp.player.maxLife));
         gp.player.maxMana = Math.max(0, state.maxMana);
         gp.player.mana = Math.max(0, Math.min(state.mana, gp.player.maxMana));
         gp.player.strenght = Math.max(1, state.strength);
@@ -649,25 +725,11 @@ public class SaveLoad {
         gp.player.direction = state.direction;
 
         gp.player.skillPoints = Math.max(0, state.skillPoints);
-        gp.player.dashUnlocked = state.dashUnlocked;
-        gp.player.shockwaveUnlocked = state.shockwaveUnlocked;
-        gp.player.voidSnareUnlocked = state.voidSnareUnlocked;
-        gp.player.frostNovaUnlocked = state.frostNovaUnlocked;
-        gp.player.overdriveUnlocked = state.overdriveUnlocked;
-
-        // Skill tree visual state, use full node list when available (new saves),
-        // fall back to the 5 legacy boolean flags for old saves.
-        if (state.unlockedSkillNodes != null && !state.unlockedSkillNodes.isEmpty()) {
-            for (String nid : state.unlockedSkillNodes) {
-                gp.player.skillTree.markUnlocked(nid);
-            }
-        } else {
-            if (state.dashUnlocked)      gp.player.skillTree.markUnlocked("WINDSTEP");
-            if (state.shockwaveUnlocked) gp.player.skillTree.markUnlocked("SHOCKWAVE");
-            if (state.voidSnareUnlocked) gp.player.skillTree.markUnlocked("VOID_SNARE");
-            if (state.frostNovaUnlocked) gp.player.skillTree.markUnlocked("FROST_NOVA");
-            if (state.overdriveUnlocked) gp.player.skillTree.markUnlocked("OVERDRIVE");
-        }
+        if (state.dashUnlocked)      gp.player.dashUnlocked = true;
+        if (state.shockwaveUnlocked) gp.player.shockwaveUnlocked = true;
+        if (state.voidSnareUnlocked) gp.player.voidSnareUnlocked = true;
+        if (state.frostNovaUnlocked) gp.player.frostNovaUnlocked = true;
+        if (state.overdriveUnlocked) gp.player.overdriveUnlocked = true;
 
         gp.player.inventory.clear();
         int invSize = Math.min(state.itemNames.size(), state.itemAmounts.size());
@@ -892,6 +954,24 @@ public class SaveLoad {
             gs.questTargets = extractJsonIntArray(json, "questTargets");
             gs.questCurrentSteps = extractJsonIntArray(json, "questCurrentSteps");
             gs.questStepProgress = extractJsonIntArray(json, "questStepProgress");
+
+            // STORY / WORLD PROGRESSION — these were never extracted here, and since neither Gson
+            // nor Jackson is on the runtime classpath this fallback is the parser that ALWAYS runs
+            // for cloud saves. Every cloud Continue therefore silently reset story act, bosses,
+            // gates, met NPCs, journal fragments, shop stock and full skill-tree state.
+            gs.unlockedSkillNodes = extractJsonStringArray(json, "unlockedSkillNodes");
+            gs.collectedFragmentIds = extractJsonStringArray(json, "collectedFragmentIds");
+            gs.totalFragmentsCollected = extractJsonInt(json, "totalFragmentsCollected",
+                    gs.collectedFragmentIds.size());
+            gs.boss1Defeated = extractJsonBoolean(json, "boss1Defeated", false);
+            gs.boss2Defeated = extractJsonBoolean(json, "boss2Defeated", false);
+            gs.boss3Defeated = extractJsonBoolean(json, "boss3Defeated", false);
+            gs.boss4Defeated = extractJsonBoolean(json, "boss4Defeated", false);
+            gs.storyAct = extractJsonInt(json, "storyAct", 0);
+            gs.endingChosen = extractJsonInt(json, "endingChosen", 0);
+            gs.openedGates = extractJsonStringArray(json, "openedGates");
+            gs.metNPCs = extractJsonStringArray(json, "metNPCs");
+            gs.shopStock = extractJsonStringArray(json, "shopStock");
 
             gs.timestamp = extractJsonLong(json, "timestamp", 0L);
             return gs;

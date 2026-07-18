@@ -484,7 +484,9 @@ public class MultiplayerClient {
     }
 
     private String readLine() throws IOException {
-        return in.readLine();
+        // Bounded: an untrusted/typo'd server must not be able to feed an endless line into
+        // BufferedReader.readLine() and OOM the client.
+        return util.NetIO.readLineBounded(in, util.NetIO.MAX_FRAME_CHARS);
     }
 
     // Receive / keepalive loops

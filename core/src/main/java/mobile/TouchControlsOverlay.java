@@ -109,23 +109,53 @@ public class TouchControlsOverlay {
         return stage;
     }
 
+    private boolean wasInPlayState = false;
+
     /** Called once per frame from MichiGame.render(), after gp.stepUpdates() reads input. */
     public void act(float delta) {
-        applyMovement();
-        refreshAbilityVisibility();
+        boolean play  = gp.gameState == GamePanel.playState;
+        boolean pause = gp.gameState == GamePanel.pauseState;
+
+        // Buttons only exist where they mean something: gameplay controls in playState, the
+        // pause button also on the pause screen so it can unpause. Everywhere else (title,
+        // dialogue, menus...) the whole overlay hides — invisible actors don't consume taps,
+        // so menu taps fall through to MouseHandler instead of dying on an invisible joystick.
+        touchpad.setVisible(play);
+        dashButton.setVisible(play);
+        attackButton.setVisible(play);
+        shotButton.setVisible(play);
+        inventoryButton.setVisible(play || gp.gameState == GamePanel.characterState);
+        pauseButton.setVisible(play || pause);
+
+        if (play) {
+            applyMovement();
+            refreshAbilityVisibility();
+        } else {
+            for (AbilitySlot slot : abilitySlots) slot.button().setVisible(false);
+            // Leaving playState mid-drag must not leave a movement key latched true.
+            if (wasInPlayState) {
+                gp.keyH.upPressed = gp.keyH.downPressed = false;
+                gp.keyH.leftPressed = gp.keyH.rightPressed = false;
+                attackButtonHeld = false;
+            }
+        }
+        wasInPlayState = play;
+
         stage.act(delta);
 
-        if (attackButtonHeld) {
-            gp.keyH.enterPressed = true;
-            gp.mouseH.leftClicked = false;
-        } else {
-            gp.keyH.enterPressed = false;
+        if (play) {
+            if (attackButtonHeld) {
+                gp.keyH.enterPressed = true;
+                gp.mouseH.leftClicked = false;
+            } else {
+                gp.keyH.enterPressed = false;
+            }
         }
 
         if (shotArmedThisFrame) {
             gp.keyH.shotKeyPressed = true;
             shotArmedThisFrame = false;
-        } else {
+        } else if (play) {
             gp.keyH.shotKeyPressed = false;
         }
     }

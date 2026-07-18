@@ -252,7 +252,7 @@ public final class LicenseActivation implements LicenseCheck {
             SECURE_RANDOM.nextBytes(clientNonce);
             writeLine(w, "HELLO " + PROTOCOL_TAG + " " + Base64.getEncoder().encodeToString(clientNonce));
 
-            String okLine = r.readLine();
+            String okLine = util.NetIO.readLineBounded(r, util.NetIO.MAX_HANDSHAKE_CHARS);
             if (okLine == null || !okLine.startsWith("OK ")) return null;
             byte[] serverNonce = Base64.getDecoder().decode(okLine.substring(3));
             if (serverNonce.length != 16) return null;
@@ -286,7 +286,7 @@ public final class LicenseActivation implements LicenseCheck {
                 writeLine(w, "ACTIVATE " + encB64 + itchField);
             }
 
-            String authLine = r.readLine();
+            String authLine = util.NetIO.readLineBounded(r, util.NetIO.MAX_HANDSHAKE_CHARS);
             if (authLine == null || !authLine.startsWith("AUTH_OK ")) {
                 // Distinguish "you don't own the game" from "our licence server is having a
                 // bad day", otherwise a server-side outage reads to the player as an accusation

@@ -279,7 +279,7 @@ public class CloudSaveService {
             w.write("PING");
             w.newLine();
             w.flush();
-            String resp = r.readLine();
+            String resp = util.NetIO.readLineBounded(r, util.NetIO.MAX_HANDSHAKE_CHARS);
             return "PONG".equals(resp);
         } catch (Exception e) {
             return false;
@@ -314,7 +314,7 @@ public class CloudSaveService {
         }
 
         String recvJson() throws IOException, GeneralSecurityException {
-            String line = r.readLine();
+            String line = util.NetIO.readLineBounded(r, util.NetIO.MAX_FRAME_CHARS);
             if (line == null) throw new IOException("server closed connection");
             if (!line.startsWith("DATA "))
                 throw new IOException("expected DATA frame, got: " + truncate(line, 32));
@@ -341,6 +341,10 @@ public class CloudSaveService {
      * @return null if all servers failed.
      */
     private Session openSession(String licenseKey) {
+        // No license (activation still pending, or re-verify failed) means the delivery key for
+        // the handshake can't be derived; without this guard handshakeWith() NPE'd on
+        // licenseKey.getBytes() and the failure was misreported as "no server reachable".
+        if (licenseKey == null || licenseKey.isEmpty()) return null;
         // Build try-list with active first
         List<Endpoint> tryOrder = new ArrayList<>();
         if (activeEndpoint != null) tryOrder.add(activeEndpoint);
@@ -383,7 +387,7 @@ public class CloudSaveService {
             w.flush();
 
             // Step 2: server nonce
-            String okLine = r.readLine();
+            String okLine = util.NetIO.readLineBounded(r, util.NetIO.MAX_HANDSHAKE_CHARS);
             if (okLine == null || !okLine.startsWith("OK ")) {
                 if ("AUTH_FAIL".equals(okLine) || "RATE_LIMIT".equals(okLine)
                         || "BUSY".equals(okLine)) {
@@ -416,7 +420,7 @@ public class CloudSaveService {
             w.flush();
 
             // Step 4: AUTH_OK + encrypted session key
-            String authLine = r.readLine();
+            String authLine = util.NetIO.readLineBounded(r, util.NetIO.MAX_HANDSHAKE_CHARS);
             if (authLine == null || !authLine.startsWith("AUTH_OK ")) {
                 socket.close();
                 return null;

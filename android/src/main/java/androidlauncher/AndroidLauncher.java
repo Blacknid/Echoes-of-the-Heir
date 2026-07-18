@@ -105,18 +105,31 @@ public class AndroidLauncher extends AndroidApplication {
     @Override
     protected void onResume() {
         super.onResume();
-        CardEmulation ce = CardEmulation.getInstance(NfcAdapter.getDefaultAdapter(this));
-        if (ce != null) {
-            ce.setPreferredService(this, new ComponentName(this, Ndef4Service.class));
+        // getDefaultAdapter() is null on devices with no NFC hardware, and CardEmulation.getInstance
+        // throws on a null adapter — without these guards the app crashed in onResume on every
+        // NFC-less device before the game even drew a frame. NFC features just stay off there.
+        try {
+            NfcAdapter adapter = NfcAdapter.getDefaultAdapter(this);
+            CardEmulation ce = adapter != null ? CardEmulation.getInstance(adapter) : null;
+            if (ce != null) {
+                ce.setPreferredService(this, new ComponentName(this, Ndef4Service.class));
+            }
+        } catch (RuntimeException e) {
+            // Some OEM builds throw UnsupportedOperationException from CardEmulation; not fatal.
         }
     }
 
     @Override
     protected void onPause() {
         super.onPause();
-        CardEmulation ce = CardEmulation.getInstance(NfcAdapter.getDefaultAdapter(this));
-        if (ce != null) {
-            ce.unsetPreferredService(this);
+        try {
+            NfcAdapter adapter = NfcAdapter.getDefaultAdapter(this);
+            CardEmulation ce = adapter != null ? CardEmulation.getInstance(adapter) : null;
+            if (ce != null) {
+                ce.unsetPreferredService(this);
+            }
+        } catch (RuntimeException e) {
+            // See onResume — never let NFC plumbing take the whole app down.
         }
     }
 }

@@ -83,4 +83,27 @@ public final class GameStorage {
         }
         return new FileOutputStream(relativeName);
     }
+
+    /**
+     * Write {@code data} to {@code relativeName} atomically: the bytes go to a temp file first
+     * and only replace the target once fully flushed. A crash or full disk mid-write therefore
+     * leaves the previous file intact instead of a truncated, undecryptable one.
+     */
+    public static void writeAtomic(String relativeName, byte[] data) throws IOException {
+        String tmpName = relativeName + ".tmp";
+        try (OutputStream os = outputStream(tmpName)) {
+            os.write(data);
+            os.flush();
+        }
+        if (isAndroid()) {
+            FileHandle tmp = Gdx.files.local(tmpName);
+            FileHandle dst = Gdx.files.local(relativeName);
+            if (dst.exists()) dst.delete();
+            tmp.moveTo(dst);
+            return;
+        }
+        java.nio.file.Files.move(
+                new File(tmpName).toPath(), new File(relativeName).toPath(),
+                java.nio.file.StandardCopyOption.REPLACE_EXISTING);
+    }
 }

@@ -41,6 +41,21 @@ SERVERS/multiplayer_server/*.db
 SERVERS/.env
 !SERVERS/.env.example
 
+# Server private keys — NEVER commit these. Anyone holding them can impersonate the save/MP
+# servers, and the patch key can SIGN MALICIOUS GAME UPDATES. NOTE: copies are already tracked
+# in git history; after rotating the keys, untrack them with:
+#   git rm --cached SERVERS/*/server_private_key.pem SERVERS/patch_server/patch_private_key.pem
+*.pem
+SERVERS/save_server/saves/
+SERVERS/save_server/server_private_key.pem
+SERVERS/multiplayer_server/server_private_key.pem
+SERVERS/patch_server/patch_private_key.pem
+
+# Android release keystore + password — already tracked too; untrack after securing a backup:
+#   git rm --cached build_tools/keystore/michis-adventure-release.jks*
+build_tools/keystore/*.jks
+build_tools/keystore/*.passwd.txt
+
 # The client's local license credentials (activation_id + encrypted blob). Machine-specific;
 # committing it would hand your license to everyone who clones the repo.
 activation.dat

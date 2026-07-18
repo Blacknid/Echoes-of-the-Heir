@@ -197,6 +197,20 @@ public class MichiGame extends ApplicationAdapter {
 
     @Override
     public void dispose() {
+        // Closing the window with X (or Android killing the Activity) used to silently drop all
+        // progress since the last manual save. Disk-only, and only while actually in a run:
+        // saving from the title screen would overwrite a real save with default state, the
+        // game-over screen would persist a dead run, and multiplayer state belongs to the server.
+        // "Quit without saving" is unaffected — that path returns to the title screen first.
+        if (gp != null && gp.saveLoad != null && !gp.multiplayerMode
+                && gp.gameState != GamePanel.titleState
+                && gp.gameState != GamePanel.gameOverState) {
+            try {
+                gp.saveLoad.saveOnExit();
+            } catch (RuntimeException e) {
+                Gdx.app.log("MichiGame", "Save-on-exit failed: " + e.getMessage());
+            }
+        }
         if (renderer != null) renderer.dispose();
         if (fonts != null) fonts.dispose();
         if (touchOverlay != null) touchOverlay.dispose();

@@ -467,7 +467,8 @@ public class KeyHandler implements InputProcessor {
     }
 
     /** Runs a claim-username or send-friend-request call off the render thread, then surfaces the result. */
-    private void runFriendAction(boolean claiming, String typed) {
+    // Package-visible: MouseHandler's touch/tap path reuses these instead of duplicating the logic.
+    void runFriendAction(boolean claiming, String typed) {
         ui.UI ui = gp.ui;
         String status = claiming
                 ? gp.friendsListManager.claimUsername(typed)
@@ -484,7 +485,7 @@ public class KeyHandler implements InputProcessor {
      * closed, but this device must stay on this screen actively reading. Desktop (no NFC hardware)
      * falls back to the existing typed flow.
      */
-    private void startAddFriend() {
+    void startAddFriend() {
         ui.UI ui = gp.ui;
         if (!platform.NfcFriend.isSupported()) {
             ui.friendsAddMode = true;
@@ -553,31 +554,41 @@ public class KeyHandler implements InputProcessor {
             }
         }
         if (gp.actions.consumePressed(InputBindings.MENU_CONFIRM)) {
-            if (gp.ui.mpServerSelection < serverCount) {
-                String[] srv = gp.serverList.getServers().get(gp.ui.mpServerSelection);
-                connectToServer(srv[1], srv[2]);
-            } else {
-                int menuIdx = gp.ui.mpServerSelection - serverCount;
-                if (menuIdx == 0) {
-                    gp.ui.titleScreenState = 4;
-                    gp.ui.mpAddMode = true;
-                    gp.ui.mpInputField = 0;
-                    gp.ui.mpServerName = "";
-                    gp.ui.mpServerIP = "";
-                    gp.ui.mpServerPort = "7777";
-                    gp.playSE(SFX.MENU_SELECT);
-                } else if (menuIdx == 1) {
-                    gp.ui.titleScreenState = 4;
-                    gp.ui.mpAddMode = false;
-                    gp.ui.mpInputField = 0; // start at IP field (field 0 in direct mode)
-                    gp.ui.mpServerIP = "";
-                    gp.ui.mpServerPort = "7777";
-                    gp.playSE(SFX.MENU_SELECT);
-                } else if (menuIdx == 2) {
-                    gp.ui.titleScreenState = 0;
-                    gp.ui.commandNum = gp.ui.titleHasSave() ? 2 : 1;
-                    gp.playSE(SFX.MENU_SELECT);
-                }
+            activateMultiplayerBrowserItem(gp.ui.mpServerSelection);
+        }
+    }
+
+    /**
+     * Activate a row of the multiplayer browser (saved server or one of the menu options).
+     * Shared by keyboard confirm and MouseHandler's click/tap path.
+     */
+    void activateMultiplayerBrowserItem(int selection) {
+        int serverCount = gp.serverList.getServers().size();
+        if (selection < 0) return;
+        if (selection < serverCount) {
+            String[] srv = gp.serverList.getServers().get(selection);
+            connectToServer(srv[1], srv[2]);
+        } else {
+            int menuIdx = selection - serverCount;
+            if (menuIdx == 0) {
+                gp.ui.titleScreenState = 4;
+                gp.ui.mpAddMode = true;
+                gp.ui.mpInputField = 0;
+                gp.ui.mpServerName = "";
+                gp.ui.mpServerIP = "";
+                gp.ui.mpServerPort = "7777";
+                gp.playSE(SFX.MENU_SELECT);
+            } else if (menuIdx == 1) {
+                gp.ui.titleScreenState = 4;
+                gp.ui.mpAddMode = false;
+                gp.ui.mpInputField = 0; // start at IP field (field 0 in direct mode)
+                gp.ui.mpServerIP = "";
+                gp.ui.mpServerPort = "7777";
+                gp.playSE(SFX.MENU_SELECT);
+            } else if (menuIdx == 2) {
+                gp.ui.titleScreenState = 0;
+                gp.ui.commandNum = gp.ui.titleHasSave() ? 2 : 1;
+                gp.playSE(SFX.MENU_SELECT);
             }
         }
     }
@@ -642,7 +653,8 @@ public class KeyHandler implements InputProcessor {
         }
     }
 
-    private void handleMultiplayerInputButton(int btnIdx) {
+    // Package-visible: MouseHandler's touch/tap path activates the same buttons.
+    void handleMultiplayerInputButton(int btnIdx) {
         if (gp.ui.mpAddMode) {
             if (btnIdx == 0) {
                 if (!gp.ui.mpServerIP.isEmpty()) {
@@ -673,11 +685,16 @@ public class KeyHandler implements InputProcessor {
         }
     }
 
-    private void connectToServer(String ip, String portStr) {
+    // Package-visible: MouseHandler's touch/tap path connects from the server browser too.
+    void connectToServer(String ip, String portStr) {
         int port;
         try {
             port = Integer.parseInt(portStr.trim());
         } catch (NumberFormatException e) {
+            gp.mpClient.connectionStatus = "Invalid port number!";
+            return;
+        }
+        if (port < 1 || port > 65535) {
             gp.mpClient.connectionStatus = "Invalid port number!";
             return;
         }

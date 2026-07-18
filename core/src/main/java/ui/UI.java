@@ -2054,9 +2054,16 @@ public class UI {
 
         g2.setFont(cachedFont(Font.PLAIN, 12F));
         g2.setColor(cachedColor(90, 85, 75));
-        String hint = "[W/S] Navigate   [Enter] Select/Connect   [Delete] Remove Server";
+        String hint = onAndroid()
+            ? "Tap a server to select, tap again to connect"
+            : "[W/S] Navigate   [Enter] Select/Connect   [Delete] Remove Server";
         int hw = cachedFM().stringWidth(hint);
         g2.drawString(hint, px + (panelW - hw) / 2, py + panelH - 16);
+    }
+
+    private static boolean onAndroid() {
+        return com.badlogic.gdx.Gdx.app != null
+            && com.badlogic.gdx.Gdx.app.getType() == com.badlogic.gdx.Application.ApplicationType.Android;
     }
 
     // MULTIPLAYER INPUT SCREEN (titleScreenState 4)
@@ -5022,10 +5029,12 @@ public class UI {
         g2.setFont(cachedFont(Font.PLAIN, 12F));
         g2.setColor(cachedColor(90, 85, 75));
         String hint = (friendsAddMode || friendsClaimMode)
-            ? "[Enter] Confirm   [Esc] Cancel"
+            ? (onAndroid() ? "Type the name in the dialog" : "[Enter] Confirm   [Esc] Cancel")
             : friendsNfcWaiting
                 ? "Hold your phone against a friend's phone   [Esc] Cancel"
-                : "[W/S] Navigate   [Enter] Select   [Delete] Remove/Decline   [Esc] Back";
+                : onAndroid()
+                    ? "Tap a request twice to accept it"
+                    : "[W/S] Navigate   [Enter] Select   [Delete] Remove/Decline   [Esc] Back";
         int hw = cachedFM().stringWidth(hint);
         g2.drawString(hint, px + (panelW - hw) / 2, py + panelH - 16);
      }

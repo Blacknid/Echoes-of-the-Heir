@@ -2588,6 +2588,14 @@ public class Player extends Entity {
     }
 
     public void applySkillNodeEffect(String nodeId) {
+        applySkillNodeEffect(nodeId, true);
+    }
+
+    /**
+     * @param announce false when restoring a save, so re-applying each unlocked node's effect
+     *                 doesn't replay the "Unlocked skill" message + sound for every node.
+     */
+    public void applySkillNodeEffect(String nodeId, boolean announce) {
         switch (nodeId) {
             case "VITALITY_CORE" -> {
                 maxLife += 2;
@@ -2641,8 +2649,10 @@ public class Player extends Entity {
             }
         }
 
-        gp.ui.addMessage("Unlocked skill: " + nodeId.replace('_', ' '), new Color(120, 210, 255));
-        gp.playSE(SFX.MENU_SELECT);
+        if (announce) {
+            gp.ui.addMessage("Unlocked skill: " + nodeId.replace('_', ' '), new Color(120, 210, 255));
+            gp.playSE(SFX.MENU_SELECT);
+        }
     }
 
     // Stored stat keys for level-up application

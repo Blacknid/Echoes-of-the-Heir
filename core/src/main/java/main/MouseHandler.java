@@ -165,6 +165,11 @@ public class MouseHandler implements InputProcessor {
     }
 
     private void clickTitle() {
+        // Sub-screens that were keyboard-only (and therefore completely dead on Android touch):
+        // server browser, add/direct-connect form, friends list.
+        if (gp.ui.titleScreenState == 3) { clickMultiplayerBrowser(); return; }
+        if (gp.ui.titleScreenState == 4) { clickMultiplayerInput();   return; }
+        if (gp.ui.titleScreenState == 5) { clickFriendsList();        return; }
         if (gp.ui.titleScreenState == 0 && gp.ui.usernameBoxContains(gameX, gameY)) {
             focusUsernameField();
             return;
@@ -213,6 +218,221 @@ public class MouseHandler implements InputProcessor {
                 }
             }, "Enter Username", gp.ui.playerUsername, "");
         }
+    }
+
+    // ════════════════════════════════════════════════════════════════════════
+    // MULTIPLAYER BROWSER (titleScreenState 3) — tap a server row to select it,
+    // tap it again to connect; tap ADD SERVER / DIRECT CONNECT / BACK directly.
+    // Geometry mirrors UI.drawMultiplayerBrowser() exactly.
+    // ════════════════════════════════════════════════════════════════════════
+
+    private void clickMultiplayerBrowser() {
+        int panelW = 560, panelH = 480;
+        int px = (gp.screenWidth - panelW) / 2;
+        int py = (gp.screenHeight - panelH) / 2;
+
+        java.util.ArrayList<String[]> servers = gp.serverList.getServers();
+        int listStartY = py + 78;
+        int entryH = 48, entryW = panelW - 60, entryX = px + 30;
+        int maxVisible = 5;
+        int scrollOffset = Math.max(0, gp.ui.mpServerSelection - maxVisible + 1);
+        if (gp.ui.mpServerSelection >= servers.size()) scrollOffset = 0;
+
+        for (int i = scrollOffset; i < Math.min(servers.size(), scrollOffset + maxVisible); i++) {
+            int ey = listStartY + (i - scrollOffset) * (entryH + 6);
+            if (gameX >= entryX && gameX <= entryX + entryW && gameY >= ey && gameY <= ey + entryH) {
+                if (gp.ui.mpServerSelection == i) {
+                    // Second tap on the selected row connects (mirrors keyboard Enter).
+                    gp.keyH.activateMultiplayerBrowserItem(i);
+                } else {
+                    gp.ui.mpServerSelection = i;
+                    gp.playSE(audio.SFX.MENU_SELECT);
+                }
+                return;
+            }
+        }
+
+        int menuStartY = listStartY + Math.min(servers.size(), maxVisible) * (entryH + 6) + 20;
+        if (servers.isEmpty()) menuStartY = listStartY + 60;
+        int optH = 38, optW = panelW - 100, optX = px + 50;
+        for (int i = 0; i < 3; i++) {
+            int oy = menuStartY + i * (optH + 8);
+            if (gameX >= optX && gameX <= optX + optW && gameY >= oy && gameY <= oy + optH) {
+                gp.ui.mpServerSelection = servers.size() + i;
+                gp.keyH.activateMultiplayerBrowserItem(gp.ui.mpServerSelection);
+                return;
+            }
+        }
+    }
+
+    // ════════════════════════════════════════════════════════════════════════
+    // MULTIPLAYER ADD/DIRECT-CONNECT FORM (titleScreenState 4) — tap a field to
+    // focus it (Android: pops the soft-keyboard dialog), tap a button to fire it.
+    // Geometry mirrors UI.drawMultiplayerInput() exactly.
+    // ════════════════════════════════════════════════════════════════════════
+
+    private void clickMultiplayerInput() {
+        int panelW = 480, panelH = 350;
+        int px = (gp.screenWidth - panelW) / 2;
+        int py = (gp.screenHeight - panelH) / 2;
+
+        int fieldCount = gp.ui.mpAddMode ? 3 : 2;
+        int fieldX = px + 40, fieldW = panelW - 80, fieldH = 36;
+        int fieldStartY = py + 72;
+
+        for (int i = 0; i < fieldCount; i++) {
+            int fy = fieldStartY + i * (fieldH + 28);
+            if (gameX >= fieldX && gameX <= fieldX + fieldW && gameY >= fy && gameY <= fy + fieldH) {
+                gp.ui.mpInputField = i;
+                gp.playSE(audio.SFX.MENU_SELECT);
+                if (Gdx.app.getType() == com.badlogic.gdx.Application.ApplicationType.Android) {
+                    openMpFieldDialog(i);
+                }
+                return;
+            }
+        }
+
+        int btnY = fieldStartY + fieldCount * (fieldH + 28) + 10;
+        int btnCount = gp.ui.mpAddMode ? 3 : 2;
+        int btnH = 36;
+        int btnW = (panelW - 80 - (btnCount - 1) * 12) / btnCount;
+        for (int i = 0; i < btnCount; i++) {
+            int bx = fieldX + i * (btnW + 12);
+            if (gameX >= bx && gameX <= bx + btnW && gameY >= btnY && gameY <= btnY + btnH) {
+                gp.ui.mpInputField = fieldCount + i;
+                gp.keyH.handleMultiplayerInputButton(i);
+                return;
+            }
+        }
+    }
+
+    /** Native text dialog for one field of the multiplayer form (Android soft keyboard). */
+    private void openMpFieldDialog(int field) {
+        final boolean add = gp.ui.mpAddMode;
+        String title;
+        String current;
+        if (add) {
+            title   = switch (field) { case 0 -> "Server name"; case 1 -> "Server IP address"; default -> "Server port"; };
+            current = switch (field) { case 0 -> gp.ui.mpServerName; case 1 -> gp.ui.mpServerIP; default -> gp.ui.mpServerPort; };
+        } else {
+            title   = field == 0 ? "Server IP address" : "Server port";
+            current = field == 0 ? gp.ui.mpServerIP : gp.ui.mpServerPort;
+        }
+        final boolean isPort = (add && field == 2) || (!add && field == 1);
+        Gdx.input.getTextInput(new com.badlogic.gdx.Input.TextInputListener() {
+            @Override public void input(String text) {
+                String v = text.trim();
+                if (isPort) {
+                    v = v.replaceAll("[^0-9]", "");
+                    if (v.length() > 5) v = v.substring(0, 5);
+                } else {
+                    // Same charset/length rule as the keyboard path (typeCharToField).
+                    v = v.replaceAll("[^\\x20-\\x7e]", "");
+                    if (v.length() > 40) v = v.substring(0, 40);
+                }
+                if (add) {
+                    switch (field) {
+                        case 0 -> gp.ui.mpServerName = v;
+                        case 1 -> gp.ui.mpServerIP = v;
+                        default -> gp.ui.mpServerPort = v;
+                    }
+                } else {
+                    if (field == 0) gp.ui.mpServerIP = v; else gp.ui.mpServerPort = v;
+                }
+            }
+            @Override public void canceled() { /* keep previous value */ }
+        }, title, current, isPort ? "7777" : "");
+    }
+
+    // ════════════════════════════════════════════════════════════════════════
+    // FRIENDS LIST (titleScreenState 5) — tap a request row twice to accept it,
+    // tap ADD FRIEND / CLAIM USERNAME / BACK directly (Android: text dialog).
+    // Geometry mirrors UI.drawFriendsList() exactly.
+    // ════════════════════════════════════════════════════════════════════════
+
+    private void clickFriendsList() {
+        // While a text-entry or NFC wait is active, taps shouldn't re-trigger menu rows.
+        if (gp.ui.friendsAddMode || gp.ui.friendsClaimMode || gp.ui.friendsNfcWaiting) return;
+
+        int panelW = 560, panelH = 520;
+        int px = (gp.screenWidth - panelW) / 2;
+        int py = (gp.screenHeight - panelH) / 2;
+
+        int friendCount = gp.friendsListManager.getFriends().size();
+        int syncingCount = gp.friendsListManager.getPendingLocalAdds().size();
+        int syncingEnd = friendCount + syncingCount;
+        int requestCount = gp.friendsListManager.getPendingRequests().size();
+        int rowCount = syncingEnd + requestCount;
+        boolean hasUsername = gp.friendsListManager.getClaimedUsername() != null;
+
+        int listStartY = py + 94;
+        int entryH = 44, entryW = panelW - 60, entryX = px + 30;
+        int maxVisible = 5;
+        int scrollOffset = Math.max(0, Math.min(gp.ui.friendsSelection, rowCount - 1) - maxVisible + 1);
+        if (gp.ui.friendsSelection >= rowCount) scrollOffset = Math.max(0, rowCount - maxVisible);
+
+        for (int i = scrollOffset; i < Math.min(rowCount, scrollOffset + maxVisible); i++) {
+            int ey = listStartY + (i - scrollOffset) * (entryH + 6);
+            if (gameX >= entryX && gameX <= entryX + entryW && gameY >= ey && gameY <= ey + entryH) {
+                if (gp.ui.friendsSelection == i && i >= syncingEnd && i < rowCount) {
+                    // Second tap on a selected pending request accepts it (Enter equivalent).
+                    String username = gp.friendsListManager.getPendingRequests().get(i - syncingEnd);
+                    new Thread(() -> gp.friendsListManager.respondFriendRequest(username, true),
+                            "Friends-Accept").start();
+                }
+                gp.ui.friendsSelection = i;
+                gp.playSE(audio.SFX.MENU_SELECT);
+                return;
+            }
+        }
+
+        int menuStartY = listStartY + Math.min(rowCount, maxVisible) * (entryH + 6) + 20;
+        if (rowCount == 0) menuStartY = listStartY + 60;
+        int menuCount = hasUsername ? 2 : 3;
+        int optH = 36, optW = panelW - 100, optX = px + 50;
+        for (int i = 0; i < menuCount; i++) {
+            int oy = menuStartY + i * (optH + 8);
+            if (gameX >= optX && gameX <= optX + optW && gameY >= oy && gameY <= oy + optH) {
+                gp.ui.friendsSelection = rowCount + i;
+                gp.playSE(audio.SFX.MENU_SELECT);
+                if (i == 0) {
+                    gp.keyH.startAddFriend();
+                    maybeOpenFriendsDialog(false);
+                } else if (i == 1 && !hasUsername) {
+                    gp.ui.friendsClaimMode = true;
+                    String claimed = gp.friendsListManager.getClaimedUsername();
+                    gp.ui.friendsNewName = claimed != null ? claimed : "";
+                    maybeOpenFriendsDialog(true);
+                } else {
+                    platform.NfcFriend.stopReading();
+                    gp.ui.titleScreenState = 0;
+                    gp.ui.commandNum = 0;
+                }
+                return;
+            }
+        }
+    }
+
+    /** On Android, replace the type-in-place username entry with the native soft-keyboard dialog. */
+    private void maybeOpenFriendsDialog(boolean claiming) {
+        if (Gdx.app.getType() != com.badlogic.gdx.Application.ApplicationType.Android) return;
+        if (claiming ? !gp.ui.friendsClaimMode : !gp.ui.friendsAddMode) return;
+        Gdx.input.getTextInput(new com.badlogic.gdx.Input.TextInputListener() {
+            @Override public void input(String text) {
+                String typed = text.trim();
+                gp.ui.friendsNewName = "";
+                gp.ui.friendsAddMode = false;
+                gp.ui.friendsClaimMode = false;
+                if (!typed.isBlank()) {
+                    new Thread(() -> gp.keyH.runFriendAction(claiming, typed), "Friends-Action").start();
+                }
+            }
+            @Override public void canceled() {
+                gp.ui.friendsNewName = "";
+                gp.ui.friendsAddMode = false;
+                gp.ui.friendsClaimMode = false;
+            }
+        }, claiming ? "Claim a username" : "Add friend by username", gp.ui.friendsNewName, "");
     }
 
     /**

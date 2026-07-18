@@ -141,6 +141,30 @@ def send_blob(conn: socket.socket, data: bytes) -> None:
     conn.sendall(data)
 
 
+def send_file_blob(conn: socket.socket, path: Path, size: int) -> None:
+    """Stream the patch instead of loading it whole: 32 concurrent FETCHes of a
+    256 MB patch would otherwise hold up to 8 GB of RAM at once."""
+    conn.sendall(struct.pack(">Q", size))
+    with path.open("rb") as fh:
+        while True:
+            chunk = fh.read(64 * 1024)
+            if not chunk:
+                break
+            conn.sendall(chunk)
+
+
+def resolve_patch_path(cfg: dict, entry_file: str) -> Optional[Path]:
+    """Resolve a manifest 'file' entry and refuse anything that escapes BASE_DIR
+    (defense in depth if the manifest is ever attacker-influenced)."""
+    p = (BASE_DIR / entry_file).resolve()
+    try:
+        p.relative_to(BASE_DIR)
+    except ValueError:
+        log.error("Manifest entry escapes base dir: %s", entry_file)
+        return None
+    return p
+
+
 def handle_client(conn: socket.socket, addr: tuple[str, int],
                   cfg: dict, private_key: RSAPrivateKey,
                   semaphore: threading.BoundedSemaphore) -> None:
@@ -163,10 +187,10 @@ def handle_client(conn: socket.socket, addr: tuple[str, int],
                 log.info("CHECK from %s: %s up-to-date", ip, current)
                 return
 
-            patch_path = BASE_DIR / entry["file"]
-            if not patch_path.exists():
+            patch_path = resolve_patch_path(cfg, entry["file"])
+            if patch_path is None or not patch_path.exists():
                 send_line(conn, "ERROR patch file missing")
-                log.error("Manifest references missing file %s", patch_path)
+                log.error("Manifest references missing/invalid file %s", entry.get("file"))
                 return
 
             sha = entry.get("sha256_hex", "")
@@ -186,19 +210,19 @@ def handle_client(conn: socket.socket, addr: tuple[str, int],
                 send_line(conn, "ERROR no patch available")
                 return
 
-            patch_path = BASE_DIR / entry["file"]
-            if not patch_path.exists():
+            patch_path = resolve_patch_path(cfg, entry["file"])
+            if patch_path is None or not patch_path.exists():
                 send_line(conn, "ERROR patch file missing")
                 return
 
-            data = patch_path.read_bytes()
-            if len(data) > cfg["max_patch_bytes"]:
+            size = patch_path.stat().st_size
+            if size > cfg["max_patch_bytes"]:
                 send_line(conn, "ERROR patch too large")
                 return
 
-            send_blob(conn, data)
+            send_file_blob(conn, patch_path, size)
             log.info("FETCH from %s: served %s -> %s (%d bytes)",
-                     ip, from_version, entry["to"], len(data))
+                     ip, from_version, entry["to"], size)
             return
 
         send_line(conn, "ERROR unknown command")
