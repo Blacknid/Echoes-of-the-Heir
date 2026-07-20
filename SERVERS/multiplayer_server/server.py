@@ -392,6 +392,9 @@ class PlayerState:
     # client's level-up screen turns each into a level_choice request, which the server only
     # honours while this is > 0. Persisted, so a level-up survives a disconnect before the pick.
     pending_level_choices: int = 0
+    # Timestamps of recent movement violations (step-cap clamp or collision correction),
+    # read by AnomalyMonitor to spot speed/noclip-hacking. Trimmed to a rolling window there.
+    move_violations: collections.deque = field(default_factory=collections.deque)
 
     def to_dict(self) -> dict:
         return {
@@ -1174,6 +1177,7 @@ class GameServer:
         if abs(dx) > max_step_px or abs(dy) > max_step_px:
             new_x = player.last_valid_x + clamp_int(dx, -max_step_px, max_step_px, 0)
             new_y = player.last_valid_y + clamp_int(dy, -max_step_px, max_step_px, 0)
+            player.move_violations.append(time.time())
             log.debug("Player %d step exceeded cap; clamped", player.player_id)
 
         hb_w = int(self.cfg.get("player_hitbox_w", DEFAULT_HITBOX_W))
@@ -1185,6 +1189,7 @@ class GameServer:
         by = new_y + hb_off_y
         if not world.is_box_walkable(bx, by, hb_w, hb_h):
             new_x, new_y = player.last_valid_x, player.last_valid_y
+            player.move_violations.append(time.time())
             client.send_json({
                 "type": "pos_correction",
                 "x": new_x, "y": new_y,
@@ -1787,6 +1792,11 @@ async def amain(host: str, port: int, max_players: int, private_key, cfg: dict) 
             _loop.add_signal_handler(sig, shutdown_handler)
         except NotImplementedError:
             signal.signal(sig, lambda s, f: shutdown_handler())
+
+    from anomaly_monitor import AnomalyMonitor
+    anomaly_monitor = AnomalyMonitor(server, cfg)
+    server.anomaly_monitor = anomaly_monitor
+    asyncio.create_task(anomaly_monitor.run())
 
     if cfg.get("admin_password"):
         from dashboard import AdminDashboard

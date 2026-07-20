@@ -54,6 +54,11 @@ _DASHBOARD_HTML = """<!DOCTYPE html>
             display: flex; align-items: center; justify-content: center;
             font-size: 1.1rem; font-weight: bold; color: #a78bfa; flex-shrink: 0; }
   .card-name { font-weight: 600; font-size: 1rem; }
+  .card-name.flagged { color: #f87171; }
+  .card.flagged { border-color: #7f1d1d; }
+  .flag-banner { font-size: .75rem; color: #f87171; background: #2a1414;
+                 border: 1px solid #5c2626; border-radius: 6px; padding: 6px 8px; }
+  .flag-banner ul { margin: 4px 0 0 16px; }
   .card-class { font-size: .78rem; color: #888; }
   .card-map  { font-size: .75rem; color: #666; }
   .btn-row { display: flex; gap: 6px; flex-wrap: wrap; }
@@ -73,6 +78,7 @@ _DASHBOARD_HTML = """<!DOCTYPE html>
   .modal { background: #1a1a24; border: 1px solid #3d3d5c; border-radius: 12px;
            width: min(540px, 95vw); max-height: 88vh; overflow-y: auto; padding: 24px; }
   .modal h2 { font-size: 1.1rem; margin-bottom: 16px; color: #a78bfa; }
+  .modal h2.flagged { color: #f87171; }
   .close-btn { float: right; background: transparent; border: none; color: #888;
                font-size: 1.4rem; cursor: pointer; line-height: 1; }
   .close-btn:hover { color: #e0e0e0; }
@@ -145,15 +151,16 @@ function renderCards(players) {
     return;
   }
   el.innerHTML = players.map(p => `
-    <div class="card" data-id="${p.id}">
+    <div class="card${p.flagged ? ' flagged' : ''}" data-id="${p.id}">
       <div class="card-header">
         <div class="avatar">${(p.name||'?')[0].toUpperCase()}</div>
         <div>
-          <div class="card-name">${esc(p.name)}</div>
+          <div class="card-name${p.flagged ? ' flagged' : ''}" title="${p.flagged ? esc(p.flag_reasons.join('; ')) : ''}">${esc(p.name)}${p.flagged ? ' &#9888;' : ''}</div>
           <div class="card-class">${esc(p.class)} &bull; Lv ${p.stats.level}</div>
           <div class="card-map">${esc(p.map_id)}</div>
         </div>
       </div>
+      ${p.flagged ? `<div class="flag-banner">Flagged for review:<ul>${p.flag_reasons.map(r => '<li>' + esc(r) + '</li>').join('')}</ul></div>` : ''}
       ${bar(p.stats.life, p.stats.maxLife, 'bar-life')}
       ${bar(p.stats.mana, p.stats.maxMana, 'bar-mana')}
       <div class="btn-row">
@@ -189,7 +196,9 @@ function openInfo(id) {
   const p = getPlayer(id);
   if (!p) return;
   document.getElementById('modal-title').textContent = p.name;
+  document.getElementById('modal-title').className = p.flagged ? 'flagged' : '';
   document.getElementById('modal-body').innerHTML = `
+    ${p.flagged ? `<div class="flag-banner">Flagged for review:<ul>${p.flag_reasons.map(r => '<li>' + esc(r) + '</li>').join('')}</ul>${p.flagged_at ? '<p class="note-hint">Since: ' + esc(p.flagged_at) + '</p>' : ''}</div>` : ''}
     <div class="info-row"><span class="info-label">Username (registry)</span><span class="info-val">${esc(p.username||'—')}</span></div>
     <div class="info-row"><span class="info-label">License key</span><span class="info-val">${esc(p.license_key)}</span></div>
     <div class="info-row"><span class="info-label">Class</span><span class="info-val">${esc(p.class)}</span></div>
@@ -478,10 +487,12 @@ class AdminDashboard:
 
     async def _api_players(self, writer: asyncio.StreamWriter) -> None:
         now = time.time()
+        anomaly_monitor = getattr(self._server, "anomaly_monitor", None)
         players = []
         for pid, client in list(self._server.clients.items()):
             p = client.player
             note_entry = self._notes.get(p.license_key, {})
+            flag = anomaly_monitor.flags.get(p.license_key) if anomaly_monitor else None
             players.append({
                 "id": pid,
                 "name": p.name,
@@ -493,6 +504,9 @@ class AdminDashboard:
                 "stats": p.stats_to_dict(),
                 "note": note_entry.get("note", ""),
                 "note_updated_at": note_entry.get("updated_at", ""),
+                "flagged": flag is not None,
+                "flag_reasons": flag["reasons"] if flag else [],
+                "flagged_at": flag["flagged_at"] if flag else "",
             })
         await self._send_json(writer, {"players": players})
 
