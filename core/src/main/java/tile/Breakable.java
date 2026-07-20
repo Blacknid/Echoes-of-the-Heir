@@ -145,6 +145,14 @@ public class Breakable extends interactiveTile {
  * entirely, see {@code Player.damageInteractiveTile} for the call site.
      */
     public void spawnDestroyBurst() {
+        // MOD BREAK HOOK: this is the moment a breakable is destroyed. Fire the "break" event with a
+        // reflectable proxy of this tile so mods can react (spawn loot, trigger effects). Guarded so
+        // it costs nothing with no mods and never runs on the headless server; ModEventBus catches
+        // any mod error internally.
+        if (!main.Headless.isEnabled() && mod.ModEventBus.has(mod.ModEventBus.BREAK)) {
+            mod.ModEventBus.fire(mod.ModEventBus.BREAK, mod.LuaConv.toLua(this));
+        }
+
         if (particleImage == null || gp.particlePool == null) return;
         int debrisSize = Math.max(6, Math.min(drawWidth, drawHeight) / 3);
         int cx = getCenterX(), cy = getCenterY();

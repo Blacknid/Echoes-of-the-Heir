@@ -1,0 +1,6 @@
+{
+  "id": "testkit",
+  "name": "Test Kit",
+  "version": "1.0",
+  "entry": "main.lua"
+}

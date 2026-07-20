@@ -39,6 +39,14 @@ dependencies {
     runtimeOnly "com.badlogicgames.gdx:gdx-platform:$gdxVersion:natives-desktop"
     // Gamepad/controller support — platform artifact added per-launcher module (desktop/android).
     api "com.badlogicgames.gdx-controllers:gdx-controllers-core:$gdxControllersVersion"
+
+    // ── Modding runtime. ──
+    // LuaJ (pure-Java Lua VM) powers the /mods system: player-authored Lua scripts add content and
+    // hook the game loop through a reflection bridge that is sealed against auth/save/server/crypto
+    // classes (see the mod.* package). Pure Java, so it works on desktop AND Android with no natives.
+    // The authoritative headless engine does NOT load mods (mod.ModLoader is gated to client runs),
+    // so a mod can never influence server-side simulation — this stays a client-only content layer.
+    api "org.luaj:luaj-jse:3.0.1"
 }
 
 // Sprite atlas packing (desktop build-time tool only, not a runtime/Android dependency).
@@ -51,6 +59,18 @@ tasks.register('runHeadless', JavaExec) {
     description = 'Boot and tick the game simulation headlessly (no window, no GPU).'
     mainClass = 'main.HeadlessGame'
     classpath = sourceSets.main.runtimeClasspath
+}
+
+// Verify the /mods system client-side (loads the example mod, checks the security seal) without a
+// window or GPU. Usage: ./gradlew :core:runModSelfTest
+tasks.register('runModSelfTest', JavaExec) {
+    group = 'verification'
+    description = 'Boot the mod loader client-side and assert content loads + the security seal holds.'
+    mainClass = 'mod.ModSelfTest'
+    classpath = sourceSets.main.runtimeClasspath
+    // Run from the project root so ./mods resolves next to it, exactly as the shipped game does
+    // (the desktop :run task does the same for config.txt / save files).
+    workingDir = rootProject.projectDir
 }
 
 // ── Authoritative gameplay engine as a single runnable jar. ──

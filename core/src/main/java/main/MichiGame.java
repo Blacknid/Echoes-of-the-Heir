@@ -72,12 +72,25 @@ public class MichiGame extends ApplicationAdapter {
 
         renderer = new GdxRenderer(camera, fonts);
 
+        // MOD PRE-INIT: discover and boot /mods once, BEFORE the world is sized, so a mod's
+        // config-phase calls (e.g. ModApi.setTileDimensions) take effect before setupGame() reads
+        // Config.tileSize. No-op with no /mods folder, and never runs on the headless server (see
+        // mod.ModLoader). Wrapped so a broken mod can't stop the game from starting.
+        try { mod.ModLoader.preInit(); }
+        catch (Throwable t) { System.out.println("[ModLoader] preInit error: " + t.getMessage()); }
+
         // Build the game and run its one-time setup (loads maps, entities, pools, etc.).
         gp = new GamePanel();
         gp.config.loadConfig();
         gp.applyFpsTarget(gp.config.fpsTarget);
         gp.setupGame();
         gp.startGameThread(); // no-op now; kept for API parity
+
+        // MOD BOOT: fire the "ready" event with the live GamePanel so mods can do world-dependent
+        // setup, and leave their per-event handlers active for the game loop to call. No-op if no
+        // mods loaded during preInit.
+        try { mod.ModLoader.boot(gp); }
+        catch (Throwable t) { System.out.println("[ModLoader] boot error: " + t.getMessage()); }
 
         // Route input to both handlers (key + mouse) via a multiplexer. On Android, the touch
         // overlay's Stage goes first so it can consume taps on its own widgets (joystick/action

@@ -904,6 +904,14 @@ public class GamePanel {
                     damageNumberPool.release(dn);
                 }
             }
+
+            // MOD UPDATE HOOK: fire the per-tick "update" event so mods can run custom logic in step
+            // with the fixed 60-UPS simulation. Guarded by has() so it costs nothing with no mods,
+            // never runs on the headless authoritative server (mods aren't loaded there), and
+            // ModEventBus itself catches any mod error so a broken mod can't stall the loop.
+            if (!Headless.isEnabled() && mod.ModEventBus.has(mod.ModEventBus.UPDATE)) {
+                mod.ModEventBus.fire(mod.ModEventBus.UPDATE, mod.LuaConv.toLua(this));
+            }
         }
             if (multiplayerMode && mpClient != null && mpClient.isConnected()) {
                 mpClient.update();

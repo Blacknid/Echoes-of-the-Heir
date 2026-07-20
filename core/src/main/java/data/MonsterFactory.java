@@ -46,6 +46,12 @@ public class MonsterFactory {
     public static Entity create(GamePanel gp, String id, int col, int row) {
         if (!loaded) loadDefinitions();
 
+        // Mods first: a mod may add a new monster id or override a vanilla one. With no mods loaded
+        // the registry is empty and this falls straight through to the bundled JSON below.
+        if (mod.ModContentRegistry.hasMonster(id)) {
+            return buildMonster(gp, mod.ModContentRegistry.monster(id), col, row);
+        }
+
         for (Map<String, String> def : monsterDefs) {
             if (id.equals(def.get("id"))) {
                 return buildMonster(gp, def, col, row);
@@ -66,6 +72,9 @@ public class MonsterFactory {
      */
     public static int defStat(String id, String field, int fallback) {
         if (!loaded) loadDefinitions();
+        if (mod.ModContentRegistry.hasMonster(id)) {
+            return intVal(mod.ModContentRegistry.monster(id), field, fallback);
+        }
         for (Map<String, String> def : monsterDefs) {
             if (id.equals(def.get("id"))) {
                 return intVal(def, field, fallback);
@@ -74,9 +83,10 @@ public class MonsterFactory {
         return fallback;
     }
 
-    /** True once a monster with this id is defined in monsters.json. */
+    /** True once a monster with this id is defined in monsters.json or by a mod. */
     public static boolean isKnown(String id) {
         if (!loaded) loadDefinitions();
+        if (mod.ModContentRegistry.hasMonster(id)) return true;
         for (Map<String, String> def : monsterDefs) {
             if (id.equals(def.get("id"))) return true;
         }
