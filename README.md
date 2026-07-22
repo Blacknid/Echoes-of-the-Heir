@@ -100,7 +100,7 @@ La fiecare pornire, jocul verifică automat versiunea instalată față de cea p
 
 Jocul suportă mod-uri scrise în **Lua** (via LuaJ), încărcate automat dintr-un folder `/mods` de lângă executabil. Mod-urile pot adăuga monștri, obiecte, NPC-uri și comportamente de AI proprii, și pot interacționa cu jocul prin reflecție asupra claselor de gameplay — dar nu pot atinge sistemul de cont/login, serverele de multiplayer și salvări, salvările criptate sau cheile criptografice, care rămân complet izolate (a se vedea [`MODDING.md`](MODDING.md)).
 
----
+--- 
 
 ## Cerințe de sistem
 
