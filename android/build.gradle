@@ -35,7 +35,13 @@ android {
         // gdx-backend-android 1.13.x's own floor — no need to support older/low-end devices.
         minSdk 26
         targetSdk 34
-        versionCode 1
+        // Must strictly increase on every release build, or Android refuses to treat a newly
+        // signed APK as an update to an existing install (see rootProject.ext.gameVersion —
+        // same core/assets/res/build.properties auto-incremented by compile.cmd, single source
+        // of truth across desktop's patch-server versioning and this store/system-driven update
+        // path — no update server involved here, the OS updates the app when a higher-versionCode
+        // APK signed with the same key from build_tools/keystore/ is installed over it).
+        versionCode rootProject.ext.gameVersion.build.toInteger()
         versionName project.version.toString()
         // arm64-v8a only: the S24/S25 Ultra (and effectively all modern Android hardware) are
         // arm64-only, so 32-bit/x86 natives would only add APK size with no benefit here.
