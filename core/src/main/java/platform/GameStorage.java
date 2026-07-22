@@ -20,8 +20,11 @@ import com.badlogic.gdx.files.FileHandle;
 
 /**
  * User-writable persistent storage (config, save games, server lists) for a simple relative
- * filename. Desktop resolves these against the process working directory exactly as the game
- * always has (plain {@code java.io.File}), preserving save-file compatibility byte-for-byte.
+ * filename. Desktop resolves these against a fixed base directory (the folder containing the
+ * running JAR — see {@link #baseDir()}), NOT the process working directory: the auto-updater
+ * relaunches the game with a different working directory than the one the player originally
+ * launched from, and a working-directory-relative lookup silently "loses" activation.dat,
+ * owner_secret.dat and every save file in that case, even though they're sitting right there.
  * Android has no writable working directory, {@code Gdx.files.local(...)} resolves to the
  * app's private internal storage instead, which needs no runtime permission.
  */
@@ -33,8 +36,43 @@ public final class GameStorage {
         return Gdx.app != null && Gdx.app.getType() == Application.ApplicationType.Android;
     }
 
+    private static volatile File baseDir;
+
+    /**
+     * Directory the running JAR lives in, resolved once and cached. Falls back to the working
+     * directory ({@code user.dir}) when the code source can't be determined (e.g. running from
+     * an IDE with loose .class files rather than a packaged JAR) so dev runs keep working.
+     */
+    private static File baseDir() {
+        File dir = baseDir;
+        if (dir != null) return dir;
+        synchronized (GameStorage.class) {
+            if (baseDir == null) {
+                File resolved = null;
+                try {
+                    java.net.URI loc = GameStorage.class.getProtectionDomain().getCodeSource()
+                            .getLocation().toURI();
+                    File f = new File(loc).getAbsoluteFile();
+                    // A JAR's code source points at the .jar file itself; loose .class files
+                    // (IDE run) point at a classes/ directory — either way take its parent
+                    // folder as the stable base, except the classes/ dir case, which we keep
+                    // as-is so dev runs still find assets/config next to the module.
+                    resolved = f.isFile() ? f.getParentFile() : f;
+                } catch (Exception ignored) {
+                    // Fall through to user.dir below.
+                }
+                baseDir = resolved != null ? resolved : new File(System.getProperty("user.dir"));
+            }
+            return baseDir;
+        }
+    }
+
+    private static File resolve(String relativeName) {
+        return new File(baseDir(), relativeName);
+    }
+
     public static boolean exists(String relativeName) {
-        return isAndroid() ? Gdx.files.local(relativeName).exists() : new File(relativeName).exists();
+        return isAndroid() ? Gdx.files.local(relativeName).exists() : resolve(relativeName).exists();
     }
 
     public static boolean delete(String relativeName) {
@@ -42,7 +80,7 @@ public final class GameStorage {
             FileHandle fh = Gdx.files.local(relativeName);
             return !fh.exists() || fh.delete();
         }
-        File f = new File(relativeName);
+        File f = resolve(relativeName);
         return !f.exists() || f.delete();
     }
 
@@ -50,7 +88,7 @@ public final class GameStorage {
         if (isAndroid()) {
             return new java.io.InputStreamReader(inputStream(relativeName), StandardCharsets.UTF_8);
         }
-        return new FileReader(relativeName);
+        return new FileReader(resolve(relativeName));
     }
 
     public static BufferedReader bufferedReader(String relativeName) throws IOException {
@@ -61,7 +99,7 @@ public final class GameStorage {
         if (isAndroid()) {
             return new java.io.OutputStreamWriter(outputStream(relativeName), StandardCharsets.UTF_8);
         }
-        return new FileWriter(relativeName);
+        return new FileWriter(resolve(relativeName));
     }
 
     public static BufferedWriter bufferedWriter(String relativeName) throws IOException {
@@ -74,14 +112,14 @@ public final class GameStorage {
             if (!fh.exists()) throw new java.io.FileNotFoundException(relativeName);
             return fh.read();
         }
-        return new FileInputStream(relativeName);
+        return new FileInputStream(resolve(relativeName));
     }
 
     public static OutputStream outputStream(String relativeName) throws IOException {
         if (isAndroid()) {
             return Gdx.files.local(relativeName).write(false);
         }
-        return new FileOutputStream(relativeName);
+        return new FileOutputStream(resolve(relativeName));
     }
 
     /**
@@ -103,7 +141,7 @@ public final class GameStorage {
             return;
         }
         java.nio.file.Files.move(
-                new File(tmpName).toPath(), new File(relativeName).toPath(),
+                resolve(tmpName).toPath(), resolve(relativeName).toPath(),
                 java.nio.file.StandardCopyOption.REPLACE_EXISTING);
     }
 }
