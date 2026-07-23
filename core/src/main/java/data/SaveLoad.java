@@ -434,9 +434,17 @@ public class SaveLoad {
      */
     public void applyFetched(GameState state) {
         if (state != null) {
-            applyGameState(state);
-            saveToDisk();
-            return;
+            try {
+                applyGameState(state);
+                saveToDisk();
+                return;
+            } catch (RuntimeException e) {
+                // A malformed cloud save must NOT strand the player on the title screen: fall back
+                // to the local save.dat instead of letting the exception bubble up to continueGame(),
+                // which would silently bounce back to the title ("Continue does nothing").
+                System.out.println("[Load] Cloud save could not be applied (" + e
+                        + ") — falling back to local save.");
+            }
         }
         loadFromDisk();
     }

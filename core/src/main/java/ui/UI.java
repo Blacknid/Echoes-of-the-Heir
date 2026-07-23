@@ -191,7 +191,8 @@ public class UI {
                     gp.saveLoad.applyFetched(state);
                     // Enter the game only once the save is actually applied.
                     gp.keyH.startGame();
-                } catch (RuntimeException e) {
+                    continueStatusMessage = ""; // clear the "Loading…" overlay on success
+                } catch (Throwable e) {
                     System.out.println("[Load] Continue failed: " + e);
                     continueStatusMessage = "Couldn't load your save.";
                     gp.gameState = GamePanel.titleState;
@@ -1739,6 +1740,29 @@ public class UI {
             String ver = Config.getVersionString();
             int vw = cachedFM().stringWidth(ver);
             g2.drawString(ver, gp.screenWidth - vw - 22, gp.screenHeight - 22);
+
+            // CONTINUE loading overlay: a dim scrim + centered status while the save loads (the load
+            // runs on a worker thread, so the title keeps rendering). continueStatusMessage is
+            // "Loading…" during the load and an error line if it failed.
+            if (continueLoading || !continueStatusMessage.isEmpty()) {
+                g2.setColor(cachedColor(0, 0, 0, 150));
+                g2.fillRect(0, 0, gp.screenWidth, gp.screenHeight);
+
+                g2.setFont(cachedFont(Font.BOLD, 30F));
+                // Animated ellipsis on the base "Loading" so it reads as active, not frozen.
+                String msg = continueStatusMessage;
+                if (continueLoading && msg.startsWith("Loading")) {
+                    int dots = (int)((animTick / 20) % 4);
+                    msg = "Loading" + "...".substring(0, dots);
+                }
+                int mw = cachedFM().stringWidth(msg);
+                int mx = (gp.screenWidth - mw) / 2;
+                int my = gp.screenHeight / 2;
+                g2.setColor(cachedColor(0, 0, 0, 180));
+                g2.drawString(msg, mx + 2, my + 2);
+                g2.setColor(cachedColor(255, 230, 150));
+                g2.drawString(msg, mx, my);
+            }
         }
         else if ( titleScreenState == 1) {
 

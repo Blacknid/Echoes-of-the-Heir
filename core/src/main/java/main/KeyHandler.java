@@ -290,8 +290,8 @@ public class KeyHandler implements InputProcessor {
             // the Menu selection so the custom title-screen draw still highlights the right row.
             ui.Menu menu = gp.ui.titleMenu();
             menu.setSelected(gp.ui.commandNum);
-            if (gp.actions.consumePressed(InputBindings.MENU_UP))   { menu.moveUp();   gp.ui.commandNum = menu.getSelected(); }
-            if (gp.actions.consumePressed(InputBindings.MENU_DOWN)) { menu.moveDown(); gp.ui.commandNum = menu.getSelected(); }
+            if (gp.actions.consumePressed(InputBindings.MENU_UP))   { menu.moveUp();   gp.ui.commandNum = menu.getSelected(); gp.ui.continueStatusMessage = ""; }
+            if (gp.actions.consumePressed(InputBindings.MENU_DOWN)) { menu.moveDown(); gp.ui.commandNum = menu.getSelected(); gp.ui.continueStatusMessage = ""; }
             if (code == Input.Keys.I) {
                 gp.ui.titleScreenState = 2;
                 gp.ui.commandNum = 0;

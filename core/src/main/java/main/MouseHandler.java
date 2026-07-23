@@ -161,7 +161,10 @@ public class MouseHandler implements InputProcessor {
             return;
         }
         int i = titleItemUnderMouse();
-        if (i >= 0) gp.ui.commandNum = i;
+        if (i >= 0) {
+            if (i != gp.ui.commandNum) gp.ui.continueStatusMessage = ""; // dismiss a stale error line
+            gp.ui.commandNum = i;
+        }
     }
 
     private void clickTitle() {

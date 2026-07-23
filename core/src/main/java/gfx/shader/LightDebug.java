@@ -25,7 +25,9 @@ public final class LightDebug {
     private LightDebug() {}
 
     // ── Kill-switch toggles (polled from F-keys in MichiGame.render) ──
-    public static boolean hud        = true;
+    // HUD defaults OFF so the lighting-diagnostic overlay isn't shown at startup; press F5 to
+    // bring it up when hunting the "dancing lights" bug.
+    public static boolean hud        = false;
     public static boolean freezeTime = false;
     public static boolean noDetail   = false;
     public static boolean noBloom    = false;

@@ -20,13 +20,22 @@ import com.badlogic.gdx.files.FileHandle;
 
 /**
  * User-writable persistent storage (config, save games, server lists) for a simple relative
- * filename. Desktop resolves these against a fixed base directory (the folder containing the
- * running JAR — see {@link #baseDir()}), NOT the process working directory: the auto-updater
- * relaunches the game with a different working directory than the one the player originally
- * launched from, and a working-directory-relative lookup silently "loses" activation.dat,
- * owner_secret.dat and every save file in that case, even though they're sitting right there.
- * Android has no writable working directory, {@code Gdx.files.local(...)} resolves to the
- * app's private internal storage instead, which needs no runtime permission.
+ * filename. Desktop resolves these against the process WORKING DIRECTORY (plain
+ * {@code java.io.File}), exactly as the game always did before, preserving save-file
+ * compatibility byte-for-byte. Android has no writable working directory,
+ * {@code Gdx.files.local(...)} resolves to the app's private internal storage instead, which
+ * needs no runtime permission.
+ *
+ * <p><b>Why the working directory and not the JAR's folder:</b> an earlier attempt resolved
+ * against the folder containing the running JAR, to survive the auto-updater relaunch. That was
+ * wrong twice over. First, the updater ALREADY relaunches with the working directory set to the
+ * JAR's folder (see {@code desktop.update.Updater#relaunch}, {@code pb.directory(...)}), so the
+ * working directory is correct across updates on its own. Second, the game's code does not live
+ * next to its data files: in a dev run it's inside {@code core/build/libs/core.jar} and in a
+ * packaged build it may sit in a {@code lib/} subfolder — so the JAR's folder is NOT where
+ * activation.dat / owner_secret.dat / save.dat live. Keying off it made the game silently write
+ * saves into {@code build/libs} and never find the owner secret at the project root, which broke
+ * both licensing (owner-secret login fell through to a failed ACTIVATE) and Continue.
  */
 public final class GameStorage {
 
@@ -36,39 +45,11 @@ public final class GameStorage {
         return Gdx.app != null && Gdx.app.getType() == Application.ApplicationType.Android;
     }
 
-    private static volatile File baseDir;
-
-    /**
-     * Directory the running JAR lives in, resolved once and cached. Falls back to the working
-     * directory ({@code user.dir}) when the code source can't be determined (e.g. running from
-     * an IDE with loose .class files rather than a packaged JAR) so dev runs keep working.
-     */
-    private static File baseDir() {
-        File dir = baseDir;
-        if (dir != null) return dir;
-        synchronized (GameStorage.class) {
-            if (baseDir == null) {
-                File resolved = null;
-                try {
-                    java.net.URI loc = GameStorage.class.getProtectionDomain().getCodeSource()
-                            .getLocation().toURI();
-                    File f = new File(loc).getAbsoluteFile();
-                    // A JAR's code source points at the .jar file itself; loose .class files
-                    // (IDE run) point at a classes/ directory — either way take its parent
-                    // folder as the stable base, except the classes/ dir case, which we keep
-                    // as-is so dev runs still find assets/config next to the module.
-                    resolved = f.isFile() ? f.getParentFile() : f;
-                } catch (Exception ignored) {
-                    // Fall through to user.dir below.
-                }
-                baseDir = resolved != null ? resolved : new File(System.getProperty("user.dir"));
-            }
-            return baseDir;
-        }
-    }
-
     private static File resolve(String relativeName) {
-        return new File(baseDir(), relativeName);
+        // Working-directory-relative, matching the game's historical behaviour. The launcher
+        // (dev: Gradle run.workingDir = project root; production: Updater sets the CWD to the
+        // JAR's folder) guarantees the working directory is where the data files sit.
+        return new File(relativeName);
     }
 
     public static boolean exists(String relativeName) {
