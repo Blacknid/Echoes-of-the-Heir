@@ -12,7 +12,7 @@ public class DesktopLauncher {
         // --version passthrough (the build's JAR-verify step calls this).
         for (String a : args) {
             if ("--version".equals(a)) {
-                System.out.println("Michi's Adventure (libGDX build)");
+                System.out.println("Echoes of the Heir (libGDX build)");
                 return;
             }
         }
@@ -23,7 +23,7 @@ public class DesktopLauncher {
         }
 
         Lwjgl3ApplicationConfiguration config = new Lwjgl3ApplicationConfiguration();
-        config.setTitle("Michi's Adventure");
+        config.setTitle("Echoes of the Heir");
         config.setWindowedMode(MichiGame.BASE_W, MichiGame.BASE_H);
         config.useVsync(true);
         config.setResizable(true);

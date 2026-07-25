@@ -129,13 +129,13 @@ public final class UpdateClient {
                         + "    " + (expectedSize / 1024) + " KB\n\n"
                         + "Download and install now?\n"
                         + "(The game cannot start until the update is applied.)",
-                "Michi's Adventure — Update required",
+                "Echoes of the Heir — Update required",
                 JOptionPane.OK_CANCEL_OPTION,
                 JOptionPane.INFORMATION_MESSAGE);
         if (answer != JOptionPane.OK_OPTION) {
             JOptionPane.showMessageDialog(null,
                     "Update declined. The game will close.",
-                    "Michi's Adventure",
+                    "Echoes of the Heir",
                     JOptionPane.WARNING_MESSAGE);
             return false;
         }
@@ -175,7 +175,7 @@ public final class UpdateClient {
             spawnUpdater(patchFile, toVersion);
             JOptionPane.showMessageDialog(null,
                     "The updater is running.\nThe game will reopen automatically.",
-                    "Michi's Adventure — Updating",
+                    "Echoes of the Heir — Updating",
                     JOptionPane.INFORMATION_MESSAGE);
             return false; // tell main() to exit so the JAR can be replaced
 
@@ -183,7 +183,7 @@ public final class UpdateClient {
             JOptionPane.showMessageDialog(null,
                     "Update failed: " + ex.getMessage()
                             + "\n\nThe game will close. Try again later.",
-                    "Michi's Adventure — Update failed",
+                    "Echoes of the Heir — Update failed",
                     JOptionPane.ERROR_MESSAGE);
             return false;
         }

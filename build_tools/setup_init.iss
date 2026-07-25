@@ -1,21 +1,21 @@
 [Setup]
 ; Basic App Info      INNO SETUP
-AppName=Michi Game
+AppName=Echoes of the Heir
 AppVersion=1.0
-DefaultDirName={localappdata}\MichiGame
-DefaultGroupName=Michi Game
+DefaultDirName={localappdata}\EchoesOfTheHeir
+DefaultGroupName=Echoes of the Heir
 PrivilegesRequired=lowest
 ; The icon for the uninstaller in Control Panel
-UninstallDisplayIcon={app}\MichisAdventure.exe
+UninstallDisplayIcon={app}\EchoesOfTheHeir.exe
 Compression=lzma
 SolidCompression=yes
 ; Where the final Setup.exe will be saved
 OutputDir=..\deploy
-OutputBaseFilename=MichiGame_Setup
+OutputBaseFilename=EchoesOfTheHeir_Setup
 
 [Files]
 ; 1. The complete jpackage app-image, including launcher, app config, JAR, and runtime.
-Source: "..\jpackage_tmp\MichisAdventure\*"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs createallsubdirs
+Source: "..\jpackage_tmp\EchoesOfTheHeir\*"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs createallsubdirs
 
 ; 2. Patch-server endpoint list (used by UpdateClient at startup).
 ;    onlyifdoesntexist preserves any local edits the player may have made.
@@ -29,16 +29,16 @@ Source: "..\deploy\save_servers.txt"; DestDir: "{app}"; DestName: "save_servers.
 
 [Icons]
 ; Creates a shortcut in the Start Menu
-Name: "{group}\Michi Game"; Filename: "{app}\MichisAdventure.exe"; WorkingDir: "{app}"
+Name: "{group}\Echoes of the Heir"; Filename: "{app}\EchoesOfTheHeir.exe"; WorkingDir: "{app}"
 ; Creates a shortcut on the Desktop
-Name: "{autodesktop}\Michi Game"; Filename: "{app}\MichisAdventure.exe"; WorkingDir: "{app}"; Tasks: desktopicon
+Name: "{autodesktop}\Echoes of the Heir"; Filename: "{app}\EchoesOfTheHeir.exe"; WorkingDir: "{app}"; Tasks: desktopicon
 
 [Tasks]
 Name: "desktopicon"; Description: "{cm:CreateDesktopIcon}"; GroupDescription: "{cm:AdditionalIcons}"; Flags: unchecked
 
 [Run]
 ; Option to launch the game immediately after installation
-Filename: "{app}\MichisAdventure.exe"; WorkingDir: "{app}"; Description: "{cm:LaunchProgram,Michi Game}"; Flags: nowait postinstall skipifsilent
+Filename: "{app}\EchoesOfTheHeir.exe"; WorkingDir: "{app}"; Description: "{cm:LaunchProgram,Echoes of the Heir}"; Flags: nowait postinstall skipifsilent
 
 [UninstallDelete]
 ; Clean up generated local files on uninstall (license is now activation.dat, holding only an
