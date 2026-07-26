@@ -511,6 +511,23 @@ public class UI {
     public String playerUsername = "";    // username set on title screen, shown above player head
     public boolean usernameFieldFocused = false; // true when the username field is being typed into
 
+    /**
+     * Commit the typed name: mirror it onto the player and persist it, so the next session starts
+     * with it already filled in.
+     *
+     * <p>Called when the field loses focus rather than on every keystroke — writing config.txt per
+     * character would mean 20 file writes to type a name, on Android's slower storage no less.
+     */
+    public void commitUsername() {
+        String trimmed = playerUsername == null ? "" : playerUsername.trim();
+        playerUsername = trimmed;
+        gp.player.name = trimmed;
+        if (!trimmed.equals(gp.config.playerUsername)) {
+            gp.config.playerUsername = trimmed;
+            gp.config.saveConfig();
+        }
+    }
+
     private int animTick = 0;          // global UI animation ticker
     private float smoothLife = -1f;    // for smooth health bar interpolation
     private float smoothMana = -1f;    // for smooth mana bar interpolation

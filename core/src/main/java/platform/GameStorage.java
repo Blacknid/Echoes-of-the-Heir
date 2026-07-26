@@ -5,8 +5,6 @@ import java.io.BufferedWriter;
 import java.io.File;
 import java.io.FileInputStream;
 import java.io.FileOutputStream;
-import java.io.FileReader;
-import java.io.FileWriter;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
@@ -69,7 +67,12 @@ public final class GameStorage {
         if (isAndroid()) {
             return new java.io.InputStreamReader(inputStream(relativeName), StandardCharsets.UTF_8);
         }
-        return new FileReader(resolve(relativeName));
+        // Explicit UTF-8, not FileReader's platform default: the default is windows-1252 on a
+        // typical Windows JVM, so a non-ASCII name or dialogue string written here would not
+        // round-trip, and a file copied to/from Android (which is hardcoded UTF-8 above) would
+        // decode as mojibake.
+        return new java.io.InputStreamReader(
+                new FileInputStream(resolve(relativeName)), StandardCharsets.UTF_8);
     }
 
     public static BufferedReader bufferedReader(String relativeName) throws IOException {
@@ -80,7 +83,9 @@ public final class GameStorage {
         if (isAndroid()) {
             return new java.io.OutputStreamWriter(outputStream(relativeName), StandardCharsets.UTF_8);
         }
-        return new FileWriter(resolve(relativeName));
+        // Explicit UTF-8 for the same reason as reader() above.
+        return new java.io.OutputStreamWriter(
+                new FileOutputStream(resolve(relativeName)), StandardCharsets.UTF_8);
     }
 
     public static BufferedWriter bufferedWriter(String relativeName) throws IOException {

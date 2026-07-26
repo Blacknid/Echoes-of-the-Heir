@@ -389,6 +389,7 @@ public class GamePanel {
     serverList = new ServerListManager();
     friendsListManager = new FriendsListManager(saveLoad.getCloudSaveService());
     bleSession = new BleMultiplayerSession(this);
+    restorePersistedUsername();
 
     cChecker.updateCollisionRectsCache();
 
@@ -1426,6 +1427,59 @@ public class GamePanel {
         g2.drawString(name, textX + 1, textY + 1);
         g2.setColor(isLocal ? NAMETAG_TEXT_LOCAL : MP_NAME_COLOR);
         g2.drawString(name, textX, textY);
+    }
+
+    /**
+     * Seed the title-screen name from disk at startup so it doesn't have to be retyped every
+     * session, then upgrade it to the server-claimed name once that becomes known.
+     *
+     * <p>Two names exist and only one of them can be unique. {@code ui.playerUsername} is a local
+     * display name with no uniqueness guarantee; the name claimed on the friends server is the
+     * authoritative one, because a central registry is the only thing that can tell whether a name
+     * is already taken. So the claimed name wins whenever there is one — that is what "only if it
+     * is available" resolves to here. Nothing is auto-claimed: claiming stays an explicit action on
+     * the Friends screen, since silently reserving a global name on the player's behalf is not
+     * something a startup path should do.
+     *
+     * <p>The claimed name cannot be read synchronously — {@link FriendsListManager} fetches it on
+     * the CloudSaveService heartbeat thread, after the license activates. So the config value is
+     * applied immediately (so the box is never empty on a restart) and a short poll adopts the
+     * claimed name if and when it arrives. The poll gives up rather than running forever, offline
+     * play must not be left waiting on a server that will never answer.
+     */
+    private void restorePersistedUsername() {
+        String saved = config.playerUsername;
+        if (saved != null && !saved.isBlank()) {
+            ui.playerUsername = saved;
+            player.name = saved;
+        }
+
+        Thread t = new Thread(() -> {
+            // ~30s at 1s intervals: long enough to cover license activation plus the first
+            // heartbeat, short enough that an offline session stops caring quickly.
+            for (int i = 0; i < 30; i++) {
+                try { Thread.sleep(1000); } catch (InterruptedException e) {
+                    Thread.currentThread().interrupt();
+                    return;
+                }
+                String claimed = friendsListManager.getClaimedUsername();
+                if (claimed == null || claimed.isBlank()) continue;
+                // Hop back to the render thread: ui.playerUsername is read every frame by the
+                // title screen and the nametag draw.
+                com.badlogic.gdx.Gdx.app.postRunnable(() -> {
+                    // Don't stomp a name the player is actively typing, or one they just set.
+                    if (ui.usernameFieldFocused) return;
+                    if (claimed.equals(ui.playerUsername)) return;
+                    ui.playerUsername = claimed;
+                    player.name = claimed;
+                    config.playerUsername = claimed;
+                    config.saveConfig();
+                });
+                return;
+            }
+        }, "username-restore");
+        t.setDaemon(true);
+        t.start();
     }
 
     /**

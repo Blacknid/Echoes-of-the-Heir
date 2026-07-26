@@ -240,7 +240,7 @@ public class KeyHandler implements InputProcessor {
         if (gp.gameState == GamePanel.titleState && gp.ui.usernameFieldFocused
                 && gp.ui.titleScreenState == 0) {
             if (c != ' ' && c != '\b' && c != '\n' && c != '\r' && c != '\t') {
-                if (gp.ui.playerUsername.length() < 20) {
+                if (gp.ui.playerUsername.length() < Config.MAX_USERNAME_LENGTH) {
                     gp.ui.playerUsername += c;
                     // Keep player.name in sync so it's available immediately in singleplayer
                     gp.player.name = gp.ui.playerUsername;
@@ -276,7 +276,7 @@ public class KeyHandler implements InputProcessor {
                     }
                 } else if (gp.actions.consumePressed(InputBindings.MENU_CONFIRM) || code == Input.Keys.ESCAPE) {
                     gp.ui.usernameFieldFocused = false;
-                    gp.player.name = gp.ui.playerUsername;
+                    gp.ui.commitUsername();
                     gp.playSE(SFX.MENU_SELECT);
                 }
                 return; // don't forward to menu navigation while typing

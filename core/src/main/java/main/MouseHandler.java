@@ -183,7 +183,7 @@ public class MouseHandler implements InputProcessor {
         // in KeyHandler.keyDown).
         if (gp.ui.usernameFieldFocused) {
             gp.ui.usernameFieldFocused = false;
-            gp.player.name = gp.ui.playerUsername;
+            gp.ui.commitUsername();
         }
         if (gp.ui.titleScreenState == 1) {
             int i = classItemUnderMouse();
@@ -211,10 +211,12 @@ public class MouseHandler implements InputProcessor {
         if (Gdx.app.getType() == com.badlogic.gdx.Application.ApplicationType.Android) {
             Gdx.input.getTextInput(new com.badlogic.gdx.Input.TextInputListener() {
                 @Override public void input(String text) {
-                    String trimmed = text.length() > 20 ? text.substring(0, 20) : text;
-                    gp.ui.playerUsername = trimmed;
-                    gp.player.name = trimmed;
+                    // The soft keyboard enforces no length limit of its own, unlike the typed path
+                    // in KeyHandler.keyTyped, so the cap has to be applied to whatever comes back.
+                    int max = main.Config.MAX_USERNAME_LENGTH;
+                    gp.ui.playerUsername = text.length() > max ? text.substring(0, max) : text;
                     gp.ui.usernameFieldFocused = false;
+                    gp.ui.commitUsername();
                 }
                 @Override public void canceled() {
                     gp.ui.usernameFieldFocused = false;

@@ -87,6 +87,22 @@ public class Config {
     public static final int GRAPHICS_HIGH   = 2;
     public int graphicsQuality = GRAPHICS_HIGH;
 
+    /**
+     * Display name last used on the title screen, persisted so it survives a restart.
+     *
+     * <p>This is only a local convenience copy. The authoritative unique name is the one claimed on
+     * the friends server ({@link FriendsListManager#getClaimedUsername()}), which is the only place
+     * uniqueness can actually be enforced; when a claimed name exists it wins over this value at
+     * startup. See {@link GamePanel#restorePersistedUsername()}.
+     */
+    public String playerUsername = "";
+
+    /**
+     * Longest accepted display name. Enforced at every entry point (typed, soft-keyboard, and the
+     * config file), so a hand-edited config can't produce a name the UI would never let you type.
+     */
+    public static final int MAX_USERNAME_LENGTH = 20;
+
     public void saveConfig () {
 
         try (BufferedWriter bw = GameStorage.bufferedWriter("config.txt")) {
@@ -98,6 +114,12 @@ public class Config {
             bw.write("fpsTarget=" + fpsTarget);                           bw.newLine();
             bw.write("graphicsQuality=" + graphicsQuality);                bw.newLine();
             bw.write("stretchToFill=" + (Config.stretchToFill ? "On" : "Off")); bw.newLine();
+            // Written last of the plain settings and always on one line: loadConfig splits on the
+            // FIRST '=', so a name containing '=' round-trips intact. Newlines can't occur, both
+            // entry paths filter control characters.
+            if (playerUsername != null && !playerUsername.isBlank()) {
+                bw.write("playerUsername=" + playerUsername.trim()); bw.newLine();
+            }
             // Save window position. The window is owned by libGDX (backend-specific); to keep
             // core backend-agnostic (Android-portable), we persist the last saved coords rather
             // than querying the live window here.
@@ -130,6 +152,10 @@ public class Config {
             try { fpsTarget = Integer.parseInt(map.getOrDefault("fpsTarget", "60")); } catch (Exception ignored) {}
             try { graphicsQuality = Math.max(GRAPHICS_LOW, Math.min(GRAPHICS_HIGH, Integer.parseInt(map.getOrDefault("graphicsQuality", "2")))); } catch (Exception ignored) {}
             Config.stretchToFill = "On".equals(map.getOrDefault("stretchToFill", "Off"));
+            playerUsername = map.getOrDefault("playerUsername", "").trim();
+            if (playerUsername.length() > MAX_USERNAME_LENGTH) {
+                playerUsername = playerUsername.substring(0, MAX_USERNAME_LENGTH);
+            }
             try { windowX = Integer.parseInt(map.getOrDefault("windowX", "-1")); } catch (Exception ignored) {}
             try { windowY = Integer.parseInt(map.getOrDefault("windowY", "-1")); } catch (Exception ignored) {}
 
