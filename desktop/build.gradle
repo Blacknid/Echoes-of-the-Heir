@@ -49,7 +49,7 @@ dependencies {
 
 // ── Fat (runnable) JAR. ──
 jar {
-    archiveBaseName = 'Michi-s-adventure'
+    archiveBaseName = 'Echoes-of-the-Heir'
     archiveVersion = ''
     duplicatesStrategy = DuplicatesStrategy.EXCLUDE
     // Dev runs (gradlew :desktop:run) skip this, so loose PNGs + live reload still work.

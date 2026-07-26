@@ -1,9 +1,9 @@
 // Packaging pipeline for the desktop build. Applied from desktop/build.gradle.
 //
 // Tasks:
-//   gradlew :desktop:jar           → deploy/Michi-s-adventure.jar (fat, runnable via DesktopLauncher)
-//   gradlew :desktop:jpackageImage → jpackage_tmp/MichisAdventure/MichisAdventure.exe (+ copy to deploy)
-//   gradlew :desktop:installer     → deploy/MichiGame_Setup.exe (umbrella: jar→jpackage→Inno)
+//   gradlew :desktop:jar           → deploy/Echoes-of-the-Heir.jar (fat, runnable via DesktopLauncher)
+//   gradlew :desktop:jpackageImage → jpackage_tmp/EchoesOfTheHeir/EchoesOfTheHeir.exe (+ copy to deploy)
+//   gradlew :desktop:installer     → deploy/EchoesOfTheHeir_Setup.exe (umbrella: jar→jpackage→Inno)
 //
 // Requires on PATH/installed: JDK jpackage, Inno Setup 6 (ISCC).
 // Each is checked; missing optional tools warn instead of failing.
@@ -39,8 +39,8 @@ def jpackageTmp   = new File(rootDir, 'jpackage_tmp')
 // pointing --input at it makes each build bundle the previous build's installer, growing the
 // archive until Inno's integrity check fails ("The setup files are corrupted").
 def jpackageInput = new File(rootDir, 'build/jpackage_input')
-def appName       = 'MichisAdventure'
-def jarName       = 'Michi-s-adventure.jar'
+def appName       = 'EchoesOfTheHeir'
+def jarName       = 'Echoes-of-the-Heir.jar'
 def mainClass     = 'desktop.DesktopLauncher'
 def appVersion    = project.gameVersion.version
 
@@ -100,7 +100,7 @@ tasks.register('jpackageImage') {
 // ── Inno Setup installer (wraps the app-image). ──
 tasks.register('innoInstaller') {
     group = 'packaging'
-    description = 'Build deploy/MichiGame_Setup.exe via Inno Setup (ISCC).'
+    description = 'Build deploy/EchoesOfTheHeir_Setup.exe via Inno Setup (ISCC).'
     dependsOn tasks.named('jpackageImage')
     doLast {
         def iss = new File(buildToolsDir, 'setup_init.iss')
@@ -118,11 +118,11 @@ tasks.register('innoInstaller') {
         if (exitCode != 0) {
             throw new GradleException("[packaging] ISCC failed with exit code ${exitCode} — see output above.")
         }
-        def out = new File(deployDir, 'MichiGame_Setup.exe')
+        def out = new File(deployDir, 'EchoesOfTheHeir_Setup.exe')
         if (out.exists()) {
-            logger.lifecycle('[packaging] Installer: deploy/MichiGame_Setup.exe')
+            logger.lifecycle('[packaging] Installer: deploy/EchoesOfTheHeir_Setup.exe')
         } else {
-            throw new GradleException('[packaging] ISCC reported success but deploy/MichiGame_Setup.exe was not produced.')
+            throw new GradleException('[packaging] ISCC reported success but deploy/EchoesOfTheHeir_Setup.exe was not produced.')
         }
     }
 }

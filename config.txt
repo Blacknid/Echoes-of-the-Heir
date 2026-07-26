@@ -1,8 +1,8 @@
-fullscreen=Off
-musicVolume=0
-seVolume=2
+fullscreen=On
+musicVolume=3
+seVolume=3
 vsync=On
 fpsTarget=60
-graphicsQuality=0
+graphicsQuality=1
 stretchToFill=Off
 playerUsername=Blacknid
