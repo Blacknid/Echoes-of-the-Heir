@@ -40,8 +40,11 @@ services:
 
   save:
     build:
-      context: .
-      dockerfile: Dockerfile
+      # Context is the REPO ROOT, not SERVERS/: the Dockerfile's first stage
+      # builds the gameplay engine jar from the game's own core/ module, which
+      # lives outside this directory. All COPY paths are root-relative.
+      context: ..
+      dockerfile: SERVERS/Dockerfile
     image: michi-server:latest
     container_name: michi-save
     working_dir: /srv/save_server
@@ -85,8 +88,11 @@ services:
   patch:
     image: michi-server:latest
     build:
-      context: .
-      dockerfile: Dockerfile
+      # Context is the REPO ROOT, not SERVERS/: the Dockerfile's first stage
+      # builds the gameplay engine jar from the game's own core/ module, which
+      # lives outside this directory. All COPY paths are root-relative.
+      context: ..
+      dockerfile: SERVERS/Dockerfile
     container_name: michi-patch
     working_dir: /srv/patch_server
     command: ["python", "-u", "server.py"]
@@ -110,8 +116,11 @@ services:
   multiplayer:
     image: michi-server:latest
     build:
-      context: .
-      dockerfile: Dockerfile
+      # Context is the REPO ROOT, not SERVERS/: the Dockerfile's first stage
+      # builds the gameplay engine jar from the game's own core/ module, which
+      # lives outside this directory. All COPY paths are root-relative.
+      context: ..
+      dockerfile: SERVERS/Dockerfile
     container_name: michi-mp
     working_dir: /srv/multiplayer_server
     command: ["python", "-u", "server.py"]

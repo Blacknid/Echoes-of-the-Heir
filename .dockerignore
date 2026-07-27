@@ -1,0 +1,58 @@
+# Docker build context = the repository root (see SERVERS/docker-compose.yml),
+# because SERVERS/Dockerfile's first stage builds the gameplay engine jar from
+# core/. Without this file the whole tree — .git, the vendored Android SDK, and
+# ~290 MB of packaged build output in deploy/ — would be uploaded to the daemon
+# on every build.
+#
+# Only what the image genuinely needs is kept:
+#   SERVERS/**                      the three Python servers
+#   core/**, gradle*, *.gradle      inputs to the :core:engineJar stage
+
+.git
+.gitignore
+.github
+
+# Vendored Android SDK + launcher (local.properties points sdk.dir here).
+# Nothing in the server image or the engine jar needs it.
+android
+local.properties
+
+# Desktop launcher and its packaging output — not part of the headless engine.
+desktop
+deploy
+jpackage_tmp
+build_tools
+
+# Gradle build outputs and caches. Stale host artifacts must never shadow
+# what the engine stage builds inside the container.
+build
+*/build
+.gradle
+*/.gradle
+
+# Local runtime state, never part of an image.
+*.log
+save.dat
+local_save.dat
+activation.dat
+owner_secret.dat
+config.txt
+servers.txt
+file.txt
+mods
+
+# Server-side secrets and local state. The compose file bind-mounts the real
+# keys/config at run time; baking them into the image would leak them into
+# every layer.
+SERVERS/.env
+SERVERS/**/*.pem
+SERVERS/save_server/saves
+SERVERS/save_server/saves.db
+SERVERS/patch_server/patches
+
+# Docs and editor cruft.
+*.md
+*.odt
+.vscode
+.idea
+*.iml
