@@ -36,10 +36,20 @@ final class ShaderSources {
      * by prepending {@code #define SHADOW_STEPS 12} + {@code #define CHEAP 1} (fewer shadow steps, no
  * organic noise), see ShaderPipeline.
      */
-    static final String LIGHT_FRAG =
+    /** highp is OPTIONAL in GLSL ES 1.00 fragment shaders; requesting it where the driver lacks it is a
+     *  compile error that drops the whole pipeline to the baked/legacy path. GL_FRAGMENT_PRECISION_HIGH
+     *  is defined exactly when highp is available, so this compiles on every GLES device. */
+    private static final String PRECISION =
         "#ifdef GL_ES\n" +
-        "precision highp float;\n" +
-        "#endif\n" +
+        "  #ifdef GL_FRAGMENT_PRECISION_HIGH\n" +
+        "    precision highp float;\n" +
+        "  #else\n" +
+        "    precision mediump float;\n" +
+        "  #endif\n" +
+        "#endif\n";
+
+    static final String LIGHT_FRAG =
+        PRECISION +
         "varying vec2 v_uv;\n" +
         "uniform vec2  u_resolution;\n" +
         "uniform vec3  u_night;\n" +
@@ -86,6 +96,7 @@ final class ShaderSources {
         "    vec2 uvF = vec2(frag.x,     u_resolution.y - frag.y)     / u_resolution;\n" +
         "    float hard = 0.0;\n" +
         "    float soft = 0.0;\n" +
+        "    float taken = 0.0;\n" +
         "    float hitT = 1.0;\n" +
         "    for (int s = 1; s < SHADOW_STEPS; s++) {\n" +
         "        float t = float(s) / float(SHADOW_STEPS);\n" +
@@ -96,9 +107,15 @@ final class ShaderSources {
         "        hard = max(hard, occ * smoothstep(LIGHT_EXCLUDE, 0.35, t));\n" +
         "        if (occ > 0.4 && t < hitT) hitT = t;\n" +
         "        soft += occ;\n" +
+        "        taken += 1.0;\n" +
         "    }\n" +
-        "    soft /= float(SHADOW_STEPS);\n" +
-        "    float shade = clamp(hard * 0.80 + soft * 0.55, 0.0, 1.0);\n" +
+        // Normalize by steps actually TAKEN so `soft` is a true occluded FRACTION on both tiers.
+        "    soft /= max(taken, 1.0);\n" +
+        // SHADE RESPONSE: the terms SHARE the range. `hard*0.80 + soft*0.55` sums to 1.35, so `hard`
+        // alone spent 0.80 and the sum clamped to 1.0 at only ~37% occlusion — every deeper shadow came
+        // out identical, flat and hard-edged. `hard` now sets a floor and `soft` grades the rest, giving
+        // a monotonic 0.35..1.0 penumbra with no clamping. Keep identical to res/shaders/light.frag.
+        "    float shade = hard * (0.35 + 0.65 * soft);\n" +
         // Length taper: contact shadows stay deep; long stretched shadows melt ("oversized" fix).
         "    float behind = (1.0 - hitT) * (0.35 + 0.65 * distNorm);\n" +
         "    shade *= 1.0 - 0.70 * smoothstep(0.12, 0.80, behind);\n" +
@@ -150,16 +167,23 @@ final class ShaderSources {
         "    float darkAlpha = u_darkness * (1.0 - litClamped);\n" +
         // Dither kills 8-bit banding rings in the slow radial gradient (visible on MED).
         "    darkAlpha = clamp(darkAlpha + (hash(frag * 0.7) - 0.5) / 128.0, 0.0, 1.0);\n" +
+        // HUE EXTRACTION, guarded. normalize(lightTint + 0.0001) divides by a length of ~1.7e-4 when a
+        // fragment is barely lit; under mediump (what many Android drivers really give fragment shaders)
+        // that underflows to 0 and yields Inf/NaN, which then smears through the blur passes as a
+        // flickering white blotch. Guarding the LENGTH removes the singularity and changes nothing where
+        // the hue was already well-defined. Must stay identical to res/shaders/light.frag.
+        "    float tintLen = length(lightTint);\n" +
+        "    vec3  lightHue = lightTint / max(tintLen, 1e-4);\n" +
         "    vec3 tint = u_night;\n" +
-        "    if (lit > 0.001) {\n" +
-        "        vec3 lightHue = normalize(lightTint + 0.0001);\n" +
+        "    if (tintLen > 1e-4) {\n" +
         "        tint = mix(u_night, lightHue, clamp(0.45 * lit, 0.0, 0.75));\n" +
         "    }\n" +
         // PREMULTIPLIED output (composite with GL_ONE, ONE_MINUS_SRC_ALPHA): darkness multiplies the
         // scene down, warmGlow ADDS the light's warm hue where it falls, tapered out of the overbright
         // core so the center doesn't blow out to white under bloom.
-        "    vec3 warmGlow = normalize(lightTint + 0.0001) * litClamped * (0.14 * u_darkness);\n" +
-        "    gl_FragColor = vec4(tint * darkAlpha + warmGlow, darkAlpha);\n" +
+        "    vec3 warmGlow = lightHue * litClamped * (0.14 * u_darkness);\n" +
+        "    vec3 outRgb = clamp(tint * darkAlpha + warmGlow, 0.0, 4.0);\n" +
+        "    gl_FragColor = vec4(outRgb, darkAlpha);\n" +
         "}\n";
 
     /**
@@ -172,9 +196,7 @@ final class ShaderSources {
      * Runs additively over the lit scene, before bloom, so rims bloom too. Purely GPU.
      */
     static final String RIM_FRAG =
-        "#ifdef GL_ES\n" +
-        "precision highp float;\n" +
-        "#endif\n" +
+        PRECISION +
         "varying vec2 v_uv;\n" +
         "uniform sampler2D u_scene;\n" +
         "uniform sampler2D u_occluders;\n" +
@@ -230,7 +252,9 @@ final class ShaderSources {
         // Tint the rim by the sprite's own color (so a red cloak gets a warm-red rim, not white), lifted
         // toward the light color. Multiply by silhouette alpha so semi-transparent edges rim softly.
         "    vec3 spriteTint = sceneCol * 0.6 + 0.4;\n" +
-        "    vec3 outRim = rim * spriteTint * a * u_strength;\n" +
+        // Clamped: drawn additively onto the scene bloom then reads, so an unbounded value is amplified
+        // twice. Bounded rim keeps sprite edges warm, never blown out.
+        "    vec3 outRim = clamp(rim * spriteTint * a * u_strength, 0.0, 2.0);\n" +
         "    gl_FragColor = vec4(outRim, 1.0);\n" +
         "}\n";
 
@@ -245,7 +269,10 @@ final class ShaderSources {
         "uniform sampler2D u_scene;\n" +
         "uniform float u_threshold;\n" +   // luminance below this contributes no bloom
         "void main() {\n" +
-        "    vec3 c = texture2D(u_scene, v_uv).rgb;\n" +
+        // Clamp BEFORE any arithmetic: the blur passes that follow are wide separable kernels, so a
+        // single Inf/NaN texel would spread and then be added over the whole frame. A clamp also scrubs
+        // NaN (which fails both comparisons and resolves to the low bound).
+        "    vec3 c = clamp(texture2D(u_scene, v_uv).rgb, 0.0, 4.0);\n" +
         "    float lum = dot(c, vec3(0.299, 0.587, 0.114));\n" +
         "    float k = max(0.0, lum - u_threshold) / max(0.0001, 1.0 - u_threshold);\n" +
         "    gl_FragColor = vec4(c * k, 1.0);\n" +

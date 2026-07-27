@@ -15,10 +15,24 @@
 //   MED  — prepends "#define SHADOW_STEPS 12" and "#define CHEAP 1": fewer steps, no noise;
 //          light + real shadows still run on mobile-class GPUs.
 // MAX_LIGHTS must match ShaderPipeline.MAX_LIGHTS.
+// PRECISION — highp is OPTIONAL in a GLSL ES 1.00 fragment shader. Requesting it unconditionally on a
+// device whose driver lacks it is a COMPILE ERROR, which took the whole light pipeline down to the
+// baked fallback on some Android GPUs (the "no lighting at all on mobile" report). GL_FRAGMENT_PRECISION_HIGH
+// is defined by the driver exactly when highp is available, so this picks highp where it exists and
+// mediump where it doesn't, and compiles everywhere. The math below is written to survive mediump:
+// no normalize() of a near-zero vector, no divide by an unguarded length.
 #ifdef GL_ES
-precision highp float;
+  #ifdef GL_FRAGMENT_PRECISION_HIGH
+    precision highp float;
+  #else
+    precision mediump float;
+  #endif
 #endif
 
+// Must match ShaderPipeline.MAX_LIGHTS. Kept modest: GLSL ES 1.00 guarantees only 16 fragment uniform
+// vectors beyond the minimum, and 32 lights × 4 arrays is already a large uniform footprint on low-end
+// mobile GPUs. The loop below is bounded by this constant (required — GLSL ES 1.00 needs a
+// compile-time-constant loop bound) and breaks early at u_lightCount.
 #define MAX_LIGHTS 32
 
 #ifndef SHADOW_STEPS
@@ -80,6 +94,7 @@ float visibility(vec2 lightPos, vec2 frag, float distNorm) {
     vec2 uvF = vec2(frag.x,     u_resolution.y - frag.y)     / u_resolution;
     float hard = 0.0;
     float soft = 0.0;
+    float taken = 0.0;  // steps actually sampled (the loop skips the excluded head and tail)
     float hitT = 1.0;   // ray position of the first solid hit (1.0 = ray reached the fragment clean)
     for (int s = 1; s < SHADOW_STEPS; s++) {
         float t = float(s) / float(SHADOW_STEPS);
@@ -91,9 +106,24 @@ float visibility(vec2 lightPos, vec2 frag, float distNorm) {
         hard = max(hard, occ * smoothstep(LIGHT_EXCLUDE, 0.35, t));
         if (occ > 0.4 && t < hitT) hitT = t;
         soft += occ;
+        taken += 1.0;
     }
-    soft /= float(SHADOW_STEPS);
-    float shade = clamp(hard * 0.80 + soft * 0.55, 0.0, 1.0);
+    // Normalize by the steps actually TAKEN, not the nominal count: the loop skips the excluded head
+    // and tail, so HIGH (32) samples ~28 and MED (12) ~10. Dividing each by its own full count made
+    // `soft` mean slightly different things per tier; dividing by `taken` makes it a true occluded
+    // FRACTION of the marched span on both.
+    soft /= max(taken, 1.0);
+    // SHADE RESPONSE — the two terms must SHARE the 0..1 range, not both try to fill it.
+    // Previously this was `hard * 0.80 + soft * 0.55`, which sums to 1.35: the moment anything solid
+    // sat on the ray `hard` went to 1 and spent 0.80 of the budget on its own, leaving 0.20 of
+    // headroom, so the sum clamped to 1.0 at only ~37% occlusion. Every shadow past that threshold
+    // came out byte-for-byte identical — flat, uniformly dark, hard-edged. That is the "shadows don't
+    // work properly on HIGH" symptom, and it is worst on HIGH precisely because 28 samples resolve a
+    // fine `soft` gradient that the clamp then threw away.
+    // Now `hard` sets a floor (a definite blocker always reads as a real shadow) and `soft` grades the
+    // remaining range by how MUCH of the ray was blocked, so thin/grazing occluders give light
+    // penumbra and deeply-buried fragments go dark, monotonically, with no clamping in normal use.
+    float shade = hard * (0.35 + 0.65 * soft);
     // SHADOW LENGTH TAPER — shadows are anchored to their caster, not stamped across the whole pool.
     // `behind` = how far past its blocker this fragment sits (0 = contact, →1 = a long stretched
     // shadow), scaled by distance so short rays keep their full shadow. Contact shadows stay deep
@@ -170,18 +200,35 @@ void main() {
     // DITHER: ±0.5/255 of ordered-noise on the darkness alpha breaks the 8-bit banding rings that an
     // RGBA8888 mask shows across a slow radial gradient (the MED-tier "mid-radius ring").
     darkAlpha = clamp(darkAlpha + (hash(frag * 0.7) - 0.5) / 128.0, 0.0, 1.0);
-    // Colored light tint blended into the night, weighted by how lit the pixel is. Normalizing keeps
-    // the hue while the alpha carries brightness, so colored lamps tint their pool without graying out.
+    // HUE EXTRACTION — computed ONCE, guarded against the zero vector.
+    // `normalize(lightTint + 0.0001)` was the single most dangerous line in this shader. When a
+    // fragment is barely lit, lightTint tends to (0,0,0); adding 0.0001 to each channel gives a vector
+    // of length ~1.7e-4, and normalize() divides by it. In mediump — which is what most Android GLES
+    // drivers actually give a fragment shader regardless of the highp request, since highp support is
+    // optional in GLSL ES 1.00 — that length UNDERFLOWS to exactly 0 and the divide yields Inf/NaN.
+    // A NaN here propagates through gl_FragColor into the light mask, and because that mask is then
+    // blended over the scene AND fed to the bloom bright-pass, one NaN texel smears into a flickering
+    // white blotch. Adding a scalar epsilon to the LENGTH instead of the vector removes the singularity
+    // entirely while leaving the hue unchanged everywhere it was already well-defined.
+    // This is the medium/high-tier "broken lighting": it needs several lights close together (the
+    // Phantom arena's torches plus the player light) to push enough near-zero fragments through the
+    // divide for the artifact to become constant rather than a rare sparkle.
+    float tintLen = length(lightTint);
+    vec3  lightHue = lightTint / max(tintLen, 1e-4);
+    // Colored light tint blended into the night, weighted by how lit the pixel is. Using the hue keeps
+    // the color while the alpha carries brightness, so colored lamps tint their pool without graying out.
     vec3 tint = u_night;
-    if (lit > 0.001) {
-        vec3 lightHue = normalize(lightTint + 0.0001);
+    if (tintLen > 1e-4) {
         tint = mix(u_night, lightHue, clamp(0.45 * lit, 0.0, 0.75));
     }
     // WARM GLOW (premultiplied add): pour the light's warm HUE back onto the scene where light falls.
-    // Normalized hue × a modest scalar — NOT the raw accumulated magnitude (which reached ~0.35/channel
-    // at the core and, stacked with bloom, blew the player out to a white ball). Monotonic in litClamped
+    // Hue × a modest scalar — NOT the raw accumulated magnitude (which reached ~0.35/channel at the
+    // core and, stacked with bloom, blew the player out to a white ball). Monotonic in litClamped
     // (a mid-radius taper reads as an ugly glow donut). Scaled by u_darkness so the wash only exists
     // when it's actually dark (no daytime tinting).
-    vec3 warmGlow = normalize(lightTint + 0.0001) * litClamped * (0.14 * u_darkness);
-    gl_FragColor = vec4(tint * darkAlpha + warmGlow, darkAlpha);
+    vec3 warmGlow = lightHue * litClamped * (0.14 * u_darkness);
+    // Final guard: clamp to a sane range so no single bad texel can ever reach the bloom bright-pass
+    // as an out-of-range or negative value. Costs nothing and makes the mask total-garbage-proof.
+    vec3 outRgb = clamp(tint * darkAlpha + warmGlow, 0.0, 4.0);
+    gl_FragColor = vec4(outRgb, darkAlpha);
 }

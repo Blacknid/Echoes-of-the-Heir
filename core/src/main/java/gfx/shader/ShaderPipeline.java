@@ -98,6 +98,9 @@ public final class ShaderPipeline {
                 // MED/mobile light variant: the SAME light.frag source compiled with defines prepended
                 // (fewer shadow-march steps, organic noise stripped). Optional, any failure logs and
                 // leaves lightCheap null, and renderLightMask silently reuses the full shader.
+                // Prepending #define lines only works if they land ABOVE the first use of the macro AND
+                // the source has no #version line (libGDX adds one itself, and a #define before #version
+                // is a compile error). Our .frag files intentionally omit #version, so prepending is safe.
                 String cheapFrag = CHEAP_DEFINES + src("res/shaders/light.frag", ShaderSources.LIGHT_FRAG);
                 lightCheap = new ShaderProgram(vertFile, cheapFrag);
                 if (!lightCheap.isCompiled()) {
@@ -405,6 +408,40 @@ public final class ShaderPipeline {
         if (fb.isCompiled()) { p.dispose(); return fb; }
         fb.dispose();
         return p; // both failed; return the original so its log surfaces
+    }
+
+    /**
+     * Diagnostic: compile every BAKED-IN fallback source (including the MED/cheap light variant) against
+     * the current GL context and return a human-readable per-variant report, with "FAIL" appearing in it
+     * if any variant failed.
+     *
+     * <p>The baked strings in {@code ShaderSources} are a second, hand-maintained copy of the same GLSL
+     * that lives in {@code res/shaders/*.frag}, used whenever a shader file is missing or unreadable —
+     * a genuinely reachable path on Android. The two copies have drifted apart before, and a file-source
+     * pass does NOT imply the fallback also compiles. This exists so that can be verified directly
+     * rather than assumed. Requires a live GL context; harmless to call, disposes everything it makes.
+     */
+    public static String verifyBakedSources() {
+        StringBuilder sb = new StringBuilder();
+        String vert = ShaderSources.FULLSCREEN_VERT;
+        String[] names = { "LIGHT", "LIGHT(cheap)", "RIM", "BLOOM_BRIGHT", "BLOOM_BLUR",
+                           "BLOOM_COMBINE", "GRADE" };
+        String[] frags = {
+            ShaderSources.LIGHT_FRAG,
+            CHEAP_DEFINES + ShaderSources.LIGHT_FRAG,
+            ShaderSources.RIM_FRAG,
+            ShaderSources.BLOOM_BRIGHT_FRAG,
+            ShaderSources.BLOOM_BLUR_FRAG,
+            ShaderSources.BLOOM_COMBINE_FRAG,
+            ShaderSources.GRADE_FRAG,
+        };
+        for (int i = 0; i < frags.length; i++) {
+            ShaderProgram p = new ShaderProgram(vert, frags[i]);
+            sb.append("  baked ").append(names[i]).append(": ")
+              .append(p.isCompiled() ? "PASS" : "FAIL — " + p.getLog()).append('\n');
+            p.dispose();
+        }
+        return sb.toString();
     }
 
     private static Mesh buildFullscreenQuad() {

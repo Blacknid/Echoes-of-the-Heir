@@ -3,6 +3,6 @@ musicVolume=3
 seVolume=3
 vsync=On
 fpsTarget=60
-graphicsQuality=0
+graphicsQuality=2
 stretchToFill=Off
 playerUsername=Blacknidd

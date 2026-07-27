@@ -1,8 +1,15 @@
 // Per-sprite RIM LIGHTING — screen-space, no hitboxes. Reads the occluder silhouette mask + scene
 // color, computes each silhouette edge normal from the alpha gradient, and adds a warm rim where that
 // edge faces a light, tinted by both the light color and the sprite's own color. Additive, before bloom.
+// highp is optional in GLSL ES 1.00 fragment shaders — request it only when the driver advertises it,
+// else this shader fails to compile and takes the whole post chain (grade + rim + bloom) down with it,
+// since ShaderPipeline groups them into one bloomOk flag. See the same guard in light.frag.
 #ifdef GL_ES
-precision highp float;
+  #ifdef GL_FRAGMENT_PRECISION_HIGH
+    precision highp float;
+  #else
+    precision mediump float;
+  #endif
 #endif
 
 #define MAX_LIGHTS 32
@@ -55,6 +62,8 @@ void main() {
     }
     // Tint the rim by the sprite's own color (a red cloak -> warm-red rim, not white).
     vec3 spriteTint = sceneCol * 0.6 + 0.4;
-    vec3 outRim = rim * spriteTint * a * u_strength;
+    // Clamped: this pass draws ADDITIVELY straight onto the scene that bloom then reads, so an
+    // unbounded value here would be amplified twice. Bounded rim keeps sprite edges warm, never blown.
+    vec3 outRim = clamp(rim * spriteTint * a * u_strength, 0.0, 2.0);
     gl_FragColor = vec4(outRim, 1.0);
 }

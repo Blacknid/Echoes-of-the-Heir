@@ -488,6 +488,10 @@ public class GdxRenderer {
     // recreated on resize. See Lightning.draw.
     private com.badlogic.gdx.graphics.glutils.FrameBuffer lightFbo;
     private int lightFboW, lightFboH;
+    // Shake-corrected copies of the caller's light positions, reused each frame (never per-frame
+    // allocated). See renderShaderLightMask.
+    private float[] shakeLx = new float[gfx.shader.ShaderPipeline.MAX_LIGHTS];
+    private float[] shakeLy = new float[gfx.shader.ShaderPipeline.MAX_LIGHTS];
     /** True when the mask in lightFbo was written by the GLSL light shader, whose output is
      *  PREMULTIPLIED (rgb = night*alpha + additive warm glow) and must composite with
      *  (GL_ONE, ONE_MINUS_SRC_ALPHA). The legacy baked mask is straight-alpha (normal blend). */
@@ -586,8 +590,16 @@ public class GdxRenderer {
         Matrix4 m = new Matrix4().setToOrtho(0, screenW, screenH, 0, 0, 1);
         batch.setProjectionMatrix(m);
         shapes.setProjectionMatrix(m);
-        batch.setTransformMatrix(new Matrix4());
-        shapes.setTransformMatrix(new Matrix4());
+        // The occluder mask MUST carry the same world transform the scene was drawn with. Entities
+        // compute their occluder rect from raw world coords (drawOccluder), exactly like draw() does,
+        // and the visible scene had camera-shake (and any dialogue pan/zoom) applied on top via the
+        // batch transform. Forcing identity here dropped that offset, so every silhouette landed at its
+        // UNSHAKEN position while the lit scene underneath was shaken. The light shader then ray-marched
+        // a mask offset from the real sprites: shadows tore away from their casters and strobed with the
+        // shake. That is the boss-fight breakage — the Phantom fight shakes the screen on every hit,
+        // teleport and phase change, so the desync is continuous there and merely occasional elsewhere.
+        // Reusing the live transform keeps mask and scene in lockstep on every tier and platform.
+        applyTransform();
         // Silhouettes must be drawn fully opaque so the shader reads a crisp occluder alpha. Reset any
         // stale alpha left by a prior draw (drawImageTinted multiplies its arg by this field), else
         // faint silhouettes would cast faint/no shadows.
@@ -709,9 +721,17 @@ public class GdxRenderer {
         Gdx.gl.glViewport(0, 0, lightFboW, lightFboH);
         Gdx.gl.glClearColor(0f, 0f, 0f, 0f);
         Gdx.gl.glClear(com.badlogic.gdx.graphics.GL20.GL_COLOR_BUFFER_BIT);
+        // This is a fullscreen shader pass: it does NOT go through the batch, so the world transform
+        // (camera shake, dialogue pan) never reaches it. The caller computed every light position in
+        // UNSHAKEN screen space, while the scene and the occluder mask both carry the shake. Shift the
+        // light centers by the same offset here so all three agree. Without this the pools stayed put
+        // while the world jittered under them — light sliding off the player on every boss hit.
+        int n = Math.min(lightCount, gfx.shader.ShaderPipeline.MAX_LIGHTS);
+        if (shakeLx.length < n) { shakeLx = new float[n]; shakeLy = new float[n]; }
+        for (int i = 0; i < n; i++) { shakeLx[i] = lx[i] + tx; shakeLy[i] = ly[i] + ty; }
         pipe.renderLightMask(screenW, screenH,
             night.getRed() / 255f, night.getGreen() / 255f, night.getBlue() / 255f, darkness,
-            lightCount, lx, ly, lwx, lwy, lrad, lr, lg, lb, lint,
+            n, shakeLx, shakeLy, lwx, lwy, lrad, lr, lg, lb, lint,
             shadows ? occluderTexture() : null, shadows, cheap);
         lightFbo.end();
         rebindActiveTarget();
