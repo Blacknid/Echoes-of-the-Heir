@@ -17,13 +17,20 @@ import com.sun.net.httpserver.HttpServer;
 import platform.ItchAuthProvider;
 
 /**
- * Desktop itch.io OAuth, used purely as proof of purchase, exactly once, at first activation.
+ * Desktop itch.io OAuth, used as proof of <i>identity</i>, exactly once, at first activation.
  *
  * <p><b>itch is the door, not the landlord.</b> The token this returns is handed to our save
- * server, which asks itch "did this account buy the game?" and, if so, issues a license that
- * belongs to <i>us</i>. From then on the game authenticates with that license (activation_id +
- * encrypted blob) and itch is never contacted again, the player can play offline, without the
- * itch app, forever.
+ * server, which resolves it to a real itch.io account and issues a license that belongs to
+ * <i>us</i>. From then on the game authenticates with that license (activation_id + encrypted
+ * blob) and itch is never contacted again, the player can play offline, without the itch app,
+ * forever.
+ *
+ * <p>The game is free, so this is no longer a <i>purchase</i> check: itch does not mint a
+ * download key for a free download, only for a purchase or an explicit claim, so requiring one
+ * would refuse ordinary players. What the token still buys us is (a) rate-limiting activation
+ * behind "you must have a real itch.io account", which is what keeps bulk/abusive activation
+ * expensive, and (b) a stable identity, which is the ONLY way a player who loses
+ * {@code activation.dat} can be reunited with their existing cloud saves.
  *
  * <p>The loopback listener is likewise one-shot: it binds an ephemeral port, waits for the single
  * redirect carrying the token, and shuts down. Nothing keeps running in the background.
@@ -54,6 +61,14 @@ public final class DesktopItchAuth implements ItchAuthProvider {
     private static final int AUTH_TIMEOUT_SECONDS = 180;
 
     /**
+     * Sentinel pushed onto the result queue when the flow finished but produced no token
+     * (player denied, or itch returned an error). Distinct from "nothing arrived at all",
+     * which is a timeout — without it a denial waited out the full timeout for no reason.
+     * A real itch token can never collide with this: {@code :} is outside the token charset.
+     */
+    private static final String DENIED = "denied:no-token";
+
+    /**
  * itch.io validates redirect_uri with an exact string match, it does NOT accept a
      * registered "http://127.0.0.1/" on an arbitrary port. Must match the redirect URI
      * registered on the OAuth application exactly, port included.
@@ -64,27 +79,52 @@ public final class DesktopItchAuth implements ItchAuthProvider {
     public String authorize() {
         if (CLIENT_ID.isBlank()) {
             System.out.println("[Itch] No OAuth client id configured (set michi.itch.clientId "
-                    + "or bake one into DesktopItchAuth) — skipping the purchase check.");
+                    + "or bake one into DesktopItchAuth) — skipping the itch sign-in.");
             return null;
         }
 
         HttpServer server = null;
         try {
-            server = HttpServer.create(new InetSocketAddress("127.0.0.1", REDIRECT_PORT), 0);
+            try {
+                server = HttpServer.create(new InetSocketAddress("127.0.0.1", REDIRECT_PORT), 0);
+            } catch (java.net.BindException bind) {
+                // The port is fixed by itch's exact redirect_uri matching, so we cannot fall
+                // back to an ephemeral one — a different port would just be rejected by itch.
+                // Usually this is a previous run's listener that hasn't released the socket yet
+                // (TIME_WAIT), so one short retry clears it. If something else genuinely owns
+                // the port, say so in plain language instead of dying as a silent IOException,
+                // which used to read to the player as "activation just doesn't work".
+                System.out.println("[Itch] Port " + REDIRECT_PORT + " busy (" + bind.getMessage()
+                        + ") — retrying once.");
+                try {
+                    Thread.sleep(1200);
+                    server = HttpServer.create(new InetSocketAddress("127.0.0.1", REDIRECT_PORT), 0);
+                } catch (InterruptedException ie) {
+                    Thread.currentThread().interrupt();
+                    return null;
+                } catch (IOException stillBusy) {
+                    System.out.println("[Itch] Port " + REDIRECT_PORT + " is still in use — "
+                            + "cannot run the sign-in flow. Close any other copy of the game and retry.");
+                    showBlockedPortDialog();
+                    return null;
+                }
+            }
             final int port = server.getAddress().getPort();
             final String redirectUri = "http://127.0.0.1:" + port + "/";
 
             final ArrayBlockingQueue<String> result = new ArrayBlockingQueue<>(1);
 
             server.createContext("/", exchange -> {
-                String token = paramValue(exchange.getRequestURI().getRawQuery(), "access_token");
+                String query = exchange.getRequestURI().getRawQuery();
+                String token = paramValue(query, "access_token");
+                String error = paramValue(query, "error");
 
-                if (token == null) {
+                if (token == null && error == null) {
                     // itch returns the token in the URL *fragment*, which browsers never send to
                     // the server. Serve a page whose JS copies the fragment into the query string
                     // and re-requests, the second hit is the one that actually carries the token.
                     respond(exchange,
-                            "<p>Verifying your itch.io purchase…</p>"
+                            "<p>Signing you in with itch.io…</p>"
                           + "<script>"
                           + "var f=location.hash.slice(1);"
                           + "location.replace(location.pathname+'?'+(f||'error=no_fragment'));"
@@ -92,11 +132,27 @@ public final class DesktopItchAuth implements ItchAuthProvider {
                     return;
                 }
 
-                boolean ok = !token.isBlank();
-                respond(exchange, ok
-                        ? "<h2>You're all set.</h2><p>Return to the game — you can close this tab.</p>"
-                        : "<h2>Something went wrong.</h2><p>Please try again from the game.</p>");
-                if (ok) result.offer(token);
+                if (token == null || token.isBlank()) {
+                    // The player denied access, or itch reported a problem. Previously this
+                    // re-served the bootstrap page, so a denied sign-in bounced between the
+                    // redirect and this handler until the 180s timeout expired with no
+                    // explanation. Answer once, and unblock the waiting thread immediately.
+                    String detail = "access_denied".equals(error)
+                            ? "You declined the sign-in request."
+                            : "no_fragment".equals(error)
+                                ? "The sign-in response came back empty."
+                                : "itch.io reported: " + safeText(error);
+                    respond(exchange, "<h2>Sign-in wasn't completed.</h2><p>" + detail
+                            + "</p><p>Return to the game and try again.</p>");
+                    System.out.println("[Itch] Authorization did not complete: "
+                            + (error == null ? "empty token" : error));
+                    result.offer(DENIED);
+                    return;
+                }
+
+                respond(exchange,
+                        "<h2>You're all set.</h2><p>Return to the game — you can close this tab.</p>");
+                result.offer(token);
             });
 
             server.start();
@@ -119,10 +175,12 @@ public final class DesktopItchAuth implements ItchAuthProvider {
 
             String token = result.poll(AUTH_TIMEOUT_SECONDS, TimeUnit.SECONDS);
             if (token == null) {
-                System.out.println("[Itch] Authorization timed out or was cancelled.");
+                System.out.println("[Itch] Authorization timed out after "
+                        + AUTH_TIMEOUT_SECONDS + "s (no response from the browser).");
                 return null;
             }
-            System.out.println("[Itch] Authorization complete — sending proof of purchase.");
+            if (DENIED.equals(token)) return null;  // handled and reported above
+            System.out.println("[Itch] Signed in — sending proof of identity.");
             return token;
 
         } catch (IOException e) {
@@ -184,7 +242,7 @@ public final class DesktopItchAuth implements ItchAuthProvider {
             javax.swing.JPanel panel = new javax.swing.JPanel(new java.awt.BorderLayout(0, 8));
             panel.add(new javax.swing.JLabel(
                     "<html>We couldn't open your browser automatically.<br>"
-                  + "Copy this link into a browser to verify your itch.io purchase, "
+                  + "Copy this link into a browser to sign in with itch.io, "
                   + "then return to the game:</html>"), java.awt.BorderLayout.NORTH);
             panel.add(scroll, java.awt.BorderLayout.CENTER);
 
@@ -197,12 +255,43 @@ public final class DesktopItchAuth implements ItchAuthProvider {
                             .setContents(new java.awt.datatransfer.StringSelection(authUrl), null);
                 } catch (RuntimeException ignored) { /* headless / no clipboard, dialog still shows */ }
                 javax.swing.JOptionPane.showMessageDialog(null, panel,
-                        "Michi's Adventure — verify your purchase",
+                        "Michi's Adventure — sign in with itch.io",
                         javax.swing.JOptionPane.INFORMATION_MESSAGE);
             });
         } catch (Exception e) {
             // If even Swing is unavailable, we've done all we can, the URL is still in the log.
             System.out.println("[Itch] Could not show manual-auth dialog (" + e + "). URL:\n" + authUrl);
+        }
+    }
+
+    /**
+     * Escape a value that came back in the redirect before echoing it into the response page.
+     * The query string is attacker-influenceable (anything can hit this loopback listener), so
+     * reflecting it raw would be a self-XSS vector, minor here but free to avoid.
+     */
+    private static String safeText(String s) {
+        if (s == null || s.isBlank()) return "the sign-in was not completed";
+        String trimmed = s.length() > 100 ? s.substring(0, 100) : s;
+        return trimmed.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
+                      .replace("\"", "&quot;");
+    }
+
+    /**
+     * Shown when the fixed redirect port can't be bound. The packaged .exe has no console, so
+     * without this the sign-in would appear to do nothing at all.
+     */
+    private static void showBlockedPortDialog() {
+        try {
+            javax.swing.SwingUtilities.invokeAndWait(() -> javax.swing.JOptionPane.showMessageDialog(
+                    null,
+                    "<html>Couldn't start the itch.io sign-in step because port " + REDIRECT_PORT
+                  + " on this computer is already in use.<br><br>"
+                  + "This usually means another copy of the game is already running.<br>"
+                  + "Close it and start the game again.</html>",
+                    "Michi's Adventure — sign-in unavailable",
+                    javax.swing.JOptionPane.WARNING_MESSAGE));
+        } catch (Exception e) {
+            System.out.println("[Itch] Port " + REDIRECT_PORT + " blocked; dialog failed too: " + e);
         }
     }
 

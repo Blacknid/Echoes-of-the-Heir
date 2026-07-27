@@ -132,6 +132,23 @@ DEFAULT_CONFIG = {
     # developer/admin never holds one for their own game, so without this the owner is
     # permanently locked out of their own gated build. Comma-separated if there's more than one.
     "itch_owner_user_ids": "",
+    # Does a player need a download key in their itch library, or is any authenticated itch
+    # account enough?
+    #
+    # The game is FREE ($0). itch does NOT mint a download key when someone downloads a free
+    # project — only a purchase or an explicit *claim* creates one. So with this set true,
+    # every player who simply hits "Download" is refused with ITCH_NOT_OWNED despite having
+    # done nothing wrong. That is a lockout, not a gate.
+    #
+    # Left false, ACTIVATE requires a valid OAuth token that resolves to a real itch account,
+    # and the download-key result is recorded on the license (licenses.itch_has_key) purely as
+    # a signal. That still does the anti-abuse work this gate exists for: an attacker cannot
+    # mint activations in bulk without minting itch.io accounts in bulk, which itch rate-limits
+    # on its own side.
+    #
+    # Flip to true only if the project is priced/claimable such that real players actually
+    # hold keys — no client update is needed, it is read per-ACTIVATE.
+    "itch_require_download_key": False,
     # A secret the owner generates themselves (NOT an itch token) and passes as the
     # "itch_token" field to activate without ever going through itch OAuth. Needed because
     # itch only issues an OAuth access_token to accounts that BUY the game through the
@@ -194,6 +211,9 @@ def load_config() -> dict:
                                   or cfg.get("itch_owner_user_ids", ""))
     cfg["itch_owner_secret"] = (os.environ.get("MICHI_ITCH_OWNER_SECRET", "").strip()
                                or cfg.get("itch_owner_secret", ""))
+    require_key_env = os.environ.get("MICHI_ITCH_REQUIRE_DOWNLOAD_KEY", "").strip().lower()
+    if require_key_env:
+        cfg["itch_require_download_key"] = require_key_env in ("1", "true", "yes", "on")
     return cfg
 
 
@@ -284,7 +304,8 @@ def init_db() -> None:
                 activation_id  TEXT    NOT NULL UNIQUE,
                 enc_key_b64    TEXT    NOT NULL,
                 created_at     TEXT    NOT NULL,
-                itch_user_id   INTEGER
+                itch_user_id   INTEGER,
+                itch_has_key   INTEGER
             )
         """)
         # Older DBs predate the itch gate. Existing licenses keep itch_user_id = NULL and stay
@@ -293,6 +314,12 @@ def init_db() -> None:
         license_cols = {row[1] for row in con.execute("PRAGMA table_info(licenses)").fetchall()}
         if "itch_user_id" not in license_cols:
             con.execute("ALTER TABLE licenses ADD COLUMN itch_user_id INTEGER")
+        # Whether itch reported a claimed/purchased download key for this account at
+        # activation time. Recorded as a signal only — the game is free, and a free download
+        # never mints a key, so this is NULL/0 for most legitimate players. Never gate on it
+        # directly; that is what itch_require_download_key is for.
+        if "itch_has_key" not in license_cols:
+            con.execute("ALTER TABLE licenses ADD COLUMN itch_has_key INTEGER")
         # One itch account = one license. Enforced in the DB, not just in code, so a race
         # between two concurrent ACTIVATEs from the same buyer cannot mint two licenses.
         # Partial index: legacy NULL rows are exempt.
@@ -390,16 +417,28 @@ def _itch_get(url: str, timeout: float) -> tuple[int, dict]:
         raise ItchError(f"{type(exc).__name__}: {exc}") from exc
 
 
-def itch_verify_purchase(cfg: dict, oauth_token: str) -> tuple[bool, str]:
-    """Does the itch user behind `oauth_token` own this game?
+def itch_verify_purchase(cfg: dict, oauth_token: str) -> tuple[bool, str, Optional[int], bool]:
+    """Is the bearer of `oauth_token` allowed to activate?
 
-    Returns (owns, detail). `detail` is the itch username/id for logging.
+    Returns (allowed, detail, itch_user_id, has_download_key).
+      * `detail` is the itch username/id, for logging.
+      * `itch_user_id` is None for the owner-secret bypass (no real itch account behind it).
+      * `has_download_key` is whether itch reports a claimed/purchased key for this user —
+        recorded on the license as a signal, and only *enforced* when the
+        `itch_require_download_key` config flag is on.
+
     Raises ItchError if itch itself is unreachable — the caller must then FAIL the
     activation rather than assume ownership.
+
+    The game is free, and itch does not mint a download key for a plain free download
+    (only a purchase or an explicit claim does). Requiring a key therefore locks out
+    ordinary players; identity alone is what carries the anti-abuse weight here. See
+    the `itch_require_download_key` comment in DEFAULT_CONFIG.
     """
     timeout = float(cfg.get("itch_api_timeout_seconds", 10))
     api_key = str(cfg.get("itch_api_key", ""))
     game_id = int(cfg.get("itch_game_id") or 0)
+    require_key = bool(cfg.get("itch_require_download_key", False))
 
     # Owner activation without itch OAuth at all. itch only hands out an access_token to
     # accounts that bought the game through the storefront — the developer's own account
@@ -407,38 +446,42 @@ def itch_verify_purchase(cfg: dict, oauth_token: str) -> tuple[bool, str]:
     # resolve a user_id in the first place) is unreachable for the owner. This lets the
     # owner activate with a secret they generate themselves instead of an itch token.
     owner_secret = str(cfg.get("itch_owner_secret", ""))
-    if owner_secret and oauth_token == f"ownerkey:{owner_secret}":
-        return True, "owner (secret bypass)"
+    if owner_secret and hmac.compare_digest(oauth_token or "", f"ownerkey:{owner_secret}"):
+        return True, "owner (secret bypass)", None, True
 
     if not oauth_token or not _ITCH_TOKEN_RE.match(oauth_token):
-        return False, "malformed-token"
+        return False, "malformed-token", None, False
 
-    # 1. Identify the player from their own token.
+    # 1. Identify the player from their own token. This is the load-bearing check now:
+    #    a valid token proves a real itch.io account, which is what makes bulk activation
+    #    expensive for an attacker.
     status, body = _itch_get(f"{ITCH_API_BASE}/{urllib.parse.quote(oauth_token)}/me", timeout)
     if status != 200 or not isinstance(body.get("user"), dict):
         # A bad/expired token is a definitive "no", not an outage.
-        return False, "bad-token"
+        return False, "bad-token", None, False
     user = body["user"]
     user_id = user.get("id")
     username = str(user.get("username", "?"))
     if not isinstance(user_id, int):
-        return False, "no-user-id"
+        return False, "no-user-id", None, False
 
     # The game's own developer/admin never holds a download key for their own game —
     # itch's API only tracks claimed *purchase* keys, not dashboard/admin access. Without
     # this, the owner is permanently locked out of their own gated build.
     owner_ids = {s.strip() for s in str(cfg.get("itch_owner_user_ids", "")).split(",") if s.strip()}
     if str(user_id) in owner_ids:
-        return True, f"{username}#{user_id} (owner bypass)"
+        return True, f"{username}#{user_id} (owner bypass)", user_id, True
 
     # 2. Ask itch — with OUR key — whether that user holds a download key for OUR game.
+    #    Recorded either way; only a gate when itch_require_download_key is on.
     url = (f"{ITCH_API_BASE}/{urllib.parse.quote(api_key)}/game/{game_id}"
            f"/download_keys?user_id={user_id}")
     status, body = _itch_get(url, timeout)
     if status == 200 and isinstance(body.get("download_key"), dict):
-        return True, f"{username}#{user_id}"
+        return True, f"{username}#{user_id}", user_id, True
     if status == 404 or "errors" in body:
-        return False, f"{username}#{user_id}"
+        # No key in their library. For a free game this is the NORMAL case.
+        return (not require_key), f"{username}#{user_id} (no download key)", user_id, False
     # Anything else (5xx, weird shape) is inconclusive — do not guess.
     raise ItchError(f"unexpected download_keys response: status={status} body={body!r}")
 
@@ -455,16 +498,21 @@ def _random_license_key() -> str:
     return f"{prefix}-{suffix}"
 
 
-def create_license(itch_user_id: Optional[int] = None) -> tuple[str, str, bytes]:
+def create_license(itch_user_id: Optional[int] = None,
+                   itch_has_key: bool = False) -> tuple[str, str, bytes]:
     """
     Issue a brand-new license online: random license_key + activation_id + enc_key,
     persisted in the `licenses` table. Returns (license_key, activation_id, enc_key).
 
-    If `itch_user_id` already has a license (the buyer reinstalled, or wiped
+    If `itch_user_id` already has a license (the player reinstalled, or wiped
     activation.dat), the EXISTING one is re-issued with a fresh activation_id and enc_key
     rather than a second license being minted. That keeps their saves/friends/username —
     all of which hang off license_key — intact across a reinstall, while still ensuring one
-    purchase can never become two accounts.
+    itch account can never become two game accounts. This is the ONLY cloud-save recovery
+    path, which is why resolving a real itch identity still matters even though the game is
+    free: without an itch_user_id, a wiped activation.dat is unrecoverable.
+
+    `itch_has_key` is recorded for reporting only and never affects issuance.
     """
     enc_key = os.urandom(32)
     enc_key_b64 = base64.b64encode(enc_key).decode("ascii")
@@ -488,9 +536,10 @@ def create_license(itch_user_id: Optional[int] = None) -> tuple[str, str, bytes]
                     if row is not None:
                         try:
                             con.execute(
-                                """UPDATE licenses SET activation_id = ?, enc_key_b64 = ?
+                                """UPDATE licenses SET activation_id = ?, enc_key_b64 = ?,
+                                          itch_has_key = ?
                                    WHERE license_key = ?""",
-                                (activation_id, enc_key_b64, row[0]),
+                                (activation_id, enc_key_b64, 1 if itch_has_key else 0, row[0]),
                             )
                             con.commit()
                             return row[0], activation_id, enc_key
@@ -501,9 +550,11 @@ def create_license(itch_user_id: Optional[int] = None) -> tuple[str, str, bytes]
                     license_key = _random_license_key()
                     con.execute(
                         """INSERT INTO licenses
-                               (license_key, activation_id, enc_key_b64, created_at, itch_user_id)
-                           VALUES (?, ?, ?, ?, ?)""",
-                        (license_key, activation_id, enc_key_b64, now, itch_user_id),
+                               (license_key, activation_id, enc_key_b64, created_at,
+                                itch_user_id, itch_has_key)
+                           VALUES (?, ?, ?, ?, ?, ?)""",
+                        (license_key, activation_id, enc_key_b64, now, itch_user_id,
+                         1 if itch_has_key else 0),
                     )
                     con.commit()
                     return license_key, activation_id, enc_key
@@ -1101,6 +1152,7 @@ def handle_client(conn: socket.socket, addr: tuple[str, int],
             # authenticates with (activation_id, enc_blob) forever after and itch is never
             # consulted again — the license is ours, itch is just the door.
             itch_user_id = None
+            has_key = False
             if itch_is_configured(cfg):
                 # Preferred: the AES-GCM box alongside the envelope (no size cap). Fallback:
                 # the old in-envelope "itch_token" field, so builds shipped before the box
@@ -1128,7 +1180,7 @@ def handle_client(conn: socket.socket, addr: tuple[str, int],
                         logging.warning("Undecryptable itch token box from %s: %s", client_ip, exc)
                         return
                 try:
-                    owns, who = itch_verify_purchase(cfg, itch_token)
+                    owns, who, resolved_uid, has_key = itch_verify_purchase(cfg, itch_token)
                 except ItchError as exc:
                     # itch is down / unreachable. We must NOT issue a license on an
                     # inconclusive answer, but this is our outage, not the player's fault —
@@ -1140,16 +1192,17 @@ def handle_client(conn: socket.socket, addr: tuple[str, int],
                 if not owns:
                     send_line(conn, "ITCH_NOT_OWNED")
                     status = f"ACTIVATE_ITCH_NOT_OWNED:{who}"
-                    logging.info("Activation refused from %s — itch user %s does not own the game",
+                    logging.info("Activation refused from %s — itch user %s did not pass the gate",
                                  client_ip, who)
                     return
-                # The owner-secret bypass has no real itch account behind it ("owner (secret
-                # bypass)" has no "#<id>") — leave itch_user_id as None, same as a pre-gate
-                # license or an unconfigured gate. Only a genuine itch identity (username#id)
-                # gets recorded against the one-license-per-itch-account unique index.
-                if "#" in who:
-                    itch_user_id = int(who.rsplit("#", 1)[1])
-                logging.info("itch.io purchase verified for %s (ip=%s)", who, client_ip)
+                # The owner-secret bypass has no real itch account behind it, so resolved_uid
+                # is None there — same as a pre-gate license or an unconfigured gate. Only a
+                # genuine itch identity gets recorded against the one-license-per-account
+                # unique index. Taken from the return value rather than re-parsed out of the
+                # human-readable `who` string, which carries annotations like "(no download key)".
+                itch_user_id = resolved_uid
+                logging.info("itch.io identity verified for %s (ip=%s, download_key=%s)",
+                             who, client_ip, "yes" if has_key else "no")
             elif not cfg.get("dev_mode", False):
                 # Unconfigured in production = the old broken behaviour (free licenses for
                 # anyone who asks). Allowed so the server still boots, but never silently.
@@ -1160,7 +1213,7 @@ def handle_client(conn: socket.socket, addr: tuple[str, int],
             # Issue license_key + activation_id + enc_key, encrypt the license_key with
             # enc_key, and hand the client back only the ciphertext — the plaintext
             # license_key never leaves the server on this path.
-            license_key, new_activation_id, enc_key = create_license(itch_user_id)
+            license_key, new_activation_id, enc_key = create_license(itch_user_id, has_key)
             blob_nonce = os.urandom(12)
             enc_license_blob = aesgcm_encrypt(
                 plaintext=license_key.encode("utf-8"),
@@ -1490,8 +1543,18 @@ def serve_forever() -> None:
             "SAME value in save_server/server_config.json and multiplayer_server/mp_config.json."
         )
     if itch_is_configured(cfg):
-        logging.info("itch.io purchase gate ACTIVE (game_id=%s) — ACTIVATE requires proof of purchase.",
-                     cfg.get("itch_game_id"))
+        if cfg.get("itch_require_download_key", False):
+            logging.info(
+                "itch.io gate ACTIVE (game_id=%s), STRICT — ACTIVATE requires a claimed/purchased "
+                "download key. NOTE: a free download does NOT mint a key on itch, so every player "
+                "must explicitly claim the game or they will be refused with ITCH_NOT_OWNED.",
+                cfg.get("itch_game_id"))
+        else:
+            logging.info(
+                "itch.io gate ACTIVE (game_id=%s), IDENTITY — ACTIVATE requires a valid itch.io "
+                "account; download-key status is recorded but not enforced (correct for a free "
+                "game). Set itch_require_download_key=true to tighten.",
+                cfg.get("itch_game_id"))
     elif cfg.get("dev_mode", False):
         logging.warning("dev_mode=True — itch.io purchase gate DISABLED. Do not use in production.")
     else:

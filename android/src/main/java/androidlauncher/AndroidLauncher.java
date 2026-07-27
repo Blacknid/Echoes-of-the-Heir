@@ -12,10 +12,12 @@ import com.badlogic.gdx.backends.android.AndroidApplicationConfiguration;
 import androidlauncher.ble.BleGuestServiceImpl;
 import androidlauncher.ble.BleHostServiceImpl;
 import androidlauncher.ble.BlePermissions;
+import androidlauncher.itch.AndroidItchAuth;
 import androidlauncher.nfc.Ndef4Service;
 import androidlauncher.nfc.NfcFriendServiceImpl;
 import main.MichiGame;
 import platform.BleMultiplayer;
+import platform.ItchAuthProvider;
 import platform.NfcFriend;
 import platform.NfcLaunch;
 
@@ -47,6 +49,13 @@ public class AndroidLauncher extends AndroidApplication {
         // Local BLE multiplayer (pause menu's INVITE PLAYER), see main.BleMultiplayerSession.
         BleMultiplayer.setHost(new BleHostServiceImpl(this));
         BleMultiplayer.setGuest(new BleGuestServiceImpl(this));
+
+        // itch.io sign-in for first-run license activation. Registered (not invoked) here:
+        // LicenseActivation only calls it when this install has no license yet, so a returning
+        // player never sees a browser. Before this existed no provider was registered on
+        // Android at all, so a gated ACTIVATE could never succeed on a phone and the
+        // owner-secret file was the only way to get a license here.
+        ItchAuthProvider.set(new AndroidItchAuth(this));
 
         // Ask for Bluetooth permissions once, the very first time the app is ever opened, so the
         // OS dialog is long out of the way before the player's first actual host/join tap (see

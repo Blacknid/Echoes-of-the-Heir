@@ -178,9 +178,14 @@ public final class LicenseActivation implements LicenseCheck {
 
         m.lastError = null;
 
-        // Proof of purchase is needed ONLY when this install has no license yet. A returning
+        // An itch.io sign-in is needed ONLY when this install has no license yet. A returning
         // player logs in with the credentials they already hold and never sees a browser
         // the license is ours, not itch's, and it keeps working offline forever.
+        //
+        // The game is free, so this proves IDENTITY, not purchase: it keeps bulk activation
+        // expensive (an attacker needs real itch accounts, which itch rate-limits itself), and
+        // it gives the account a stable handle so a player who loses activation.dat can be
+        // reunited with their cloud saves instead of silently starting over.
         String itchToken = null;
         if (!isLogin) {
             String ownerSecret = readOwnerSecret();
@@ -190,8 +195,8 @@ public final class LicenseActivation implements LicenseCheck {
             } else {
                 itchToken = ItchAuthProvider.tokenOrNull();
                 if (itchToken == null) {
-                    System.out.println("[License] No itch.io proof of purchase obtained — the server "
-                            + "will refuse activation if its purchase gate is on.");
+                    System.out.println("[License] No itch.io sign-in obtained — the server "
+                            + "will refuse activation if its gate is on.");
                 }
             }
         }
@@ -292,10 +297,13 @@ public final class LicenseActivation implements LicenseCheck {
                 // bad day", otherwise a server-side outage reads to the player as an accusation
                 // of piracy, and they have no idea whether to buy again or just wait.
                 if ("ITCH_NOT_OWNED".equals(authLine)) {
-                    lastError = "itch.io says this account hasn't purchased Michi's Adventure. "
-                            + "Make sure you signed in with the account you bought it on.";
+                    // The game is free, so this is no longer "you didn't pay" — the server
+                    // couldn't tie the request to a valid itch.io account (sign-in skipped,
+                    // denied, or the token expired). Say what to actually do about it.
+                    lastError = "Couldn't verify your itch.io sign-in. Please try again and "
+                            + "approve the sign-in request in your browser.";
                 } else if ("ITCH_UNAVAILABLE".equals(authLine)) {
-                    lastError = "Couldn't reach itch.io to verify your purchase. "
+                    lastError = "Couldn't reach itch.io to sign you in. "
                             + "This is on our side — please try again in a few minutes.";
                 } else if ("AUTH_FAIL".equals(authLine)) {
                     lastError = "The server rejected this activation.";

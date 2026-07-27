@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Cleartext HTTP is off by default on targetSdk 28+ (and this app targets 34), which would
+  block the itch.io OAuth redirect: itch matches redirect_uri by exact string and the OAuth
+  application is registered with http://127.0.0.1:34567/ (shared with the desktop build), so
+  the browser's hop back to the game's one-shot loopback listener MUST be allowed to be
+  cleartext. See androidlauncher.itch.AndroidItchAuth.
+
+  Scoped as tightly as possible: loopback only, and cleartext stays forbidden everywhere else,
+  so no real network traffic is downgraded by this. Traffic that never leaves the device cannot
+  be intercepted in transit, which is why permitting it here does not weaken the token.
+-->
+<network-security-config>
+    <domain-config cleartextTrafficPermitted="true">
+        <domain includeSubdomains="false">127.0.0.1</domain>
+        <domain includeSubdomains="false">localhost</domain>
+    </domain-config>
+    <base-config cleartextTrafficPermitted="false" />
+</network-security-config>

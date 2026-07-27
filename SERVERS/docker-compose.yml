@@ -52,13 +52,16 @@ services:
     environment:
       # Secrets live in SERVERS/.env (gitignored), never in the committed configs.
       MICHI_INTERNAL_API_KEY: "${MICHI_INTERNAL_API_KEY:?set MICHI_INTERNAL_API_KEY in SERVERS/.env}"
-      # itch.io proof-of-purchase. If unset, the server issues free licenses to anyone.
+      # itch.io gate. If unset, the server issues licenses to anyone, no itch account needed.
       MICHI_ITCH_API_KEY: "${MICHI_ITCH_API_KEY:-}"
       MICHI_ITCH_GAME_ID: "${MICHI_ITCH_GAME_ID:-}"
       # Owner/admin itch user id(s) that bypass the download-key check (comma-separated).
       MICHI_ITCH_OWNER_USER_IDS: "${MICHI_ITCH_OWNER_USER_IDS:-}"
       # Owner-generated secret that activates without itch OAuth at all (see .env.example).
       MICHI_ITCH_OWNER_SECRET: "${MICHI_ITCH_OWNER_SECRET:-}"
+      # Require a CLAIMED download key, not just a valid itch account. Keep false while the
+      # game is free — a free download never mints a key, so true locks out real players.
+      MICHI_ITCH_REQUIRE_DOWNLOAD_KEY: "${MICHI_ITCH_REQUIRE_DOWNLOAD_KEY:-false}"
     ports:
       # Public: clients ACTIVATE/LOGIN and sync saves here.
       - "5005:5005"
