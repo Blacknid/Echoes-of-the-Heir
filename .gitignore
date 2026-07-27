@@ -83,3 +83,10 @@ owner_launch.bat
 # launches. A ~100 MB build artifact (bundles assets + natives), not source; regenerate it.
 SERVERS/multiplayer_server/engine.jar
 
+
+# Multiplayer server runtime state — per-license stats, admin notes, and sqlite
+# WAL sidecars. Regenerated at run time; never source.
+SERVERS/multiplayer_server/player_data.json
+SERVERS/multiplayer_server/admin_notes.json
+SERVERS/save_server/saves.db-shm
+SERVERS/save_server/saves.db-wal

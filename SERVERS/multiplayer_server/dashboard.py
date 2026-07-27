@@ -106,6 +106,61 @@ _DASHBOARD_HTML = """<!DOCTYPE html>
   textarea.notes:focus { outline: none; border-color: #5b5b8c; }
   .note-hint { font-size: .72rem; color: #555; margin-top: 4px; }
   .modal-actions { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 18px; }
+
+  /* ── Live telemetry wall ─────────────────────────────────────────── */
+  .layout { display: grid; grid-template-columns: 1fr 420px; gap: 0; align-items: start; }
+  @media (max-width: 1100px) { .layout { grid-template-columns: 1fr; } }
+  aside { border-left: 1px solid #2d2d3d; min-height: calc(100vh - 92px);
+          display: flex; flex-direction: column; }
+  @media (max-width: 1100px) { aside { border-left: none; border-top: 1px solid #2d2d3d; } }
+  .panel-head { display: flex; align-items: center; justify-content: space-between;
+                padding: 12px 18px; border-bottom: 1px solid #2d2d3d; background: #16161f; }
+  .panel-head h2 { font-size: .82rem; text-transform: uppercase; letter-spacing: .09em;
+                   color: #888; font-weight: 600; }
+  .live-dot { width: 8px; height: 8px; border-radius: 50%; background: #4ade80;
+              box-shadow: 0 0 0 0 rgba(74,222,128,.7); animation: pulse 2s infinite; }
+  .live-dot.dead { background: #f87171; animation: none; }
+  @keyframes pulse {
+    0%   { box-shadow: 0 0 0 0 rgba(74,222,128,.6); }
+    70%  { box-shadow: 0 0 0 7px rgba(74,222,128,0); }
+    100% { box-shadow: 0 0 0 0 rgba(74,222,128,0); }
+  }
+  .live-label { display: flex; align-items: center; gap: 7px; font-size: .78rem; color: #666; }
+  #feed { flex: 1; overflow-y: auto; max-height: calc(100vh - 150px);
+          padding: 6px 0; font-family: ui-monospace, "Cascadia Code", monospace; }
+  .ev { display: grid; grid-template-columns: 62px 1fr; gap: 8px; padding: 6px 16px;
+        font-size: .76rem; line-height: 1.45; border-left: 3px solid transparent;
+        animation: slidein .28s ease-out; }
+  @keyframes slidein { from { opacity: 0; transform: translateX(14px); } to { opacity: 1; transform: none; } }
+  .ev-time { color: #4b4b5c; }
+  .ev-msg  { color: #b8b8c8; word-break: break-word; }
+  .ev.info  { border-left-color: #3b3b5c; }
+  .ev.warn  { border-left-color: #f59e0b; background: rgba(245,158,11,.05); }
+  .ev.warn  .ev-msg { color: #fcd34d; }
+  .ev.alert { border-left-color: #ef4444; background: rgba(239,68,68,.09); }
+  .ev.alert .ev-msg { color: #fca5a5; font-weight: 600; }
+  .ev-kind { display: inline-block; font-size: .64rem; text-transform: uppercase;
+             letter-spacing: .06em; color: #55556b; margin-right: 6px; }
+  .feed-controls { display: flex; gap: 6px; padding: 8px 16px; border-top: 1px solid #2d2d3d;
+                   background: #16161f; }
+  .chip { background: #22222e; border: 1px solid #33334a; color: #777; font-size: .7rem;
+          padding: 3px 9px; border-radius: 999px; cursor: pointer; }
+  .chip.on { background: #3b3b5c; color: #c4b5fd; border-color: #55557a; }
+
+  /* ── World map + replay ──────────────────────────────────────────── */
+  .map-wrap { padding: 10px 16px 14px; border-bottom: 1px solid #2d2d3d; }
+  #worldmap { width: 100%; background: #0b0b10; border: 1px solid #2d2d3d;
+              border-radius: 8px; display: block; }
+  .map-legend { display: flex; gap: 14px; font-size: .68rem; color: #666; margin-top: 6px; }
+  .map-legend span::before { content: '●'; margin-right: 4px; }
+  .lg-ok::before   { color: #4ade80; }
+  .lg-bad::before  { color: #f87171; }
+  #replay { width: 100%; background: #0b0b10; border: 1px solid #3d2020;
+            border-radius: 8px; display: block; margin-top: 6px; }
+  .replay-legend { display: flex; gap: 14px; font-size: .7rem; color: #777; margin-top: 8px; }
+  .replay-legend b { font-weight: 600; }
+  .lg-claim { color: #f87171; }
+  .lg-allow { color: #4ade80; }
 </style>
 </head>
 <body>
@@ -116,7 +171,33 @@ _DASHBOARD_HTML = """<!DOCTYPE html>
   </form>
 </header>
 <div id="status-bar">Connecting&hellip;</div>
-<div id="players"></div>
+<div class="layout">
+  <main><div id="players"></div></main>
+  <aside>
+    <div class="panel-head">
+      <h2>Live world</h2>
+      <span class="live-label" id="map-label">&mdash;</span>
+    </div>
+    <div class="map-wrap">
+      <canvas id="worldmap" width="400" height="260"></canvas>
+      <div class="map-legend">
+        <span class="lg-ok">normal</span>
+        <span class="lg-bad">flagged</span>
+      </div>
+    </div>
+    <div class="panel-head">
+      <h2>Telemetry</h2>
+      <span class="live-label"><span class="live-dot" id="live-dot"></span><span id="live-text">live</span></span>
+    </div>
+    <div id="feed"></div>
+    <div class="feed-controls">
+      <button class="chip on" data-sev="info"  onclick="toggleSev(this)">info</button>
+      <button class="chip on" data-sev="warn"  onclick="toggleSev(this)">warn</button>
+      <button class="chip on" data-sev="alert" onclick="toggleSev(this)">alert</button>
+      <button class="chip" onclick="clearFeed()" style="margin-left:auto">clear</button>
+    </div>
+  </aside>
+</div>
 
 <div class="overlay" id="modal" hidden>
   <div class="modal" id="modal-content">
@@ -217,6 +298,9 @@ function openInfo(id) {
       <div class="stat-item"><span class="stat-name">Coins</span><span class="stat-val">${p.stats.coin}</span></div>
     </div>
 
+    <p class="section-title">Movement replay &mdash; claimed vs. allowed</p>
+    <div id="replay-host"><p class="note-hint">Loading trace&hellip;</p></div>
+
     <p class="section-title">Admin notes</p>
     <textarea class="notes" id="note-area" placeholder="No notes yet…">${esc(p.note||'')}</textarea>
     <p class="note-hint">Auto-saved when you click away. Persists across sessions.</p>
@@ -230,6 +314,7 @@ function openInfo(id) {
 
   document.getElementById('note-area').addEventListener('blur', () => saveNote(p.license_key));
   document.getElementById('modal').hidden = false;
+  openReplay(p.license_key);
 }
 
 function closeModal() { document.getElementById('modal').hidden = true; }
@@ -278,8 +363,184 @@ function doTeleport(id) {
   action({action: 'teleport', target: p.name, col: parseInt(col, 10), row: parseInt(row, 10)});
 }
 
+/* ── Live telemetry stream (SSE) ──────────────────────────────────────── */
+const MAX_FEED_ROWS = 300;
+let _sevOn = {info: true, warn: true, alert: true};
+let _es = null;
+
+function toggleSev(btn) {
+  const sev = btn.dataset.sev;
+  _sevOn[sev] = !_sevOn[sev];
+  btn.classList.toggle('on', _sevOn[sev]);
+  document.querySelectorAll('#feed .ev.' + sev)
+    .forEach(el => { el.style.display = _sevOn[sev] ? '' : 'none'; });
+}
+
+function clearFeed() { document.getElementById('feed').innerHTML = ''; }
+
+function setLive(ok) {
+  document.getElementById('live-dot').classList.toggle('dead', !ok);
+  document.getElementById('live-text').textContent = ok ? 'live' : 'reconnecting…';
+}
+
+function appendEvent(ev) {
+  const feed = document.getElementById('feed');
+  // Stick to the bottom only if the operator hasn't scrolled up to read history.
+  const atBottom = feed.scrollHeight - feed.scrollTop - feed.clientHeight < 40;
+
+  const row = document.createElement('div');
+  row.className = 'ev ' + (ev.severity || 'info');
+  if (!_sevOn[ev.severity || 'info']) row.style.display = 'none';
+  row.innerHTML = `<span class="ev-time">${esc(ev.time || '')}</span>` +
+                  `<span class="ev-msg"><span class="ev-kind">${esc(ev.kind||'')}</span>${esc(ev.message||'')}</span>`;
+  feed.appendChild(row);
+
+  while (feed.childElementCount > MAX_FEED_ROWS) feed.removeChild(feed.firstElementChild);
+  if (atBottom) feed.scrollTop = feed.scrollHeight;
+
+  // An anomaly flag is the headline event — pull the player list forward so the
+  // offending card turns red at the same moment the alert lands.
+  if (ev.kind === 'anomaly_flag' || ev.kind === 'anomaly_cleared') refresh();
+}
+
+function connectStream() {
+  if (_es) _es.close();
+  _es = new EventSource('/api/stream');
+  _es.onopen = () => setLive(true);
+  _es.onmessage = e => {
+    try { appendEvent(JSON.parse(e.data)); } catch (_) {}
+  };
+  _es.onerror = () => {
+    setLive(false);
+    // EventSource retries on its own; this only covers a hard close.
+    if (_es.readyState === EventSource.CLOSED) setTimeout(connectStream, 3000);
+  };
+}
+
+/* ── Live world map ───────────────────────────────────────────────────── */
+async function drawWorld() {
+  let w;
+  try {
+    const r = await fetch('/api/world');
+    if (!r.ok) return;
+    w = await r.json();
+  } catch (_) { return; }
+  if (w.error) return;
+
+  const cv = document.getElementById('worldmap');
+  const ctx = cv.getContext('2d');
+  const pxW = w.width * w.tilewidth, pxH = w.height * w.tileheight;
+
+  // Fit the map to the panel width, preserving aspect ratio.
+  const cssW = cv.clientWidth || 400;
+  const scale = cssW / pxW;
+  cv.width = cssW;
+  cv.height = Math.max(80, Math.round(pxH * scale));
+
+  ctx.fillStyle = '#0b0b10';
+  ctx.fillRect(0, 0, cv.width, cv.height);
+
+  // Tile grid, drawn sparsely so a large map doesn't turn into a solid block.
+  ctx.strokeStyle = '#1c1c28';
+  ctx.lineWidth = 1;
+  const step = Math.max(1, Math.round(8 / (w.tilewidth * scale))) * w.tilewidth * 8;
+  for (let x = 0; x < pxW; x += step) {
+    ctx.beginPath(); ctx.moveTo(x*scale, 0); ctx.lineTo(x*scale, cv.height); ctx.stroke();
+  }
+  for (let y = 0; y < pxH; y += step) {
+    ctx.beginPath(); ctx.moveTo(0, y*scale); ctx.lineTo(cv.width, y*scale); ctx.stroke();
+  }
+
+  for (const p of (w.players || [])) {
+    const cx = p.x * scale, cy = p.y * scale;
+    ctx.beginPath();
+    ctx.arc(cx, cy, p.flagged ? 6 : 4, 0, Math.PI * 2);
+    ctx.fillStyle = p.flagged ? '#f87171' : '#4ade80';
+    ctx.fill();
+    if (p.flagged) {                       // halo so a cheater is unmissable
+      ctx.beginPath();
+      ctx.arc(cx, cy, 11, 0, Math.PI * 2);
+      ctx.strokeStyle = 'rgba(248,113,113,.55)';
+      ctx.lineWidth = 2; ctx.stroke();
+    }
+    ctx.fillStyle = '#8a8a9e';
+    ctx.font = '10px system-ui';
+    ctx.fillText(p.name, cx + 8, cy + 3);
+  }
+
+  document.getElementById('map-label').textContent =
+    `${w.map_id} · ${w.width}×${w.height}`;
+}
+
+/* ── Anomaly replay: claimed path vs. server-allowed path ─────────────── */
+async function openReplay(license_key) {
+  let d;
+  try {
+    const r = await fetch('/api/trace?license_key=' + encodeURIComponent(license_key));
+    d = await r.json();
+  } catch (_) { return; }
+
+  const host = document.getElementById('replay-host');
+  if (!host) return;
+  const pts = d.trace || [];
+  if (!pts.length) {
+    host.innerHTML = '<p class="note-hint">No movement recorded yet.</p>';
+    return;
+  }
+
+  host.innerHTML = `<canvas id="replay" width="480" height="260"></canvas>
+    <div class="replay-legend">
+      <span class="lg-claim"><b>—</b> claimed by client</span>
+      <span class="lg-allow"><b>—</b> allowed by server</span>
+      <span style="color:#666">${pts.length} moves · ${d.violations} violation(s) · ${esc(d.source)}</span>
+    </div>`;
+
+  const cv = document.getElementById('replay');
+  const ctx = cv.getContext('2d');
+  const cssW = cv.clientWidth || 480;
+  cv.width = cssW; cv.height = 260;
+
+  // Fit both paths into the canvas with a small margin.
+  const xs = pts.flatMap(p => [p.cx, p.ax]), ys = pts.flatMap(p => [p.cy, p.ay]);
+  const minX = Math.min(...xs), maxX = Math.max(...xs);
+  const minY = Math.min(...ys), maxY = Math.max(...ys);
+  const pad = 24;
+  const spanX = Math.max(1, maxX - minX), spanY = Math.max(1, maxY - minY);
+  const s = Math.min((cv.width - pad*2) / spanX, (cv.height - pad*2) / spanY);
+  const tx = v => pad + (v - minX) * s;
+  const ty = v => pad + (v - minY) * s;
+
+  ctx.fillStyle = '#0b0b10';
+  ctx.fillRect(0, 0, cv.width, cv.height);
+
+  const path = (key_x, key_y, color, width, dash) => {
+    ctx.beginPath();
+    ctx.setLineDash(dash);
+    pts.forEach((p, i) => {
+      const X = tx(p[key_x]), Y = ty(p[key_y]);
+      i ? ctx.lineTo(X, Y) : ctx.moveTo(X, Y);
+    });
+    ctx.strokeStyle = color; ctx.lineWidth = width; ctx.stroke();
+    ctx.setLineDash([]);
+  };
+
+  path('cx', 'cy', '#f87171', 2, [5, 4]);   // what the client asked for
+  path('ax', 'ay', '#4ade80', 2, []);       // what the server permitted
+
+  // Mark every point the server had to correct.
+  pts.forEach(p => {
+    if (!p.v) return;
+    ctx.beginPath();
+    ctx.arc(tx(p.cx), ty(p.cy), 3.5, 0, Math.PI * 2);
+    ctx.fillStyle = '#fca5a5'; ctx.fill();
+  });
+}
+
 refresh();
 setInterval(refresh, 3000);
+connectStream();
+drawWorld();
+setInterval(drawWorld, 1000);
 </script>
 </body>
 </html>"""
@@ -378,7 +639,9 @@ class AdminDashboard:
         self, reader: asyncio.StreamReader, writer: asyncio.StreamWriter
     ) -> None:
         try:
-            await asyncio.wait_for(self._process_request(reader, writer), timeout=10.0)
+            # No blanket timeout: /api/stream is a long-lived SSE connection. The
+            # request head is read under its own timeout inside _process_request.
+            await self._process_request(reader, writer)
         except (asyncio.TimeoutError, ConnectionError, BrokenPipeError):
             pass
         except Exception as exc:
@@ -393,30 +656,39 @@ class AdminDashboard:
     async def _process_request(
         self, reader: asyncio.StreamReader, writer: asyncio.StreamWriter
     ) -> None:
-        line = await reader.readline()
-        if not line:
+        # Reading the request head is bounded; the response that follows may not be
+        # (SSE streams stay open), so the timeout wraps only this part.
+        async def _read_head():
+            line = await reader.readline()
+            if not line:
+                return None
+            parts = line.decode("utf-8", errors="replace").rstrip("\r\n").split(" ")
+            if len(parts) < 2:
+                return None
+            method = parts[0].upper()
+            raw_path = parts[1]
+
+            headers: dict[str, str] = {}
+            while True:
+                hline = await reader.readline()
+                if hline in (b"\r\n", b"\n", b""):
+                    break
+                if b":" in hline:
+                    key, _, val = hline.decode("utf-8", errors="replace").partition(":")
+                    headers[key.strip().lower()] = val.strip().rstrip("\r\n")
+
+            body = b""
+            content_length = int(headers.get("content-length", 0) or 0)
+            if content_length > 0:
+                body = await reader.readexactly(min(content_length, MAX_BODY))
+            return method, raw_path, headers, body
+
+        head = await asyncio.wait_for(_read_head(), timeout=10.0)
+        if head is None:
             return
-        parts = line.decode("utf-8", errors="replace").rstrip("\r\n").split(" ")
-        if len(parts) < 2:
-            return
-        method = parts[0].upper()
-        raw_path = parts[1] if len(parts) > 1 else "/"
+        method, raw_path, headers, body = head
 
-        headers: dict[str, str] = {}
-        while True:
-            hline = await reader.readline()
-            if hline in (b"\r\n", b"\n", b""):
-                break
-            if b":" in hline:
-                key, _, val = hline.decode("utf-8", errors="replace").partition(":")
-                headers[key.strip().lower()] = val.strip().rstrip("\r\n")
-
-        body = b""
-        content_length = int(headers.get("content-length", 0) or 0)
-        if content_length > 0:
-            body = await reader.readexactly(min(content_length, MAX_BODY))
-
-        await self._route(method, raw_path, headers, body, writer)
+        await self._route(method, raw_path, headers, body, writer, reader)
 
     async def _route(
         self,
@@ -425,6 +697,7 @@ class AdminDashboard:
         headers: dict,
         body: bytes,
         writer: asyncio.StreamWriter,
+        reader: asyncio.StreamReader,
     ) -> None:
         path = raw_path.split("?")[0].rstrip("/") or "/"
 
@@ -453,6 +726,12 @@ class AdminDashboard:
             await self._api_action(body, writer)
         elif path == "/api/notes" and method == "POST":
             await self._api_notes(body, writer)
+        elif path == "/api/stream" and method == "GET":
+            await self._api_stream(reader, writer)
+        elif path == "/api/trace" and method == "GET":
+            await self._api_trace(raw_path, writer)
+        elif path == "/api/world" and method == "GET":
+            await self._api_world(writer)
         else:
             await self._send_text(writer, 404, "Not found")
 
@@ -562,6 +841,136 @@ class AdminDashboard:
             await self._save_notes()
 
         await self._send_json(writer, {"ok": True})
+
+    async def _api_stream(
+        self, reader: asyncio.StreamReader, writer: asyncio.StreamWriter
+    ) -> None:
+        """Server-Sent Events feed of live telemetry.
+
+        Held open for the life of the browser tab. Recent history is replayed first
+        so a dashboard opened mid-session isn't staring at a blank wall, then new
+        events are pushed as they happen. A periodic comment frame keeps proxies
+        from timing the connection out.
+        """
+        bus = getattr(self._server, "event_bus", None)
+        if bus is None:
+            await self._send_text(writer, 503, "event bus unavailable")
+            return
+
+        writer.write(
+            b"HTTP/1.1 200 OK\r\n"
+            b"Content-Type: text/event-stream; charset=utf-8\r\n"
+            b"Cache-Control: no-store\r\n"
+            b"Connection: keep-alive\r\n"
+            b"X-Accel-Buffering: no\r\n"
+            b"\r\n"
+        )
+        await writer.drain()
+
+        queue = bus.subscribe()
+        # A browser that closes the tab half-closes the socket without sending
+        # anything more. Waiting only on the event queue would leave this task —
+        # and its subscription — alive until the next write happened to fail, so
+        # race the queue against an EOF read and tear down as soon as either wins.
+        eof_task = asyncio.create_task(reader.read(1))
+        try:
+            for event in bus.history(limit=60):
+                await self._send_sse(writer, event)
+
+            while True:
+                get_task = asyncio.create_task(queue.get())
+                done, _ = await asyncio.wait(
+                    {get_task, eof_task},
+                    timeout=20.0,
+                    return_when=asyncio.FIRST_COMPLETED,
+                )
+
+                if eof_task in done:                    # peer closed the connection
+                    get_task.cancel()
+                    break
+
+                if not done:                            # idle: keep proxies from timing out
+                    get_task.cancel()
+                    writer.write(b": keepalive\n\n")    # comment frame, ignored by EventSource
+                    await writer.drain()
+                    continue
+
+                await self._send_sse(writer, get_task.result())
+        except (ConnectionError, BrokenPipeError, ConnectionResetError):
+            pass                                        # browser went away mid-write
+        finally:
+            eof_task.cancel()
+            bus.unsubscribe(queue)
+
+    async def _send_sse(self, writer: asyncio.StreamWriter, event: dict) -> None:
+        payload = json.dumps(event, ensure_ascii=False)
+        writer.write(f"id: {event.get('seq', 0)}\ndata: {payload}\n\n".encode("utf-8"))
+        await writer.drain()
+
+    async def _api_trace(self, raw_path: str, writer: asyncio.StreamWriter) -> None:
+        """Claimed-vs-allowed movement trace for one player, for the replay panel.
+
+        Prefers the snapshot frozen at flag time (so evidence survives the player
+        going still) and falls back to their live rolling trace.
+        """
+        query = urllib.parse.parse_qs(raw_path.partition("?")[2])
+        license_key = (query.get("license_key") or [""])[0]
+        if not license_key:
+            await self._send_json(writer, {"error": "missing license_key"}, status=400)
+            return
+
+        monitor = getattr(self._server, "anomaly_monitor", None)
+        flag = monitor.flags.get(license_key) if monitor else None
+        trace = list(flag.get("trace") or []) if flag else []
+        source = "flag_snapshot"
+
+        if not trace:
+            for client in list(self._server.clients.values()):
+                if client.player.license_key == license_key:
+                    trace = [
+                        {"ts": ts, "cx": cx, "cy": cy, "ax": ax, "ay": ay, "v": kind}
+                        for (ts, cx, cy, ax, ay, kind) in list(client.player.move_trace)
+                    ]
+                    source = "live"
+                    break
+
+        world = getattr(self._server, "world", None)
+        await self._send_json(writer, {
+            "license_key": license_key,
+            "source": source,
+            "trace": trace,
+            "violations": sum(1 for p in trace if p.get("v")),
+            "tilewidth": getattr(world, "tilewidth", 32),
+            "tileheight": getattr(world, "tileheight", 32),
+        })
+
+    async def _api_world(self, writer: asyncio.StreamWriter) -> None:
+        """Map dimensions plus every player's current tile, for the live world map."""
+        world = getattr(self._server, "world", None)
+        monitor = getattr(self._server, "anomaly_monitor", None)
+        if world is None:
+            await self._send_json(writer, {"error": "no active world"}, status=503)
+            return
+
+        dots = []
+        for pid, client in list(self._server.clients.items()):
+            p = client.player
+            dots.append({
+                "id": pid,
+                "name": p.name,
+                "x": p.x,
+                "y": p.y,
+                "flagged": bool(monitor and p.license_key in monitor.flags),
+            })
+
+        await self._send_json(writer, {
+            "map_id": getattr(world, "map_id", ""),
+            "width": world.width,
+            "height": world.height,
+            "tilewidth": world.tilewidth,
+            "tileheight": world.tileheight,
+            "players": dots,
+        })
 
     async def _send_response(
         self,

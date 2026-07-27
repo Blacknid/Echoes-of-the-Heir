@@ -61,6 +61,7 @@ from cryptography.hazmat.primitives.asymmetric import padding as rsa_padding
 from cryptography.hazmat.primitives.ciphers.aead import AESGCM
 from cryptography.hazmat.primitives.kdf.hkdf import HKDF
 
+import event_bus
 from game_engine import GameEngine
 from npc import NpcCatalog, NpcWorld, PlayerProgress
 from skilltree import SkillCatalog
@@ -84,6 +85,10 @@ DEFAULT_MAX_TILE_STEP = 4
 
 DEFAULT_HITBOX_W = 24
 DEFAULT_HITBOX_H = 24
+
+# Moves retained per player for the dashboard's anomaly-replay panel. At the
+# client's move rate this is roughly the last ten seconds of travel.
+MOVE_TRACE_LEN = 240
 
 MAX_LINE_BYTES = 64 * 1024
 MAX_CHAT_LEN = 200
@@ -395,6 +400,13 @@ class PlayerState:
     # Timestamps of recent movement violations (step-cap clamp or collision correction),
     # read by AnomalyMonitor to spot speed/noclip-hacking. Trimmed to a rolling window there.
     move_violations: collections.deque = field(default_factory=collections.deque)
+    # Rolling trace of the last MOVE_TRACE_LEN moves as
+    # (ts, claimed_x, claimed_y, allowed_x, allowed_y, violation_kind). The dashboard
+    # draws claimed vs. allowed side by side so an anomaly flag comes with visual
+    # evidence instead of just a counter. Bounded, so it costs a fixed few KB per player.
+    move_trace: collections.deque = field(
+        default_factory=lambda: collections.deque(maxlen=MOVE_TRACE_LEN)
+    )
 
     def to_dict(self) -> dict:
         return {
@@ -681,6 +693,16 @@ class GameServer:
         self._player_data_path = BASE_DIR / "player_data.json"
         self._player_data: dict[str, dict] = self._load_player_data()
         self._player_data_lock = asyncio.Lock()
+        # Live telemetry fan-out. The dashboard subscribes for its event wall; if no
+        # dashboard is running this just fills a bounded ring buffer and costs nothing.
+        self.event_bus = event_bus.EventBus()
+
+    def publish_event(self, kind: str, message: str, **kwargs) -> None:
+        """Publish a telemetry event. Never raises — telemetry must not break gameplay."""
+        try:
+            self.event_bus.publish(kind, message, **kwargs)
+        except Exception:
+            log.debug("Event publish failed for kind=%s", kind, exc_info=True)
 
     def _allocate_id(self) -> int:
         pid = self._next_id
@@ -743,6 +765,12 @@ class GameServer:
         reason = f"Banned for {duration_seconds}s" if exp else "Permanently banned"
         client.send_json({"type": "kick", "reason": reason})
         await client.close()
+        self.publish_event(
+            "admin_ban", f"{client.player.name} was banned — {reason}",
+            severity=event_bus.ALERT,
+            player=client.player.name, license_key=client.player.license_key,
+            data={"duration_seconds": duration_seconds},
+        )
         return f"Banned {client.player.name} (license={client.player.license_key}) — {reason}"
 
     async def admin_kick(self, target: str, reason: str = "Kicked by admin") -> str:
@@ -751,6 +779,11 @@ class GameServer:
             return f"No player found: {target!r}"
         client.send_json({"type": "kick", "reason": reason})
         await client.close()
+        self.publish_event(
+            "admin_kick", f"{client.player.name} was kicked — {reason}",
+            severity=event_bus.ALERT,
+            player=client.player.name, license_key=client.player.license_key,
+        )
         return f"Kicked {client.player.name}"
 
     def admin_teleport(self, target: str, col: int, row: int) -> str:
@@ -766,6 +799,12 @@ class GameServer:
         client.player.last_valid_x = new_x
         client.player.last_valid_y = new_y
         client.send_json({"type": "pos_correction", "x": new_x, "y": new_y, "reason": "admin_teleport"})
+        self.publish_event(
+            "admin_teleport", f"{client.player.name} was teleported to ({col}, {row})",
+            severity=event_bus.INFO,
+            player=client.player.name, license_key=client.player.license_key,
+            data={"col": col, "row": row},
+        )
         return f"Teleported {client.player.name} to col={col} row={row}"
 
     def admin_list(self) -> str:
@@ -940,6 +979,11 @@ class GameServer:
         writer.write(b"AUTH_OK " + base64.b64encode(enc_session) + b"\n")
         await writer.drain()
 
+        # Hand back the license this server resolved (via save_server, or derived in
+        # dev_mode) rather than letting the caller read one out of the client-supplied
+        # handshake JSON — the client never gets a say in its own identity.
+        payload = dict(payload)
+        payload["license"] = license_key
         return session_key, payload
 
     async def handle_client(self, reader: asyncio.StreamReader,
@@ -998,6 +1042,7 @@ class GameServer:
 
         player = PlayerState(player_id=self._allocate_id())
         player.name = sanitize_name(payload.get("name", ""), "Player")
+        # Set by _handshake from the server-resolved license, never from client input.
         player.license_key = str(payload.get("license", ""))[:32]
         cls_raw = str(payload.get("class", "Fighter"))[:MAX_CLASS_LEN]
         player.player_class = "".join(c for c in cls_raw if c.isalnum()) or "Fighter"
@@ -1020,6 +1065,14 @@ class GameServer:
         log.info("Player %d (%s) joined from %s — %d/%d",
                  player.player_id, player.name, ip,
                  len(self.clients), self.max_players)
+        self.publish_event(
+            "player_join",
+            f"{player.name} ({player.player_class}, Lv {player.level}) joined from {ip}",
+            severity=event_bus.INFO,
+            player=player.name, license_key=player.license_key,
+            data={"ip": ip, "map_id": player.map_id,
+                  "online": len(self.clients), "max": self.max_players},
+        )
 
         existing = [c.player.to_dict() for pid, c in self.clients.items()
                     if pid != player.player_id]
@@ -1142,6 +1195,14 @@ class GameServer:
             log.info("Player %d (%s) disconnected — %d/%d",
                      player.player_id, player.name,
                      len(self.clients), self.max_players)
+            self.publish_event(
+                "player_leave",
+                f"{player.name} disconnected after "
+                f"{int(time.time() - player.connect_time)}s",
+                severity=event_bus.INFO,
+                player=player.name, license_key=player.license_key,
+                data={"online": len(self.clients), "max": self.max_players},
+            )
             self.broadcast_json({
                 "type": "player_leave",
                 "id": player.player_id,
@@ -1172,13 +1233,28 @@ class GameServer:
         new_x = clamp_int(msg.get("x"), 0, world.width  * world.tilewidth  - 1, player.x)
         new_y = clamp_int(msg.get("y"), 0, world.height * world.tileheight - 1, player.y)
 
+        # What the client asked for, before any server correction — kept so the
+        # dashboard can draw the claimed path against the allowed one.
+        claimed_x, claimed_y = new_x, new_y
+        violation_kind = ""
+
         dx = new_x - player.last_valid_x
         dy = new_y - player.last_valid_y
         if abs(dx) > max_step_px or abs(dy) > max_step_px:
             new_x = player.last_valid_x + clamp_int(dx, -max_step_px, max_step_px, 0)
             new_y = player.last_valid_y + clamp_int(dy, -max_step_px, max_step_px, 0)
             player.move_violations.append(time.time())
+            violation_kind = "speed"
             log.debug("Player %d step exceeded cap; clamped", player.player_id)
+            self.publish_event(
+                "move_violation",
+                f"{player.name} moved {max(abs(dx), abs(dy))}px in one step "
+                f"(cap {max_step_px}px) — clamped",
+                severity=event_bus.WARN,
+                player=player.name,
+                license_key=player.license_key,
+                data={"kind": "speed", "dx": dx, "dy": dy, "cap": max_step_px},
+            )
 
         hb_w = int(self.cfg.get("player_hitbox_w", DEFAULT_HITBOX_W))
         hb_h = int(self.cfg.get("player_hitbox_h", DEFAULT_HITBOX_H))
@@ -1190,11 +1266,26 @@ class GameServer:
         if not world.is_box_walkable(bx, by, hb_w, hb_h):
             new_x, new_y = player.last_valid_x, player.last_valid_y
             player.move_violations.append(time.time())
+            violation_kind = "collision" if not violation_kind else violation_kind + "+collision"
             client.send_json({
                 "type": "pos_correction",
                 "x": new_x, "y": new_y,
                 "reason": "collision",
             })
+            self.publish_event(
+                "move_violation",
+                f"{player.name} walked into solid geometry at "
+                f"({claimed_x // world.tilewidth}, {claimed_y // world.tileheight}) "
+                "— rolled back",
+                severity=event_bus.WARN,
+                player=player.name,
+                license_key=player.license_key,
+                data={"kind": "collision", "x": claimed_x, "y": claimed_y},
+            )
+
+        player.move_trace.append(
+            (time.time(), claimed_x, claimed_y, new_x, new_y, violation_kind)
+        )
 
         triggers = world.find_triggers(
             player.last_valid_x + hb_off_x, player.last_valid_y + hb_off_y,

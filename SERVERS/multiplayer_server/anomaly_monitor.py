@@ -71,9 +71,14 @@ class AnomalyMonitor:
             seen_licenses.add(player.license_key)
             reasons = self._evaluate(player, now)
             if reasons:
-                self._raise_flag(player.license_key, reasons)
+                self._raise_flag(player.license_key, reasons, player)
             else:
-                self.flags.pop(player.license_key, None)
+                if self.flags.pop(player.license_key, None) is not None:
+                    self._publish(
+                        "anomaly_cleared",
+                        f"{player.name} no longer flagged — behaviour back within limits",
+                        severity="info", player=player,
+                    )
         # Drop stale flags for players who disconnected.
         for license_key in list(self.flags.keys()):
             if license_key not in seen_licenses:
@@ -115,12 +120,47 @@ class AnomalyMonitor:
 
         return reasons
 
-    def _raise_flag(self, license_key: str, reasons: list[str]) -> None:
+    def _raise_flag(self, license_key: str, reasons: list[str], player=None) -> None:
         existing = self.flags.get(license_key)
         if existing and existing["reasons"] == reasons:
             return
         self.flags[license_key] = {
             "reasons": reasons,
             "flagged_at": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
+            # Snapshot of the movement trace at flag time — frozen evidence, so the
+            # dashboard's replay still shows the offending path after the player stops.
+            "trace": self._snapshot_trace(player),
         }
         log.warning("Anomaly flag for license=%s: %s", license_key, "; ".join(reasons))
+        if player is not None:
+            self._publish(
+                "anomaly_flag",
+                f"{player.name} FLAGGED — {'; '.join(reasons)}",
+                severity="alert", player=player,
+                data={"reasons": reasons},
+            )
+
+    @staticmethod
+    def _snapshot_trace(player) -> list[dict]:
+        """Freeze the player's recent claimed-vs-allowed positions for replay."""
+        if player is None:
+            return []
+        try:
+            return [
+                {"ts": ts, "cx": cx, "cy": cy, "ax": ax, "ay": ay, "v": kind}
+                for (ts, cx, cy, ax, ay, kind) in list(player.move_trace)
+            ]
+        except Exception:
+            return []
+
+    def _publish(self, kind: str, message: str, *, severity: str,
+                 player, data: dict | None = None) -> None:
+        publish = getattr(self._server, "publish_event", None)
+        if publish is None:
+            return
+        publish(
+            kind, message, severity=severity,
+            player=getattr(player, "name", ""),
+            license_key=getattr(player, "license_key", ""),
+            data=data or {},
+        )
