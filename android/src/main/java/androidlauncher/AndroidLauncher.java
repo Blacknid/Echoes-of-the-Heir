@@ -64,6 +64,12 @@ public class AndroidLauncher extends AndroidApplication {
 
         checkNfcLaunch(getIntent());
 
+        // The itch redirect normally arrives at the running Activity via onNewIntent, but if the OS
+        // destroyed the game while the browser was frontmost (low memory), the redirect cold-starts
+        // it and lands here instead. AndroidItchAuth's handoff is static precisely so the token
+        // survives that recreation; without this call the sign-in would hang to its full timeout.
+        AndroidItchAuth.handleRedirect(getIntent());
+
         initialize(new MichiGame(), config);
     }
 
@@ -71,12 +77,17 @@ public class AndroidLauncher extends AndroidApplication {
      * singleTask launchMode routes a repeat tap (app already running) here instead of a fresh
  * onCreate, still needs to mark the flag so the title screen's tick (see ui.UI) picks up the
      * "auto-join" trigger even if the game was, say, sitting idle on the title screen already.
+     *
+     * <p>Also where the itch.io OAuth redirect (michi://itch-auth) comes back in, see
+     * {@link AndroidItchAuth} for why that is a custom scheme rather than the desktop build's
+     * loopback listener.
      */
     @Override
     protected void onNewIntent(Intent intent) {
         super.onNewIntent(intent);
         setIntent(intent);
         checkNfcLaunch(intent);
+        AndroidItchAuth.handleRedirect(intent);
     }
 
     /**

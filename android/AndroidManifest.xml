@@ -41,6 +41,25 @@
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
 
+            <!-- itch.io OAuth redirect target. itch matches redirect_uri by exact string, so
+                 "michi://itch-auth" must be registered on the OAuth application verbatim and must
+                 stay in sync with androidlauncher.itch.AndroidItchAuth's REDIRECT_* constants.
+
+                 A custom scheme, not the desktop build's http://127.0.0.1:34567/ loopback: inside
+                 a browser 127.0.0.1 is the BROWSER's loopback rather than this app's, and browsers
+                 silently drop a public-origin → loopback navigation (Private Network Access), which
+                 left the authorise tab hanging with no error. Routing by intent is done by the OS,
+                 so it behaves identically in Chrome, Samsung Internet, Firefox, or any other
+                 default browser. BROWSABLE is what allows a browser to fire it; combined with the
+                 singleTask launchMode above, the redirect re-surfaces the running game through
+                 onNewIntent instead of starting a second copy. -->
+            <intent-filter>
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+                <data android:scheme="michi" android:host="itch-auth" />
+            </intent-filter>
+
             <!-- The Android Application Record served by Ndef4Service (see its class doc) is
                  sufficient on its own for Android's tag dispatcher to cold-launch this app by
                  package name on tap, even with zero NDEF/TECH/TAG intent-filters declared here —
