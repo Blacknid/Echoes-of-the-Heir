@@ -798,7 +798,26 @@ public class GamePanel {
             for ( int i = 0 ; i < monster.length ; i++ ) {
                 if ( monster[i] != null ) {
                     if ( monster[i].alive && !monster[i].dying ) {
-                        if (isEntityInViewport(monster[i], tileSize * 2)) {
+                        // A BLE guest never owns mob AI, so its monsters are puppets from the
+                        // moment the map loads — not merely from the first "M" line onward, which
+                        // would otherwise let local AI run (and diverge) in the gap before the
+                        // host's first mob broadcast arrives.
+                        if (bleSession != null && bleSession.isGuesting()) {
+                            monster[i].remoteControlled = true;
+                        }
+                        // Same for the TCP path: only the server-nominated owner steps mob AI, and
+                        // everyone else puppets from map load rather than from first contact.
+                        if (multiplayerMode && mpClient != null && mpClient.isConnected()
+                                && !mpClient.ownsMobAi()) {
+                            monster[i].remoteControlled = true;
+                        }
+                        if (monster[i].remoteControlled) {
+                            // Someone else owns this mob's movement (BLE host / MP server): run no
+                            // AI at all, just ease toward the last snapshot. Running local AI too
+                            // would fight the incoming positions and make the mob jitter between
+                            // where we think it is and where the owner says it is.
+                            monster[i].stepRemoteInterp();
+                        } else if (isEntityInViewport(monster[i], tileSize * 2)) {
                             monster[i].update();
                         } else if (isEntityInViewport(monster[i], tileSize * 6)
                                    && (tickCounter & 3) == 0

@@ -392,10 +392,34 @@ public class UI {
             pauseBleStatusMessage = "Hosting stopped";
             return;
         }
+        // Hosting completes asynchronously (GATT service registration, and possibly a Bluetooth
+        // permission prompt first), so the real verdict arrives on this listener rather than from
+        // startHosting()'s return value, see BleHostService#setOnHostingStarted.
+        platform.BleMultiplayer.setOnHostingStarted(started -> {
+            if (started) {
+                publishInvitePayload();
+            } else {
+                gp.bleSession.stopHosting();
+                restoreDefaultNfcPayload();
+                pauseBleStatusMessage = "Couldn't start hosting (check Bluetooth is on)";
+            }
+        });
+
         if (!gp.bleSession.startHosting()) {
-            pauseBleStatusMessage = "Couldn't start hosting (check Bluetooth is on)";
+            // Not necessarily a failure: a pending permission prompt also lands here, and the
+            // listener above will report the outcome once the player answers it.
+            pauseBleStatusMessage = "Starting…";
             return;
         }
+        publishInvitePayload();
+    }
+
+    /**
+     * Arms the phone's emulated NFC tag with this session's invite so a guest tapping it gets the
+     * session token + map id. Called once hosting is confirmed live, from either the immediate
+     * path or the permission-deferred one (see toggleBleHosting).
+     */
+    private void publishInvitePayload() {
         String invitePayload = platform.NfcInvitePayload.encode(
                 gp.bleSession.getSessionToken(), gp.bleSession.getHostMapId(), gp.bleSession.getHostDisplayName());
         platform.NfcFriend.setEmulatedPayloadRaw(invitePayload);

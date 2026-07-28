@@ -42,6 +42,7 @@ public class BleHostServiceImpl implements BleHostService {
     private int maxGuests;
     private BiConsumer<Integer, String> onMessage;
     private IntConsumer onGuestLeft;
+    private java.util.function.Consumer<Boolean> onHostingStarted;
 
     private final Map<BluetoothDevice, Integer> deviceToSlot = new ConcurrentHashMap<>();
     private final Map<Integer, BluetoothDevice> slotToDevice = new LinkedHashMap<>();
@@ -51,18 +52,50 @@ public class BleHostServiceImpl implements BleHostService {
         this.activity = activity;
     }
 
+    /**
+     * Whether this device could host if asked. Deliberately does NOT require the runtime Bluetooth
+     * permissions to already be granted: {@link #start} asks for them on demand and resumes itself
+     * (see BlePermissions#ensureGranted), so gating support on a grant that hasn't been requested
+     * yet would hide INVITE PLAYER from every player who hasn't happened to grant Bluetooth
+     * already, which is exactly the dead end this used to produce.
+     *
+     * <p>Peripheral capability is probed via {@code getBluetoothLeAdvertiser() != null}, the actual
+     * requirement here. {@code isMultipleAdvertisementSupported()} was used before and is the wrong
+     * question, it reports whether the chipset can run <em>several concurrent</em> advertisements
+     * while this service only ever starts one; devices that answer false to it advertise a single
+     * set perfectly well and were being refused hosting for no reason.
+     */
     @Override
     public boolean isSupported() {
-        if (!BlePermissions.hasAll(activity)) return false;
         BluetoothManager bm = (BluetoothManager) activity.getSystemService(Activity.BLUETOOTH_SERVICE);
         BluetoothAdapter adapter = bm != null ? bm.getAdapter() : null;
-        return adapter != null && adapter.isEnabled() && adapter.isMultipleAdvertisementSupported();
+        if (adapter == null || !adapter.isEnabled()) return false;
+        try {
+            return adapter.getBluetoothLeAdvertiser() != null;
+        } catch (SecurityException e) {
+            // Reading the advertiser can itself require BLUETOOTH_CONNECT on some OEM builds;
+            // treat that as "probably supported, ask at start()" rather than a hard no.
+            return true;
+        }
     }
 
+    /**
+     * Starts hosting. If the runtime Bluetooth permissions aren't granted yet this returns null
+     * (nothing is hosting <em>yet</em>) but requests them and retries itself once the player
+     * accepts, reporting the eventual outcome through {@link #setOnHostingStarted}'s listener so
+     * the UI can update from "couldn't start" to a live session, see BlePermissions#ensureGranted.
+     */
     @Override
     public String start(int maxGuests, BiConsumer<Integer, String> onMessage, IntConsumer onGuestLeft) {
         if (!BlePermissions.hasAll(activity)) {
-            BlePermissions.requestAll(activity);
+            BlePermissions.ensureGranted(activity,
+                    () -> {
+                        // Permissions just granted: actually start, and tell the UI it worked so a
+                        // player who granted mid-tap doesn't have to tap INVITE PLAYER a second time.
+                        String address = start(maxGuests, onMessage, onGuestLeft);
+                        if (onHostingStarted != null) onHostingStarted.accept(address != null);
+                    },
+                    () -> { if (onHostingStarted != null) onHostingStarted.accept(false); });
             return null;
         }
         BluetoothManager bm = (BluetoothManager) activity.getSystemService(Activity.BLUETOOTH_SERVICE);
@@ -104,21 +137,26 @@ public class BleHostServiceImpl implements BleHostService {
                     BleProtocol.SERVICE_UUID, BluetoothGattService.SERVICE_TYPE_PRIMARY);
             service.addCharacteristic(guestWrite);
             service.addCharacteristic(notifyChar);
+
+            // addService is ASYNCHRONOUS, it completes on gattCallback.onServiceAdded, and
+            // advertising is started from there rather than here. Advertising immediately (as this
+            // used to) races the registration: the guest's scan is SCAN_MODE_LOW_LATENCY and
+            // routinely connects within milliseconds, landing on a GATT server whose service isn't
+            // registered yet, so the guest's onServicesDiscovered finds getService(SERVICE_UUID)
+            // == null and reports a failed join. Nothing is discoverable until the service is
+            // really there, which is the invariant onServiceAdded gives us.
+            advertiser = adapter.getBluetoothLeAdvertiser();
+            if (advertiser == null) {
+                stop();
+                return null;
+            }
             gattServer.addService(service);
 
-            advertiser = adapter.getBluetoothLeAdvertiser();
-            AdvertiseSettings settings = new AdvertiseSettings.Builder()
-                    .setAdvertiseMode(AdvertiseSettings.ADVERTISE_MODE_LOW_LATENCY)
-                    .setTxPowerLevel(AdvertiseSettings.ADVERTISE_TX_POWER_HIGH)
-                    .setConnectable(true)
-                    .build();
-            AdvertiseData data = new AdvertiseData.Builder()
-                    .addServiceUuid(new android.os.ParcelUuid(BleProtocol.SERVICE_UUID))
-                    .setIncludeDeviceName(false)
-                    .build();
-            advertiser.startAdvertising(settings, data, advertiseCallback);
-
-            return adapter.getAddress();
+            // Non-null means "hosting is starting", the advertise result itself arrives on
+            // advertiseCallback. The returned value is unused as an address by callers (see
+            // BleGuestService's class doc: Android hands out a placeholder MAC, discovery is
+            // service-UUID-scan-based), it only distinguishes success from failure.
+            return "ok";
         } catch (SecurityException e) {
             stop();
             return null;
@@ -189,6 +227,16 @@ public class BleHostServiceImpl implements BleHostService {
         return slotToDevice.size();
     }
 
+    /**
+     * Wrapped onto libGDX's thread here (like onMessage/onGuestLeft in start()) because it fires
+     * from Binder callback threads (onServiceAdded, advertiseCallback) straight into UI state.
+     */
+    @Override
+    public void setOnHostingStarted(java.util.function.Consumer<Boolean> listener) {
+        this.onHostingStarted = listener == null ? null
+                : ok -> com.badlogic.gdx.Gdx.app.postRunnable(() -> listener.accept(ok));
+    }
+
     private int nextFreeSlot() {
         for (int slot = 1; slot <= maxGuests; slot++) {
             if (!slotToDevice.containsKey(slot)) return slot;
@@ -198,12 +246,56 @@ public class BleHostServiceImpl implements BleHostService {
 
     private final AdvertiseCallback advertiseCallback = new AdvertiseCallback() {
         @Override
+        public void onStartSuccess(AdvertiseSettings settingsInEffect) {
+            System.out.println("[BleHost] advertising STARTED, guests can now discover this host");
+        }
+
+        @Override
         public void onStartFailure(int errorCode) {
-            System.out.println("[BleHost] Advertising failed to start, error=" + errorCode);
+            // 1=DATA_TOO_LARGE 2=TOO_MANY_ADVERTISERS 3=ALREADY_STARTED 4=INTERNAL_ERROR
+            // 5=FEATURE_UNSUPPORTED
+            System.out.println("[BleHost] advertising FAILED to start, error=" + errorCode);
+            if (onHostingStarted != null) onHostingStarted.accept(false);
         }
     };
 
+    /** Starts advertising once the GATT service is confirmed registered, see start()'s comment. */
+    private void startAdvertisingNow() {
+        if (advertiser == null) return;
+        try {
+            AdvertiseSettings settings = new AdvertiseSettings.Builder()
+                    .setAdvertiseMode(AdvertiseSettings.ADVERTISE_MODE_LOW_LATENCY)
+                    .setTxPowerLevel(AdvertiseSettings.ADVERTISE_TX_POWER_HIGH)
+                    .setConnectable(true)
+                    .build();
+            // setIncludeDeviceName(false): the 31-byte advertisement budget is almost entirely
+            // consumed by the 128-bit service UUID (16 bytes + header), and appending a device name
+            // overflows it, which the stack reports as ADVERTISE_FAILED_DATA_TOO_LARGE (error 1).
+            AdvertiseData data = new AdvertiseData.Builder()
+                    .addServiceUuid(new android.os.ParcelUuid(BleProtocol.SERVICE_UUID))
+                    .setIncludeDeviceName(false)
+                    .setIncludeTxPowerLevel(false)
+                    .build();
+            advertiser.startAdvertising(settings, data, advertiseCallback);
+        } catch (SecurityException e) {
+            System.out.println("[BleHost] startAdvertising threw: " + e);
+            if (onHostingStarted != null) onHostingStarted.accept(false);
+        }
+    }
+
     private final BluetoothGattServerCallback gattCallback = new BluetoothGattServerCallback() {
+        @Override
+        public void onServiceAdded(int status, BluetoothGattService service) {
+            if (status != android.bluetooth.BluetoothGatt.GATT_SUCCESS
+                    || !BleProtocol.SERVICE_UUID.equals(service.getUuid())) {
+                System.out.println("[BleHost] addService FAILED status=" + status);
+                if (onHostingStarted != null) onHostingStarted.accept(false);
+                return;
+            }
+            System.out.println("[BleHost] GATT service registered, starting advertising");
+            startAdvertisingNow();
+        }
+
         @Override
         public void onConnectionStateChange(BluetoothDevice device, int status, int newState) {
             if (newState == android.bluetooth.BluetoothProfile.STATE_DISCONNECTED) {

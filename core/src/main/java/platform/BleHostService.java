@@ -42,4 +42,15 @@ public interface BleHostService {
 
     /** Number of guests currently connected. */
     int guestCount();
+
+    /**
+     * Registers a listener told whether hosting actually came up, which {@link #start} alone can't
+     * report: advertising only begins after the GATT service registers asynchronously, and a
+     * missing Bluetooth permission makes start() request it and retry itself once the player
+     * answers. Both outcomes land here rather than in start()'s return value, so the caller can
+     * turn a provisional "starting…" into a real success/failure message.
+     *
+     * <p>Fires on libGDX's render thread. Pass null to clear.
+     */
+    default void setOnHostingStarted(java.util.function.Consumer<Boolean> listener) {}
 }

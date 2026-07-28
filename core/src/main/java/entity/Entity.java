@@ -49,6 +49,38 @@ public class Entity {
     public boolean dying = false;
     boolean hpBarOn = false;
 
+    // ── Remote-driven movement (multiplayer mob puppets) ──────────────────────────────────────
+    /**
+     * Set on a monster whose position is owned by someone else (the BLE host, or the TCP server)
+     * rather than by local AI. While true, {@link #update()} must not run this entity's AI, and
+     * {@link #stepRemoteInterp()} eases worldX/worldY toward the last received snapshot instead.
+     * See main.BleMultiplayerSession's "Mob authority" class doc for why mobs are owned by one
+     * peer: without it each client ran its own AI and the same mob stood somewhere different on
+     * every screen.
+     */
+    public boolean remoteControlled = false;
+    /** Interpolation endpoints for the remote snapshot, in world pixels. */
+    public float riStartX, riStartY, riEndX, riEndY;
+    public long riStartNs, riDurationNs;
+    public boolean riReady = false;
+
+    /**
+     * Advances the remote-position ease. Snapshots arrive far slower than the frame rate (they're
+     * throttled to the network's cadence), so applying one straight to worldX/worldY reads as
+     * teleporting; this is a plain lerp between the last two, matching how BLE remote players are
+     * smoothed (see BleMultiplayerSession's applyUpdate, which notes the same tradeoff). Clamped
+     * at t=1 rather than extrapolating, so a dropped update leaves a mob standing still instead of
+     * drifting through a wall.
+     */
+    public void stepRemoteInterp() {
+        if (!riReady || riDurationNs <= 0) return;
+        float t = (System.nanoTime() - riStartNs) / (float) riDurationNs;
+        if (t < 0f) t = 0f;
+        if (t > 1f) t = 1f;
+        worldX = Math.round(riStartX + (riEndX - riStartX) * t);
+        worldY = Math.round(riStartY + (riEndY - riStartY) * t);
+    }
+
 
 
     public Sprite up1, up2, up3, up4, up5, up6, up7,
@@ -110,6 +142,27 @@ public class Entity {
     public int actionLockCounter = 0;
     public int invincibleCounter = 0;
     public int invincibleDuration = 10; // frames of i-frames after hit (short for combo-friendly combat)
+
+    /**
+     * Id of the player whose hit started the current i-frame window (local player = -1 in
+     * single-player, otherwise the multiplayer player id). I-frames exist to stop ONE attacker's
+     * single swing from registering on several consecutive frames — they were never meant to make
+     * a monster immune to everybody. In co-op the shared window did exactly that: whoever swung
+     * second inside the 10-frame gap had their hit silently dropped, so two players attacking the
+     * same mob together each lost roughly half their damage for no visible reason. Tracking the
+     * owner lets a different attacker through immediately while still blocking the same one, see
+     * {@link #isInvincibleTo(int)}.
+     */
+    public int invincibleOwnerPid = -1;
+
+    /**
+     * Whether this entity is currently immune to a hit from {@code attackerPid}. Immune only to
+     * the attacker that opened the window; anyone else may land a hit on the same frame, which is
+     * what lets two players attack a mob simultaneously.
+     */
+    public boolean isInvincibleTo(int attackerPid) {
+        return invincible && invincibleOwnerPid == attackerPid;
+    }
     public int shotAvailableCounter = 0;
     int dyingCounter = 0;
     int hpBarCounter = 0;
@@ -719,6 +772,7 @@ public class Entity {
                 invincibleCounter++;
                 if (invincibleCounter > invincibleDuration) {
                     invincible = false;
+                    invincibleOwnerPid = -1;
                     invincibleCounter = 0;
                 }
             }
@@ -735,6 +789,7 @@ public class Entity {
                 invincibleCounter++;
                 if (invincibleCounter > invincibleDuration) {
                     invincible = false;
+                    invincibleOwnerPid = -1;
                     invincibleCounter = 0;
                 }
             }
@@ -753,7 +808,7 @@ public class Entity {
             }
         }
         if (rooted) {
-            if (invincible) { invincibleCounter++; if (invincibleCounter > invincibleDuration) { invincible = false; invincibleCounter = 0; } }
+            if (invincible) { invincibleCounter++; if (invincibleCounter > invincibleDuration) { invincible = false; invincibleOwnerPid = -1; invincibleCounter = 0; } }
             if (hitFlashCounter > 0) hitFlashCounter--;
             if (shotAvailableCounter < 30) shotAvailableCounter++;
             return;
@@ -850,6 +905,7 @@ public class Entity {
             invincibleCounter++;
             if (invincibleCounter > invincibleDuration) {
                 invincible = false;
+                invincibleOwnerPid = -1;
                 invincibleCounter = 0;
             }
         }

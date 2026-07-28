@@ -33,6 +33,11 @@ public final class BleMultiplayer {
         if (activeHost != null) activeHost.stop();
     }
 
+    /** See BleHostService#setOnHostingStarted, hosting's real success/failure arrives here. */
+    public static void setOnHostingStarted(Consumer<Boolean> listener) {
+        if (activeHost != null) activeHost.setOnHostingStarted(listener);
+    }
+
     public static void joinHost(Consumer<Boolean> onResult, Consumer<String> onMessage) {
         if (activeGuest != null) activeGuest.connect(onResult, onMessage);
         else onResult.accept(false);

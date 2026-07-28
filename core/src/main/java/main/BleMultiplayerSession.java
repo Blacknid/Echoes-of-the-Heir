@@ -29,12 +29,25 @@ import platform.BleMultiplayer;
  *                   U|id|x|y|dir|sprite|atk|life|maxLife (position/anim update for player id)
  *                   D|mobId|life|maxLife|dmg             (mob took damage)
  *                   K|mobId                              (mob died)
+ *                   M|mobId|x|y|dir|sprite               (mob position/anim, host-authoritative)
+ *                   T|mapId|col|row                      (teleport/map change, everyone follows)
  *                   F|reason                             (session ending / lobby full)
  *   guest -&gt; host:  H|token|name                        (join handshake, see BleGuestService)
  *                   U|x|y|dir|sprite|atk|life|maxLife    (this guest's own position/anim)
  *                   D|mobId|dmg                          (this guest hit a mob for dmg)
  *                   K|mobId                              (this guest killed a mob)
+ *                   R|mapId                              (request a map transition the guest walked into)
  * </pre>
+ *
+ * <h2>Mob authority</h2>
+ * The host owns mob AI outright. Guests do not run monster AI at all (see GamePanel.update's
+ * mobsAreRemote check) and instead render mobs as puppets driven by the host's "M" lines,
+ * interpolated with the same Hermite evaluator used for remote players. Before this, every client
+ * spawned and stepped its own copy of each monster, so the same mob stood in a different place on
+ * each screen and only its HP was ever reconciled, which is what made co-op combat feel broken.
+ * Damage stays host-authoritative as before: a guest reports a claimed hit ("D|mobId|dmg") and the
+ * host applies it to its own mob and broadcasts the resulting HP, so two guests hitting the same
+ * mob in the same frame both land, and only the blow that actually takes it to 0 kills it.
  * {@link entity.BossMonster}/{@link entity.BOSS_WitheredTree} spawn scaling reads
  * {@link #totalPlayerCount()}, see map.MapObjectLoader's boss-spawn hook.
  */
@@ -76,11 +89,17 @@ public class BleMultiplayerSession {
     // Host side
 
     /**
-     * Starts BLE hosting (GATT server + advertising). Returns false if BLE hosting isn't supported
- * on this device (permissions, adapter off/absent), see BleHostService#start. The guest finds
-     * this host via a BLE scan on BleProtocol.SERVICE_UUID (see BleGuestService's class doc for why
- * NOT a Bluetooth address, Android doesn't let apps read a real one), so nothing device-address
-     * -shaped needs to come back from this call for the NFC invite payload to be built.
+     * Starts BLE hosting (GATT server + advertising). The guest finds this host via a BLE scan on
+     * BleProtocol.SERVICE_UUID (see BleGuestService's class doc for why NOT a Bluetooth address,
+     * Android doesn't let apps read a real one), so nothing device-address-shaped needs to come
+     * back from this call for the NFC invite payload to be built.
+     *
+     * <p>A false return does NOT necessarily mean failure: advertising only starts once the GATT
+     * service registers asynchronously, and a missing Bluetooth permission makes the platform layer
+     * prompt and retry. Both resolve later via BleHostService#setOnHostingStarted, which is the
+     * authoritative success signal (ui.UI#toggleBleHosting listens for it and calls
+     * {@link #stopHosting()} to unwind this optimistically-set state if it reports failure). Only
+     * an unsupported/disabled adapter fails synchronously.
      */
     public boolean startHosting() {
         if (!platform.BleMultiplayer.isHostingSupported()) return false;
@@ -116,6 +135,7 @@ public class BleMultiplayerSession {
             case "U" -> handleGuestUpdate(guestSlot, p);
             case "D" -> handleGuestMobDamage(guestSlot, p);
             case "K" -> handleGuestMobDeath(guestSlot, p);
+            case "R" -> handleGuestMapRequest(guestSlot, p);
             default -> { /* unknown line, ignore */ }
         }
     }
@@ -254,12 +274,41 @@ public class BleMultiplayerSession {
                 if (p.length < 2) return;
                 applyMobDeath(parseIntSafe(p[1], -1), -2);
             }
+            case "M" -> {
+                if (p.length < 6) return;
+                applyMobTransform(parseIntSafe(p[1], -1), parseIntSafe(p[2], 0), parseIntSafe(p[3], 0),
+                        parseIntSafe(p[4], -1), parseIntSafe(p[5], -1));
+            }
+            case "T" -> {
+                if (p.length < 4) return;
+                // Host walked through a map transition, follow it so the party stays together.
+                // setDefaultValues is deliberately NOT called here (unlike the welcome path):
+                // this is a teleport mid-session, the guest keeps its stats and inventory.
+                gp.mapManager.changeMap(p[1], parseIntSafe(p[2], -1), parseIntSafe(p[3], -1));
+                java.util.Arrays.fill(lastMobPose, 0L); // new map, new mob slots, resend everything
+            }
             case "F" -> {
                 gp.ui.addMessage("Multiplayer session ended", new gfx.Color(220, 160, 140));
                 leaveHost();
                 if (!welcomed) onResult.accept(false);
             }
             default -> { /* ignore */ }
+        }
+    }
+
+    /**
+     * Called by map.EventHandler when the local player walks into a map transition during a BLE
+     * session. The host changes map and takes the party with it; a guest can't unilaterally move
+     * the session (mob ids are per-map and only mean the same thing to both phones while they're
+     * on the same map), so it asks the host instead and follows the resulting "T" line.
+     */
+    public void requestMapTransition(String mapId, int spawnCol, int spawnRow) {
+        if (mapId == null || mapId.isBlank()) return;
+        if (hosting) {
+            gp.mapManager.changeMap(mapId, spawnCol, spawnRow);
+            broadcastTeleport(mapId, spawnCol, spawnRow);
+        } else if (guesting) {
+            BleMultiplayer.guestSend("R|" + mapId);
         }
     }
 
@@ -289,10 +338,38 @@ public class BleMultiplayerSession {
             // own transform, guests render the host implicitly via remotePlayers on their side
             // once the host also broadcasts its own "U" line under a reserved id 0.
             BleMultiplayer.hostBroadcast("U|0|" + payload);
+            broadcastMobPositions();
         } else if (guesting) {
             BleMultiplayer.guestSend("U|" + payload);
         }
     }
+
+    /**
+     * Host-only: push every live mob's transform to the guests, who run no monster AI of their own
+     * (see class doc's "Mob authority"). Sent on the same throttle as player updates and only for
+     * mobs that actually moved or changed pose since the last send, since BLE's tiny payload makes
+     * a naive every-mob-every-tick broadcast the one thing most likely to saturate the link, a
+     * still mob costs nothing here.
+     */
+    private void broadcastMobPositions() {
+        if (lastMobPose.length < gp.monster.length) lastMobPose = new long[gp.monster.length];
+        for (int i = 0; i < gp.monster.length; i++) {
+            Entity mob = gp.monster[i];
+            if (mob == null || !mob.alive || mob.dying) continue;
+            long pose = ((long) mob.worldX << 24) ^ ((long) mob.worldY << 8)
+                    ^ ((long) mob.direction << 4) ^ mob.spriteNum;
+            if (lastMobPose[i] == pose) continue;
+            lastMobPose[i] = pose;
+            BleMultiplayer.hostBroadcast("M|" + i + "|" + mob.worldX + "|" + mob.worldY + "|"
+                    + mob.direction + "|" + mob.spriteNum);
+        }
+    }
+
+    /**
+     * Per-slot fingerprint of the last mob transform broadcast, see broadcastMobPositions. Sized
+     * from gp.monster itself so it can never fall short of the real slot count.
+     */
+    private long[] lastMobPose = new long[0];
 
     /** Call from Player's attack/ability code alongside the existing MultiplayerClient sync, see entity.Player. */
     public void sendMobDamage(int mobId, int damage, int currentLife, int maxLife) {
@@ -344,6 +421,60 @@ public class BleMultiplayerSession {
 
     private String line(String[] p, int fromIdx) {
         return String.join("|", java.util.Arrays.copyOfRange(p, fromIdx, p.length));
+    }
+
+    /**
+     * Guest-side: place a mob where the host says it is. Guests run no monster AI (see class doc),
+     * so this is the only thing that ever moves a mob on a guest's screen.
+     *
+     * <p>The position is applied to the mob's interpolation target rather than snapped straight
+     * onto worldX/worldY: "M" lines arrive on the same coarse throttle as player updates, and
+     * snapping at that cadence reads as visible teleporting. Entity carries the same spline fields
+     * RemotePlayerState uses, so the renderer eases between snapshots exactly as it does for
+     * remote players.
+     */
+    private void applyMobTransform(int mobId, int x, int y, int dir, int spriteNum) {
+        if (mobId < 0 || mobId >= gp.monster.length) return;
+        Entity mob = gp.monster[mobId];
+        if (mob == null || !mob.alive) return;
+        if (dir >= 0) mob.direction = dir;
+        if (spriteNum >= 0) mob.spriteNum = spriteNum;
+
+        // Mark it host-owned so GamePanel stops running local AI on it (see Entity#remoteControlled).
+        mob.remoteControlled = true;
+        mob.riStartX = mob.riReady ? mob.worldX : x;
+        mob.riStartY = mob.riReady ? mob.worldY : y;
+        mob.riEndX = x;
+        mob.riEndY = y;
+        mob.riStartNs = System.nanoTime();
+        mob.riDurationNs = 150_000_000L; // matched to SEND_INTERVAL's cadence, as for players
+        mob.riReady = true;
+    }
+
+    /**
+     * Host-only: a guest walked into a map transition and is asking the party to move. The host is
+     * the authority on which map the session is on, so it performs the change locally and then
+     * tells every guest (including the requester) to follow via broadcastTeleport.
+     */
+    private void handleGuestMapRequest(int guestSlot, String[] p) {
+        if (p.length < 2 || !hosting) return;
+        String mapId = p[1];
+        if (mapId.isBlank() || mapId.equals(hostMapId)) return;
+        gp.mapManager.changeMap(mapId, -1, -1);
+        broadcastTeleport(mapId, -1, -1);
+    }
+
+    /**
+     * Host-only: announce a map change so every guest loads the same map. Called both when the
+     * host itself walks through a transition (see map.EventHandler) and when it honours a guest's
+     * request. Keeps the whole party on one map, which the session's shared mob ids depend on:
+     * a "M|3|..." line means nothing if two phones disagree about which map slot 3 belongs to.
+     */
+    public void broadcastTeleport(String mapId, int spawnCol, int spawnRow) {
+        if (!hosting) return;
+        hostMapId = mapId;
+        java.util.Arrays.fill(lastMobPose, 0L); // new map, new mob slots, force a full resend
+        BleMultiplayer.hostBroadcast("T|" + mapId + "|" + spawnCol + "|" + spawnRow);
     }
 
     private void applyMobDamage(int mobId, int damage, int fromSlot) {

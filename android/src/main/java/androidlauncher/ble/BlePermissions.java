@@ -2,7 +2,6 @@ package androidlauncher.ble;
 
 import android.Manifest;
 import android.app.Activity;
-import android.content.SharedPreferences;
 import android.content.pm.PackageManager;
 import android.os.Build;
 
@@ -12,13 +11,30 @@ import android.os.Build;
  * ACCESS_FINE_LOCATION isn't needed (neverForLocation). Below API 31 these permissions are
  * normal (granted at install), so {@link #hasAll} is trivially true there, this app's minSdk is
  * 26, meaning no legacy pre-31 request path is needed either way.
+ *
+ * <h2>Why the request is callback-driven rather than fire-and-forget</h2>
+ * These are runtime permissions, so a denial (or a dialog the player swiped away) is a normal,
+ * recoverable state that must be re-askable at the moment BLE is actually needed. An earlier
+ * version asked exactly once ever, on first boot, latching a "already asked" flag in
+ * SharedPreferences <em>before</em> the dialog even resolved, and every later call was a no-op.
+ * If the player dismissed that one dialog, {@link #hasAll} stayed false permanently, so
+ * BleHostServiceImpl/BleGuestServiceImpl's isSupported() gates reported "BLE unsupported" forever
+ * and INVITE PLAYER / JOIN GAME silently did nothing on a device with perfectly working
+ * Bluetooth. {@link #ensureGranted} instead requests on demand and resumes the caller's action
+ * once the player responds, so a tap is never consumed and lost by a missing permission.
  */
 public final class BlePermissions {
     private BlePermissions() {}
 
     private static final int REQUEST_CODE = 4271;
-    private static final String PREFS_NAME = "ble_permissions";
-    private static final String KEY_ASKED_ON_BOOT = "asked_on_boot";
+
+    /**
+     * Action to resume once the player answers the permission dialog, see {@link #ensureGranted}.
+     * Static because the request/response round-trip goes through the Activity and can outlive a
+     * configuration change; cleared as soon as it fires so a later unrelated grant can't re-run it.
+     */
+    private static Runnable pendingOnGranted;
+    private static Runnable pendingOnDenied;
 
     static String[] required() {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
@@ -31,7 +47,7 @@ public final class BlePermissions {
         return new String[0];
     }
 
-    static boolean hasAll(Activity activity) {
+    public static boolean hasAll(Activity activity) {
         for (String p : required()) {
             if (activity.checkSelfPermission(p) != PackageManager.PERMISSION_GRANTED) {
                 return false;
@@ -48,18 +64,59 @@ public final class BlePermissions {
     }
 
     /**
- * Requests Bluetooth permissions once, the very first time the app is ever opened, so by the
-     * time a player actually taps INVITE PLAYER or JOIN GAME, the OS dialog is long out of the way
-     * and doesn't interrupt the tap moment itself. Safe to call every boot: the "already asked"
-     * flag (persisted in SharedPreferences, separate from Android's own permission grant state so
-     * this fires exactly once regardless of whether the player allowed or denied it) makes every
-     * call after the first a no-op.
+     * Runs {@code onGranted} immediately if the Bluetooth permissions are already held, otherwise
+     * shows the OS dialog and runs it when (and only when) the player grants them, running
+     * {@code onDenied} if they refuse. This is what lets INVITE PLAYER / JOIN GAME survive a
+     * first-ever tap on a device that hasn't granted Bluetooth yet: the action is deferred, not
+     * dropped. {@code onDenied} may be null if the caller has nothing to report.
+     *
+     * <p>Must be called from the UI thread (both call sites come from libGDX's render thread via
+     * the game's own menu handling, which is why the resume runnables are posted rather than run
+     * inline, see {@link #onRequestPermissionsResult}).
      */
-    public static void requestOnFirstBootIfNeeded(Activity activity) {
+    public static void ensureGranted(Activity activity, Runnable onGranted, Runnable onDenied) {
+        if (hasAll(activity)) {
+            onGranted.run();
+            return;
+        }
+        pendingOnGranted = onGranted;
+        pendingOnDenied = onDenied;
+        activity.runOnUiThread(() -> requestAll(activity));
+    }
+
+    /**
+     * Hook for AndroidLauncher#onRequestPermissionsResult: resolves whatever action was waiting on
+     * {@link #ensureGranted}. The resumed runnable is posted to libGDX's thread because it lands
+     * back in game state (BleMultiplayerSession/UI) that the render thread owns, matching the
+     * threading discipline BleHostServiceImpl/BleGuestServiceImpl apply to their own callbacks.
+     */
+    public static void onRequestPermissionsResult(int requestCode, int[] grantResults) {
+        if (requestCode != REQUEST_CODE) return;
+        Runnable granted = pendingOnGranted;
+        Runnable denied = pendingOnDenied;
+        pendingOnGranted = null;
+        pendingOnDenied = null;
+
+        boolean allGranted = grantResults.length > 0;
+        for (int result : grantResults) {
+            if (result != PackageManager.PERMISSION_GRANTED) {
+                allGranted = false;
+                break;
+            }
+        }
+
+        Runnable toRun = allGranted ? granted : denied;
+        if (toRun != null) com.badlogic.gdx.Gdx.app.postRunnable(toRun);
+    }
+
+    /**
+     * Pre-warms the Bluetooth permission dialog on app start so it's typically out of the way
+     * before the player's first host/join tap. Purely an optimization: unlike the old
+     * "ask once ever" latch this replaced, nothing depends on it succeeding, a denial here is
+     * fully recovered by {@link #ensureGranted} re-asking at the actual point of use.
+     */
+    public static void prewarm(Activity activity) {
         if (hasAll(activity)) return;
-        SharedPreferences prefs = activity.getSharedPreferences(PREFS_NAME, Activity.MODE_PRIVATE);
-        if (prefs.getBoolean(KEY_ASKED_ON_BOOT, false)) return;
-        prefs.edit().putBoolean(KEY_ASKED_ON_BOOT, true).apply();
         requestAll(activity);
     }
 }

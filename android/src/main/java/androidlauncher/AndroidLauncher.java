@@ -57,10 +57,12 @@ public class AndroidLauncher extends AndroidApplication {
         // owner-secret file was the only way to get a license here.
         ItchAuthProvider.set(new AndroidItchAuth(this));
 
-        // Ask for Bluetooth permissions once, the very first time the app is ever opened, so the
-        // OS dialog is long out of the way before the player's first actual host/join tap (see
-        // BlePermissions#requestOnFirstBootIfNeeded's class doc).
-        BlePermissions.requestOnFirstBootIfNeeded(this);
+        // Pre-warm the Bluetooth permission dialog so it's usually out of the way before the
+        // player's first host/join tap. Only an optimization now: INVITE PLAYER / JOIN GAME each
+        // re-ask on demand and resume themselves if it's still ungranted, so a denial here is
+        // recoverable (see BlePermissions#ensureGranted, and its class doc for the "asked once
+        // ever, then permanently disabled" bug this replaced).
+        BlePermissions.prewarm(this);
 
         checkNfcLaunch(getIntent());
 
@@ -82,6 +84,17 @@ public class AndroidLauncher extends AndroidApplication {
      * {@link AndroidItchAuth} for why that is a custom scheme rather than the desktop build's
      * loopback listener.
      */
+    /**
+     * Routes the Bluetooth permission dialog's outcome back to whatever host/join action was
+     * waiting on it (see BlePermissions#ensureGranted). Without this the deferred INVITE PLAYER /
+     * JOIN GAME action would never resume and the tap would be silently lost.
+     */
+    @Override
+    public void onRequestPermissionsResult(int requestCode, String[] permissions, int[] grantResults) {
+        super.onRequestPermissionsResult(requestCode, permissions, grantResults);
+        BlePermissions.onRequestPermissionsResult(requestCode, grantResults);
+    }
+
     @Override
     protected void onNewIntent(Intent intent) {
         super.onNewIntent(intent);

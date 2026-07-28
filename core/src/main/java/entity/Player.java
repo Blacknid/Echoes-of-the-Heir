@@ -610,13 +610,14 @@ public class Player extends Entity {
     private void applyShadowStepStrike() {
         for (int si = 0; si < gp.monster.length; si++) {
             Entity m = gp.monster[si];
-            if (m != null && m.alive && !m.dying && !m.invincible) {
+            if (m != null && m.alive && !m.dying && !m.isInvincibleTo(sessionPlayerId())) {
                 int sdx = Math.abs(getCenterX() - m.getCenterX());
                 int sdy = Math.abs(getCenterY() - m.getCenterY());
                 if (sdx < gp.tileSize * 2 && sdy < gp.tileSize * 2) {
                     int dmg = Math.max(1, (int)(attack * getTotalMeleeMultiplier()) - m.defense);
                     m.life -= dmg;
                     m.invincible = true;
+                    m.invincibleOwnerPid = sessionPlayerId();
                     m.hitFlashCounter = 6;
                     m.damageReaction();
                     spawnDamageNumber(m, dmg, false);
@@ -1367,9 +1368,20 @@ public class Player extends Entity {
     }
 
     // Combat methods
+    /**
+     * This player's id within the active multiplayer session, or -1 in single-player. Used to make
+     * monster i-frames per-attacker (see Entity#invincibleOwnerPid) so two players swinging at the
+     * same mob don't cancel each other's hits.
+     */
+    public int sessionPlayerId() {
+        if (gp.mpClient != null && gp.mpClient.isConnected()) return gp.mpClient.localId;
+        if (gp.bleSession != null && gp.bleSession.isActive()) return gp.bleSession.getLocalId();
+        return -1;
+    }
+
     public void damageMonster(int i, int attack) {        if (i != 999) {
             if (gp.monster[i].tryDodgeIncomingHit()) return;
-            if (!gp.monster[i].invincible) {
+            if (!gp.monster[i].isInvincibleTo(sessionPlayerId())) {
                 gp.playSE(SFX.MONSTER_HIT);
                 boolean isHeavy = (comboStep == 2);
                 float comboMultiplier = switch (comboStep) {
@@ -1424,6 +1436,7 @@ public class Player extends Entity {
                 }
 
                 gp.monster[i].invincible = true;
+                gp.monster[i].invincibleOwnerPid = sessionPlayerId();
                 gp.monster[i].damageReaction();
                 // Mana Siphon: restore 1 mana on melee hit
                 if (manaSiphonUnlocked && mana < maxMana) {
@@ -1513,10 +1526,11 @@ public class Player extends Entity {
             int dy = m.getCenterY() - getCenterY();
             if (dx * dx + dy * dy > radius * radius) continue;
 
-            if (!m.invincible) {
+            if (!m.isInvincibleTo(sessionPlayerId())) {
                 int damage = Math.max(1, (int)(attack * 0.9f * getTotalMeleeMultiplier()) - m.defense);
                 m.life -= damage;
                 m.invincible = true;
+                m.invincibleOwnerPid = sessionPlayerId();
                 m.hitFlashCounter = 6;
                 m.damageReaction();
                 applyRadialKnockback(m, 3);
@@ -1591,10 +1605,11 @@ public class Player extends Entity {
             m.applyCrowdControl(95);
             m.hitFlashCounter = 4;
 
-            if (!m.invincible) {
+            if (!m.isInvincibleTo(sessionPlayerId())) {
                 int damage = Math.max(1, (int)(attack * 0.45f) - m.defense / 2);
                 m.life -= damage;
                 m.invincible = true;
+                m.invincibleOwnerPid = sessionPlayerId();
                 spawnDamageNumber(m, damage, false);
                 if (m.life <= 0) {
                     killMonster(m);

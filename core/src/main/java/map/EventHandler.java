@@ -563,6 +563,16 @@ public class EventHandler {
         // exploration may have already populated with a different (non-server) copy.
         for (PixelEvent<MapTransition> pe : mapTransitions) {
             if (playerRect.intersects(pe.hitbox)) {
+                // BLE co-op: the host owns which map the session is on, so route the transition
+                // through the session rather than changing map locally. A host changes map and
+                // takes the guests with it; a guest asks the host. Without this a BLE player who
+                // walked through a door silently stayed put, since the branch below only ever
+                // handled the TCP path and single-player.
+                if (gp.bleSession != null && gp.bleSession.isActive()) {
+                    gp.bleSession.requestMapTransition(pe.data.mapId, pe.data.spawnCol, pe.data.spawnRow);
+                    touchConsumed();
+                    return;
+                }
                 if (gp.multiplayerMode) {
                     requestMultiplayerMapIfNeeded(pe.data.mapId);
                     continue;

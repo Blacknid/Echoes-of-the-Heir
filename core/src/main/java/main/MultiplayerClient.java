@@ -238,6 +238,8 @@ public class MultiplayerClient {
             sendPlayerState();
             sendProgressIfChanged();
         }
+        // Owner-only and self-throttled (see MOB_POS_INTERVAL); a no-op on every other client.
+        sendMobPositions();
     }
 
     /** Last progress payload sent, so we only re-send when something actually changed. */
@@ -583,10 +585,23 @@ public class MultiplayerClient {
             case "trigger" -> handleTrigger(json);
             case "map_change" -> {
                 String newMap = extractString(json, "map_id");
-                connectionStatus = "Server requested map change to '" + newMap
-                        + "' (cross-map transitions require reconnect).";
                 System.out.println("[MP Client] map_change -> " + newMap);
-                disconnect();
+                if (newMap == null || newMap.isBlank()) break;
+                // Actually change map. This used to call disconnect() instead, which meant walking
+                // through any door in multiplayer dropped you out of the session entirely rather
+                // than teleporting you — the server sent the map_change it was asked for and the
+                // client responded by hanging up. The server streams the target map's chunks (see
+                // MpMapStreamer), so the id resolves against the server's copy, not a stale local
+                // one, which is what the old comment was really guarding against.
+                int spawnCol = extractInt(json, "spawn_col", -1);
+                int spawnRow = extractInt(json, "spawn_row", -1);
+                connectionStatus = "Entering " + newMap + "…";
+                com.badlogic.gdx.Gdx.app.postRunnable(() -> {
+                    gp.mapManager.changeMap(newMap, spawnCol, spawnRow);
+                    // Mobs are per-map: drop the old map's puppets so stale slots can't be
+                    // re-animated by a late mob_pos for a monster that no longer exists here.
+                    for (Entity m : gp.monster) if (m != null) m.riReady = false;
+                });
             }
             case "player_join" -> {
                 int id = extractInt(json, "id", -1);
@@ -710,6 +725,18 @@ public class MultiplayerClient {
             }
             case "mob_damage" -> handleMobDamage(json);
             case "mob_death" -> handleMobDeath(json);
+            case "mob_owner" -> {
+                int owner = extractInt(json, "owner_pid", -1);
+                mobOwnerPid = owner;
+                // Becoming the owner means our local AI is now the session's source of truth for
+                // mob movement, so clear the puppet flag and let GamePanel step them again.
+                if (owner == localId) {
+                    for (Entity m : gp.monster) if (m != null) m.remoteControlled = false;
+                }
+                System.out.println("[MP Client] mob AI owner = player " + owner
+                        + (owner == localId ? " (us)" : ""));
+            }
+            case "mob_pos" -> handleMobPos(json);
             case "npc_spawn" -> handleNpcSpawn(json);
             case "npc_dialogue" -> handleNpcDialogue(json);
             case "npc_shop" -> handleNpcShop(json);
@@ -1140,6 +1167,108 @@ public class MultiplayerClient {
             sendEncrypted(msg);
         } catch (Exception e) {
             System.out.println("[MP Client] Error sending mob_death: " + e.getMessage());
+        }
+    }
+
+    /**
+     * The player id currently responsible for running mob AI, as told by the server's "mob_owner"
+     * message (lowest connected pid, see server.py's mob_owner_pid). -1 until the server says.
+     * Every other client renders mobs as puppets driven by that owner's "mob_pos" relays.
+     */
+    private volatile int mobOwnerPid = -1;
+
+    /** Whether this client is the one that should be stepping monster AI. */
+    public boolean ownsMobAi() { return mobOwnerPid >= 0 && mobOwnerPid == localId; }
+
+    /** Per-slot fingerprint of the last mob transform sent, so still mobs cost no bandwidth. */
+    private long[] lastMobPose = new long[0];
+    private int mobPosCounter = 0;
+    /** Mob positions go out at a fraction of the tick rate; monsters don't need player cadence. */
+    private static final int MOB_POS_INTERVAL = 4;
+
+    /**
+     * Owner-only: report every live mob's transform so other clients can render them in the same
+     * place. No-op on non-owners (and before the server has nominated one), which is what keeps
+     * exactly one client authoritative for mob movement. Called from the same place the local
+     * player's own position is sent, see GamePanel.update.
+     */
+    public void sendMobPositions() {
+        if (!connected.get() || !ownsMobAi()) return;
+        if (++mobPosCounter < MOB_POS_INTERVAL) return;
+        mobPosCounter = 0;
+        if (lastMobPose.length < gp.monster.length) lastMobPose = new long[gp.monster.length];
+
+        StringBuilder sb = new StringBuilder("{\"type\":\"mob_pos\",\"mobs\":[");
+        int n = 0;
+        for (int i = 0; i < gp.monster.length; i++) {
+            Entity mob = gp.monster[i];
+            if (mob == null || !mob.alive || mob.dying) continue;
+            long pose = ((long) mob.worldX << 24) ^ ((long) mob.worldY << 8)
+                    ^ ((long) mob.direction << 4) ^ mob.spriteNum;
+            if (lastMobPose[i] == pose) continue;   // unchanged since last send, skip
+            lastMobPose[i] = pose;
+            if (n++ > 0) sb.append(',');
+            sb.append("{\"mob_id\":").append(i)
+              .append(",\"x\":").append(mob.worldX)
+              .append(",\"y\":").append(mob.worldY)
+              .append(",\"dir\":").append(mob.direction)
+              .append(",\"sprite\":").append(mob.spriteNum).append('}');
+        }
+        if (n == 0) return;                          // nothing moved, don't send an empty list
+        sb.append("]}");
+        try {
+            sendEncrypted(sb.toString());
+        } catch (Exception e) {
+            System.out.println("[MP Client] Error sending mob_pos: " + e.getMessage());
+        }
+    }
+
+    /**
+     * Non-owner: place mobs where the owning client says they are. Eased rather than snapped (see
+     * Entity#stepRemoteInterp) because these arrive well below frame rate, and marked
+     * remoteControlled so GamePanel stops running local AI that would fight the incoming values.
+     */
+    private void handleMobPos(String json) {
+        try {
+            if (ownsMobAi()) return;                 // our own relay echoed back, ignore
+            int arrayStart = json.indexOf("\"mobs\"");
+            if (arrayStart < 0) return;
+            long now = System.nanoTime();
+            // Each entry is a flat {"mob_id":..,"x":..,"y":..,"dir":..,"sprite":..} object; walk
+            // them in order rather than pulling in a JSON parser, matching how the rest of this
+            // class reads messages (see extractInt's usage throughout).
+            int idx = arrayStart;
+            while ((idx = json.indexOf("{", idx + 1)) >= 0) {
+                int end = json.indexOf("}", idx);
+                if (end < 0) break;
+                String entry = json.substring(idx, end + 1);
+                idx = end;
+
+                int mobId = extractInt(entry, "mob_id", -1);
+                if (mobId < 0 || mobId >= gp.monster.length) continue;
+                Entity mob = gp.monster[mobId];
+                if (mob == null || !mob.alive) continue;
+
+                int x = extractInt(entry, "x", mob.worldX);
+                int y = extractInt(entry, "y", mob.worldY);
+                int dir = extractInt(entry, "dir", -1);
+                int sprite = extractInt(entry, "sprite", -1);
+                if (dir >= 0) mob.direction = dir;
+                if (sprite >= 0) mob.spriteNum = sprite;
+
+                mob.remoteControlled = true;
+                mob.riStartX = mob.riReady ? mob.worldX : x;
+                mob.riStartY = mob.riReady ? mob.worldY : y;
+                mob.riEndX = x;
+                mob.riEndY = y;
+                mob.riStartNs = now;
+                // Matched to MOB_POS_INTERVAL at the server's tick rate, so the ease lasts about
+                // exactly as long as the gap until the next snapshot.
+                mob.riDurationNs = 200_000_000L;
+                mob.riReady = true;
+            }
+        } catch (Exception e) {
+            System.out.println("[MP Client] Error handling mob_pos: " + e.getMessage());
         }
     }
 

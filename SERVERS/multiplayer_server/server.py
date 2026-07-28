@@ -1206,6 +1206,10 @@ class GameServer:
             "y": player.y,
         }, exclude_id=player.player_id)
 
+        # Settle who runs mob AI now this player is in. Sent to everyone (including the joiner,
+        # who needs to know whether to run AI or puppet its mobs) — see mob_owner_pid.
+        self._broadcast_mob_owner()
+
         try:
             while self._running:
                 try:
@@ -1252,6 +1256,9 @@ class GameServer:
 
                 elif t == "mob_death":
                     await self._handle_mob_death(client, msg)
+
+                elif t == "mob_pos":
+                    await self._handle_mob_pos(client, msg)
 
                 elif t == "progress_sync":
                     self._handle_progress_sync(client, msg)
@@ -1303,6 +1310,11 @@ class GameServer:
                 "type": "player_leave",
                 "id": player.player_id,
             })
+
+            # If the departing player was the mob-AI owner, ownership moves to the next-lowest id
+            # and that client must start stepping the mobs — otherwise every monster would freeze
+            # for everyone the moment the owner disconnected.
+            self._broadcast_mob_owner()
 
     async def tick_loop(self) -> None:
         interval = 1.0 / TICK_RATE
@@ -1448,6 +1460,75 @@ class GameServer:
         })
         log.info("Player %d hit cross-map trigger -> %s",
                  client.player.player_id, new_world.map_id)
+
+    # =====================================================================
+    #  MOB POSITION RELAY
+    # =====================================================================
+    #
+    # This server owns mob HP (via the Java engine) but has no mob AI of its own — monsters are
+    # spawned and stepped by the game's own code, which only runs on clients. So exactly one
+    # client is nominated "mob owner" and its mob positions are relayed to everyone else, who
+    # render those mobs as puppets (see Entity#remoteControlled on the Java side). Without this
+    # every client ran its own AI and the same monster stood somewhere different on each screen,
+    # with only its HP ever agreeing.
+    #
+    # The owner is simply the lowest connected player id, which is stable while that player stays
+    # connected and re-resolves deterministically the moment they leave — no election, no extra
+    # protocol, and every client can compute it independently from the player list it already has.
+
+    def mob_owner_pid(self) -> int:
+        """The player id currently responsible for running mob AI, or -1 if nobody is connected."""
+        return min(self.clients.keys(), default=-1)
+
+    def _broadcast_mob_owner(self) -> None:
+        """Tell everyone who owns mob AI now. Sent on join/leave, since that's the only thing that
+        can change the answer. The owner starts stepping AI and reporting positions; everyone else
+        switches their mobs to puppet mode."""
+        owner = self.mob_owner_pid()
+        if owner < 0:
+            return
+        self.broadcast_json({"type": "mob_owner", "owner_pid": owner})
+        log.info("Mob AI owner is now player %d", owner)
+
+    async def _handle_mob_pos(self, client: "ClientConnection", msg: dict) -> None:
+        """Relay a mob transform from the owning client to everyone else.
+
+        Ignored from any client that isn't the current owner, so a second client can't fight the
+        owner for control of where a monster stands. Positions are deliberately NOT validated
+        against the map here: mobs are engine/AI-driven rather than player-driven, so there's no
+        speed cap to enforce, and the anti-cheat surface that matters (how much damage a hit does,
+        whether a mob is dead, who gets the XP) is already handled authoritatively in
+        _handle_mob_damage / the Java engine.
+        """
+        if client.player.player_id != self.mob_owner_pid():
+            return
+
+        mobs = msg.get("mobs")
+        if not isinstance(mobs, list) or not mobs:
+            return
+
+        clean: list[dict] = []
+        for entry in mobs[:64]:                      # hard cap: never relay an unbounded list
+            if not isinstance(entry, dict):
+                continue
+            mob_id = clamp_int(entry.get("mob_id"), 0, 999, -1)
+            if mob_id < 0:
+                continue
+            clean.append({
+                "mob_id": mob_id,
+                "x": clamp_int(entry.get("x"), 0, 1_000_000, 0),
+                "y": clamp_int(entry.get("y"), 0, 1_000_000, 0),
+                "dir": clamp_int(entry.get("dir"), 0, 3, 0),
+                "sprite": clamp_int(entry.get("sprite"), 0, 16, 1),
+            })
+            state = self.mobs.get(mob_id)
+            if state is not None:
+                state.world_x = clean[-1]["x"]
+                state.world_y = clean[-1]["y"]
+
+        if clean:
+            self.broadcast_json({"type": "mob_pos", "mobs": clean},
+                                exclude_id=client.player.player_id)
 
     async def _handle_mob_damage(self, client: "ClientConnection", msg: dict) -> None:
         mob_id = clamp_int(msg.get("mob_id"), 0, 999, -1)
@@ -1811,9 +1892,15 @@ class GameServer:
             log.debug("Player %d requested unknown map '%s'", client.player.player_id, map_id)
             return
 
+        # Spawn coords come from the target map's own default spawn: the client teleports rather
+        # than reconnecting now (see MultiplayerClient's map_change case), so it needs somewhere to
+        # put the player. -1/-1 would leave it to the client's local copy of the map.
+        spawn_col, spawn_row = target_world.default_spawn
         client.send_json({
             "type": "map_change",
             "map_id": target_world.map_id,
+            "spawn_col": spawn_col,
+            "spawn_row": spawn_row,
             "reason": "map_request",
         })
         log.info("Player %d requested map -> %s", client.player.player_id, target_world.map_id)

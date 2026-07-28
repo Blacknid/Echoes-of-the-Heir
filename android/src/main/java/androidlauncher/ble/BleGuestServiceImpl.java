@@ -57,9 +57,14 @@ public class BleGuestServiceImpl implements BleGuestService {
         this.activity = activity;
     }
 
+    /**
+     * Deliberately does not require the runtime Bluetooth permissions to already be held, see
+     * BleHostServiceImpl#isSupported for the full reasoning: {@link #connect} requests them on
+     * demand and resumes, so gating here would permanently disable JOIN GAME for anyone who
+     * hadn't already granted Bluetooth.
+     */
     @Override
     public boolean isSupported() {
-        if (!BlePermissions.hasAll(activity)) return false;
         BluetoothManager bm = (BluetoothManager) activity.getSystemService(Activity.BLUETOOTH_SERVICE);
         BluetoothAdapter adapter = bm != null ? bm.getAdapter() : null;
         return adapter != null && adapter.isEnabled();
@@ -80,9 +85,17 @@ public class BleGuestServiceImpl implements BleGuestService {
                 com.badlogic.gdx.Gdx.app.postRunnable(() -> onMessage.accept(msg));
 
         if (!BlePermissions.hasAll(activity)) {
-            System.out.println("[BleGuest] connect ABORT: missing permissions");
-            BlePermissions.requestAll(activity);
-            safeOnResult.accept(false);
+            // Don't consume the join attempt: ask, then actually retry the connect once the player
+            // grants. Reporting false here (as this used to, immediately after firing off the
+            // request) threw away the tap that triggered it, so even a player who granted straight
+            // away saw "couldn't join" and had to re-tap the phones with no indication why.
+            System.out.println("[BleGuest] connect: missing permissions, requesting then retrying");
+            BlePermissions.ensureGranted(activity,
+                    () -> connect(onResult, onMessage),
+                    () -> {
+                        System.out.println("[BleGuest] connect ABORT: permissions denied");
+                        safeOnResult.accept(false);
+                    });
             return;
         }
         BluetoothManager bm = (BluetoothManager) activity.getSystemService(Activity.BLUETOOTH_SERVICE);

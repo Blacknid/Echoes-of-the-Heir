@@ -53,7 +53,13 @@ RUN mkdir -p /build/desktop /build/android \
 # is guarded by an exists() check and falls back to defaults, so its absence
 # here is harmless — the real value is baked in by the COPY below.
 COPY core/build.gradle /build/core/build.gradle
-RUN ./gradlew --no-daemon :core:dependencies --configuration runtimeClasspath -q > /dev/null
+# Output deliberately NOT silenced (-q > /dev/null). This step downloads the
+# Gradle distribution plus every runtime dependency into an empty container
+# cache, which takes minutes on a cold layer; with output discarded it shows as
+# a motionless spinner and is indistinguishable from a hang, which is exactly
+# how it was first misread. The console output makes progress visible and does
+# not change what gets cached.
+RUN ./gradlew --no-daemon :core:dependencies --configuration runtimeClasspath
 
 # Now the actual game sources.
 COPY core /build/core
