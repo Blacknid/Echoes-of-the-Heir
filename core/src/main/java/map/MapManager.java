@@ -77,6 +77,24 @@ public class MapManager {
     }
 
     /**
+     * Like {@link #registerMap} but returns whatever the id previously mapped to (or null),
+     * so a caller that's temporarily overriding an id, e.g. multiplayer streaming a server map
+     * over a single-player id, can put the original back afterward.
+     */
+    public String registerMapReturningPrevious(String id, String tmxPath) {
+        return mapRegistry.put(id, tmxPath);
+    }
+
+    /** Restore a registry entry, or remove it if {@code previousTmxPath} is null. */
+    public void restoreMapRegistryEntry(String id, String previousTmxPath) {
+        if (previousTmxPath != null) {
+            mapRegistry.put(id, previousTmxPath);
+        } else {
+            mapRegistry.remove(id);
+        }
+    }
+
+    /**
      * Auto-discover all .tmx map files in /res/maps/ and register them.
      * Map ID = filename without extension, lowercased (e.g. "Awakening_Cave.tmx" → "awakening_cave").
      * If the TMX has a map-level "mapId" property, that overrides the filename-derived ID.

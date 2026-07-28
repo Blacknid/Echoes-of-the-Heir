@@ -555,9 +555,18 @@ public class EventHandler {
             }
         }
 
-        // Map transitions checked last so gameplay events fire first
+        // Map transitions checked last so gameplay events fire first.
+        // In multiplayer the server is authoritative for map transitions: it detects the same
+        // trigger server-side (world.py _build_events) and sends "trigger" + "map_change", the
+        // latter forcing a reconnect to the target map's server. Firing changeMap() locally here
+        // too would load whatever TMX happens to be cached under that map id, which single-player
+        // exploration may have already populated with a different (non-server) copy.
         for (PixelEvent<MapTransition> pe : mapTransitions) {
             if (playerRect.intersects(pe.hitbox)) {
+                if (gp.multiplayerMode) {
+                    requestMultiplayerMapIfNeeded(pe.data.mapId);
+                    continue;
+                }
                 MapTransition mt = pe.data;
                 lastTriggerCol = pe.hitbox.x / gp.tileSize;
                 lastTriggerRow = pe.hitbox.y / gp.tileSize;
@@ -567,6 +576,20 @@ public class EventHandler {
                 return;
             }
         }
+    }
+
+    /**
+     * Multiplayer counterpart to the single-player startTransition() calls above: instead of
+     * loading a map locally, ask the server for it, so the server (authoritative for what maps
+     * actually exist and which one the trigger really points to) decides what happens next.
+     * Skips the request if this exact id is already streamed and cached from the server this
+     * session, walking back into an already-visited area shouldn't re-trigger a fetch.
+     */
+    private void requestMultiplayerMapIfNeeded(String targetMapId) {
+        if (targetMapId == null || targetMapId.isEmpty()) return;
+        if (gp.mpClient == null || !gp.mpClient.isConnected()) return;
+        if (gp.mpClient.mapStreamer.hasCachedServerMap(targetMapId)) return;
+        gp.mpClient.sendMapRequest(targetMapId);
     }
 
     // ---- Event Actions -------------------------------------------------------
@@ -613,6 +636,11 @@ public class EventHandler {
         // If this gate is permanently open, bypass all requirement checks
         if (gate.permanentOpen && gp.openedGates.contains(gate.gateId)) {
             if (!gate.targetMap.isEmpty()) {
+                // Server-authoritative in multiplayer, see the mapTransitions loop above.
+                if (gp.multiplayerMode) {
+                    requestMultiplayerMapIfNeeded(gate.targetMap);
+                    return false;
+                }
                 lastTriggerCol = gate.col;
                 lastTriggerRow = gate.row;
                 gp.mapManager.nextSpawnId = gate.spawnId != null ? gate.spawnId : "";
@@ -645,6 +673,11 @@ public class EventHandler {
             }
             // Pass through (optionally transition map)
             if (!gate.targetMap.isEmpty()) {
+                // Server-authoritative in multiplayer, see the mapTransitions loop above.
+                if (gp.multiplayerMode) {
+                    requestMultiplayerMapIfNeeded(gate.targetMap);
+                    return false;
+                }
                 lastTriggerCol = gate.col;
                 lastTriggerRow = gate.row;
                 gp.mapManager.nextSpawnId = gate.spawnId != null ? gate.spawnId : "";
@@ -682,6 +715,11 @@ public class EventHandler {
         int collected = (gp.memoryJournal != null) ? gp.memoryJournal.getCount() : 0;
         if (collected >= mg.requiredFragments) {
             if (mg.targetMap != null && !mg.targetMap.isEmpty()) {
+                // Server-authoritative in multiplayer, see the mapTransitions loop above.
+                if (gp.multiplayerMode) {
+                    requestMultiplayerMapIfNeeded(mg.targetMap);
+                    return false;
+                }
                 lastTriggerCol = mg.col;
                 lastTriggerRow = mg.row;
                 gp.mapManager.nextSpawnId = mg.spawnId != null ? mg.spawnId : "";

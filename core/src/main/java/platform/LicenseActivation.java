@@ -161,7 +161,7 @@ public final class LicenseActivation implements LicenseCheck {
      */
     public static String ensureActivated() {
         try {
-            return activate();
+            return activate(true);
         } finally {
             // In a finally so that NO exit path, early return, thrown exception, can leave a
             // caller blocked in awaitSettled() forever waiting for an answer that already came.
@@ -169,7 +169,34 @@ public final class LicenseActivation implements LicenseCheck {
         }
     }
 
-    private static String activate() {
+    /**
+     * Same as {@link #ensureActivated()} but never opens an itch.io sign-in browser.
+     *
+     * <p>For retries triggered by an in-game action rather than by boot. A LOGIN (this install
+     * already holds an activation) is a silent network round trip and still runs normally, which
+     * is the case worth retrying: it recovers from a save server that was briefly down at launch.
+     *
+     * <p>A first-ever ACTIVATE is what must not happen here. That path calls
+     * {@link ItchAuthProvider#tokenOrNull()}, which yanks the player into a browser and blocks up
+     * to three minutes — so tapping multiplayer on an install that never activated used to throw
+     * the player out of the game into an OAuth page mid-session. Boot is the only place allowed to
+     * start that flow; here we simply report that there is no license yet.
+     *
+     * @return the license key, or null if this install has no activation or the server is down.
+     */
+    public static String ensureActivatedNoPrompt() {
+        try {
+            return activate(false);
+        } finally {
+            SETTLED.countDown();
+        }
+    }
+
+    /**
+     * @param mayPrompt whether a missing license may start the blocking itch.io browser sign-in.
+     *                  False for in-game retries; see {@link #ensureActivatedNoPrompt()}.
+     */
+    private static String activate(boolean mayPrompt) {
         LicenseActivation m = INSTANCE;
         Properties existing = readLocal();
         String existingId = existing == null ? "" : existing.getProperty("activation_id", "").trim();
@@ -192,6 +219,14 @@ public final class LicenseActivation implements LicenseCheck {
             if (ownerSecret != null) {
                 itchToken = "ownerkey:" + ownerSecret;
                 System.out.println("[License] Using owner secret bypass — skipping itch.io OAuth.");
+            } else if (!mayPrompt) {
+                // Caller is an in-game retry, not boot. Activating would need the browser sign-in,
+                // which must never interrupt play — bail out with a player-facing reason instead of
+                // sending an ACTIVATE we already know the server's itch gate will refuse.
+                m.lastError = "This device isn't activated yet. Restart the game to sign in.";
+                System.out.println("[License] Not activated and prompting is disabled — "
+                        + "skipping the itch.io sign-in.");
+                return null;
             } else {
                 itchToken = ItchAuthProvider.tokenOrNull();
                 if (itchToken == null) {
