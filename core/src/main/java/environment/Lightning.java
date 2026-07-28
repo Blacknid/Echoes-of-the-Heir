@@ -242,8 +242,37 @@ public class Lightning {
     private void drawLight(GdxRenderer g2, int sx, int sy, int rad, Color tint, float strength) {
         if (rad <= 0) return;
         Sprite falloff = getFalloffTexture();
-        int d = rad * 2;
-        g2.drawImageTinted(falloff, sx - rad, sy - rad, d, d, tint, strength);
+        // Re-apply the dialogue camera's pan+zoom: see dlgX/dlgY/dlgRad's doc for why this pass has
+        // to redo it manually instead of inheriting it from the renderer's transform.
+        float x = dlgX(sx), y = dlgY(sy);
+        int   r = dlgRad(rad);
+        if (r <= 0) return;
+        int d = r * 2;
+        g2.drawImageTinted(falloff, Math.round(x - r), Math.round(y - r), d, d, tint, strength);
+    }
+
+    /**
+     * Re-applies the dialogue camera's pan+zoom (about screen center) to a raw screen-space light
+     * coordinate. The lighting pass (both the shader and legacy baked paths) runs from
+     * {@code EnvironmentManager.draw()}, which RenderPipeline calls AFTER it clears the dialogue
+     * zoom/pan (so ambient weather/vignette/particles stay screen-space) — so by the time a light's
+     * position is computed here, the renderer's own transform is already back to neutral. Without
+     * this, a light's hole/glow is punched at its PRE-zoom screen position while the scene it's
+     * supposed to sit on (the player, an NPC) was drawn pushed toward the pivot by the zoom, so the
+     * light reads as pinned to the screen instead of following whatever it belongs to (the bug: on a
+     * dark dialogue like the sword-tutorial NPC, the light doesn't track the player/NPC through the
+     * zoom-in).
+     */
+    private float dlgX(float sx) {
+        float x = sx + gp.dlgPanX;
+        return gp.dlgZoom != 1f ? gp.screenWidth / 2f + (x - gp.screenWidth / 2f) * gp.dlgZoom : x;
+    }
+    private float dlgY(float sy) {
+        float y = sy + gp.dlgPanY;
+        return gp.dlgZoom != 1f ? gp.screenHeight / 2f + (y - gp.screenHeight / 2f) * gp.dlgZoom : y;
+    }
+    private int dlgRad(float rad) {
+        return Math.round(gp.dlgZoom != 1f ? rad * gp.dlgZoom : rad);
     }
 
     // Signature of the inputs that determine tileIsLit/tileLightLevel. When unchanged frame-to-frame
@@ -714,8 +743,12 @@ public class Lightning {
                                float intensity, int screenW, int screenH) {
         if (count >= slx.length) return count;
         if (rad <= 0) return count;
+        // Cull in the PRE-dialogue-cam-transform bounds (cheap, and a light that's onscreen before the
+        // zoom is virtually always still onscreen after it, since the zoom pushes toward center).
         if (sx + rad < 0 || sx - rad > screenW || sy + rad < 0 || sy - rad > screenH) return count;
-        slx[count]  = sx;   sly[count] = sy;   srad[count] = rad;
+        // Re-apply the dialogue camera's pan+zoom: see dlgX/dlgY/dlgRad's doc (on drawLight) for why
+        // this pass has to redo it manually instead of inheriting it from the renderer's transform.
+        slx[count]  = dlgX(sx);   sly[count] = dlgY(sy);   srad[count] = dlgRad(rad);
         swx[count]  = worldX; swy[count] = worldY;
         sr[count]   = c.getRed()   / 255f;
         sg[count]   = c.getGreen() / 255f;
@@ -794,6 +827,19 @@ public class Lightning {
      */
     private void buildOccluderMask(GdxRenderer g2) {
         g2.beginOccluderMask();
+        // Reapply the dialogue camera's pan+zoom for these draws: beginOccluderMask's "reuse the live
+        // transform" (see its doc) assumes the transform still carries shake/dialogue pan/zoom, but
+        // this whole method runs from EnvironmentManager.draw(), which RenderPipeline calls AFTER it
+        // clears the dialogue zoom/pan (so ambient weather/vignette/particles stay screen-space) — so
+        // by now the live transform is already back to neutral. Without this, every silhouette lands
+        // at its PRE-zoom position while the light shadowing it now correctly tracks the zoom (see
+        // drawLight/addShaderLight's dlgX/dlgY), so shadows tear away from their casters / stay pinned
+        // to the screen during a zoomed-in dialogue — the same family of bug as the light position one.
+        boolean dlgCamActive = gp.dlgZoom != 1f || gp.dlgPanX != 0f || gp.dlgPanY != 0f;
+        if (dlgCamActive) {
+            g2.translate(gp.dlgPanX, gp.dlgPanY);
+            g2.setWorldZoom(gp.dlgZoom, gp.screenWidth / 2f, gp.screenHeight / 2f);
+        }
         // SCENERY SILHOUETTES: the walls / trees / rocks / props drawn as depth-sorted tiles are the
         // actual "things around", they cast shadows from their TEXTURES (the sprite's own alpha),
         // not from hitboxes. Flat background floor tiles are the ground the shadows land on, so they
@@ -814,6 +860,10 @@ public class Lightning {
             for (entity.Entity it : gp.iTile) {
                 if (it != null && it.castsShadow()) drawOccluderIfVisible(g2, it, gp.tileSize * 4);
             }
+        }
+        if (dlgCamActive) {
+            g2.clearWorldZoom();
+            g2.translate(-gp.dlgPanX, -gp.dlgPanY);
         }
         g2.endOccluderMask();
     }
