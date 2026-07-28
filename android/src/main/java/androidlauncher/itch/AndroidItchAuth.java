@@ -28,31 +28,50 @@ import platform.ItchAuthProvider;
  *       — the tab simply sits there doing nothing, which is exactly how the bug presented.</li>
  * </ul>
  *
- * <p>The supported Android mechanism is a custom URI scheme: itch redirects to
- * {@code michi://itch-auth}, the OS resolves that intent against the {@code BROWSABLE} filter on
- * {@code AndroidLauncher}, and the token is delivered straight into the app. Because the routing
- * is done by the <b>OS</b> and not by the browser, this is browser-agnostic by construction —
- * Chrome, Samsung Internet, Firefox, and any default-browser choice all behave identically. There
- * is no socket, no cleartext hop, and nothing listening in the background.
+ * <p><b>A custom scheme was tried and does not work either.</b> Redirecting to
+ * {@code michi://itch-auth} would be routed by the OS rather than the browser, which is sound in
+ * principle — but itch's OAuth application exposes a <i>single</i> "Authorization callback URL"
+ * field, and it is already spent on the desktop build's {@code http://127.0.0.1:34567/}. itch
+ * matches {@code redirect_uri} against that one value by exact string, so an unregistered custom
+ * scheme is refused with "Invalid URL" on the sign-in page before any redirect is issued, and the
+ * app sat waiting for a redirect that was never coming. Putting the custom scheme in the field
+ * instead would simply break desktop, which needs the loopback value.
  *
- * <p><b>The redirect URI must be registered on the itch OAuth application</b> (itch.io → Settings
- * → OAuth applications) alongside the desktop's existing {@code http://127.0.0.1:34567/}. itch
- * matches {@code redirect_uri} by exact string, so it must read exactly {@code michi://itch-auth},
- * and it must stay in sync with the {@code <data>} element in {@code AndroidManifest.xml}.
+ * <p>So Android uses {@code urn:ietf:wg:oauth:2.0:oob}, which itch honours <b>without</b>
+ * registration — its own documented fallback for the case where an app "was not able to listen on
+ * that address". itch displays the key instead of redirecting, and the player pastes it into the
+ * dialog raised by {@link #promptForPastedKey()}. The callback field therefore stays pointed at
+ * the desktop loopback and both platforms work off one unchanged setting. The cost is one manual
+ * paste, on first activation only: every later run is a silent LOGIN that never opens a browser.
  *
- * <p>itch returns the token in the URL <i>fragment</i>. The desktop flow needs a JS bootstrap page
- * to recover it, because a fragment is never sent to an HTTP server; here Android hands the whole
- * URI over intact, so {@link Uri#getFragment()} reads it directly and that workaround is gone.
+ * <p>The intent-redirect path in {@link #handleRedirect(Intent)} is left wired regardless. If a
+ * redirect ever does arrive it still wins the race and dismisses the dialog, so restoring the
+ * automatic flow later needs no code change here.
  *
  * @see platform.LicenseActivation#ensureActivated()
  * @see androidlauncher.AndroidLauncher#onNewIntent(Intent)
  */
 public final class AndroidItchAuth implements ItchAuthProvider {
 
-    /** Must match the redirect URI registered on the itch OAuth app, and the manifest filter. */
+    /**
+     * Out-of-band: itch shows the key on screen instead of redirecting anywhere.
+     *
+     * <p>NOT {@code michi://itch-auth}. itch's OAuth application has a single "Authorization
+     * callback URL" field and it holds the desktop build's {@code http://127.0.0.1:34567/}; itch
+     * matches redirect_uri against that one value by exact string, so the custom scheme was
+     * rejected with "Invalid URL" on the sign-in page itself. Pointing the field at the custom
+     * scheme instead would just move the breakage onto desktop. This constant needs no
+     * registration, so both platforms work off one unchanged setting.
+     */
+    private static final String REDIRECT_URI = "urn:ietf:wg:oauth:2.0:oob";
+
+    /**
+     * Kept for the intent-redirect path in {@link #handleRedirect(Intent)}, which still runs if a
+     * redirect ever does arrive (a scheme registered later, or a browser that honours it). Costs
+     * nothing to leave wired and means the automatic route needs no code change to switch back on.
+     */
     private static final String REDIRECT_SCHEME = "michi";
     private static final String REDIRECT_HOST   = "itch-auth";
-    private static final String REDIRECT_URI    = REDIRECT_SCHEME + "://" + REDIRECT_HOST;
 
     /** Same public client id the desktop build ships; a client id is not a secret. */
     private static final String CLIENT_ID = "00477f3fb217b3b7fc21fb520c5a65b3";
@@ -78,6 +97,9 @@ public final class AndroidItchAuth implements ItchAuthProvider {
     private static final ArrayBlockingQueue<String> RESULT = new ArrayBlockingQueue<>(1);
 
     private final Activity activity;
+
+    /** The paste dialog while it is on screen, so a redirect-completed sign-in can dismiss it. */
+    private volatile android.app.AlertDialog prompt;
 
     public AndroidItchAuth(Activity activity) {
         this.activity = activity;
@@ -118,9 +140,21 @@ public final class AndroidItchAuth implements ItchAuthProvider {
 
     @Override
     public String authorize() {
-        // Drop anything left over from an abandoned earlier attempt, so a stale DENIED can never
-        // instantly fail the sign-in the player just started.
-        RESULT.clear();
+        // Do NOT blanket-clear here. Android can kill this process while the browser is frontmost,
+        // in which case the redirect COLD-STARTS the game and AndroidLauncher.onCreate feeds the
+        // token in (see its handleRedirect(getIntent()) call) BEFORE MichiGame.create() starts the
+        // thread that lands here — so a valid token is already queued at this point. Clearing it
+        // threw that token away and opened the browser again, and since every retry died the same
+        // way the sign-in could never complete on a memory-constrained device.
+        //
+        // Drain exactly one entry instead and judge it: a real token means we are already done,
+        // while a stale DENIED from an abandoned earlier attempt is discarded (dropping it is the
+        // reason the clear() existed) so it cannot instantly fail the sign-in just started.
+        String pending = RESULT.poll();
+        if (pending != null && !DENIED.equals(pending)) {
+            System.out.println("[Itch] Token already delivered by the launch intent — signed in.");
+            return pending;
+        }
 
         String authUrl = "https://itch.io/user/oauth"
                 + "?client_id="    + enc(CLIENT_ID)
@@ -133,6 +167,14 @@ public final class AndroidItchAuth implements ItchAuthProvider {
             toast("No browser available for itch.io sign-in.");
             return null;
         }
+
+        // Show the paste box immediately, in parallel with the browser. It is the path that
+        // actually completes the sign-in under the OOB redirect (itch shows the key on screen and
+        // never redirects), but it does not preclude the automatic one: if a redirect DOES arrive
+        // — a future registered custom scheme, or a browser that honours it — RESULT is fed by
+        // handleRedirect and the wait below returns on its own, dismissing the dialog. Whichever
+        // route produces a token first wins, so this works no matter which itch honours.
+        promptForPastedKey();
 
         try {
             String token = RESULT.poll(AUTH_TIMEOUT_SECONDS, TimeUnit.SECONDS);
@@ -150,7 +192,70 @@ public final class AndroidItchAuth implements ItchAuthProvider {
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
             return null;
+        } finally {
+            dismissPrompt();
         }
+    }
+
+    /**
+     * Ask the player to paste the key itch showed them, and feed it into {@link #RESULT}.
+     *
+     * <p>Needed because itch's OAuth application has a SINGLE "Authorization callback URL" field,
+     * already spent on the desktop build's {@code http://127.0.0.1:34567/}. Sending an unregistered
+     * {@code michi://itch-auth} made itch reject the request outright with "Invalid URL" before any
+     * redirect happened, which is how this presented: a dead sign-in page and an app waiting on a
+     * redirect that was never issued. {@code urn:ietf:wg:oauth:2.0:oob} is honoured WITHOUT being
+     * registered — itch's own documented fallback for "you couldn't listen on the loopback address"
+     * — so Android uses it and the callback field stays pointed at the desktop loopback, untouched.
+     *
+     * <p>Posted to the UI thread and non-blocking: {@link #authorize()} keeps waiting on RESULT, so
+     * a redirect that arrives anyway still wins the race and dismisses this.
+     */
+    private void promptForPastedKey() {
+        activity.runOnUiThread(() -> {
+            try {
+                final android.widget.EditText input = new android.widget.EditText(activity);
+                input.setHint("Paste your itch.io key here");
+                input.setSingleLine(true);
+
+                android.app.AlertDialog dialog = new android.app.AlertDialog.Builder(activity)
+                        .setTitle("Sign in with itch.io")
+                        .setMessage("Your browser is showing an itch.io key. Copy it, then paste "
+                                + "it here to finish signing in.")
+                        .setView(input)
+                        .setCancelable(false)
+                        .setPositiveButton("Sign in", (d, which) -> {
+                            String key = input.getText().toString().trim();
+                            // offer(), never put(): RESULT is capacity-1 and a redirect may have
+                            // already filled it, in which case that token stands and this is a
+                            // no-op rather than a block on a full queue.
+                            RESULT.offer(key.isEmpty() ? DENIED : key);
+                        })
+                        .setNegativeButton("Cancel", (d, which) -> RESULT.offer(DENIED))
+                        .create();
+
+                prompt = dialog;
+                dialog.show();
+            } catch (RuntimeException e) {
+                // Activity going away mid-flow. Unblock authorize() rather than let it sit out the
+                // full timeout with no dialog on screen and no way for the player to proceed.
+                System.out.println("[Itch] Could not show the paste dialog: " + e);
+                RESULT.offer(DENIED);
+            }
+        });
+    }
+
+    /** Close the paste dialog if it is still up (a redirect completed the sign-in without it). */
+    private void dismissPrompt() {
+        activity.runOnUiThread(() -> {
+            android.app.AlertDialog d = prompt;
+            prompt = null;
+            try {
+                if (d != null && d.isShowing()) d.dismiss();
+            } catch (RuntimeException ignored) {
+                // Window already gone with the Activity; nothing to close.
+            }
+        });
     }
 
     /**

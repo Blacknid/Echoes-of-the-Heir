@@ -50,10 +50,27 @@ public class MpMapStreamer {
     /** GID flip bits live in the top 3 bits, matching {@code TileManager.GID_MASK}. */
     private static final long GID_MASK = 0x1FFFFFFFL;
 
+    /**
+     * Virtual-path prefix for server-streamed maps in {@link ResourceCache} / {@code
+     * MapManager.mapRegistry}, distinct from single-player's {@code /res/maps/<id>.tmx}. See
+     * {@link #applyWorldInfo}.
+     */
+    private static final String MP_MAP_PATH_PREFIX = "/res/maps/mp/";
+
     private final GamePanel gp;
     private final MultiplayerClient client;
 
     public volatile String mapId = "";
+
+    /**
+     * What {@code MapManager.mapRegistry.get(mapId)} pointed to before this streamer's
+     * {@code registerMap} overwrote it, or {@code null} if the id had no prior entry. Restored
+     * on {@link #reset()} so a single-player map visited earlier in the process, or a same-named
+     * map bundled with the client, isn't left permanently pointing at a stale MP virtual path
+     * after the multiplayer session ends.
+     */
+    private String previousRegistryEntry;
+    private String previousRegistryMapId;
     public volatile int worldTilesWide;
     public volatile int worldTilesHigh;
     public volatile int tileWidthPx;
@@ -114,6 +131,41 @@ public class MpMapStreamer {
         mapId = "";
         welcomeSpawnX = -1;
         welcomeSpawnY = -1;
+        // previousRegistryMapId/Entry deliberately NOT cleared here: applyWorldInfo() calls
+        // reset() at the start of every world_info (including re-applying the same session's
+        // map), and clearing them here would lose track of what to restore. They're only
+        // consumed by restoreMapRegistry(), called once the MP session actually ends.
+    }
+
+    /**
+     * Put the map registry entry this streamer overwrote back to whatever it was before (or
+     * remove it if there was none). Call once when the multiplayer session ends, so a
+     * single-player map of the same id, or one bundled with the client, isn't left pointing at a
+     * stale MP virtual path for the rest of the process.
+     */
+    public void restoreMapRegistry() {
+        if (previousRegistryMapId != null) {
+            gp.mapManager.restoreMapRegistryEntry(previousRegistryMapId, previousRegistryEntry);
+            previousRegistryMapId = null;
+            previousRegistryEntry = null;
+        }
+    }
+
+    /**
+     * True if {@code mapId} is already cached from a previous {@link #applyWorldInfo} this
+     * session, i.e. {@code MapManager.mapRegistry} points at our namespaced {@code
+     * /res/maps/mp/<id>.tmx} virtual path rather than a bundled single-player TMX or nothing at
+     * all. Callers use this to skip re-requesting a world the player already streamed in and
+     * has simply walked back into.
+     *
+     * <p>Deliberately does NOT accept a bare "the id is registered" check: a single-player TMX
+     * bundled under the same id would satisfy that and wrongly be treated as an up-to-date
+     * server copy, which is the exact bug this cache namespacing exists to prevent.
+     */
+    public boolean hasCachedServerMap(String mapId) {
+        if (mapId == null || mapId.isEmpty()) return false;
+        String registered = gp.mapManager.mapRegistry.get(mapId);
+        return registered != null && registered.startsWith(MP_MAP_PATH_PREFIX);
     }
 
     // World_info handler
@@ -147,9 +199,15 @@ public class MpMapStreamer {
         this.totalChunksExpected = layerNamesByIdx.size() * chunksX * chunksY;
 
         try {
-            // Stage 1: preload skeleton TMX into the resource cache under the
-            // standard path so the existing TileManager pipeline finds it.
-            String virtualPath = "/res/maps/" + mapId + ".tmx";
+            // Stage 1: preload skeleton TMX into the resource cache under a namespaced
+            // "/res/maps/mp/<id>.tmx" virtual path, distinct from single-player's
+            // "/res/maps/<id>.tmx". Both ResourceCache.xmlCache and MapManager.mapRegistry are
+            // plain in-memory maps keyed by this string, with no filesystem backing for the
+            // "mp/" prefix, so this never touches disk and can't collide with a same-named
+            // single-player map or a server owner's custom map of the same id. Without this,
+            // visiting a map in single-player first (or the id colliding with a bundled map)
+            // made changeMap() silently load the stale local TMX instead of the server's copy.
+            String virtualPath = MP_MAP_PATH_PREFIX + mapId + ".tmx";
             ResourceCache.invalidateXml(virtualPath);
             ResourceCache.preloadXml(virtualPath, info.skeletonXmlBytes);
 
@@ -158,7 +216,16 @@ public class MpMapStreamer {
             // local map. Tilesets reference relative paths inside the JAR,
             // so they resolve correctly because the virtual path matches the
             // single-player /res/maps/ layout.
-            gp.mapManager.registerMap(mapId, virtualPath);
+            // Remember whatever this id pointed to before (e.g. a bundled single-player TMX)
+            // so restoreMapRegistry() can put it back once this MP session ends; the server is
+            // single-world-per-process, so mapId is stable for the session and this only needs
+            // to capture the very first overwrite.
+            if (previousRegistryMapId == null) {
+                previousRegistryMapId = mapId;
+                previousRegistryEntry = gp.mapManager.registerMapReturningPrevious(mapId, virtualPath);
+            } else {
+                gp.mapManager.registerMap(mapId, virtualPath);
+            }
 
             // Caller (MultiplayerClient.handleWorldInfo) must invoke this via
             // Gdx.app.postRunnable, changeMap() loads tileset textures, which are GL calls

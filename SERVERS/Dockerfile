@@ -73,8 +73,17 @@ FROM python:3.12-slim AS runtime
 # A JRE is required too: the multiplayer server launches engine.jar as a
 # child process, and python:3.12-slim has no Java at all. headless-only, so
 # the JRE needs no X/GL libraries.
+#
+# 21, not 17, even though stage 1 compiles with JDK 17: python:3.12-slim
+# rebased onto Debian 13 (trixie), whose repos dropped openjdk-17 entirely and
+# offer openjdk-21 in its place, so the old line broke the build with "Package
+# 'openjdk-17-jre-headless' has no installation candidate". A newer JRE running
+# older bytecode is exactly the direction Java guarantees, so the engine.jar
+# built in stage 1 runs unmodified — do NOT "fix" this by bumping stage 1's
+# compiler to match, that would raise the class-file version and is the one
+# change that could actually break things.
 RUN apt-get update \
- && apt-get install -y --no-install-recommends tini openjdk-17-jre-headless \
+ && apt-get install -y --no-install-recommends tini openjdk-21-jre-headless \
  && rm -rf /var/lib/apt/lists/*
 
 # Python deps shared by all three servers.

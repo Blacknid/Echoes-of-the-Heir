@@ -568,6 +568,7 @@ class ClientConnection:
         self._queue: asyncio.Queue[bytes] = asyncio.Queue(maxsize=256)
         self._writer_task: Optional[asyncio.Task] = None
         self._chat_times: collections.deque = collections.deque()
+        self._last_map_request: float = 0.0
 
     def start_writer(self) -> None:
         self._writer_task = asyncio.create_task(self._writer_loop())
@@ -736,6 +737,15 @@ class GameServer:
     async def _persist_stats(self, player: PlayerState) -> None:
         record = player.stats_to_dict()
         record["progress"] = player.progress_to_dict()
+        # Where they were standing, so a device takeover (see _takeover_existing_session) can put
+        # the new device exactly where the old one left off instead of at the default spawn.
+        # Stats alone made the handover feel like a teleport back to the start of the map.
+        record["pos"] = {
+            "x": player.x,
+            "y": player.y,
+            "mapId": player.map_id,
+            "direction": player.direction,
+        }
         self._player_data[player.license_key] = record
         await self._save_player_data()
 
@@ -743,6 +753,81 @@ class GameServer:
         for pid, client in self.clients.items():
             if pid != exclude_id:
                 client.send_json(obj)
+
+    async def _takeover_existing_session(self, license_key: str) -> None:
+        """
+        Disconnect any session already playing on `license_key`, and flush its state first.
+
+        One license is one person, who may own both a phone and a desktop — but they are one
+        player and must never be in the world twice. The newest connection wins (the player is
+        physically at that device; refusing it would strand them behind a session they have
+        walked away from, with no way to reclaim it).
+
+        Ordering is the whole point: the old client's stats/position are persisted BEFORE this
+        returns, so the caller's _apply_saved_stats reads the state the player actually left,
+        not the stale record from their previous login. Doing it the other way round silently
+        rolls back everything earned in the old session.
+        """
+        if not license_key:
+            return  # unlicensed/dev connection — nothing to key a takeover on
+
+        stale = [c for c in self.clients.values()
+                 if c.player.license_key == license_key]
+        for client in stale:
+            log.info("License %s reconnected from a new device — taking over session for %s",
+                     license_key, client.player.name)
+            # Persist BEFORE closing: close() tears the connection down and the normal
+            # disconnect path may not have run yet, so relying on it would race the new
+            # session's load and lose whatever happened in the old one.
+            await self._persist_stats(client.player)
+            try:
+                client.send_json({
+                    "type": "kick",
+                    "reason": "Signed in on another device.",
+                })
+                await client.close()
+            except Exception:
+                log.debug("Takeover close failed for %s", client.player.name, exc_info=True)
+            self.clients.pop(client.player.player_id, None)
+            # Tell everyone else the old avatar is gone, otherwise it lingers as a ghost that
+            # never moves — the new session joins as a different player_id.
+            self.broadcast_json({"type": "leave", "id": client.player.player_id})
+            self.publish_event(
+                "session_takeover",
+                f"{client.player.name} was disconnected — signed in on another device",
+                severity=event_bus.INFO,
+                player=client.player.name, license_key=license_key,
+            )
+
+    def _restore_position(self, player: PlayerState) -> bool:
+        """
+        Put `player` back where this license last stood. Returns True if a position was restored.
+
+        Only trusts a saved position for the map the session is actually on: the record may
+        predate a map change, and dropping a player at another map's coordinates would put them
+        inside geometry. safe_spawn resolves the tile in either case.
+        """
+        saved = self._player_data.get(player.license_key) or {}
+        pos = saved.get("pos") or {}
+        if not pos or pos.get("mapId") != player.map_id:
+            return False
+        try:
+            x = float(pos["x"])
+            y = float(pos["y"])
+        except (KeyError, TypeError, ValueError):
+            return False
+        hb_w = int(self.cfg.get("player_hitbox_w", DEFAULT_HITBOX_W))
+        hb_h = int(self.cfg.get("player_hitbox_h", DEFAULT_HITBOX_H))
+        col, row = self.world.safe_spawn(
+            int(x // self.world.tilewidth), int(y // self.world.tileheight), hb_w, hb_h)
+        player.x = col * self.world.tilewidth
+        player.y = row * self.world.tileheight
+        player.last_valid_x = player.x
+        player.last_valid_y = player.y
+        # direction is the same 0..7 facing code the movement handler clamps (see the "dir"
+        # field on player updates) — clamped here too rather than trusted from the record.
+        player.direction = clamp_int(pos.get("direction"), 0, 7, player.direction)
+        return True
 
     async def is_banned(self, license_key: str) -> bool:
         async with self._bans_lock:
@@ -1048,6 +1133,11 @@ class GameServer:
         player.player_class = "".join(c for c in cls_raw if c.isalnum()) or "Fighter"
         player.map_id = self.active_map_id
 
+        # One license = one person = at most one live session. If they were already playing on
+        # another device, that session is closed and its state flushed HERE, before the loads
+        # below, so this device continues from where the other one actually left off.
+        await self._takeover_existing_session(player.license_key)
+
         spawn_col, spawn_row = self.world.default_spawn
         hb_w = int(self.cfg.get("player_hitbox_w", DEFAULT_HITBOX_W))
         hb_h = int(self.cfg.get("player_hitbox_h", DEFAULT_HITBOX_H))
@@ -1058,6 +1148,9 @@ class GameServer:
         player.last_valid_y = player.y
 
         self._apply_saved_stats(player)
+        # After stats, so map_id is settled; falls back to the default spawn above when this
+        # license has no usable saved position (first join, or a different map).
+        self._restore_position(player)
 
         client = ClientConnection(reader, writer, session_key, player)
         client.start_writer()
@@ -1180,6 +1273,9 @@ class GameServer:
 
                 elif t == "level_choice":
                     self._handle_level_choice(client, msg)
+
+                elif t == "map_request":
+                    self._handle_map_request(client, msg)
 
                 else:
                     log.debug("Unknown msg type from pid=%s: %s",
@@ -1690,6 +1786,37 @@ class GameServer:
             client.send_json({"type": "player_stats", **player.stats_to_dict()})
             log.debug("Rejected level_choice %r from %s (pending=%d)",
                       stat, player.name, player.pending_level_choices)
+
+    def _handle_map_request(self, client: "ClientConnection", msg: dict) -> None:
+        """
+        Client-initiated counterpart to _dispatch_trigger's server-detected map switch: fires
+        the instant the client's own collision check sees the player enter a map-transition/
+        level-gate/memory-gate trigger, instead of waiting for the server to independently
+        notice the same collision on its next move update. The server is still authoritative,
+        it resolves the requested id against its own map collection rather than trusting
+        whatever the client's local TMX happened to say, so a modified client asking for an
+        arbitrary id can't get anything the server wouldn't have sent anyway.
+        """
+        now = time.time()
+        if now - client._last_map_request < 1.0:
+            return  # cheap cooldown, a legitimate client only sends this on a fresh collision
+        client._last_map_request = now
+
+        map_id = str(msg.get("map_id", ""))[:64].lower().strip()
+        if not map_id or map_id == self.active_map_id:
+            return  # already here (or nothing requested), nothing to do
+
+        target_world = self.maps.get(map_id)
+        if target_world is None:
+            log.debug("Player %d requested unknown map '%s'", client.player.player_id, map_id)
+            return
+
+        client.send_json({
+            "type": "map_change",
+            "map_id": target_world.map_id,
+            "reason": "map_request",
+        })
+        log.info("Player %d requested map -> %s", client.player.player_id, target_world.map_id)
 
     def _handle_chunk_request(self, client: "ClientConnection", msg: dict) -> None:
         layer_idx = clamp_int(msg.get("layer_idx"), 0, len(self.world.layers) - 1, -1)

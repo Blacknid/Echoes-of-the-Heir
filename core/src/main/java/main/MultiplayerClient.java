@@ -116,11 +116,16 @@ public class MultiplayerClient {
                     // have finished yet, or it may have failed against a server that was briefly
                     // down. Either way this used to be a dead end: the player was told they had no
                     // license and given no way to get one short of restarting the game. Retry it
-                    // here instead. ensureActivated() is idempotent: it LOGINs with the stored
-                    // credentials if this install already has them, and only ever activates once.
+                    // here instead — a LOGIN with already-stored credentials is a silent round trip
+                    // and recovers exactly that transient-outage case.
+                    //
+                    // Deliberately the no-prompt variant: plain ensureActivated() would, on an
+                    // install that never activated, start the itch.io OAuth flow, throwing the
+                    // player out to a browser for up to three minutes because they tapped
+                    // multiplayer. Boot owns that flow; here we just report there's no license.
                     connectionStatus = "Checking your license...";
                     System.out.println("[MP Client] No license yet — retrying activation.");
-                    license = platform.LicenseActivation.ensureActivated();
+                    license = platform.LicenseActivation.ensureActivatedNoPrompt();
                     if (license != null && !license.isBlank()) Main.LICENSE_KEY = license;
                 }
 
@@ -211,7 +216,10 @@ public class MultiplayerClient {
         sessionKey = null;
         sendSeq.set(0);
         recvSeq.set(0);
-        if (mapStreamer != null) mapStreamer.reset();
+        if (mapStreamer != null) {
+            mapStreamer.restoreMapRegistry();
+            mapStreamer.reset();
+        }
         closeQuietly();
     }
 
@@ -344,6 +352,23 @@ public class MultiplayerClient {
             sendEncrypted("{\"type\":\"world_ready\"}");
         } catch (Exception e) {
             System.out.println("[MP Client] Error sending world_ready: " + e.getMessage());
+        }
+    }
+
+    /**
+     * Ask the server to switch the player onto {@code mapId}. Sent when the client detects a
+     * local collision with a map-transition/level-gate/memory-gate trigger and the target map
+     * id isn't already cached from this session (see MpMapStreamer.hasCachedServerMap). The
+     * server is authoritative for what the destination map actually is, resolves the id against
+     * its own map collection, and replies with a fresh world_info or a map_change reconnect, the
+     * client never assumes the local TMX's targetMap property is correct on its own.
+     */
+    public void sendMapRequest(String mapId) {
+        if (!connected.get() || mapId == null || mapId.isEmpty()) return;
+        try {
+            sendEncrypted("{\"type\":\"map_request\",\"map_id\":\"" + jsonEscape(mapId) + "\"}");
+        } catch (Exception e) {
+            System.out.println("[MP Client] Error sending map_request: " + e.getMessage());
         }
     }
 

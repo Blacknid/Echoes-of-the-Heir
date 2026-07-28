@@ -327,6 +327,48 @@ def init_db() -> None:
             CREATE UNIQUE INDEX IF NOT EXISTS idx_licenses_itch_user
             ON licenses (itch_user_id) WHERE itch_user_id IS NOT NULL
         """)
+        # One license, MANY activations — one row per device the player has signed in on.
+        #
+        # licenses.activation_id/enc_key_b64 used to be the only credentials, one pair per
+        # license, so a second device activating OVERWROTE them (create_license's UPDATE) and
+        # the first device's stored activation.dat stopped resolving: its next LOGIN got
+        # AUTH_FAIL. That was correct for the case it was written for — a reinstall, where
+        # re-keying deliberately retires the old install's credentials — but a phone and a
+        # desktop are indistinguishable from a reinstall at ACTIVATE time, so signing in on one
+        # locked the other out. The same person on two devices is not two accounts and must not
+        # have to re-activate in a loop.
+        #
+        # Splitting credentials out fixes that: each device gets its OWN activation row against
+        # the SAME license_key, so both keep working, and everything keyed off license_key
+        # (saves, username, friends) stays shared exactly as before. The columns on `licenses`
+        # are left in place and still written for the newest activation, purely so an older
+        # server binary pointed at this DB keeps resolving at least one device instead of
+        # failing outright.
+        con.execute("""
+            CREATE TABLE IF NOT EXISTS activations (
+                activation_id  TEXT    PRIMARY KEY,
+                license_key    TEXT    NOT NULL,
+                enc_key_b64    TEXT    NOT NULL,
+                created_at     TEXT    NOT NULL,
+                last_seen_at   TEXT,
+                FOREIGN KEY (license_key) REFERENCES licenses (license_key)
+            )
+        """)
+        con.execute("""
+            CREATE INDEX IF NOT EXISTS idx_activations_license
+            ON activations (license_key)
+        """)
+        # Migrate DBs written before the split: every existing license has exactly one
+        # credential pair living on its `licenses` row, and it must keep working. Copy each one
+        # into `activations` (INSERT OR IGNORE, so this is safe to re-run and a no-op once
+        # done). Without this every already-activated install would fail its next LOGIN.
+        con.execute("""
+            INSERT OR IGNORE INTO activations
+                (activation_id, license_key, enc_key_b64, created_at, last_seen_at)
+            SELECT activation_id, license_key, enc_key_b64, created_at, NULL
+            FROM licenses
+            WHERE activation_id IS NOT NULL AND enc_key_b64 IS NOT NULL
+        """)
         con.execute("""
             CREATE TABLE IF NOT EXISTS events (
                 id          INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -535,6 +577,23 @@ def create_license(itch_user_id: Optional[int] = None,
                     ).fetchone()
                     if row is not None:
                         try:
+                            # ADD a device, don't replace one. The previous version overwrote
+                            # licenses.activation_id here, which silently invalidated whatever
+                            # credentials the player's OTHER device held — sign in on the phone
+                            # and the desktop's next LOGIN returned AUTH_FAIL. Every device now
+                            # gets its own activations row against this same license_key, so
+                            # both keep working and the shared saves/username/friends (all keyed
+                            # by license_key) are untouched.
+                            con.execute(
+                                """INSERT INTO activations
+                                       (activation_id, license_key, enc_key_b64, created_at,
+                                        last_seen_at)
+                                   VALUES (?, ?, ?, ?, NULL)""",
+                                (activation_id, row[0], enc_key_b64, now),
+                            )
+                            # Mirror onto the license row as the "most recent" pair. Not what
+                            # resolve_activation reads any more — it is kept only so an older
+                            # server binary run against this DB still resolves this device.
                             con.execute(
                                 """UPDATE licenses SET activation_id = ?, enc_key_b64 = ?,
                                           itch_has_key = ?
@@ -556,6 +615,16 @@ def create_license(itch_user_id: Optional[int] = None,
                         (license_key, activation_id, enc_key_b64, now, itch_user_id,
                          1 if itch_has_key else 0),
                     )
+                    # This install's credentials, as the license's first activation row. Written
+                    # in the same transaction as the license itself so a license can never exist
+                    # with no way to log into it.
+                    con.execute(
+                        """INSERT INTO activations
+                               (activation_id, license_key, enc_key_b64, created_at,
+                                last_seen_at)
+                           VALUES (?, ?, ?, ?, NULL)""",
+                        (activation_id, license_key, enc_key_b64, now),
+                    )
                     con.commit()
                     return license_key, activation_id, enc_key
                 except sqlite3.IntegrityError:
@@ -568,15 +637,31 @@ def create_license(itch_user_id: Optional[int] = None,
 
 
 def resolve_activation(activation_id: str) -> Optional[tuple[str, bytes]]:
-    """Look up (license_key, enc_key) for a previously issued activation_id, or None."""
+    """
+    Look up (license_key, enc_key) for a previously issued activation_id, or None.
+
+    Reads `activations`, which holds one row per device, so every device the player has signed
+    in on resolves to the same license_key. The old query read licenses.activation_id, which
+    held only the most recent device's pair — that is exactly why activating on a phone made the
+    desktop's next LOGIN fail with AUTH_FAIL.
+    """
+    now = time.strftime("%Y-%m-%d %H:%M:%S", time.gmtime())
     with _db_lock:
         con = sqlite3.connect(str(DB_PATH))
         con.execute("PRAGMA journal_mode=WAL")
         try:
             row = con.execute(
-                "SELECT license_key, enc_key_b64 FROM licenses WHERE activation_id = ?",
+                "SELECT license_key, enc_key_b64 FROM activations WHERE activation_id = ?",
                 (activation_id,),
             ).fetchone()
+            if row is not None:
+                # Last-seen is what makes multi-device support auditable — without it there is
+                # no way to tell a legitimate second device from a leaked activation.dat.
+                con.execute(
+                    "UPDATE activations SET last_seen_at = ? WHERE activation_id = ?",
+                    (now, activation_id),
+                )
+                con.commit()
         finally:
             con.close()
     if row is None:

@@ -89,8 +89,15 @@ public class Sound {
             return;
         }
         if (MUSIC_SLOTS.contains(i)) {
-            // Switch streamed track.
-            if (currentMusic != null) { currentMusic.stop(); currentMusic.dispose(); currentMusic = null; }
+            // Switch streamed track. stop()/dispose() go through the same Android MediaPlayer
+            // state machine as stop() above and throw just as readily, so the old track is torn
+            // down defensively — a previous track that refuses to stop must not prevent the new
+            // one from loading, and must never take the GL thread down with it.
+            if (currentMusic != null) {
+                try { currentMusic.stop(); } catch (RuntimeException ignored) { }
+                try { currentMusic.dispose(); } catch (RuntimeException ignored) { }
+                currentMusic = null;
+            }
             try {
                 currentMusic = Gdx.audio.newMusic(fh);
                 currentMusic.setVolume(linearVolume());
@@ -111,9 +118,15 @@ public class Sound {
     public void play() {
         loopCurrent = false;
         if (currentMusic != null) {
-            currentMusic.setLooping(false);
-            currentMusic.setVolume(linearVolume());
-            currentMusic.play();
+            // Same MediaPlayer state-machine hazard as stop() — see its javadoc. Failing to start
+            // a track is a missing-music annoyance; throwing here kills the GL thread.
+            try {
+                currentMusic.setLooping(false);
+                currentMusic.setVolume(linearVolume());
+                currentMusic.play();
+            } catch (RuntimeException e) {
+                System.out.println("Sound: music play failed (" + e + ")");
+            }
         } else if (currentSfxSlot >= 0 && sfxCache[currentSfxSlot] != null) {
             long id = sfxCache[currentSfxSlot].play(linearVolume());
             float pitch = nextPitch(currentSfxSlot);
@@ -124,15 +137,41 @@ public class Sound {
     public void loop() {
         loopCurrent = true;
         if (currentMusic != null) {
-            currentMusic.setLooping(true);
-            currentMusic.setVolume(linearVolume());
-            currentMusic.play();
+            // See play()/stop(): guarded for the Android MediaPlayer state machine.
+            try {
+                currentMusic.setLooping(true);
+                currentMusic.setVolume(linearVolume());
+                currentMusic.play();
+            } catch (RuntimeException e) {
+                System.out.println("Sound: music loop failed (" + e + ")");
+            }
         }
         // (SFX are not looped in this game.)
     }
 
+    /**
+     * Stop the streamed track, tolerating a backend that objects to the request.
+     *
+     * <p>The null check alone is not enough on Android. libGDX's {@code AndroidMusic} wraps
+     * {@code android.media.MediaPlayer}, which is a state machine: {@code stop()} is only legal
+     * from Started/Paused/Stopped/PlaybackCompleted and throws {@link IllegalStateException}
+     * anywhere else. So a track that ended on its own, or was still preparing, has a non-null
+     * {@code currentMusic} whose {@code stop()} throws — and this runs on the GL thread (see
+     * GamePanel.update's title-music handling), so the exception killed the whole app. It showed
+     * up as a crash the moment a multiplayer world finished loading, because that is when the
+     * title track gets stopped. Desktop never reproduced it: OpenAL's stop() is a no-op in any
+     * state.
+     *
+     * <p>Stopping is best-effort by nature — the goal is "this track is not playing", and every
+     * state that rejects the call is already a state where it isn't.
+     */
     public void stop() {
-        if (currentMusic != null) currentMusic.stop();
+        if (currentMusic == null) return;
+        try {
+            currentMusic.stop();
+        } catch (RuntimeException e) {
+            System.out.println("Sound: music stop ignored (" + e + ")");
+        }
     }
 
     /** Map the 0..5 volumeScale to a 0..1 linear gain (mirrors the old dB curve, perceptually). */
@@ -146,7 +185,12 @@ public class Sound {
             case 5 -> 1f;
             default -> volume;
         };
-        if (currentMusic != null) currentMusic.setVolume(volume);
+        // Guarded like the rest of the streamed-track calls (see stop()): this one runs via
+        // linearVolume() on the render path, so an unguarded throw here is the most frequent
+        // chance of all to take down the GL thread.
+        if (currentMusic != null) {
+            try { currentMusic.setVolume(volume); } catch (RuntimeException ignored) { }
+        }
     }
 
     private float linearVolume() { checkVolume(); return volume; }
