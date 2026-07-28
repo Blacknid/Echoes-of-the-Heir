@@ -56,8 +56,9 @@ public class Projectile extends Entity implements Poolable {
                         gp.playSE(SFX.GOT_GEM);
                         int kb = Math.max(1, this.speed / 3);
                         gp.player.knockBack(gp.npc[npcIndex], kb, worldX, worldY);
-                        int damage = this.attack - gp.npc[npcIndex].defense;
-                        if (damage < 0) damage = 0;
+                        // Floor at 1: a 0 here would leave the Eye unkillable by projectiles
+                        // whenever its defense caught up with the projectile's attack.
+                        int damage = Math.max(1, this.attack - gp.npc[npcIndex].defense);
                         gp.npc[npcIndex].life -= damage;
                         if (user.projectile != null) {
                             generateParticle(user.projectile, gp.npc[npcIndex]);

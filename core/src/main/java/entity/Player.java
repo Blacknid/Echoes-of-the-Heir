@@ -254,10 +254,12 @@ public class Player extends Entity {
         dexterity = 1;
         exp = 0;
         nextLevelExp = 5;
-        coin = 1000;
+        coin = 0;
         maxMana = 3;
         mana = maxMana;
-        skillPoints = 100;
+        // The whole tree costs 45 points and each level-up grants +1, so the starting budget has
+        // to stay well under 45 or every node is unlockable at once and the build choices vanish.
+        skillPoints = 20;
         meleeDamageMultiplier = 1f;
         damageTakenMultiplier = 1f;
         dashUnlocked = false;
@@ -1384,8 +1386,10 @@ public class Player extends Entity {
                 // just out of range between swings, whiffing the follow-up with no visible cause.
                 kb = Math.min(kb, MAX_KNOCKBACK_POWER);
                 knockBack(gp.monster[i], kb, worldX, worldY);
-                int damage = effectiveAttack - gp.monster[i].defense;
-                if (damage < 0) damage = 0;
+                // Floor at 1, same rule the server's AuthoritativeMob applies. Allowing 0 here made
+                // any monster with defense >= attack unkillable, and made the client disagree with
+                // the authoritative server about the result of the very same hit.
+                int damage = Math.max(1, effectiveAttack - gp.monster[i].defense);
                 if (gp.monster[i].frontalArmor) {
                     int md = gp.monster[i].direction;
                     boolean isFrontalHit =
