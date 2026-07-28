@@ -5,4 +5,4 @@ vsync=On
 fpsTarget=60
 graphicsQuality=2
 stretchToFill=Off
-playerUsername=Blacknidd
+playerUsername=Andy

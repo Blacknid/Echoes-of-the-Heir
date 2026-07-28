@@ -18,15 +18,8 @@ public class EnvironmentManager {
     public float filterAlpha = 0f;
     public int dayCounter = 0;
 
-    /** Current darkness (0 = full day, up to 0.95 = full night/storm), updated each draw(). Other
-     *  systems (e.g. CloudLayer) read this to darken themselves to match the night ambiance instead
-     *  of staying at their flat daytime tint. */
     public float lastDarkness = 0f;
 
-    /**
-     * Dacă >= 0, suprascrie întunericul ciclului zi/noapte.
-     * Setat din proprietatea Tiled 'ambientLight'. Resetează la -1 pentru a reactiva ciclul.
-     */
     public float pinnedFilterAlpha = -1f;
     
     public final int dayDuration = 10800;      // 3 minute, timp * 60 (FPS) = cadre totale pentru ciclul zi/noapte
@@ -41,16 +34,14 @@ public class EnvironmentManager {
     public int weatherState = WEATHER_CLEAR;
     private int weatherTarget = WEATHER_CLEAR;
     public float weatherIntensity = 1f;
-    private static final float WEATHER_FADE_SPEED = 0.008f; // ~2 secunde pana la intensitate maxima
-    /** Dacă >= 0, vremea este fixată din Tiled și ciclul automat este dezactivat. */
+    private static final float WEATHER_FADE_SPEED = 0.008f;
     public int pinnedWeather = -1;
 
-    /** Dacă false, ciclul zi/noapte și cel meteo sunt dezactivate pe această hartă. */
     public boolean weatherCycleEnabled = true;
 
     // Ciclu meteo automat
     private int weatherTimer = 0;
-    private static final int WEATHER_CYCLE_MIN = 3600;  // 1 minut
+    private static final int WEATHER_CYCLE_MIN = 3600;  // 1 minu
     private static final int WEATHER_CYCLE_MAX = 7200;  // 2 minute
     private int nextWeatherChange;
 
@@ -148,10 +139,6 @@ public class EnvironmentManager {
         }
     }
 
-    /**
-     * Setează vremea după un sir de caractere (din proprietatile hartii Tiled).
-     * Valori acceptate: "CLEAR", "RAIN", "STORM", "SNOW" (insensibil la majuscule).
-     */
     public void setWeatherByName(String name) {
         switch (name.trim().toUpperCase()) {
             case "RAIN"  -> { pinnedWeather = WEATHER_RAIN;  setWeather(WEATHER_RAIN); }
@@ -161,10 +148,6 @@ public class EnvironmentManager {
         }
     }
 
-    /**
-     * Sare direct la o stare de timp a zilei, setata din proprietatile hartii Tiled.
-     * 0 = zi, 1 = asfintit, 2 = noapte, 3 = zori
-     */
     public void setTimeOfDay(int state) {
         dayState = Math.max(day, Math.min(dawn, state));
         switch (dayState) {
@@ -176,11 +159,6 @@ public class EnvironmentManager {
         dayCounter = 0;
     }
 
-    /**
-     * Resets all weather and day/night state to clear daytime defaults.
-     * Call this at the start of a New Game so no weather from a previous
-     * session bleeds through.
-     */
     public void reset() {
         setWeather(WEATHER_CLEAR);
         weatherState     = WEATHER_CLEAR;

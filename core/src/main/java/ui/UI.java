@@ -48,6 +48,7 @@ public class UI {
     private Sprite buttonPanelRaw; // loaded Button.png, or null → drawButton falls back to a vector button
     private Sprite selectedSlotIcon; // loaded selected.png, or null → inventory cursor falls back to the vector highlight
     private Sprite inventorySlotIcon; // loaded Slots.png, or null → inventory slots fall back to the vector background
+    private Sprite backArrowIcon; // loaded arrow_back.png, or null → every selected-row arrow (see drawSelectionArrow) falls back to no icon
 
     /** Whether the slot-selection cursor (inventory/shop) should be drawn this frame. False right
      *  after a menu opens or once the mouse leaves every slot with no keyboard/controller nav since
@@ -321,7 +322,7 @@ public class UI {
                 .button("Fighter",  () -> { gp.keyH.startNewGame(); gp.player.setPlayerStats(4, 2, 1, 4, 3); })
                 .button("Ronin",    () -> { gp.keyH.startNewGame(); gp.player.setPlayerStats(2, 3, 3, 5, 2); })
                 .button("Magician", () -> { gp.keyH.startNewGame(); gp.player.setPlayerStats(3, 1, 2, 5, 5); })
-                .item(MenuItem.button("← Back", () -> { titleScreenState = 0; commandNum = 0; gp.playSE(audio.SFX.MENU_SELECT); }).separator().centered());
+                .item(MenuItem.button("Back", () -> { titleScreenState = 0; commandNum = 0; gp.playSE(audio.SFX.MENU_SELECT); }).separator().centered());
         }
         return classMenu;
     }
@@ -796,6 +797,10 @@ public class UI {
 
             // Inventory slot background icon (optional; falls back to the vector slot background if absent).
             inventorySlotIcon = ResourceCache.loadImageIfPresent("/res/ui/Slots1.png");
+
+            // Back-row icon (optional; falls back to plain "Back" text if absent). Pixeloid Sans has
+            // no left-arrow glyph, so the class-select "Back" row used to silently draw a tofu box.
+            backArrowIcon = ResourceCache.loadImageIfPresent("/res/ui/arrow_back.png");
         } catch(Exception e) {
             System.out.println("Title background not found at /res/background.png, using default black background");
             e.printStackTrace();
@@ -1826,12 +1831,11 @@ public class UI {
             g2.setColor(cachedColor(120, 100, 60, 80));
             g2.drawLine(px + 30, py + 62, px + panelW - 30, py + 62);
 
-            // Class options, labels come from classMenu() (declared once); the icon/desc/color
+            // Class options, labels come from classMenu() (declared once); the desc/color
             // presentation stays here, keyed by row index. Item 3 is the "Back" row.
             java.util.List<MenuItem> classItems = classMenu().items();
             String[] classes = {classItems.get(0).label, classItems.get(1).label, classItems.get(2).label};
             String[] descs = {"High HP, Strong defense", "Fast attacks, High crit", "Powerful magic, High mana"};
-            String[] icons = {"\u2694", "\u2620", "\u2733"}; // swords, skull, asterisk
             Color[] classColors = {
                 cachedColor(220, 80, 60),
                 cachedColor(80, 180, 220),
@@ -1870,26 +1874,37 @@ public class UI {
                     g2.drawRoundRect(optX, oy, optW, optH, 12, 12);
                 }
 
-                g2.setFont(cachedFont(Font.PLAIN, 22F));
-                g2.setColor(sel ? classColors[i] : cachedColor(120, 110, 100));
-                g2.drawString(icons[i], optX + 18, oy + 28);
-
+                // No leading icon (was "⚔"/"☠"/"✳"): Pixeloid Sans has no glyph for any of them and
+                // drawString silently rendered a tofu box, same issue fixed elsewhere in this file.
+                // The colored border/left-accent bar above already marks the selected class.
                 g2.setFont(cachedFont(sel ? Font.BOLD : Font.PLAIN, 24F));
                 g2.setColor(sel ? Color.WHITE : cachedColor(170, 160, 145));
-                g2.drawString(classes[i], optX + 50, oy + 28);
+                g2.drawString(classes[i], optX + 20, oy + 28);
 
                 g2.setFont(cachedFont(Font.PLAIN, 14F));
                 g2.setColor(sel ? cachedColor(200, 190, 170) : cachedColor(120, 115, 105));
-                g2.drawString(descs[i], optX + 50, oy + 48);
+                g2.drawString(descs[i], optX + 20, oy + 48);
             }
 
             int backY = optY + 3 * (optH + 14) + 10;
             boolean backSel = (commandNum == 3);
             g2.setFont(cachedFont(Font.BOLD, 20F));
-            text = "\u2190 Back";
+            text = "Back";
             tw = cachedFM().stringWidth(text);
-            g2.setColor(backSel ? cachedColor(255, 220, 100) : cachedColor(120, 115, 105));
-            g2.drawString(text, px + (panelW - tw) / 2, backY);
+            Color backCol = backSel ? cachedColor(255, 220, 100) : cachedColor(120, 115, 105);
+            g2.setColor(backCol);
+            // Selection arrow instead of a leading "\u2190": see drawSelectionArrow's doc for why.
+            if (backSel && hasSelectionArrow()) {
+                int ascent = cachedFM().getAscent();
+                int peak = selectionArrowPeakSize(ascent);
+                int gap = 6;
+                int totalW = peak + gap + tw;
+                int startX = px + (panelW - totalW) / 2;
+                drawSelectionArrow(g2, startX + peak / 2, backY, ascent, backCol);
+                g2.drawString(text, startX + peak + gap, backY);
+            } else {
+                g2.drawString(text, px + (panelW - tw) / 2, backY);
+            }
             // Back hitbox spans the panel width, centered on the text baseline (matches its click area).
             classMenu().recordRect(optX, backY - 20, optW, 30);
 
@@ -1972,10 +1987,23 @@ public class UI {
 
             boolean backSel = (commandNum == 0);
             g2.setFont(cachedFont(Font.BOLD, 20F));
-            text = "\u2190 Back";
+            text = "Back";
             tw = cachedFM().stringWidth(text);
-            g2.setColor(backSel ? cachedColor(120, 180, 255) : cachedColor(100, 95, 85));
-            g2.drawString(text, px + (panelW - tw) / 2, py + panelH - 18);
+            int backTextY = py + panelH - 18;
+            Color updateBackCol = backSel ? cachedColor(120, 180, 255) : cachedColor(100, 95, 85);
+            g2.setColor(updateBackCol);
+            // Selection arrow instead of a leading "\u2190": see drawSelectionArrow's doc for why.
+            if (backSel && hasSelectionArrow()) {
+                int ascent = cachedFM().getAscent();
+                int peak = selectionArrowPeakSize(ascent);
+                int gap = 6;
+                int totalW = peak + gap + tw;
+                int startX = px + (panelW - totalW) / 2;
+                drawSelectionArrow(g2, startX + peak / 2, backTextY, ascent, updateBackCol);
+                g2.drawString(text, startX + peak + gap, backTextY);
+            } else {
+                g2.drawString(text, px + (panelW - tw) / 2, backTextY);
+            }
         }
         else if (titleScreenState == 3) {
             drawMultiplayerBrowser();
@@ -4859,6 +4887,53 @@ public class UI {
     Color cachedColorFor(int r, int g, int b, int a) { return cachedColor(r, g, b, a); }
     /** Shared slow UI pulse (0..1) so Menu animations stay in sync with the rest of the UI. */
     float uiPulse() { return fastPulse(animTick, 1); }
+
+    /** How far the selection arrow's size swings from neutral each pulse: 1±AMPLITUDE. */
+    private static final float ARROW_PULSE_AMPLITUDE = 0.18f;
+
+    /** Whether the selection-arrow asset loaded (see {@link #drawSelectionArrow}); callers that
+     *  reserve extra layout space for the icon should skip that reservation if this is false. */
+    boolean hasSelectionArrow() { return backArrowIcon != null; }
+
+    /** Neutral (un-pulsed) width/height an arrow drawn by {@link #drawSelectionArrow} will use for
+     *  a given font ascent. */
+    int selectionArrowSize(int ascent) { return Math.round(ascent * 0.8f); }
+
+    /** Widest the arrow ever gets, at the top of its pulse. Callers that center an icon+label unit
+     *  (e.g. a "Back" row) must reserve this much room, not the neutral size, so the breathing
+     *  animation never grows into the text. */
+    int selectionArrowPeakSize(int ascent) {
+        return Math.round(selectionArrowSize(ascent) * (1f + ARROW_PULSE_AMPLITUDE));
+    }
+
+    /**
+     * Shared selection-arrow indicator: every menu (declarative {@link Menu} rows and the handful
+     * of bespoke-drawn title screens) marks its selected/Back row with this image (arrow_back.png)
+     * instead of a "←"/"→" character, Pixeloid Sans has no arrow glyphs at all, so drawString
+     * silently rendered them as tofu boxes. Pulses by growing/shrinking around a fixed center point
+     * (not opacity) so it reads as an animated icon without ever drifting into neighboring text.
+     * {@code centerX}/{@code labelBaseline}+{@code ascent} anchor it the same way in every caller,
+     * so it lines up identically across every window.
+     */
+    void drawSelectionArrow(GdxRenderer g2, int centerX, int labelBaseline, int ascent, Color tint) {
+        drawPulsingArrow(g2, centerX, labelBaseline - ascent / 2, selectionArrowSize(ascent), tint);
+    }
+
+    /**
+     * Compact variant for the small fixed-width nudge next to a non-centered menu row's label: a
+     * fixed base size instead of one scaled off font ascent, since that nudge slot is a fixed few
+     * pixels wide regardless of the menu's font size (mirrors the vector triangle it replaced).
+     */
+    void drawCompactSelectionArrow(GdxRenderer g2, int centerX, int centerY, Color tint) {
+        drawPulsingArrow(g2, centerX, centerY, 11, tint);
+    }
+
+    private void drawPulsingArrow(GdxRenderer g2, int centerX, int centerY, int baseSize, Color tint) {
+        if (backArrowIcon == null) return;
+        float scale = 1f + ARROW_PULSE_AMPLITUDE * (2f * uiPulse() - 1f); // uiPulse() is 0..1 → sin is (2p-1)
+        int size = Math.round(baseSize * scale);
+        g2.drawImageTinted(backArrowIcon, centerX - size / 2, centerY - size / 2, size, size, tint, 1f);
+    }
 
     /** The original vector panel look; used as a fallback when UI.png is missing. */
     private void drawSubWindowVector(int x, int y, int width, int height) {
