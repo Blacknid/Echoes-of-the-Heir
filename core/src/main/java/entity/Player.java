@@ -1381,14 +1381,8 @@ public class Player extends Entity {
                 int kb = (currentWeapon != null) ? currentWeapon.knockBackPower / 2 : 1;
                 if (kb < 1) kb = 1;
                 if (isHeavy) kb = (int)(kb * 2.0f);
-                // Cap total knockback travel so a hit can never shove the target past the attack
-                // cone's own reach, otherwise spamming attacks on the same target could launch it
-                // just out of range between swings, whiffing the follow-up with no visible cause.
                 kb = Math.min(kb, MAX_KNOCKBACK_POWER);
                 knockBack(gp.monster[i], kb, worldX, worldY);
-                // Floor at 1, same rule the server's AuthoritativeMob applies. Allowing 0 here made
-                // any monster with defense >= attack unkillable, and made the client disagree with
-                // the authoritative server about the result of the very same hit.
                 int damage = Math.max(1, effectiveAttack - gp.monster[i].defense);
                 if (gp.monster[i].frontalArmor) {
                     int md = gp.monster[i].direction;

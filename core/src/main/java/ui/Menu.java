@@ -271,7 +271,6 @@ public class Menu {
         // Button background (nine-slice Button.png, or vector fallback).
         ui.drawButton(bx, by, bw, bh, theme, selected && it.enabled);
 
-        float pulse = ui.uiPulse();
         int textCy = by + bh / 2;
 
         // Label
@@ -284,16 +283,30 @@ public class Menu {
         else if (selected)      labelColor = theme.highlight2();
         else                    labelColor = ui.cachedColorFor(210, 200, 180, 235);
 
-        int labelX = it.centered
-                ? bx + bw / 2 - fm.stringWidth(it.label) / 2
-                : bx + 18;
+        int plainCenteredX = bx + bw / 2 - fm.stringWidth(it.label) / 2;
+        int labelX = it.centered ? plainCenteredX : bx + 18;
 
-        if (selected && it.enabled && !it.centered) {
-            // Right-pointing caret nudged by the shared UI pulse. Drawn as a real triangle, not a
-            // font glyph, Pixeloid Sans (this project's pixel font) has no arrow characters at all.
-            int nudge = (int) (pulse * 3);
-            g2.setColor(theme.highlight2());
-            g2.fillTriangle(GdxRenderer.TriangleDir.RIGHT, bx + 4 + nudge, labelBaseline - 10, 10, 12);
+        boolean showArrow = selected && it.enabled;
+        // Pulsing arrow icon marking the selected row (drawSelectionArrow's doc explains why an
+        // image is used instead of a "←"/"→" character). Centered rows (e.g. "Back") reserve room
+        // to their PEAK (not neutral) size so the breathing animation never grows into the label;
+        // non-centered rows use the small fixed-size compact variant that fits their tight gap.
+        int ascent = fm.getAscent();
+        int arrowGap = 6;
+        if (showArrow && it.centered && ui.hasSelectionArrow()) {
+            int peak = ui.selectionArrowPeakSize(ascent);
+            labelX = plainCenteredX + (peak + arrowGap) / 2;
+        }
+
+        if (showArrow) {
+            if (it.centered) {
+                int peak = ui.selectionArrowPeakSize(ascent);
+                int arrowCenterX = labelX - arrowGap - peak / 2;
+                ui.drawSelectionArrow(g2, arrowCenterX, labelBaseline, ascent, theme.highlight2());
+            } else {
+                int centerY = labelBaseline - ascent / 2;
+                ui.drawCompactSelectionArrow(g2, bx + 9, centerY, theme.highlight2());
+            }
         }
         g2.setColor(ui.cachedColorFor(0, 0, 0, 120));
         g2.drawString(it.label, labelX + 1, labelBaseline + 1);

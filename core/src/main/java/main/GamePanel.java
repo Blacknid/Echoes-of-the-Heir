@@ -454,8 +454,6 @@ public class GamePanel {
         new String[]{"Echo is one of the most feared Phantoms of this Realm," , "due to his teleportation moves and aggrive bites.", "He is the weakest brother.", "To this day, it's still unknown how many of his type are there.", "Also known as 'Echo, the Unseen'."},
         6, "Unknown", 5f);
 
-    // Rendering only, the server never calls drawCurrentState(), so it never needs the pipeline
-    // (which builds shaders and framebuffers, i.e. GL objects it has no context for).
     if (!Headless.isEnabled()) {
         renderPipeline = new RenderPipeline(this);
     }

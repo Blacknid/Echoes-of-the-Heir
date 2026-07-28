@@ -693,9 +693,11 @@ public class QuestManager {
                 g2.setStroke(STROKE_2);
 
                 // Quest Title
+                // No leading icon: Pixeloid Sans has no glyph for it and drawString silently
+                // rendered it as an empty box (same issue fixed for the section headers above).
                 g2.setFont(fontPlain20);
                 g2.setColor(TEXT);
-                g2.drawString("\u2694  " + q.name, x + PADDING + 12, qy);
+                g2.drawString(q.name, x + PADDING + 12, qy);
 
                 qy += 6;
 
@@ -703,9 +705,8 @@ public class QuestManager {
                 if (!objLines.isEmpty()) {
                     g2.setFont(fontPlain14b);
                     g2.setColor(OBJECTIVE_COLOR);
-                    for (int li = 0; li < objLines.size(); li++) {
-                        String prefix = li == 0 ? "\u2192  " : "    ";
-                        g2.drawString(prefix + objLines.get(li), x + PADDING + 20, qy + 14);
+                    for (String objLine : objLines) {
+                        g2.drawString(objLine, x + PADDING + 20, qy + 14);
                         qy += 18;
                     }
                     qy += 4;
@@ -752,7 +753,7 @@ public class QuestManager {
                 if (!q.isComplete()) continue;
                 g2.setFont(fontPlain16);
                 g2.setColor(DONE_TEXT);
-                g2.drawString("\u2714  " + q.name, x + PADDING + 14, qy);
+                g2.drawString(q.name, x + PADDING + 14, qy);
                 qy += 28;
             }
         }
