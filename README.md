@@ -110,11 +110,17 @@ Jocul suportă mod-uri scrise în **Lua** (via LuaJ), încărcate automat dintr-
 
 ---
 
-## Componente care nu au fost realizate de autori
-
-1. Sprite-urile/Tileset-urile din `/res/bosses`, `/res/consumables`, `/res/fonts`, `/res/monster`, `/res/NPC`, `/res/objects`, `/res/quest_items`, `/res/shields`, `/res/tiles` au fost preluate de pe site-ul [craftpix.net](https://craftpix.net/), folosind o licență de utilizare indie/comercială.
-2. Sunetele din `/res/sound`, cu excepția folderelor `/piano_soundtrack` și `/Soundtracks`.
-3. Biblioteca `jbsdiff-1.0.jar`, preluată din proiectul [jbsdiff](https://github.com/malensek/jbsdiff).
+##Resurse preluate
+-libraria jbsdiff (http://github.com/malensek/jbsdiff)
+-totul din /core/assets/res in afara de: -/data
+                                         -/effects
+                                         -/environment
+                                         -/maps
+                                         -/player
+                                         -/shaders
+                                         -/ui in afara de /ui/android
+                                         -background.png
+                                         -background_royal.png
 
 ---
 
@@ -149,6 +155,8 @@ Documentație tehnică detaliată, în limba română, se găsește în [`core/g
 - [`SERVERS/patch_server/PATCH_SERVER.md`](SERVERS/patch_server/PATCH_SERVER.md) — funcționarea internă a serverului de patch-uri
 
 ---
+
+
 
 ## Declarație
 
